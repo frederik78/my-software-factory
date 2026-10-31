@@ -202,6 +202,10 @@ verifier "wrapper ./gradlew détecté" 0 "Tests : Ran 2 tests" scripts/verify-cl
 rm gradlew
 echo 'echo "$#" > args.txt && cat args.txt && echo "Ran 5 tests in 0s"' > .factory-verify
 verifier "syntaxe shell (&&) acceptée, arguments transmis" 0 "Ran 5 tests" scripts/verify-clean.sh -- -a -b
+echo 'echo "  ok   un cas"; echo "TESTS OK : 142 vérifications"' > .factory-verify
+verifier "résumé de la suite de la factory reconnu (succès)" 0 "^Tests : TESTS OK : 142 vérifications$" scripts/verify-clean.sh
+echo 'echo "TESTS EN ECHEC : 2 sur 145"; exit 1' > .factory-verify
+verifier "résumé de la suite de la factory reconnu (échec)" 1 "^Tests : TESTS EN ECHEC : 2 sur 145$" scripts/verify-clean.sh
 git add -A >/dev/null 2>&1
 unset TMPDIR
 
@@ -335,6 +339,21 @@ for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/wor
   [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(grep -c 'branches:' "$ci")" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : ${ci#"$factory"/../}" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
 done
 
+# [A05] Aucune étape actions/checkout ne laisse le jeton dans .git/config : persist-credentials: false (aucun job ne pousse).
+for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/workflows/ci.yml; do
+  bilan="$(awk '
+    /^ *$/ { next }
+    /- uses: actions\/checkout@/ { if (dans && !vu) manque++; n++; dans = 1; vu = 0; ind = index($0, "-"); next }
+    dans { match($0, /[^ ]/); if (RSTART <= ind) { if (!vu) manque++; dans = 0 } else if ($0 ~ /^ +persist-credentials: false$/) vu = 1 }
+    END { if (dans && !vu) manque++; print n + 0, manque + 0 }' "$ci")"
+  [ "${bilan% *}" -gt 0 ] && [ "${bilan#* }" -eq 0 ] && ok "CI : chaque actions/checkout a persist-credentials: false : ${ci#"$factory"/../}" || ko "CI : persist-credentials: false sur chaque checkout : $ci" "étapes checkout / sans l'option : $bilan"
+done
+
+echo "Mise à jour d'un projet sans Claude Code"
+grep -q '\./factory/init-projet\.sh --sans-claude' "$factory/UPGRADE.md" && ok "UPGRADE.md : relancer init-projet.sh --sans-claude pour un projet sans Claude Code" || ko "UPGRADE.md cite init-projet.sh --sans-claude"
+migration_170="$(awk '/^## 1\.7\.0$/ { dans = 1; next } dans && /^## / { exit } dans && /^- Migration/ { print }' "$factory/CHANGELOG.md")"
+printf '%s' "$migration_170" | grep -q 'init-projet\.sh --sans-claude' && ! printf '%s' "$migration_170" | grep -q 'sync\.sh --claude' && ok "CHANGELOG 1.7.0 : migration avec init-projet.sh --sans-claude, sans le conseil sync.sh --claude" || ko "CHANGELOG 1.7.0 : ligne Migration" "$migration_170"
+
 echo "CI et vérification de ce dépôt (racine)"
 ci_racine="$factory/../.github/workflows/ci.yml"
 ! grep -qE 'mvnw|setup-java|NVD|maven' "$ci_racine" && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(grep -nE 'mvnw|setup-java|NVD|maven' "$ci_racine" | head -3 | tr '\n' '|')"
@@ -351,9 +370,20 @@ git init -q .; export HOME="$p/home"; mkdir -p "$HOME"
 [ -f docs/lessons.md ] && [ -f docs/issues/_template.md ] && ok "init : docs/lessons.md et docs/issues/_template.md créés" || ko "init : docs/lessons.md et docs/issues/_template.md créés"
 [ ! -e docs/lecons.md ] && [ ! -e docs/issues/_modele.md ] && ok "init : aucun ancien nom créé" || ko "init : aucun ancien nom créé"
 anciens='lecons|_modele|LECONS|DEMARRER-UN-PROJET|MISE-A-JOUR'
-# Les anciens noms ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
-restes="$(git -C "$factory/.." grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
+# restes_anciens_noms <dossier> : lignes citant un ancien nom ; ils ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
+restes_anciens_noms() {
+  git -C "$1" grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>&1
+}
+restes="$(restes_anciens_noms "$factory/.." | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "aucun ancien nom de fichier .md dans le dépôt (hors CHANGELOG, migration et test)" || ko "aucun ancien nom de fichier .md dans le dépôt" "$restes"
+# Mutation : la vérification doit aussi mordre hors dépôt git (copie de verify-clean.sh, donc la CI), avec les mêmes exclusions.
+copie_sans_git="$(mktemp -d "$racine_tmp/s.XXXXXX")"; mkdir -p "$copie_sans_git/factory/scripts/tests" "$copie_sans_git/docs"
+for exclu in factory/CHANGELOG.md factory/init-projet.sh factory/scripts/tests/run.sh; do echo "docs/lecons.md" > "$copie_sans_git/$exclu"; done
+[ -z "$(restes_anciens_noms "$copie_sans_git")" ] && ok "hors dépôt git : CHANGELOG, init-projet.sh et run.sh restent exclus" || ko "hors dépôt git : exclusions" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
+echo "voir docs/lecons.md" > "$copie_sans_git/docs/README.md"
+restes_anciens_noms "$copie_sans_git" | grep -q '^docs/README.md:1:voir docs/lecons.md$' && ok "hors dépôt git : un ancien nom est détecté (pas de vérification à vide)" || ko "hors dépôt git : un ancien nom est détecté" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
+git -C "$copie_sans_git" init -q && git -C "$copie_sans_git" add -A
+restes_anciens_noms "$copie_sans_git" | grep -q '^docs/README.md:1:voir docs/lecons.md$' && ok "dépôt git : un ancien nom suivi est détecté" || ko "dépôt git : un ancien nom suivi est détecté" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
 [ -f "$factory/LESSONS.md" ] && [ -f "$factory/START-A-PROJECT.md" ] && [ -f "$factory/UPGRADE.md" ] && ok "factory/LESSONS.md, START-A-PROJECT.md et UPGRADE.md existent" || ko "fichiers de factory/ renommés"
 p="$(mktemp -d "$racine_tmp/m.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
 git init -q .; mkdir -p docs/issues; echo "mes leçons" > docs/lecons.md; echo "mon modèle" > docs/issues/_modele.md

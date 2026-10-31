@@ -1,5 +1,6 @@
 # Une seule commande de vérification, portable vers GitLab CI, Forgejo, etc.
 # Les actions sont épinglées par empreinte de commit (le commentaire donne l'étiquette) ; Dependabot (github-actions) met les deux à jour.
+# Chaque checkout a persist-credentials: false : aucun job ne pousse, le jeton ne reste donc pas dans .git/config (gitleaks lit l'historique déjà récupéré et reçoit GITHUB_TOKEN par env).
 name: ci
 on:
   push:
@@ -15,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
@@ -28,6 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
@@ -41,6 +45,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: env.NVD_API_KEY != ''
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         if: env.NVD_API_KEY != ''
         with:

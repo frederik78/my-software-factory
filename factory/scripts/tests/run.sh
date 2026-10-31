@@ -134,6 +134,20 @@ err="$(scripts/tableau-de-bord.sh --sortie absent/x.html 2>&1 >/dev/null)"; code
 { [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $PWD/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
 rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
 verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
+droits() { ls -l "$1" | cut -c1-10; }
+rm -f tableau-de-bord.html; (umask 022 && scripts/tableau-de-bord.sh >/dev/null)
+[ "$(droits tableau-de-bord.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits tableau-de-bord.html)"
+rm -f tableau-de-bord.html; (umask 027 && scripts/tableau-de-bord.sh >/dev/null)
+[ "$(droits tableau-de-bord.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits tableau-de-bord.html)"
+# Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
+cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
+printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
+rm -f generation-en-cours; scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
+kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+restes="$(ls tableau-de-bord.html.* 2>/dev/null)"
+[ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
+cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours tableau-de-bord.html*
 
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -224,7 +238,7 @@ d="$(depot_sync s-avec)"; cd "$d" || exit 1; touch CLAUDE.md
 rm -rf .claude; ./factory/sync-claude.sh >/dev/null 2>&1; ln -sfn ../factory/skills .agents/skills; instantane "$d" > "$d/apres-claude.txt"
 [ -s "$d/apres-sync.txt" ] && cmp -s "$d/apres-sync.txt" "$d/apres-claude.txt" && grep -q '^F .claude/agents/developer.md' "$d/apres-sync.txt" && grep -q '^L .claude/skills' "$d/apres-sync.txt" && ok "sync.sh avec CLAUDE.md : mêmes agents et liens que sync-claude.sh seul" || ko "sync.sh avec CLAUDE.md = sync-claude.sh" "$(diff "$d/apres-sync.txt" "$d/apres-claude.txt" 2>&1 | head -5)"
 d="$(depot_sync s-dossier)"; cd "$d" || exit 1; mkdir .claude
-./factory/sync.sh >/dev/null 2>&1; [ -L .claude/skills ] && [ -f .claude/agents/developer.md ] && ok "dossier .claude/ seul : configuré pour Claude Code" || ko "dossier .claude/ seul"
+./factory/sync.sh >/dev/null 2>&1; [ ! -e .claude/skills ] && [ ! -e .claude/agents ] && ok "dossier .claude/ seul (sans CLAUDE.md) : pas de mode Claude" || ko "dossier .claude/ seul : pas de mode Claude" "$(ls -A .claude 2>&1 | tr '\n' ' ')"
 d="$(depot_sync s-nu)"; cd "$d" || exit 1
 verifier "projet sans CLAUDE.md ni .claude : sync.sh réussit" 0 "" ./factory/sync.sh
 [ -L .agents/skills ] && [ ! -e .claude ] && ok "projet sans CLAUDE.md ni .claude : rien de Claude créé" || ko "projet sans CLAUDE.md ni .claude" "$(ls -A 2>&1 | tr '\n' ' ')"
@@ -235,6 +249,19 @@ verifier "sync-claude.sh seul : réussit et annonce ses agents" 0 "developer" ./
 verifier "sync.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync.sh --bidon
 verifier "sync-claude.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync-claude.sh --bidon
 verifier "sync.sh : --claude et --sans-claude ensemble = 64" 64 "Usage" ./factory/sync.sh --claude --sans-claude
+d="$(depot_sync s-vide)"; cd "$d" || exit 1
+rm -f factory/prompts/*.md; printf '# Prompt sans en-tête\n' > factory/prompts/libre.md
+bash_ancien=/bin/bash; [ -x "$bash_ancien" ] || bash_ancien="$BASH"
+verifier "sync-claude.sh sans aucun agent à générer, sous $("$bash_ancien" -c 'echo "bash $BASH_VERSION"') (set -u)" 0 "agents :" "$bash_ancien" ./factory/sync-claude.sh
+
+echo "init-projet.sh --sans-claude"
+d="$(depot_sync i-sans)"; cd "$d" || exit 1
+verifier "init --sans-claude : réussit" 0 "créé +AGENTS.md" ./factory/init-projet.sh --sans-claude
+[ ! -e CLAUDE.md ] && [ ! -e .claude ] && ok "init --sans-claude : ni CLAUDE.md ni dossier .claude/" || ko "init --sans-claude : rien de Claude" "$(ls -A 2>&1 | tr '\n' ' ')"
+[ -L .agents/skills ] && [ -f AGENTS.md ] && [ -f .github/workflows/ci.yml ] && ok "init --sans-claude : .agents/skills, AGENTS.md et CI créés" || ko "init --sans-claude : fichiers neutres"
+verifier "init --sans-claude relancé : toujours rien de Claude" 0 "" ./factory/init-projet.sh --sans-claude
+[ ! -e CLAUDE.md ] && [ ! -e .claude ] && ok "init --sans-claude relancé : ni CLAUDE.md ni .claude/" || ko "init --sans-claude relancé" "$(ls -A 2>&1 | tr '\n' ' ')"
+verifier "init : option inconnue = 64 et usage citant --sans-claude" 64 "Usage.*--sans-claude" ./factory/init-projet.sh --bidon
 
 echo "init-projet.sh --stack"
 mkdir "$p/stackpy"; cp -R "$factory" "$p/stackpy/factory"; rm -rf "$p/stackpy/factory/scripts/tests"; cd "$p/stackpy" || exit 1
@@ -288,8 +315,20 @@ verifier "creer --base reste prioritaire sur develop" 0 "\(main\)" scripts/workt
 d2="$(dirname "$w")/$nomw-002-02"; echo "t" > "$d2/t.txt" && git -C "$d2" add -A && git -C "$d2" commit -qm "feat: travail"
 git checkout -q main && git merge -q --no-ff feat/002-02-x -m "fusion dans main seulement" >/dev/null
 verifier "nettoyer vérifie la fusion dans develop (pas main)" 1 "n'est pas fusionnée dans develop" scripts/worktree-issue.sh nettoyer 002-02
+w="$(nouveau_projet)"; cd "$w" || exit 1
+git init -q -b main . && issue_id "$w" 004-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
+git add -A >/dev/null && git commit -qm "socle"
+distant="$(mktemp -d "$racine_tmp/distant.XXXXXX")"; git clone -q "$w" "$distant/d" && git -C "$distant/d" checkout -q -b develop && echo r > "$distant/d/r.txt" && git -C "$distant/d" add -A && git -C "$distant/d" commit -qm "chore: develop distante"
+git remote add origin "$distant/d" && git fetch -q origin
+! git show-ref --verify --quiet refs/heads/develop && verifier "creer sans develop locale : repli sur origin/develop" 0 "\(origin/develop\)" scripts/worktree-issue.sh creer 004-01 || ko "develop absente localement (préparation du test)"
+[ -f "$(dirname "$w")/$(basename "$w")-004-01/r.txt" ] && ok "la branche d'issue part de origin/develop" || ko "la branche d'issue part de origin/develop"
+w="$(nouveau_projet)"; cd "$w" || exit 1
+git init -q -b tronc . && issue_id "$w" 005-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
+git add -A >/dev/null && git commit -qm "socle"
+verifier "creer sans aucune base : message citant origin/develop" 64 "^Aucune base trouvée \(develop, origin/develop, origin/HEAD, main, master\) : passez --base\.$" scripts/worktree-issue.sh creer 005-01
 for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/workflows/ci.yml; do
-  grep -Eq 'branches: \[main, develop\]' "$ci" && [ "$(grep -c 'branches: \[main, develop\]' "$ci")" -eq 2 ] && ok "CI déclenchée sur main et develop (push et PR) : ${ci#"$factory"/../}" || ko "CI déclenchée sur main et develop : $ci"
+  declencheurs="$(awk '/^on:/ { dans = 1; next } dans && /^[^ ]/ { exit } dans { print }' "$ci")"
+  [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(grep -c 'branches:' "$ci")" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : ${ci#"$factory"/../}" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
 done
 
 echo "noms de fichiers *.md en anglais"

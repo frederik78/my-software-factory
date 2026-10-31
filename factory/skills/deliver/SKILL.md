@@ -13,14 +13,14 @@ la boucle ci-dessous est autorisée par la demande de livrer l'issue.
    « La suivante » = `scripts/etat-issues.sh --prochaine`. `scripts/etat-issues.sh` donne l'état de toutes les issues.
    Lis le fichier d'issue, le PRD et les critères visés. Si l'issue n'existe pas, arrête-toi et propose de la créer (`docs/issues/_modele.md`).
 2. Vérifie les dépendances : chaque issue de `depend_de` doit être `Fait`, sinon arrête-toi et dis laquelle manque.
-3. Une branche et une PR par issue : `feat/<prd>-<nn>-<slug>`, créée depuis la branche principale à jour (ou depuis la branche de l'issue dont
+3. Une branche et une PR par issue : `feat/<prd>-<nn>-<slug>`, créée depuis `develop` à jour (ou depuis la branche de l'issue dont
    celle-ci dépend si elle n'est pas encore fusionnée). Si la branche existe déjà, reprends-la. Si l'utilisateur est sur une autre branche de
    travail non terminée, ne la quitte pas sans lui demander. `git status` doit être propre ; sinon signale les fichiers et demande quoi en faire.
-   **Jamais de travail sur la branche principale.** Dès qu'un autre agent peut travailler en même temps, isole l'issue dans son propre dossier : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
+   **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Dès qu'un autre agent peut travailler en même temps, isole l'issue dans son propre dossier : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
    crée `../<dépôt>-<id>` sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
    `scripts/worktree-issue.sh nettoyer <issue> --branche`.
-4. Fixe la **base** (borne de `git log <base>..HEAD` pour toute la livraison). Si la branche est créée depuis la branche principale : `<base>` = `git merge-base HEAD <branche principale>`
-   (`origin/HEAD`, sinon `main`, sinon `master`). Si elle est créée depuis la branche d'une issue dont elle dépend et qui n'est pas fusionnée (branches empilées) : `<base>` = la pointe de cette
+4. Fixe la **base** (borne de `git log <base>..HEAD` pour toute la livraison). Si la branche est créée depuis `develop` : `<base>` = `git merge-base HEAD develop`
+   (à défaut de `develop` : `origin/develop`, `origin/HEAD`, `main`, `master`). Si elle est créée depuis la branche d'une issue dont elle dépend et qui n'est pas fusionnée (branches empilées) : `<base>` = la pointe de cette
    branche (`git rev-parse HEAD` au démarrage), sinon la revue relirait les commits de l'issue précédente.
 5. Mets `statut: En cours` et `branche:` dans l'issue et **commite-le toi-même** (`docs: issue <id> en cours`) : c'est toi qui tiens les fichiers d'issue et de revue, les agents n'y touchent pas, et
    l'arbre doit être propre avant de lancer le développeur.

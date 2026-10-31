@@ -29,15 +29,16 @@ Le cycle d'un besoin, du cadrage à la fusion :
 
 ```
 cadrage (/grill-with-docs) -> ADR -> PRD (agent spec-writer) -> issues (/to-tickets)
-   -> pour chaque issue : /deliver (développeur TDD <-> reviewer) -> /code-review -> fusion par vous (git merge --no-ff)
+   -> pour chaque issue : /deliver (développeur TDD <-> reviewer) -> /code-review -> fusion dans develop par vous (git merge --no-ff)
 ```
 
 - Guide complet, commandes, règles et dépannage : [`factory/README.md`](factory/README.md).
 - Démarrage d'un projet (garde-fous à mettre en place avant la première issue) : [`factory/DEMARRER-UN-PROJET.md`](factory/DEMARRER-UN-PROJET.md).
-- Les agents ne poussent ni ne fusionnent : vous fusionnez, branche par branche, avec `git merge --no-ff`.
+- Les agents ne poussent ni ne fusionnent : vous fusionnez, branche par branche, dans `develop` avec `git merge --no-ff`.
+- Modèle de branches : `main` = releases (tags `vX.Y.Z`, vous y fusionnez `develop`), `develop` = intégration (les branches de travail en partent et y reviennent par PR), `hotfix/<slug>` part de `main` pour un correctif urgent.
 
 ## Contribuer
-Une branche et une PR par issue (`feat/<prd>-<nn>-<slug>`), commits atomiques au format conventionnel (`feat:`, `fix:`, `test:`, `docs:`…), TDD (un test qui échoue avant chaque code),
+Une branche et une PR par issue (`feat/<prd>-<nn>-<slug>`, créée depuis `develop`, PR vers `develop`), commits atomiques au format conventionnel (`feat:`, `fix:`, `test:`, `docs:`…), TDD (un test qui échoue avant chaque code),
 le nom de chaque test contient l'identifiant du critère qu'il couvre. Détail dans `AGENTS.md`.
 
 ## Version de la factory

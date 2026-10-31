@@ -32,6 +32,7 @@ La structure est décidée dans un ADR (`docs/adr/0001-architecture.md`) AVANT l
 ## Règles
 - **INTERDIT** aux agents : pousser, fusionner, réécrire l'historique (`git push`, `reset --hard`, `clean`, `branch -D`, `checkout --`, `restore`) ; lire ou copier les fichiers de secrets. Seul l'utilisateur
   pousse et fusionne. Claude Code l'applique par `.claude/settings.json` (règles de refus) ; pour un autre outil, reprendre cette règle dans sa propre configuration de permissions.
+- **Modèle de branches** : `main` ne reçoit que les releases (états livrables, tags `vX.Y.Z`) ; personne n'y commite, seul l'utilisateur y fusionne `develop` (`git merge --no-ff develop`) puis tague. `develop` est la branche d'intégration : toute branche de travail (`feat/<prd>-<nn>-<slug>`, `fix/…`, `docs/…`, `refactor/…`, `test/…`, `build/…`) en part et y revient par PR (base = `develop`). Correctif urgent sur une release : `hotfix/<slug>` partant de `main`, fusionné dans `main` PUIS dans `develop` par l'utilisateur. Branches empilées : base = pointe de la branche dont l'issue dépend. Les agents ne travaillent jamais directement sur `main` ni sur `develop`.
 - **INTERDIT** : un test qui dépend d'un service externe réel ; toujours doubler la frontière externe.
 - Pas d'interface « au cas où » : une abstraction n'existe que pour une frontière externe à doubler ou s'il y a deux implémentations réelles.
 - <Règles métier transverses du projet : unités, devises, configuration plutôt que constantes, validation, etc.>
@@ -41,7 +42,7 @@ Pas de code de production sans un test RED préalable qui échoue. Cycle : RED, 
 - Le nom de chaque test (ou son `@DisplayName`) contient l'identifiant du critère d'acceptation qu'il couvre (`ca10_…`, `cs07_…`).
 - Correction de bug : écrire d'abord le test qui reproduit le bug, vérifier qu'il échoue, puis corriger.
 - Un commit = un changement atomique, message au format conventionnel (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`).
-- Une branche et une PR par issue (`feat/<prd>-<nn>-<slug>`) ; l'utilisateur fusionne avec `git merge --no-ff`.
+- Une branche et une PR par issue (`feat/<prd>-<nn>-<slug>`, base = `develop`) ; l'utilisateur fusionne avec `git merge --no-ff`.
 
 ## Processus (factory)
 Les besoins sont inventoriés dans `backlog.md` (statuts, priorités, décisions) ; le détail est dans `docs/prd/` (le QUOI : comportement, contrats,
@@ -58,8 +59,8 @@ ils posent leurs questions dans un bloc `## QUESTIONS` de leur rapport, qu'elle 
 - Ne jamais croire un rapport sans le recouper avec le dépôt (`git log`, `git status`, `scripts/verify-clean.sh`). Format des rapports : `factory/prompts/report-format.md`.
 - L'architecture se décide avant le code, dans un ADR validé, et s'applique par des tests d'architecture ; elle ne change pas sans nouvel ADR.
 - Le PRD décrit le comportement, jamais la structure du code (aucun nom de package, de classe ni de couche).
-- Une branche et une PR par issue ; l'agent ne pousse ni ne fusionne, l'utilisateur fusionne avec `git merge --no-ff`.
-- Jamais de travail sur la branche principale. Pas de deux agents qui écrivent dans le même dossier : un `git worktree` par agent pour des issues parallèles (`scripts/worktree-issue.sh`).
+- Une branche et une PR par issue (base = `develop`) ; l'agent ne pousse ni ne fusionne, l'utilisateur fusionne avec `git merge --no-ff`.
+- Jamais de travail sur `main` ni sur `develop` (voir « Modèle de branches »). Pas de deux agents qui écrivent dans le même dossier : un `git worktree` par agent pour des issues parallèles (`scripts/worktree-issue.sh`).
 - Un agent prouve son travail, il ne l'affirme pas : état avant / après (test qui échoue puis réussit, chiffres mesurés, captures) dans son rapport et dans la PR ; l'utilisateur relit la preuve plus que le code.
 - Les écarts de contrat externe, de licence, de dépendance ou de PRD se décident avec l'utilisateur, pas seul.
 

@@ -11,7 +11,8 @@
 - `scripts/worktree-issue.sh` : le message « Aucune base trouvée » cite `origin/develop`.
 - CI (dépôt et stacks) : plus de filtre `branches:` sous `pull_request:` (les PR empilées vers une branche `feat/` ont la CI) ; `push` reste limité à `main` et `develop`.
 - Skill `deliver` : cas du correctif urgent (`hotfix/<slug>` depuis `main`, base `git merge-base HEAD main`, PR vers `main`, puis fusion dans `develop` par l'utilisateur).
-- Tests : 136 vérifications (27 nouvelles depuis 1.6.1).
+- Dépôt de la factory (sans effet sur les projets) : `.github/workflows/ci.yml` racine propre à ce dépôt (job `verify` = `./scripts/verify-clean.sh`, job `secrets` gitleaks, mêmes empreintes que le modèle `aucune`) au lieu du modèle java-maven hérité ; `.github/dependabot.yml` racine limité à `github-actions` ; nouveau `.factory-verify` racine (`factory/scripts/tests/run.sh`) ; la suite des scripts neutralise `COMMANDE_VERIFY` et `STUB_CODE` hérités de l'environnement appelant. Les CI de `factory/stacks/*` sont inchangées.
+- Tests : 142 vérifications (33 nouvelles depuis 1.6.1).
 - Migration : remplacer `factory/` (`sync-claude.sh` arrive avec le dossier), puis relancer `./factory/init-projet.sh` (met à jour `.factory-version` et les liens). Rien d'autre pour un projet qui a un `CLAUDE.md` ; sans `CLAUDE.md` (même avec un dossier `.claude/`), lancer `./factory/sync.sh --claude` pour obtenir les agents de Claude Code. Reporter la ligne `sync.sh` des Commandes dans l'`AGENTS.md` du projet. CI : retirer le filtre `branches:` sous `pull_request:` (voir `factory/stacks/<stack>/.github/workflows/ci.yml`).
 
 ## 1.6.1

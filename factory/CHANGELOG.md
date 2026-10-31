@@ -4,7 +4,8 @@
 - `sync.sh` devient neutre vis-à-vis de l'outil : il crée seulement `.agents/skills`, puis appelle `factory/sync-claude.sh` si le projet a un `CLAUDE.md` ou un dossier `.claude/`. Options `--claude` (force l'appel), `--sans-claude` (l'interdit) ; option inconnue ou combinaison des deux : usage sur stderr, code 64.
 - Nouveau `factory/sync-claude.sh`, propre à Claude Code et utilisable seul : lien `.claude/skills`, enveloppes `.claude/agents/*.md` (même format, seul le commentaire « Généré par » cite désormais `sync-claude.sh`), outil du plugin savvy-progress. Son en-tête explique que les valeurs de `tools:` des prompts sont des noms d'outils de Claude Code.
 - Documentation : § 9 du README de la factory remplacé par un tableau « Indépendance du fournisseur » ; README, `AGENTS.md` et modèles mis à jour.
-- Tests : 122 vérifications (13 nouvelles).
+- Suivi de progression : la consigne ajoutée aux agents ne fixe plus « 3 à 8 étapes » ; l'agent établit le nombre d'étapes selon la mission (une étape = un résultat vérifiable, sans plancher ni plafond, ni trop fin ni trop grossier) et ajuste `total` si le plan change.
+- Tests : 123 vérifications (14 nouvelles).
 - Migration : remplacer `factory/` et relancer `./factory/init-projet.sh` (copie `sync-claude.sh` avec le dossier). Rien d'autre pour un projet qui a un `CLAUDE.md` ; sans `CLAUDE.md` ni `.claude/`, lancer `./factory/sync.sh --claude` pour obtenir les agents de Claude Code. Reporter la ligne `sync.sh` des Commandes dans l'`AGENTS.md` du projet.
 
 ## 1.6.1

@@ -59,8 +59,11 @@ for prompt in factory/prompts/*.md; do
     if [ "$progression" -eq 1 ]; then
       echo
       echo "Suivi de progression : dès que tu as lu ta consigne, appelle \`mcp__savvy-progress__step\` avec \`total\`"
-      echo "(ton plan en 3 à 8 étapes) et \`done: 0\`, puis rappelle-le à chaque étape terminée (\`done\`, et \`note\`"
-      echo "en quelques mots). Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis."
+      echo "(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et \`done: 0\`."
+      echo "Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :"
+      echo "ni une étape par commande, ni un découpage si grossier que la barre n'avance plus."
+      echo "Rappelle l'outil à chaque étape terminée (\`done\`, et \`note\` en quelques mots) ; si le plan change, ajuste \`total\`"
+      echo "en gardant \`done\` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis."
     fi
   } > ".claude/agents/$nom.md"
   generes+=("$nom")

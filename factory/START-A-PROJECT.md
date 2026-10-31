@@ -15,7 +15,7 @@ Choisissez la stack (dossiers `factory/stacks/<stack>/`) :
 ```
 ./factory/init-projet.sh --nom "Nom du projet" --stack java-maven
 ```
-Crée, sans jamais rien écraser : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `.claude/settings.json` (refus de permissions), `.factory-version`, `docs/` (adr, prd, issues, reviews, agents, `lecons.md`),
+Crée, sans jamais rien écraser : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `.claude/settings.json` (refus de permissions), `.factory-version`, `docs/` (adr, prd, issues, reviews, agents, `lessons.md`),
 `.gitignore`, les fichiers de la stack (CI, Dependabot, `.factory-verify`), les liens `scripts/`, puis lance `factory/sync.sh` (alias de skills et agents).
 Relançable sans risque. Une autre stack que celles-ci : choisir `aucune`, puis § 3 et `factory/README.md` § 8.
 
@@ -51,6 +51,6 @@ Ces éléments appartiennent à une première issue « socle » (`000-01`). Ils 
 4. `/code-review` sur la branche, fusion dans `develop` par l'utilisateur (`git merge --no-ff`), clôture (dérive documentaire, leçons).
 
 ## 5. Entre deux cycles
-- Relire `docs/lecons.md` et `factory/LECONS.md` ; ajuster les prompts ou skills si une leçon le justifie (les écarts aux skills copiés de Matt Pocock
+- Relire `docs/lessons.md` et `factory/LESSONS.md` ; ajuster les prompts ou skills si une leçon le justifie (les écarts aux skills copiés de Matt Pocock
   sont notés dans `factory/skills/SOURCES.md`).
 - `./factory/sync.sh` après toute modification d'un en-tête de prompt.

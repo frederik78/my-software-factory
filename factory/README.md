@@ -47,12 +47,12 @@ Les quatre **phases** d'une issue, comme une chaîne de fabrication. Ce sont des
    ```
    ./factory/init-projet.sh --nom "Nom du projet" --stack java-maven     # ou python, node, aucune (défaut)
    ```
-   Cela crée, **sans jamais rien écraser** (relançable) : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `docs/` (adr, prd, issues, reviews, agents, `lecons.md`), les fichiers de la stack (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`),
+   Cela crée, **sans jamais rien écraser** (relançable) : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `docs/` (adr, prd, issues, reviews, agents, `lessons.md`), les fichiers de la stack (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`),
    `.claude/settings.json` (refus de permissions), `.gitignore`, `.factory-version`, les liens `scripts/`, puis les alias de skills et les agents.
 3. Ouvrez le projet dans Claude Code : les skills (`/deliver`, `/grill-with-docs`, `/to-tickets`…) et les agents sont disponibles.
 4. Si les agents n'apparaissent pas (après un clone par exemple) : `./factory/sync.sh`.
 
-La checklist détaillée du démarrage (garde-fous à mettre en place avant la première issue) est dans `DEMARRER-UN-PROJET.md`.
+La checklist détaillée du démarrage (garde-fous à mettre en place avant la première issue) est dans `START-A-PROJECT.md`.
 
 ## 4. Cycle d'un besoin
 
@@ -85,7 +85,7 @@ comportement, contrats, règles de gestion, critères d'acceptation `- **CA-01**
 - Il ne vous interroge pas : il marque les lacunes `[À CLARIFIER Q-xx]` et les liste dans un bloc `## QUESTIONS`. La session principale vous les pose ; vous répondez, il corrige. Vous validez le PRD.
 
 ### Étape 3 : découper en issues
-Lancez `/to-tickets` : une issue par fichier dans `docs/issues/` (format de `_modele.md`), avec ses critères (`criteres`), ses dépendances (`depend_de`) et un statut. Puis :
+Lancez `/to-tickets` : une issue par fichier dans `docs/issues/` (format de `_template.md`), avec ses critères (`criteres`), ses dépendances (`depend_de`) et un statut. Puis :
 ```
 scripts/couverture-prd.sh docs/prd/NNN-module.md
 ```
@@ -108,7 +108,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 ### Étape 5 : clôturer
 1. `/code-review` sur la branche entière (standards et conformité).
 2. **Vous fusionnez** dans `develop` : `git merge --no-ff feat/…` (les agents ne poussent ni ne fusionnent). La PR a pour base `develop`. Pour publier une release, vous fusionnez `develop` dans `main` (`git merge --no-ff develop`) puis vous taguez `vX.Y.Z`.
-3. Passez le besoin à `Fait` dans `backlog.md` ; mettez à jour les passages du PRD, du backlog et des ADR devenus faux ; ajoutez les leçons à `docs/lecons.md`.
+3. Passez le besoin à `Fait` dans `backlog.md` ; mettez à jour les passages du PRD, du backlog et des ADR devenus faux ; ajoutez les leçons à `docs/lessons.md`.
 
 ## 5. Commandes et scripts
 
@@ -125,7 +125,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
 | `scripts/tableau-de-bord.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML des besoins du `backlog.md` et des issues par statut (compteurs, prochaine issue prête) ; `--boucle` la régénère en continu |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (98 vérifications) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (109 vérifications) |
 | `./factory/sync.sh` | Recrée les alias de skills et les agents depuis les en-têtes de `factory/prompts/` |
 | `./factory/init-projet.sh` | Initialise un projet (sans rien écraser) |
 
@@ -184,8 +184,8 @@ les agents, `verify-clean.sh` (le développeur en fin de travail, le relecteur p
 | `templates/` | Fichiers de départ d'un projet (indépendants de la stack), copiés par `init-projet.sh` |
 | `stacks/` | Fichiers propres à une stack, copiés par `init-projet.sh --stack` : `java-maven`, `python`, `node`, `aucune` (CI, Dependabot, `.factory-verify`, `.gitignore`) |
 | `init-projet.sh`, `sync.sh` | Initialisation du projet ; alias de skills et agents |
-| `LECONS.md`, `DEMARRER-UN-PROJET.md` | Retour d'expérience ; checklist de démarrage |
-| `VERSION`, `CHANGELOG.md`, `MISE-A-JOUR.md` | Version (marquée dans `.factory-version` du projet), historique, procédure de mise à jour |
+| `LESSONS.md`, `START-A-PROJECT.md` | Retour d'expérience ; checklist de démarrage |
+| `VERSION`, `CHANGELOG.md`, `UPGRADE.md` | Version (marquée dans `.factory-version` du projet), historique, procédure de mise à jour |
 
 Les skills `to-spec`, `implement` et `setup-matt-pocock-skills` de l'amont ont été retirés : leur rôle est tenu par `spec-writer`, `deliver` et `init-projet.sh`.
 
@@ -204,7 +204,7 @@ Seuls `sync.sh` (enveloppes d'agents) et `.claude/settings.json` sont propres à
 `.claude/settings.json` refuse aux agents : `git push`, `reset --hard`, `clean`, `branch -D`, `checkout --`, `restore`, la lecture de `.env` et de `secrets/`. Limites : le « lecture seule » du reviewer est une consigne (il a `Bash` pour lancer le build) ;
 vérifiez avec `/permissions` que les règles s'appliquent aussi aux sous-agents dans votre version.
 Seule la session principale peut interroger l'utilisateur : les sous-agents n'ont pas d'outil de question, même déclaré. C'est pourquoi l'orchestrateur est un prompt joué par la session principale et non un agent
-(un agent orchestrateur autonome a été essayé : il fonctionne, mais ses questions ne remontent qu'en fin de rapport ; voir `LECONS.md` n° 17).
+(un agent orchestrateur autonome a été essayé : il fonctionne, mais ses questions ne remontent qu'en fin de rapport ; voir `LESSONS.md` n° 17).
 
 ## 11. Dépannage
 
@@ -217,11 +217,11 @@ Seule la session principale peut interroger l'utilisateur : les sous-agents n'on
 | `criteres-sans-test.sh` : « aucun critère déclaré » | Le champ `criteres` de l'issue est vide ou illisible ; il accepte `[CA-01, CS-02]` ou une liste à tirets. |
 | `couverture-prd.sh` : « aucun critère défini » | Les critères du PRD doivent commencer par `- **CA-10**` (puce, identifiant en gras). |
 | `verify-clean.sh` : « Tests : inconnu » | La sortie du build n'est pas reconnue (ni Maven, ni unittest, ni pytest) ; le code de sortie reste fiable. |
-| Un agent rend un rapport vide | La session le relance (le format de rapport l'interdit) ; voir `LECONS.md` n° 5. |
+| Un agent rend un rapport vide | La session le relance (le format de rapport l'interdit) ; voir `LESSONS.md` n° 5. |
 | Une branche empilée relit les commits de l'issue précédente | La base est la pointe de la branche dont l'issue dépend (skill `deliver`, étape 0). |
 
 ## 12. Mettre à jour la factory
-Procédure dans `MISE-A-JOUR.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents), puis `factory/scripts/tests/run.sh`.
+Procédure dans `UPGRADE.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents), puis `factory/scripts/tests/run.sh`.
 Les skills sont copiés, pas liés : modifiables, mais notez les écarts dans `skills/SOURCES.md`. Les langues : prompts, docs et messages en français ; les skills de mattpocock/skills restent en anglais.
 
 ## 13. Arborescence d'un projet initialisé
@@ -235,10 +235,10 @@ mon-projet/
 ├── docs/
 │   ├── adr/       décisions d'architecture et de stack (0000-template.md, 0001-…)
 │   ├── prd/       un PRD par module : NNN-module.md
-│   ├── issues/    une issue par fichier : NNN-NN-slug.md (+ _modele.md)
+│   ├── issues/    une issue par fichier : NNN-NN-slug.md (+ _template.md)
 │   ├── reviews/   un rapport de revue par issue : NNN-NN.md
 │   ├── agents/    configuration lue par les skills (tracker d'issues, docs du domaine)
-│   └── lecons.md  leçons du projet
+│   └── lessons.md leçons du projet
 ├── scripts/       liens vers factory/scripts/ (verify-clean, criteres-sans-test, couverture-prd, etat-issues, tableau-de-bord)
 └── factory/       la factory (skills, prompts, scripts, modèles, stacks)
 ```
@@ -293,7 +293,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 | 9 | « /deliver » (puis `scripts/etat-issues.sh --prochaine` pour voir laquelle) | Issue suivante ; répétez jusqu'à la dernière |
 | 10 | « /code-review » | Revue de la branche entière |
 | 11 | `git merge --no-ff feat/001-01-…` (dans le terminal, vous, sur `develop`) | Fusion dans `develop`, branche par branche, dans l'ordre des dépendances |
-| 12 | « Clôture le besoin F-01 : documents à jour et leçons » | Passages devenus faux listés, leçons ajoutées à `docs/lecons.md` |
+| 12 | « Clôture le besoin F-01 : documents à jour et leçons » | Passages devenus faux listés, leçons ajoutées à `docs/lessons.md` |
 
 ## 16. Cas courants
 
@@ -338,8 +338,8 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (98 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (109 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.
-- Si l'une de ces étapes se passe mal, notez-le dans `docs/lecons.md` : c'est ainsi que cette factory s'améliore.
+- Si l'une de ces étapes se passe mal, notez-le dans `docs/lessons.md` : c'est ainsi que cette factory s'améliore.

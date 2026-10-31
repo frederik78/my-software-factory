@@ -11,7 +11,7 @@ la boucle ci-dessous est autorisée par la demande de livrer l'issue.
 ## 0. Préparer
 1. Identifie l'issue : un numéro (« issue 2 » = `docs/issues/<prd>-02-*.md`, PRD le plus récent non terminé ; en cas de doute, demande), ou un chemin.
    « La suivante » = `scripts/etat-issues.sh --prochaine`. `scripts/etat-issues.sh` donne l'état de toutes les issues.
-   Lis le fichier d'issue, le PRD et les critères visés. Si l'issue n'existe pas, arrête-toi et propose de la créer (`docs/issues/_modele.md`).
+   Lis le fichier d'issue, le PRD et les critères visés. Si l'issue n'existe pas, arrête-toi et propose de la créer (`docs/issues/_template.md`).
 2. Vérifie les dépendances : chaque issue de `depend_de` doit être `Fait`, sinon arrête-toi et dis laquelle manque.
 3. Une branche et une PR par issue : `feat/<prd>-<nn>-<slug>`, créée depuis `develop` à jour (ou depuis la branche de l'issue dont
    celle-ci dépend si elle n'est pas encore fusionnée). Si la branche existe déjà, reprends-la. Si l'utilisateur est sur une autre branche de
@@ -80,7 +80,7 @@ L'issue passe `Fait` seulement si TOUT est vrai :
 Mets à jour l'issue : `statut: Fait`, `commits:`, `revue:`, Notes (écarts, points mineurs ouverts). Si toutes les issues du besoin sont `Fait`, propose
 à l'utilisateur de passer le besoin à `Fait` dans `backlog.md`. Ne merge ni ne pousse jamais ; la fusion se fait par l'utilisateur avec
 `git merge --no-ff` (pour identifier clairement les branches mergées). Si la livraison a coûté du temps pour une raison qui se reproduira
-(outil, consigne ambiguë, rapport inutilisable), ajoute une ligne à `docs/lecons.md`.
+(outil, consigne ambiguë, rapport inutilisable), ajoute une ligne à `docs/lessons.md`.
 
 ## 6. Rendre compte (court)
 Une réponse de 15 lignes au plus : issue livrée, commits, **preuve avant / après en une ligne par critère** (l'utilisateur relit la preuve, pas le code ligne à ligne), résultat de `verify-clean.sh` (nombres), verdict de la revue (et nombre d'itérations), décisions que tu as prises

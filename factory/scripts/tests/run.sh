@@ -168,6 +168,7 @@ verifier "PRD sans critère défini = erreur" 1 "aucun critère défini" scripts
 verifier "sans argument = usage (64)" 64 "Usage" scripts/couverture-prd.sh
 
 echo "verify-clean.sh"
+[ -z "${COMMANDE_VERIFY+x}" ] && [ -z "${STUB_CODE+x}" ] && ok "suite isolée de l'environnement appelant : ni COMMANDE_VERIFY ni STUB_CODE hérités" || ko "suite isolée de l'environnement appelant" "COMMANDE_VERIFY=${COMMANDE_VERIFY-<absent>} STUB_CODE=${STUB_CODE-<absent>}"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 git init -q . && printf '.env\ntarget/\n' > .gitignore && echo "SECRET" > .env && echo "x" > fichier.txt
 cat > mvnw <<'EOF'
@@ -330,6 +331,15 @@ for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/wor
   declencheurs="$(awk '/^on:/ { dans = 1; next } dans && /^[^ ]/ { exit } dans { print }' "$ci")"
   [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(grep -c 'branches:' "$ci")" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : ${ci#"$factory"/../}" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
 done
+
+echo "CI et vérification de ce dépôt (racine)"
+ci_racine="$factory/../.github/workflows/ci.yml"
+! grep -qE 'mvnw|setup-java|NVD|maven' "$ci_racine" && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(grep -nE 'mvnw|setup-java|NVD|maven' "$ci_racine" | head -3 | tr '\n' '|')"
+grep -qE '^ +- run: \./scripts/verify-clean\.sh$' "$ci_racine" && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
+[ "$(grep -E 'uses:' "$ci_racine" | sed 's/^ *- *//' | sort -u)" = "$(grep -E 'uses:' "$factory/stacks/aucune/.github/workflows/ci.yml" | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(grep -E 'uses:' "$ci_racine" | tr '\n' '|')"
+[ -f "$factory/../.factory-verify" ] && [ "$(head -1 "$factory/../.factory-verify")" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(head -1 "$factory/../.factory-verify" 2>&1)"
+dependabot_racine="$factory/../.github/dependabot.yml"
+! grep -q 'package-ecosystem: maven' "$dependabot_racine" && grep -q 'package-ecosystem: github-actions' "$dependabot_racine" && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(grep -n 'package-ecosystem' "$dependabot_racine" | tr '\n' '|')"
 
 echo "noms de fichiers *.md en anglais"
 p="$(mktemp -d "$racine_tmp/n.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1

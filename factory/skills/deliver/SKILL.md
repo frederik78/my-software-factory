@@ -64,7 +64,8 @@ Pour chaque constat, décide :
   corrige-le à la source en ajoutant la règle à `factory/prompts/developer.md`, pas seulement dans le code.
 - **Décision laissée au développeur** (comportement non fixé par le PRD, ex. valeur refusée, borne, type accepté) : ne bloque pas la livraison. Inscris-la dans les Notes de l'issue sous « Décisions en attente de
   l'utilisateur » avec ta recommandation ; elle sera tranchée avec le PRD à la clôture.
-- **Règle d'arrêt** : si la revue n° `MAX_ITERATIONS_REVUE` n'est pas `APPROUVÉ` (il reste des BLOQUANT ou IMPORTANT), ne relance plus le developer. Arrête-toi et :
+- **Règle d'arrêt** : si la revue n° `MAX_ITERATIONS_REVUE` n'est pas `APPROUVÉ` (il reste des BLOQUANT ou IMPORTANT), ne relance plus le developer. Arrête-toi.
+  S'il ne reste que des IMPORTANT : remonte-les à l'utilisateur dans la conversation, sans courriel. S'il reste au moins un BLOQUANT :
   1. écris dans un fichier temporaire (hors dépôt) le corps de la notification : les constats bloquants restants (copiés du dernier rapport), la branche, le chemin `docs/reviews/<id-issue>.md` ;
   2. lance `scripts/notifier.sh --sujet "[factory] <issue> bloquée après N revues" --corps-fichier <fichier>` (N = nombre de revues faites) ;
   3. remonte le blocage à l'utilisateur dans la conversation (constats restants, options : trancher, simplifier ou découper l'issue, assouplir le critère). Si `notifier.sh` rend 3

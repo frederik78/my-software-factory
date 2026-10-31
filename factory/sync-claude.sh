@@ -69,4 +69,4 @@ for prompt in factory/prompts/*.md; do
   generes+=("$nom")
 done
 
-echo "Alias créés : .claude/skills ; agents : ${generes[*]} ; suivi de progression : $([ "$progression" -eq 1 ] && echo oui || echo non)"
+echo "Alias créés : .claude/skills ; agents : ${generes[*]:-aucun} ; suivi de progression : $([ "$progression" -eq 1 ] && echo oui || echo non)"

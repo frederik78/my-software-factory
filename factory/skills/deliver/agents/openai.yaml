@@ -1,0 +1,5 @@
+interface:
+  display_name: "Deliver"
+  short_description: "Deliver an issue end to end (develop, review, fix, verify)"
+policy:
+  allow_implicit_invocation: true

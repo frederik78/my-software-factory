@@ -1,0 +1,31 @@
+# Une seule commande de vérification, portable vers GitLab CI, Forgejo, etc.
+# Les actions sont épinglées par empreinte de commit (le commentaire donne l'étiquette) ; Dependabot (github-actions) met les deux à jour.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # lundi : nouvelles vulnérabilités de dépendances
+permissions:
+  contents: read
+jobs:
+  verify:
+    # Squelette indépendant de la stack : la vérification est la commande de `.factory-verify` (voir factory/README.md, § Adapter à une autre stack).
+    # Ajouter ici l'installation de l'outil de build (setup-java, setup-python, setup-node, etc.) avant l'étape de vérification.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: ./scripts/verify-clean.sh
+  secrets:
+    # Détection de secrets dans tout l'historique. gitleaks-action est gratuit pour un dépôt personnel ; pour une organisation, il faut
+    # la licence GITLEAKS_LICENSE (sinon remplacer ce job par le binaire gitleaks lancé à la main).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

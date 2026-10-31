@@ -1,0 +1,1 @@
+../factory/scripts/criteres-sans-test.sh

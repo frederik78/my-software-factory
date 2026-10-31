@@ -1,0 +1,45 @@
+# Une seule commande de vérification, portable vers GitLab CI, Forgejo, etc.
+# Les actions sont épinglées par empreinte de commit (le commentaire donne l'étiquette) ; Dependabot (github-actions) met les deux à jour.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # lundi : nouvelles vulnérabilités de dépendances
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+  secrets:
+    # Détection de secrets dans tout l'historique. gitleaks-action est gratuit pour un dépôt personnel ; pour une organisation, il faut
+    # la licence GITLEAKS_LICENSE (sinon remplacer ce job par le binaire gitleaks lancé à la main).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+  securite:
+    # Vulnérabilités connues des dépendances (npm audit), niveau élevé et critique.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high

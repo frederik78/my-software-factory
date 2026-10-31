@@ -24,7 +24,7 @@ skills: owasp-check tdd          # séparés par des espaces
 model: <facultatif : modèle de l'agent ; sinon il hérite de la session>
 ---
 ```
-`./factory/sync.sh` génère `.claude/agents/<name>.md` à partir de cet en-tête. Un prompt sans `name:` (l'orchestrateur) n'a pas d'enveloppe.
-Ne jamais éditer les enveloppes générées : modifier le prompt, puis relancer `sync.sh`.
+`./factory/sync-claude.sh` (appelé par `sync.sh` pour un projet Claude Code) génère `.claude/agents/<name>.md` à partir de cet en-tête ; les valeurs de `tools:` sont des noms d'outils de Claude Code. Un prompt sans `name:` (l'orchestrateur) n'a pas d'enveloppe.
+Ne jamais éditer les enveloppes générées : modifier le prompt, puis relancer `sync.sh` (ou `sync-claude.sh`).
 
 **Relecture par un autre modèle** : un modèle relit souvent mieux le code d'un autre (duplications, code mort, structure) que le sien. Si votre outil permet de choisir le modèle d'un agent, ajoutez `model: <modèle>` à l'en-tête de `code-reviewer.md` avec un modèle différent de celui qui écrit le code, puis relancez `sync.sh`. Non imposé : sans ce champ, l'agent hérite du modèle de la session.

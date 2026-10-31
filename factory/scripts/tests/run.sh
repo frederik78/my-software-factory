@@ -205,9 +205,36 @@ tail -1 AGENTS.md | grep -q MODIFIÉ && ok "AGENTS.md modifié est conservé" ||
 [ ! -e factory/prompts/orchestrator.md ] && [ ! -e .claude/agents/orchestrator.md ] && ok "pas de prompt ni d'agent orchestrateur (rôle de la session principale)" || ko "pas de prompt ni d'agent orchestrateur"
 mkdir -p "$HOME/.claude/plugins"; echo '{"plugins":{"savvy-progress@x":[]}}' > "$HOME/.claude/plugins/installed_plugins.json"
 ./factory/sync.sh >/dev/null && grep -q 'mcp__savvy-progress__step' .claude/agents/developer.md && ok "suivi de progression ajouté si le plugin est installé" || ko "suivi de progression ajouté"
+! grep -q '3 à 8' .claude/agents/developer.md && grep -q 'selon la mission' .claude/agents/developer.md && grep -q 'ajuste' .claude/agents/developer.md && grep -q 'sans plancher ni plafond' .claude/agents/developer.md && grep -q 'ignore-le et poursuis' .claude/agents/developer.md && ok "suivi de progression : nombre d'étapes dynamique (plus de « 3 à 8 »), garde-fous conservés" || ko "suivi de progression dynamique" "$(grep -n 'étape' .claude/agents/developer.md)"
 printf -- '---\nname: casse\ntools: Read\n---\n' > factory/prompts/casse.md
 verifier "en-tête incomplet (sans description) = erreur" 1 "En-tête incomplet" ./factory/sync.sh
 rm factory/prompts/casse.md
+
+echo "sync.sh (neutre) et sync-claude.sh (Claude Code)"
+depot_sync() { # depot_sync <nom> : copie de la factory dans un dépôt vide
+  local d="$p/$1"; mkdir "$d"; cp -R "$factory" "$d/factory"; rm -rf "$d/factory/scripts/tests"; git -C "$d" init -q .; printf '%s' "$d"
+}
+instantane() { (cd "$1" && find .claude .agents -type l -exec sh -c 'printf "L %s -> %s\n" "$1" "$(readlink "$1")"' _ {} \; 2>/dev/null; find .claude/agents -type f -exec sh -c 'echo "F $1"; cat "$1"' _ {} \; 2>/dev/null | cat) | sort; }
+d="$(depot_sync s-sans)"; cd "$d" || exit 1; touch CLAUDE.md
+verifier "sync.sh --sans-claude : réussit" 0 "" ./factory/sync.sh --sans-claude
+[ -L .agents/skills ] && [ "$(readlink .agents/skills)" = "../factory/skills" ] && ok "--sans-claude : .agents/skills créé" || ko "--sans-claude : .agents/skills créé"
+[ ! -e .claude/skills ] && [ ! -e .claude/agents ] && ok "--sans-claude : ni .claude/skills ni .claude/agents (malgré CLAUDE.md)" || ko "--sans-claude : rien de Claude" "$(ls -A .claude 2>&1)"
+d="$(depot_sync s-avec)"; cd "$d" || exit 1; touch CLAUDE.md
+./factory/sync.sh >/dev/null 2>&1; instantane "$d" > "$d/apres-sync.txt"
+rm -rf .claude; ./factory/sync-claude.sh >/dev/null 2>&1; ln -sfn ../factory/skills .agents/skills; instantane "$d" > "$d/apres-claude.txt"
+[ -s "$d/apres-sync.txt" ] && cmp -s "$d/apres-sync.txt" "$d/apres-claude.txt" && grep -q '^F .claude/agents/developer.md' "$d/apres-sync.txt" && grep -q '^L .claude/skills' "$d/apres-sync.txt" && ok "sync.sh avec CLAUDE.md : mêmes agents et liens que sync-claude.sh seul" || ko "sync.sh avec CLAUDE.md = sync-claude.sh" "$(diff "$d/apres-sync.txt" "$d/apres-claude.txt" 2>&1 | head -5)"
+d="$(depot_sync s-dossier)"; cd "$d" || exit 1; mkdir .claude
+./factory/sync.sh >/dev/null 2>&1; [ -L .claude/skills ] && [ -f .claude/agents/developer.md ] && ok "dossier .claude/ seul : configuré pour Claude Code" || ko "dossier .claude/ seul"
+d="$(depot_sync s-nu)"; cd "$d" || exit 1
+verifier "projet sans CLAUDE.md ni .claude : sync.sh réussit" 0 "" ./factory/sync.sh
+[ -L .agents/skills ] && [ ! -e .claude ] && ok "projet sans CLAUDE.md ni .claude : rien de Claude créé" || ko "projet sans CLAUDE.md ni .claude" "$(ls -A 2>&1 | tr '\n' ' ')"
+./factory/sync.sh --claude >/dev/null 2>&1; [ -L .claude/skills ] && [ -f .claude/agents/spec-writer.md ] && ok "--claude force l'appel de sync-claude.sh" || ko "--claude force l'appel"
+d="$(depot_sync s-seul)"; cd "$d" || exit 1
+verifier "sync-claude.sh seul : réussit et annonce ses agents" 0 "developer" ./factory/sync-claude.sh
+[ -L .claude/skills ] && [ -f .claude/agents/code-reviewer.md ] && [ ! -e .agents ] && ok "sync-claude.sh seul : .claude/skills et agents, pas .agents" || ko "sync-claude.sh seul"
+verifier "sync.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync.sh --bidon
+verifier "sync-claude.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync-claude.sh --bidon
+verifier "sync.sh : --claude et --sans-claude ensemble = 64" 64 "Usage" ./factory/sync.sh --claude --sans-claude
 
 echo "init-projet.sh --stack"
 mkdir "$p/stackpy"; cp -R "$factory" "$p/stackpy/factory"; rm -rf "$p/stackpy/factory/scripts/tests"; cd "$p/stackpy" || exit 1

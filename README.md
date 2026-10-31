@@ -9,7 +9,7 @@ Les règles de travail, la stack et l'architecture sont dans [`AGENTS.md`](AGENT
 - **Tests** : à définir avec la stack (voir `AGENTS.md`, section Commandes)
 - **Vérification complète** : `scripts/verify-clean.sh` (tests et analyses dans une copie propre du dépôt, hors IDE ; c'est ce que lance la CI)
 - **Lancer l'application** : à définir avec la stack
-- **Après un clone** : `./factory/sync.sh` (recrée les alias de skills et les agents, générés et non versionnés)
+- **Après un clone** : `./factory/sync.sh` (recrée les alias de skills et, pour Claude Code, les agents, générés et non versionnés)
 
 ## Où trouver quoi
 

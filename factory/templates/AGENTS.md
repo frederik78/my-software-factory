@@ -20,7 +20,7 @@ Package racine : `<...>`.
 - `scripts/tableau-de-bord.sh [--sortie <fichier>] [--attente <s>] [--boucle <s>]` : tableau de bord HTML statique (`tableau-de-bord.html`, non versionné) des besoins et des issues par statut ; sans modèle ni dépendance
 - `scripts/worktree-issue.sh creer|nettoyer|lister` : une issue dans son propre dossier de travail (`git worktree`)
 - `factory/scripts/tests/run.sh` : tests des scripts de la factory
-- `./factory/sync.sh` : recrée les alias de skills et les enveloppes d'agents
+- `./factory/sync.sh` : recrée les alias de skills (`.agents/skills`) ; avec `CLAUDE.md`, appelle `factory/sync-claude.sh` (propre à Claude Code : `.claude/skills` et enveloppes d'agents). Options `--claude`, `--sans-claude`
 
 Ne jamais appeler directement un outil propre à un fournisseur dans le code applicatif.
 

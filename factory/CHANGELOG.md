@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 1.8.0
+- `scripts/tableau-de-bord.sh` affiche un Kanban qui identifie les issues au lieu de les compter : un encart « En cours » en haut de page (issues `En cours` et `En revue`, référence et titre, ou « Aucune issue en cours. ») ; sections « Besoins » et « Issues » en colonnes, une par statut du cycle dans l'ordre (backlog : À faire, En clarification, Spécifié, En cours, En revue, Fait ; issues : À faire, En cours, En revue, Fait), en-tête coloré « Statut (n) », « — » pour une colonne vide, colonne « (autre) » seulement si un statut est hors cycle.
+- Carte d'issue : référence en gras, titre, besoin `F-xx`, « dépend de : … », marqueur « prochaine » (issue désignée par `etat-issues.sh --prochaine`) et « bloquée » (issue `À faire` dont une dépendance n'est pas `Fait`) ; cartes dans l'ordre des fichiers. Carte de besoin : ID, libellé, priorité, « PRD : … » s'il est renseigné.
+- Les compteurs et les tables disparaissent (redondants avec les en-têtes de colonnes) ; la ligne « Prochaine issue prête » est conservée. Mise en page CSS seule (grid, colonnes de largeur égale, défilement horizontal de la section sur écran étroit, impression en grille repliée), toujours sans JavaScript ni ressource externe, tout texte échappé HTML. Options, codes de sortie, écriture atomique et droits inchangés.
+- Tests : 157 vérifications (15 de plus qu'en 1.7.0 : 20 cas écrits pour le Kanban, dont 5 qui remplacent les cas des compteurs et des tables devenus faux).
+- Migration : remplacer `factory/`. Aucune action dans le projet ; un outil qui analysait les tables de `tableau-de-bord.html` doit lire les cartes (`<div class="carte">`).
+
 ## 1.7.0
 - `sync.sh` devient neutre vis-à-vis de l'outil : il crée seulement `.agents/skills`, puis appelle `factory/sync-claude.sh` si le projet a un `CLAUDE.md` (le seul dossier `.claude/`, que `init-projet.sh` crée, ne suffit pas). Options `--claude` (force l'appel), `--sans-claude` (l'interdit) ; option inconnue ou combinaison des deux : usage sur stderr, code 64.
 - Nouveau `factory/sync-claude.sh`, propre à Claude Code et utilisable seul : lien `.claude/skills`, enveloppes `.claude/agents/*.md` (même format, seul le commentaire « Généré par » cite désormais `sync-claude.sh`), outil du plugin savvy-progress. Son en-tête explique que les valeurs de `tools:` des prompts sont des noms d'outils de Claude Code.

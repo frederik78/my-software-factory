@@ -248,6 +248,23 @@ verifier "nettoyer --branche après fusion" 0 "supprimé" scripts/worktree-issue
 verifier "lister" 0 "$nomw-001-02" scripts/worktree-issue.sh lister
 verifier "commande inconnue = 64" 64 "" scripts/worktree-issue.sh danser
 
+echo "modèle de branches (develop)"
+w="$(nouveau_projet)"; cd "$w" || exit 1
+git init -q -b main . && issue_id "$w" 002-01 "À faire" docs/prd/p.md "[CA-01]" "[]" && issue_id "$w" 002-02 "À faire" docs/prd/p.md "[CA-02]" "[]" && issue_id "$w" 002-03 "À faire" docs/prd/p.md "[CA-03]" "[]"
+git add -A >/dev/null && git commit -qm "socle"
+nomw="$(basename "$w")"
+verifier "creer sans develop : retombe sur main" 0 "\(main\)" scripts/worktree-issue.sh creer 002-01
+git checkout -q -b develop && echo "d" > d.txt && git add -A >/dev/null && git commit -qm "chore: develop"
+verifier "creer avec develop : la base par défaut est develop" 0 "\(develop\)" scripts/worktree-issue.sh creer 002-02
+[ -f "$(dirname "$w")/$nomw-002-02/d.txt" ] && ok "la branche d'issue part de develop" || ko "la branche d'issue part de develop"
+verifier "creer --base reste prioritaire sur develop" 0 "\(main\)" scripts/worktree-issue.sh creer 002-03 --base main
+d2="$(dirname "$w")/$nomw-002-02"; echo "t" > "$d2/t.txt" && git -C "$d2" add -A && git -C "$d2" commit -qm "feat: travail"
+git checkout -q main && git merge -q --no-ff feat/002-02-x -m "fusion dans main seulement" >/dev/null
+verifier "nettoyer vérifie la fusion dans develop (pas main)" 1 "n'est pas fusionnée dans develop" scripts/worktree-issue.sh nettoyer 002-02
+for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/workflows/ci.yml; do
+  grep -Eq 'branches: \[main, develop\]' "$ci" && [ "$(grep -c 'branches: \[main, develop\]' "$ci")" -eq 2 ] && ok "CI déclenchée sur main et develop (push et PR) : ${ci#"$factory"/../}" || ko "CI déclenchée sur main et develop : $ci"
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

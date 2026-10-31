@@ -3,8 +3,9 @@
 name: ci
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
+    branches: [main, develop]
   schedule:
     - cron: "0 6 * * 1"   # lundi : nouvelles vulnérabilités de dépendances
 permissions:

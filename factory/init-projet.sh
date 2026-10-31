@@ -2,8 +2,9 @@
 # Prépare un nouveau projet autour de la factory : fichiers de départ (AGENTS.md, backlog, docs/...), fichiers propres à la stack (CI, Dependabot,
 # .gitignore, commande de vérification), scripts, alias de skills et d'agents.
 # À lancer depuis la racine d'un dépôt qui contient le dossier factory/ (copié ou cloné) :
-#     ./factory/init-projet.sh [--nom "Nom du projet"] [--stack java-maven|python|node|aucune]
+#     ./factory/init-projet.sh [--nom "Nom du projet"] [--stack java-maven|python|node|aucune] [--sans-claude]
 # --stack choisit le dossier factory/stacks/<stack>/ (défaut : aucune = squelette indépendant de la stack ; voir factory/stacks/*/README.md).
+# --sans-claude : projet sans Claude Code ; ni CLAUDE.md ni rien sous .claude/ n'est créé, et sync.sh est lancé avec --sans-claude.
 # N'écrase JAMAIS un fichier existant : chaque fichier déjà présent est conservé et signalé. Relançable sans risque.
 set -euo pipefail
 
@@ -11,11 +12,13 @@ racine="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$racine"
 nom="$(basename "$racine")"
 stack="aucune"
-usage() { echo "Usage : $0 [--nom \"Nom du projet\"] [--stack $(ls factory/stacks 2>/dev/null | paste -sd'|' -)]" >&2; exit 64; }
+sans_claude=0
+usage() { echo "Usage : $0 [--nom \"Nom du projet\"] [--stack $(ls factory/stacks 2>/dev/null | paste -sd'|' -)] [--sans-claude]" >&2; exit 64; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --nom) nom="${2:?--nom attend une valeur}"; shift ;;
     --stack) stack="${2:?--stack attend une valeur}"; shift ;;
+    --sans-claude) sans_claude=1 ;;
     *) usage ;;
   esac
   shift
@@ -53,6 +56,9 @@ ancien_nom() { # ancien_nom <nouveau nom> : affiche l'ancien nom s'il existe enc
 gitignore_cree=0; [ -e .gitignore ] || gitignore_cree=1
 while IFS= read -r -d '' src; do
   rel="${src#"$modeles"/}"
+  if [ "$sans_claude" -eq 1 ]; then
+    case "$rel" in CLAUDE.md|.claude/*) continue ;; esac # propres à Claude Code
+  fi
   if ancien="$(ancien_nom "$rel")"; then
     echo "à migrer   $ancien porte l'ancien nom : git mv $ancien $rel (puis relancez ce script)"; gardes=$((gardes + 1)); continue
   fi
@@ -100,7 +106,7 @@ if [ -n "$version" ]; then
   fi
 fi
 
-./factory/sync.sh
+if [ "$sans_claude" -eq 1 ]; then ./factory/sync.sh --sans-claude; else ./factory/sync.sh; fi
 
 echo
 echo "$crees fichier(s) créé(s), $gardes conservé(s) (stack : $stack). Étapes suivantes : voir factory/START-A-PROJECT.md"

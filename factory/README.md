@@ -222,7 +222,7 @@ Seule la session principale peut interroger l'utilisateur : les sous-agents n'on
 | `criteres-sans-test.sh` signale un critère qui a pourtant un test | Le nom du test ne contient pas l'identifiant du critère : le renommer (`test_ca10_…`). |
 | `criteres-sans-test.sh` : « aucun critère déclaré » | Le champ `criteres` de l'issue est vide ou illisible ; il accepte `[CA-01, CS-02]` ou une liste à tirets. |
 | `couverture-prd.sh` : « aucun critère défini » | Les critères du PRD doivent commencer par `- **CA-10**` (puce, identifiant en gras). |
-| `verify-clean.sh` : « Tests : inconnu » | La sortie du build n'est pas reconnue (ni Maven, ni unittest, ni pytest) ; le code de sortie reste fiable. |
+| `verify-clean.sh` : « Tests : inconnu » | La sortie du build n'est pas reconnue (ni Maven, ni unittest, ni pytest, ni la suite de la factory) ; le code de sortie reste fiable. |
 | Un agent rend un rapport vide | La session le relance (le format de rapport l'interdit) ; voir `LESSONS.md` n° 5. |
 | Une branche empilée relit les commits de l'issue précédente | La base est la pointe de la branche dont l'issue dépend (skill `deliver`, étape 0). |
 

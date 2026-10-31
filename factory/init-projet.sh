@@ -92,3 +92,7 @@ echo "$crees fichier(s) créé(s), $gardes conservé(s) (stack : $stack). Étape
 if [ ! -f .factory-verify ] && [ ! -x ./mvnw ] && [ ! -x ./gradlew ] && [ -z "${COMMANDE_VERIFY:-}" ]; then
   echo "À faire : créer .factory-verify (une ligne : la commande de vérification complète) ; scripts/verify-clean.sh et la CI en ont besoin."
 fi
+echo "Modèle de branches : main = releases (tags vX.Y.Z), develop = intégration ; les branches de travail partent de develop et y reviennent par PR."
+if ! git show-ref --verify --quiet refs/heads/develop; then
+  echo "À faire : créer la branche develop (git branch develop), la définir comme branche par défaut sur GitHub ; les agents ne travaillent ni sur main ni sur develop."
+fi

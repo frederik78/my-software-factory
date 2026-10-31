@@ -1,3 +1,5 @@
+> Base de la PR : `develop` (jamais `main`, réservée aux releases ; un correctif urgent `hotfix/…` vise `main`).
+
 ## Issue
 `<id>` : <titre>  ·  PRD : `<docs/prd/…>`  ·  Revue archivée : `docs/reviews/<id>.md`
 

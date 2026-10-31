@@ -12,7 +12,7 @@ Version courante : voir `factory/VERSION` ; historique : `CHANGELOG.md`.
 ```
 idée -> cadrage (/grill-with-docs) -> ADR (architecture, stack) -> PRD (agent spec-writer) -> issues (/to-tickets)
      -> pour chaque issue : /deliver  (developer TDD <-> code-reviewer, contrôles de la session)
-     -> /code-review de la branche -> fusion par vous (git merge --no-ff) -> clôture (documents à jour, leçons)
+     -> /code-review de la branche -> fusion dans develop par vous (git merge --no-ff) -> clôture (documents à jour, leçons)
 ```
 
 Les rôles de chacun :
@@ -30,7 +30,7 @@ Les quatre **phases** d'une issue, comme une chaîne de fabrication. Ce sont des
 
 | Phase | Ce qui se passe | Réalisée par | Nature | Où dans la factory |
 |---|---|---|---|---|
-| **Isoler** | L'issue a sa branche et, si d'autres agents travaillent en même temps, son propre dossier de travail ; rien n'est construit sur la branche principale | La session principale | Script et consigne de `/deliver` | `scripts/worktree-issue.sh`, `/deliver` étape 0 |
+| **Isoler** | L'issue a sa branche et, si d'autres agents travaillent en même temps, son propre dossier de travail ; rien n'est construit sur `main` ni sur `develop` | La session principale | Script et consigne de `/deliver` | `scripts/worktree-issue.sh`, `/deliver` étape 0 |
 | **Construire** | Le développeur code en TDD, dans une structure lisible par quelqu'un sans contexte | Agent `developer` | Agent | `prompts/developer.md`, `AGENTS.md`, ADR |
 | **Prouver** | Preuve avant / après, tests de garde-fous prouvés par mutation, rapports recoupés avec le dépôt, relecture | `developer` (fournit la preuve), `code-reviewer` (la vérifie), la session (recoupe) | Agents, session et scripts | `report-format.md`, `scripts/*.sh` |
 | **Livrer** | Définition de fini, PR avec sa preuve, retour de revue externe facultatif, fusion | La session principale, puis vous (fusion) | Skill `/deliver` et décision humaine | `/deliver` étapes 4 bis et 5, `.github/pull_request_template.md` |
@@ -68,7 +68,7 @@ Les trois seuls agents sont `spec-writer`, `developer` et `code-reviewer`. La se
 | 3 | **Découpage en issues** | Skill `/to-tickets`, puis `scripts/couverture-prd.sh` | Vous approuvez le découpage |
 | 4 | **Livraison**, une issue après l'autre | Skill `/deliver` (qui lance `developer` et `code-reviewer`) | Vous tranchez les décisions de fond |
 | 5 | **Revue de la branche** | `/code-review` | |
-| 6 | **Fusion et clôture** | Vous (`git merge --no-ff`) | Vous fusionnez |
+| 6 | **Fusion et clôture** | Vous (`git merge --no-ff` dans `develop`) | Vous fusionnez |
 
 Ce n'est donc pas « `spec-writer` puis `/deliver` » : le cadrage vient avant (sans lui, `spec-writer` n'a ni glossaire ni ADR, et il ne vous interroge pas), et le découpage vient entre les deux (sans lui, `/deliver` n'a pas d'issue à livrer).
 Vous n'avez pas à retenir cette suite : la session la lit dans `AGENTS.md` à chaque démarrage. Vous pouvez dire « Traite le besoin F-01 » ; les commandes à taper vous-même sont `/grill-with-docs`, `/to-tickets` et `/deliver`.
@@ -107,7 +107,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 
 ### Étape 5 : clôturer
 1. `/code-review` sur la branche entière (standards et conformité).
-2. **Vous fusionnez** : `git merge --no-ff feat/…` (les agents ne poussent ni ne fusionnent).
+2. **Vous fusionnez** dans `develop` : `git merge --no-ff feat/…` (les agents ne poussent ni ne fusionnent). La PR a pour base `develop`. Pour publier une release, vous fusionnez `develop` dans `main` (`git merge --no-ff develop`) puis vous taguez `vX.Y.Z`.
 3. Passez le besoin à `Fait` dans `backlog.md` ; mettez à jour les passages du PRD, du backlog et des ADR devenus faux ; ajoutez les leçons à `docs/lecons.md`.
 
 ## 5. Commandes et scripts
@@ -125,7 +125,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
 | `scripts/tableau-de-bord.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML des besoins du `backlog.md` et des issues par statut (compteurs, prochaine issue prête) ; `--boucle` la régénère en continu |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (88 vérifications) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (98 vérifications) |
 | `./factory/sync.sh` | Recrée les alias de skills et les agents depuis les en-têtes de `factory/prompts/` |
 | `./factory/init-projet.sh` | Initialise un projet (sans rien écraser) |
 
@@ -163,13 +163,14 @@ les agents, `verify-clean.sh` (le développeur en fin de travail, le relecteur p
 
 ## 6. Règles à retenir
 - **Git** : une branche et une PR par issue, commits atomiques conventionnels (`feat:`, `fix:`, `test:`…). Seul l'utilisateur pousse et fusionne, avec `git merge --no-ff`.
+- **Modèle de branches** : `main` = releases seulement (tags `vX.Y.Z`, personne n'y commite ; l'utilisateur y fusionne `develop` puis tague) ; `develop` = intégration, base de toutes les branches de travail (`feat/…`, `fix/…`, `docs/…`, `refactor/…`, `test/…`, `build/…`) et cible des PR ; `hotfix/<slug>` part de `main` et est fusionné dans `main` PUIS dans `develop` par l'utilisateur ; branches empilées inchangées (base = pointe de la branche dont l'issue dépend). Les agents ne travaillent jamais directement sur `main` ni sur `develop`.
 - **Rapports** : format imposé (`prompts/report-format.md`) ; la session ne croit jamais un rapport sans le recouper avec le dépôt.
 - **Traçabilité** : le nom d'un test contient l'identifiant du critère couvert (`test_ca10_…`, `cs07_…`).
 - **Tests de garde-fous** : message d'erreur vérifié par égalité exacte, borne testée par sa valeur (limite acceptée, limite + 1 refusée), tests prouvés par mutation.
 - **Pas d'abstraction « au cas où »** : une interface n'existe que pour une frontière externe à doubler ou avec deux implémentations réelles.
 - **Questions** : seule la session principale peut interroger l'utilisateur ; les agents posent leurs questions dans un bloc `## QUESTIONS`, d'où l'importance du cadrage (§ 4, étape 1).
 - **Documents** : `backlog.md` et le PRD sont à vous ; la session ne modifie que les statuts du backlog et liste les passages devenus faux.
-- **Parallélisme et isolation** : jamais de travail sur la branche principale ; un `git worktree` par agent (`scripts/worktree-issue.sh`) ; jamais deux agents dans le même dossier.
+- **Parallélisme et isolation** : jamais de travail sur `main` ni sur `develop` ; un `git worktree` par agent (`scripts/worktree-issue.sh`) ; jamais deux agents dans le même dossier.
 - **Preuve** : un agent prouve (avant / après : test qui échoue puis réussit, chiffres mesurés, captures), il n'affirme pas ; la PR reprend cette preuve (`.github/pull_request_template.md`).
 - **Lisibilité** : le code doit être compréhensible par un développeur ou un agent sans contexte (pas de duplication, pas de code mort) ; le relecteur le contrôle.
 
@@ -271,7 +272,7 @@ Le corps contient Objectif, Périmètre (dans / hors), Critères d'acceptation (
 
 **Statuts d'un ADR** : `proposé` -> `accepté` -> `remplacé par NNNN`.
 
-**Branches et commits** : branche `feat/<prd>-<nn>-<slug>` (ex. `feat/001-03-formatage`) ; commits atomiques `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, `chore:`, avec un message qui dit le *pourquoi*. Un test et son code peuvent être deux commits (`test:` puis `feat:`).
+**Branches et commits** : branche `feat/<prd>-<nn>-<slug>` (ex. `feat/001-03-formatage`) créée depuis `develop` (`fix/…`, `docs/…`, etc. de même ; `hotfix/<slug>` depuis `main`) ; commits atomiques `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, `chore:`, avec un message qui dit le *pourquoi*. Un test et son code peuvent être deux commits (`test:` puis `feat:`).
 
 **Rapports des agents** : voir `prompts/report-format.md` (développeur : résumé, vérification chiffrée, commits, critères couverts, décisions, à trancher, non fait ; reviewer : verdict, build, constats classés, remarques de la revue précédente, documents devenus faux).
 
@@ -291,7 +292,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 | 8 | « /deliver 001-01 » | Branche, développeur, vérification, reviewer, corrections, issue à `Fait` ; compte rendu court |
 | 9 | « /deliver » (puis `scripts/etat-issues.sh --prochaine` pour voir laquelle) | Issue suivante ; répétez jusqu'à la dernière |
 | 10 | « /code-review » | Revue de la branche entière |
-| 11 | `git merge --no-ff feat/001-01-…` (dans le terminal, vous) | Fusion, branche par branche, dans l'ordre des dépendances |
+| 11 | `git merge --no-ff feat/001-01-…` (dans le terminal, vous, sur `develop`) | Fusion dans `develop`, branche par branche, dans l'ordre des dépendances |
 | 12 | « Clôture le besoin F-01 : documents à jour et leçons » | Passages devenus faux listés, leçons ajoutées à `docs/lecons.md` |
 
 ## 16. Cas courants
@@ -329,6 +330,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 | **Brief** | Message complet donné à un sous-agent, qui ne voit pas la conversation (`prompts/briefs/`). |
 | **Session principale** | La session Claude Code où vous travaillez ; elle joue l'orchestrateur et seule peut vous interroger. |
 | **Sous-agent / agent** | `spec-writer`, `developer`, `code-reviewer` : lancés par la session, ils rendent un rapport. |
+| **`main` / `develop`** | `main` : releases seulement (tags `vX.Y.Z`) ; `develop` : intégration, base et cible des branches de travail. |
 | **Base** | Commit de départ d'une livraison (`git log <base>..HEAD`) ; la pointe de la branche précédente pour des branches empilées. |
 | **Définition de fini** | Liste de contrôle de `/deliver` (build vert en copie propre, critères couverts, revue APPROUVÉ, commits atomiques, documents à jour). |
 | **Mutation** | Casser volontairement le code (retirer une borne, recopier l'entrée dans un message) pour vérifier qu'un test échoue. |
@@ -336,7 +338,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (88 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (98 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.

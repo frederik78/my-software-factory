@@ -123,9 +123,9 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/criteres-sans-test.sh <issue>` | Critères d'une issue qu'aucun test ne mentionne (`--tous` : toutes les issues commencées) |
 | `scripts/couverture-prd.sh <prd>` | Chaque critère du PRD couvert par une seule issue |
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
-| `scripts/tableau-de-bord.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML en Kanban des besoins du `backlog.md` et des issues (une colonne par statut, une carte par élément, encart « En cours », marqueurs « prochaine » et « bloquée ») ; `--boucle` la régénère en continu |
+| `scripts/dashboard.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML en Kanban des besoins du `backlog.md` et des issues (une colonne par statut, une carte par élément, encart « En cours », marqueurs « prochaine » et « bloquée ») ; `--boucle` la régénère en continu |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (157 vérifications) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (163 vérifications) |
 | `./factory/sync.sh [--claude\|--sans-claude]` | Recrée le lien `.agents/skills` (neutre) puis, si le projet a un `CLAUDE.md` (le seul dossier `.claude/` ne suffit pas), appelle `sync-claude.sh` |
 | `./factory/sync-claude.sh` | Propre à Claude Code : lien `.claude/skills` et agents générés depuis les en-têtes de `factory/prompts/` |
 | `./factory/init-projet.sh [--sans-claude]` | Initialise un projet (sans rien écraser) ; `--sans-claude` : ni `CLAUDE.md` ni `.claude/` |
@@ -137,11 +137,11 @@ Onze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une liv
 
 | Script | À quoi il sert | Quand |
 |---|---|---|
-| `factory/init-projet.sh` | Prépare un projet : `README.md`, `AGENTS.md`, `backlog.md`, `docs/`, modèle de PR, et les fichiers de la stack choisie (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`). Ne remplace jamais un fichier existant ; lie les scripts dans `scripts/`, écrit `.factory-version`, appelle `sync.sh`. Les scripts `factory/*.sh` ne sont pas liés dans `scripts/` : ils se lancent depuis `factory/`. Option `--stack java-maven\|python\|node\|aucune` ; `--sans-claude` ne crée ni `CLAUDE.md` ni rien sous `.claude/` et lance `sync.sh --sans-claude` (option inconnue = code 64). | Au départ, puis après une mise à jour de la factory |
+| `factory/init-projet.sh` | Prépare un projet : `README.md`, `AGENTS.md`, `backlog.md`, `docs/`, modèle de PR, et les fichiers de la stack choisie (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`). Ne remplace jamais un fichier existant ; lie les scripts dans `scripts/` (un lien mort vers un script retiré ou renommé est signalé « à supprimer » avec la commande `rm`, jamais supprimé), écrit `.factory-version`, appelle `sync.sh`. Les scripts `factory/*.sh` ne sont pas liés dans `scripts/` : ils se lancent depuis `factory/`. Option `--stack java-maven\|python\|node\|aucune` ; `--sans-claude` ne crée ni `CLAUDE.md` ni rien sous `.claude/` et lance `sync.sh --sans-claude` (option inconnue = code 64). | Au départ, puis après une mise à jour de la factory |
 | `factory/sync.sh` | Neutre : crée le lien `.agents/skills`, puis appelle `sync-claude.sh` si le projet a un `CLAUDE.md`, pas sur le seul dossier `.claude/` (`--claude` force l'appel, `--sans-claude` l'interdit ; autre option = code 64). | Après un clone, ou après modification d'un prompt |
 | `factory/sync-claude.sh` | Propre à Claude Code, utilisable seul : lien `.claude/skills` et **génération des agents** (`spec-writer`, `developer`, `code-reviewer`) depuis l'en-tête YAML de `factory/prompts/`. N'ajoute le suivi de progression que si le plugin est installé : l'agent fixe lui-même le nombre d'étapes selon la mission (une étape = un résultat vérifiable, sans plancher ni plafond) et peut ajuster `total` en cours de route. Les valeurs de `tools:` sont des noms d'outils de Claude Code. | Après un clone, ou après modification d'un prompt |
 
-**Contrôle et suivi d'une livraison (la session et les agents les lancent pendant `/deliver` ; `tableau-de-bord.sh` aussi, par vous, à tout moment)**
+**Contrôle et suivi d'une livraison (la session et les agents les lancent pendant `/deliver` ; `dashboard.sh` aussi, par vous, à tout moment)**
 
 | Script | Question à laquelle il répond | Résultat |
 |---|---|---|
@@ -149,7 +149,7 @@ Onze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une liv
 | `scripts/criteres-sans-test.sh <issue>` | « Chaque critère de l'issue a-t-il un test qui le nomme ? » (`--tous` : toutes les issues commencées) | `OK` ou la liste des critères sans test ; une issue sans aucun critère est une erreur |
 | `scripts/couverture-prd.sh <prd>` | « Chaque critère du PRD est-il couvert par exactement une issue ? » | `OK`, ou critères sans issue, en double, ou inconnus du PRD |
 | `scripts/etat-issues.sh` | « Où en sont les issues ? » Lit leurs en-têtes ; `--statut S` filtre ; `--prochaine` donne la première issue prête (toutes ses dépendances sont `Fait`) | Tableau Markdown, ou un identifiant |
-| `scripts/tableau-de-bord.sh` | « Où en est le projet, d'un coup d'œil ? » Écrit `tableau-de-bord.html` (à ouvrir dans un navigateur, rafraîchi toutes les 30 s ; `--attente S` change le délai) en Kanban : un encart « En cours » en haut (issues `En cours` et `En revue`, référence et titre), puis les besoins et les issues en colonnes, une par statut du cycle dans l'ordre (en-tête coloré « Statut (n) », « — » si la colonne est vide, colonne « (autre) » seulement pour un statut hors cycle) ; une carte d'issue montre la référence, le titre, le besoin `F-xx`, les dépendances et les marqueurs « prochaine » (issue de `etat-issues.sh --prochaine`) et « bloquée » (`À faire` avec une dépendance pas `Fait`) ; une carte de besoin, l'ID, le libellé, la priorité et le PRD. Mise en page CSS seule (colonnes de largeur égale, défilement horizontal sur écran étroit, impression lisible) ; `--sortie F` change le fichier (son dossier doit exister, sinon code 64) ; `--boucle S` régénère toutes les S secondes jusqu'à Ctrl-C. Aucun modèle, aucun JavaScript, tout texte lu est échappé HTML | Fichier HTML (non versionné) |
+| `scripts/dashboard.sh` | « Où en est le projet, d'un coup d'œil ? » Écrit `dashboard.html` (à ouvrir dans un navigateur, rafraîchi toutes les 30 s ; `--attente S` change le délai) en Kanban : un encart « En cours » en haut (issues `En cours` et `En revue`, référence et titre), puis les besoins et les issues en colonnes, une par statut du cycle dans l'ordre (en-tête coloré « Statut (n) », « — » si la colonne est vide, colonne « (autre) » seulement pour un statut hors cycle) ; une carte d'issue montre la référence, le titre, le besoin `F-xx`, les dépendances et les marqueurs « prochaine » (issue de `etat-issues.sh --prochaine`) et « bloquée » (`À faire` avec une dépendance pas `Fait`) ; une carte de besoin, l'ID, le libellé, la priorité et le PRD. Mise en page CSS seule (colonnes de largeur égale, défilement horizontal sur écran étroit, impression lisible) ; `--sortie F` change le fichier (son dossier doit exister, sinon code 64) ; `--boucle S` régénère toutes les S secondes jusqu'à Ctrl-C. Aucun modèle, aucun JavaScript, tout texte lu est échappé HTML | Fichier HTML (non versionné) |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister` | « Comment isoler une issue ? » `creer` fait un `git worktree` sur la branche de l'issue (option `--base` pour des branches empilées) ; `nettoyer` le supprime une fois la branche fusionnée (option `--branche`) | Dossier, branche et base |
 
 **Outils internes**
@@ -159,7 +159,7 @@ Onze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une liv
 | `scripts/lib-issues.sh` | Bibliothèque partagée (à sourcer, pas à lancer) : lit l'en-tête YAML des issues (listes sur une ou plusieurs lignes) et reconnaît les identifiants de critères sous toutes leurs formes (`CA-10`, `ca10`, `ca_10`) |
 | `factory/scripts/tests/run.sh` | Les vérifications des scripts ci-dessus, dans des dépôts jetables ; à relancer après toute modification d'un script |
 
-**Qui lance quoi** : vous, `init-projet.sh`, `sync.sh` et `nettoyer` après une fusion ; la session principale pendant `/deliver`, `etat-issues.sh`, `tableau-de-bord.sh`, `couverture-prd.sh`, `verify-clean.sh`, `criteres-sans-test.sh` et `worktree-issue.sh creer` ;
+**Qui lance quoi** : vous, `init-projet.sh`, `sync.sh` et `nettoyer` après une fusion ; la session principale pendant `/deliver`, `etat-issues.sh`, `dashboard.sh`, `couverture-prd.sh`, `verify-clean.sh`, `criteres-sans-test.sh` et `worktree-issue.sh creer` ;
 les agents, `verify-clean.sh` (le développeur en fin de travail, le relecteur pour confirmer) et `criteres-sans-test.sh`.
 **Pourquoi des scripts** : ce qui se vérifie mécaniquement est confié à des scripts testés, pas au jugement d'un modèle ; la session ne croit jamais un rapport d'agent sans le recouper avec eux.
 
@@ -245,7 +245,7 @@ mon-projet/
 │   ├── reviews/   un rapport de revue par issue : NNN-NN.md
 │   ├── agents/    configuration lue par les skills (tracker d'issues, docs du domaine)
 │   └── lessons.md leçons du projet
-├── scripts/       liens vers factory/scripts/ (verify-clean, criteres-sans-test, couverture-prd, etat-issues, tableau-de-bord)
+├── scripts/       liens vers factory/scripts/ (verify-clean, criteres-sans-test, couverture-prd, etat-issues, dashboard)
 └── factory/       la factory (skills, prompts, scripts, modèles, stacks)
 ```
 
@@ -344,7 +344,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (157 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (163 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.

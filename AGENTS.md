@@ -17,7 +17,7 @@ Package racine : `<...>`.
 - `scripts/criteres-sans-test.sh <issue>` : critères CA/CS d'une issue qu'aucun test ne mentionne
 - `scripts/couverture-prd.sh <prd>` : chaque critère du PRD est couvert par exactement une issue
 - `scripts/etat-issues.sh [--prochaine]` : état des issues (lu dans leurs en-têtes)
-- `scripts/tableau-de-bord.sh [--sortie <fichier>] [--attente <s>] [--boucle <s>]` : tableau de bord HTML statique (`tableau-de-bord.html`, non versionné) des besoins et des issues par statut ; sans modèle ni dépendance
+- `scripts/dashboard.sh [--sortie <fichier>] [--attente <s>] [--boucle <s>]` : dashboard HTML statique (`dashboard.html`, non versionné) des besoins et des issues par statut ; sans modèle ni dépendance
 - `scripts/worktree-issue.sh creer|nettoyer|lister` : une issue dans son propre dossier de travail (`git worktree`)
 - `factory/scripts/tests/run.sh` : tests des scripts de la factory
 - `./factory/sync.sh` : recrée les alias de skills (`.agents/skills`) ; avec `CLAUDE.md` (le seul dossier `.claude/` ne suffit pas), appelle `factory/sync-claude.sh` (propre à Claude Code : `.claude/skills` et enveloppes d'agents). Options `--claude`, `--sans-claude`

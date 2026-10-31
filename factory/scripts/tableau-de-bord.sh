@@ -7,7 +7,7 @@
 #   --sortie   fichier généré (défaut : tableau-de-bord.html à la racine du projet)
 #   --attente  délai de rafraîchissement automatique de la page (défaut : 30)
 #   --boucle   régénère le fichier toutes les <secondes> jusqu'à Ctrl-C (sinon une seule génération)
-# Code de sortie : 0 ; 64 si les arguments sont invalides.
+# Code de sortie : 0 ; 64 si les arguments sont invalides ou si le dossier de --sortie n'existe pas (il n'est pas créé).
 set -uo pipefail
 
 racine="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,22 +26,28 @@ while [ $# -gt 0 ]; do
   shift
 done
 case "$sortie" in /*) ;; *) sortie="$PWD/$sortie" ;; esac
+if [ ! -d "$(dirname "$sortie")" ]; then
+  echo "Erreur : le dossier de sortie « $(dirname "$sortie") » n'existe pas." >&2; exit 64
+fi
 
 cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$dossier_scripts/lib-issues.sh"
 
+# Statuts du cycle (même ordre que backlog.md) et classes CSS correspondantes (liste fermée, jamais le texte brut).
 statuts=("À faire" "En clarification" "Spécifié" "En cours" "En revue" "Fait")
+classes=(afaire clarification specifie encours enrevue fait)
+# Rang de la colonne « statut » dans les lignes produites par besoins_backlog et issues_dossier.
+RANG_STATUT_BESOIN=4; RANG_STATUT_ISSUE=3
 sep=$'\037' # séparateur de champs non blanc : les champs vides ne sont pas fusionnés par read
 
 echappe() { # echappe <texte> : échappement HTML
   printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
 }
-classe() { # classe <statut> : nom de classe CSS (liste fermée, jamais le texte brut)
-  case "$1" in
-    "À faire") echo afaire ;; "En clarification") echo clarification ;; "Spécifié") echo specifie ;;
-    "En cours") echo encours ;; "En revue") echo enrevue ;; "Fait") echo fait ;; *) echo inconnu ;;
-  esac
+classe() { # classe <statut> : nom de classe CSS, « inconnu » hors du cycle
+  local i
+  for i in "${!statuts[@]}"; do [ "${statuts[$i]}" = "$1" ] && { echo "${classes[$i]}"; return; }; done
+  echo inconnu
 }
 
 besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd » du tableau « Besoins fonctionnels »
@@ -49,27 +55,31 @@ besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd �
   awk -v FS='|' -v OFS="$sep" '
     /^## / { actif = ($0 ~ /^## Besoins fonctionnels/); next }
     actif && /^\|/ {
-      for (i = 2; i <= 6; i++) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i) }
+      gsub(/\\\|/, "\001")  # « \| » est un « | » littéral dans la cellule, pas un séparateur
+      for (i = 2; i <= 6; i++) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i); gsub(/\001/, "|", $i) }
       if ($2 == "ID" || $2 ~ /^[-: ]+$/ || $2 == "" || $3 == "") next
       print $2, $3, $4, $5, $6
     }
   ' backlog.md
 }
 
-issues_dossier() { # lignes « id SEP titre SEP statut SEP dépendances SEP besoin » lues dans les en-têtes
+issues_dossier() { # lignes « id SEP titre SEP statut SEP dépendances SEP besoin (F-xx) » lues dans les en-têtes
   local f deps
   while IFS= read -r f; do
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_champ "$f" statut)" "$sep" "$deps" "$sep" "$(issue_champ "$f" prd)"
+    printf '%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_champ "$f" statut)" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)"
   done < <(issue_fichiers)
 }
 
 compteurs() { # compteurs <lignes> <rang du statut> : un compteur par statut
-  local s n
+  local s n reste
+  reste="$(printf '%s\n' "$1" | awk 'NF { n++ } END { print n + 0 }')"
   for s in "${statuts[@]}"; do
     n="$(printf '%s\n' "$1" | awk -v FS="$sep" -v c="$2" -v s="$s" '$c == s { n++ } END { print n + 0 }')"
+    reste=$((reste - n))
     printf '<span class="compteur statut-%s">%s : %s</span>\n' "$(classe "$s")" "$(echappe "$s")" "$n"
   done
+  printf '<span class="compteur statut-inconnu">(autre) : %s</span>\n' "$reste"
 }
 
 tableau() { # tableau <lignes> <rang du statut> <titres de colonnes séparés par SEP> : une table par statut, dans l'ordre du cycle
@@ -127,15 +137,15 @@ h3 { padding: .2rem .6rem; border-radius: .3rem; }
 <p>Généré le $(date '+%Y-%m-%d à %H:%M:%S'), rafraîchi toutes les ${attente} s.</p>
 <h2>Besoins</h2>
 <p>
-$(compteurs "$b" 4)
+$(compteurs "$b" "$RANG_STATUT_BESOIN")
 </p>
-$(tableau "$b" 4 "ID${sep}Besoin${sep}Priorité${sep}Statut${sep}PRD")
+$(tableau "$b" "$RANG_STATUT_BESOIN" "ID${sep}Besoin${sep}Priorité${sep}Statut${sep}PRD")
 <h2>Issues</h2>
 <p>$(if [ -n "$prochaine" ]; then printf 'Prochaine issue prête : <strong>%s</strong>' "$(echappe "$prochaine")"; else printf 'Aucune issue prête.'; fi)</p>
 <p>
-$(compteurs "$i" 3)
+$(compteurs "$i" "$RANG_STATUT_ISSUE")
 </p>
-$(tableau "$i" 3 "Id${sep}Titre${sep}Statut${sep}Dépend de${sep}PRD")
+$(tableau "$i" "$RANG_STATUT_ISSUE" "Id${sep}Titre${sep}Statut${sep}Dépend de${sep}Besoin")
 </body>
 </html>
 HTML

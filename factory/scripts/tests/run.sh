@@ -131,7 +131,7 @@ grep -q '<td>F-09</td>' tableau-de-bord.html && ! grep -q 'zzz-prd' tableau-de-b
 grep -q '<td>F-05</td><td>a | b</td><td>P2</td><td>En revue</td><td>docs/prd/005-m.md</td>' tableau-de-bord.html && ok "\\| dans une cellule du backlog ne décale pas les colonnes" || ko "\\| dans une cellule" "$(grep -n 'F-05' tableau-de-bord.html | head -3)"
 grep -q 'class="compteur[^"]*">(autre) : 1<' tableau-de-bord.html && grep -c 'class="compteur' tableau-de-bord.html | grep -q '^14$' && ok "statut inconnu compté dans un compteur (autre)" || ko "compteur (autre)" "$(grep -n 'compteur' tableau-de-bord.html | head -20)"
 err="$(scripts/tableau-de-bord.sh --sortie absent/x.html 2>&1 >/dev/null)"; code=$?
-{ [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $p/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
+{ [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $PWD/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
 rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
 verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
 

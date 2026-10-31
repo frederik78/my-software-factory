@@ -20,7 +20,7 @@ Les règles de travail, la stack et l'architecture sont dans [`AGENTS.md`](AGENT
 | Vocabulaire du métier | [`GLOSSARY.md`](GLOSSARY.md) |
 | Décisions d'architecture (ADR) | [`docs/adr/`](docs/adr/) |
 | Spécifications : comportement, contrats, critères (PRD) | [`docs/prd/`](docs/prd/) |
-| Suivi des issues (statut, dépendances, commits) | [`docs/issues/`](docs/issues/) (état : `scripts/etat-issues.sh`) |
+| Suivi des issues (statut, dépendances, commits) | [`docs/issues/`](docs/issues/) (état : `scripts/etat-issues.sh` ; vue HTML : `scripts/tableau-de-bord.sh`) |
 | Revues de code archivées | [`docs/reviews/`](docs/reviews/) |
 | Leçons du projet | [`docs/lecons.md`](docs/lecons.md) |
 

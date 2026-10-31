@@ -6,8 +6,10 @@
 #   3. variable d'environnement FACTORY_<CLÉ> (ex. FACTORY_MAX_ITERATIONS_REVUE).
 # Un niveau qui définit une clé l'emporte, même avec une valeur vide (une variable d'environnement compte dès qu'elle est définie).
 # SÉCURITÉ : ces fichiers ne sont JAMAIS sourcés ni évalués. Ils sont lus comme des lignes « CLÉ=valeur » : seules les clés connues
-# (CONFIG_CLES) sont prises, lignes vides et commentaires (#) ignorés, valeur prise telle quelle (pas de guillemets retirés, aucune
-# expansion de $(...), `...` ni de variable), retour chariot final retiré (fichier édité sous Windows). Si une clé apparaît plusieurs fois, la dernière gagne.
+# (CONFIG_CLES) sont prises, lignes vides et commentaires (#) ignorés. Indentation et espaces autour de « = » tolérés (« CLÉ = valeur ») :
+# une ligne mal formatée ne doit pas être ignorée en silence. Valeur = ce qui suit le premier « = », sans ses espaces de bord ni le retour
+# chariot final (fichier édité sous Windows), sinon telle quelle (pas de guillemets retirés, aucune expansion de $(...), `...` ni de variable).
+# Si une clé apparaît plusieurs fois, la dernière gagne.
 # Compatible bash 3.2 (macOS).
 
 CONFIG_CLES="MAX_ITERATIONS_REVUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR"
@@ -18,7 +20,14 @@ config_fichier_valeur() {
   awk -v k="$2" '
     { sub(/\r$/, "") }
     /^[[:space:]]*(#|$)/ { next }
-    index($0, k "=") == 1 { v = substr($0, length(k) + 2); trouve = 1 }
+    {
+      l = $0; sub(/^[[:space:]]+/, "", l)
+      if (index(l, k) != 1) next
+      r = substr(l, length(k) + 1)
+      if (r !~ /^[[:space:]]*=/) next
+      sub(/^[[:space:]]*=[[:space:]]*/, "", r); sub(/[[:space:]]+$/, "", r)
+      v = r; trouve = 1
+    }
     END { if (trouve) print v; exit !trouve }
   ' "$1"
 }

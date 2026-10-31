@@ -204,7 +204,7 @@ Les skills `to-spec`, `implement` et `setup-matt-pocock-skills` de l'amont ont �
 |---|---|---|
 | Prompts (`factory/prompts/`, corps du texte), skills (`factory/skills/`, exposés par `.agents/skills`), scripts (`scripts/`), `AGENTS.md`, `backlog.md`, `docs/` ; mode « Sans sous-agents » de la skill `deliver` (rôles joués à la suite dans des sessions neuves) | `factory/sync-claude.sh` (`.claude/skills`, `.claude/agents/`), `.claude/settings.json` (refus de permissions), `CLAUDE.md`, noms d'outils du champ `tools:` des prompts (`Read`, `Bash`...), plugin savvy-progress (`mcp__savvy-progress__step`) | Les refus de permissions d'`.claude/settings.json` dans la configuration de l'outil ; la lecture de `AGENTS.md` et des prompts de rôle (l'en-tête YAML s'ignore) ; la traduction des noms d'outils ; le lancement des rôles (sous-agents ou sessions neuves) |
 
-`./factory/init-projet.sh --sans-claude` et `./factory/sync.sh --sans-claude` n'écrivent rien de propre à Claude Code. Un projet existant obtient `sync-claude.sh` en remplaçant `factory/` (le script fait partie du dossier) ; relancer ensuite `./factory/init-projet.sh` met à jour `.factory-version` et les liens.
+`./factory/init-projet.sh --sans-claude` et `./factory/sync.sh --sans-claude` n'écrivent rien de propre à Claude Code. Un projet existant obtient `sync-claude.sh` en remplaçant `factory/` (le script fait partie du dossier) ; relancer ensuite `./factory/init-projet.sh` met à jour `.factory-version` et les liens, et crée `CLAUDE.md` et `.claude/` s'ils manquent : un projet sans Claude Code relance `./factory/init-projet.sh --sans-claude`.
 
 ## 10. Permissions et limites des agents
 `.claude/settings.json` refuse aux agents : `git push`, `reset --hard`, `clean`, `branch -D`, `checkout --`, `restore`, la lecture de `.env` et de `secrets/`. Limites : le « lecture seule » du reviewer est une consigne (il a `Bash` pour lancer le build) ;
@@ -227,7 +227,7 @@ Seule la session principale peut interroger l'utilisateur : les sous-agents n'on
 | Une branche empilée relit les commits de l'issue précédente | La base est la pointe de la branche dont l'issue dépend (skill `deliver`, étape 0). |
 
 ## 12. Mettre à jour la factory
-Procédure dans `UPGRADE.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents), puis `factory/scripts/tests/run.sh`.
+Procédure dans `UPGRADE.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents ; `--sans-claude` pour un projet sans Claude Code, sinon il crée `CLAUDE.md` et `.claude/` s'ils manquent), puis `factory/scripts/tests/run.sh`.
 Les skills sont copiés, pas liés : modifiables, mais notez les écarts dans `skills/SOURCES.md`. Les langues : prompts, docs et messages en français ; les skills de mattpocock/skills restent en anglais.
 
 ## 13. Arborescence d'un projet initialisé

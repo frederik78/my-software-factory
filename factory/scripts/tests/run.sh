@@ -371,8 +371,13 @@ git init -q .; export HOME="$p/home"; mkdir -p "$HOME"
 [ ! -e docs/lecons.md ] && [ ! -e docs/issues/_modele.md ] && ok "init : aucun ancien nom créé" || ko "init : aucun ancien nom créé"
 anciens='lecons|_modele|LECONS|DEMARRER-UN-PROJET|MISE-A-JOUR'
 # restes_anciens_noms <dossier> : lignes citant un ancien nom ; ils ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
+# Dépôt git : git grep (fichiers suivis). Sinon (copie de verify-clean.sh, donc la CI) : grep récursif avec les mêmes exclusions, sans .git.
 restes_anciens_noms() {
-  git -C "$1" grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>&1
+  if [ -e "$1/.git" ]; then
+    git -C "$1" grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>&1
+  else
+    (cd "$1" && grep -rnIE --exclude-dir=.git "$anciens" . | sed 's|^\./||' | grep -vE '^(factory/CHANGELOG\.md|factory/init-projet\.sh|factory/scripts/tests/run\.sh):')
+  fi
 }
 restes="$(restes_anciens_noms "$factory/.." | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "aucun ancien nom de fichier .md dans le dépôt (hors CHANGELOG, migration et test)" || ko "aucun ancien nom de fichier .md dans le dépôt" "$restes"

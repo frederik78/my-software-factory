@@ -94,6 +94,14 @@ for s in factory/scripts/*.sh; do
     echo "lié        $cible"
   fi
 done
+# Lien vers un script de la factory retiré ou renommé (ex. version 1.8.0) : signalé avec la commande, jamais supprimé seul.
+for cible in scripts/*.sh; do
+  if [ -L "$cible" ] && [ ! -e "$cible" ]; then
+    case "$(readlink "$cible")" in
+      ../factory/scripts/*) echo "à supprimer $cible : lien mort (script retiré ou renommé), supprimez-le : rm $cible" ;;
+    esac
+  fi
+done
 
 # 4. Version de la factory utilisée par ce projet (marqueur, mis à jour à chaque exécution).
 version=""; [ -f factory/VERSION ] && version="$(tr -d '[:space:]' < factory/VERSION)"

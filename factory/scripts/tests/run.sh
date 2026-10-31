@@ -500,7 +500,8 @@ grep -qx 'Subject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ
 printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
 scripts/notifier.sh --sujet "[factory] Essai ASCII 1" --corps-fichier corps.txt >/dev/null 2>&1
 grep -qx 'Subject: \[factory\] Essai ASCII 1' outils/message.txt && ok "sujet ASCII pur : inchangé" || ko "sujet ASCII" "$(grep '^Subject' outils/message.txt)"
-long="[factory] 001-02 bloquée après 5 revues : défaut répété « éèàçô » sur la branche feat/001-02-créer 🙂 fin ÉÈ"
+# 44 octets ASCII puis « é » (2 octets) : la limite de 45 octets par mot tombe au milieu de ce caractère, qui doit passer entier au mot suivant.
+long="[factory] 001-02 bloquee apres 5 revues ::: éèàçô sur la branche feat/001-02-créer 🙂 et encore des accents ÉÈÀ fin"
 scripts/notifier.sh --sujet "$long" --corps-fichier corps.txt >/dev/null 2>&1
 n=0; trop_long=0; mal_forme=0; decode=""
 while IFS= read -r m; do

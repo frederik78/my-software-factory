@@ -102,6 +102,7 @@ grep -q '001-02' tableau-de-bord.html && grep -q 'T001-02' tableau-de-bord.html 
 grep -q 'Prochaine issue prête : <strong>001-02</strong>' tableau-de-bord.html && ok "prochaine issue prête = 001-02" || ko "prochaine issue prête"
 ! grep -q '<script' tableau-de-bord.html && grep -q '&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;' tableau-de-bord.html && ok "cs01_ texte du backlog échappé (pas de <script>)" || ko "cs01_ échappement du backlog" "$(grep -n 'script' tableau-de-bord.html | head -3)"
 grep -q 'class="compteur[^"]*">Fait : 1<' tableau-de-bord.html && ok "compteurs par statut" || ko "compteurs par statut"
+grep -q '<th>PRD</th>' tableau-de-bord.html && ok "toutes les colonnes ont leur titre" || ko "titres de colonnes"
 issue_id "$p" 001-04 "À faire" docs/prd/001-m.md "[CA-04]" "[]"
 sed -i.bak "s/^titre: T001-04/titre: <img src=x onerror=1> l'a/" docs/issues/001-04-x.md; rm -f docs/issues/*.bak
 scripts/tableau-de-bord.sh >/dev/null
@@ -113,7 +114,7 @@ grep -q 'content="5"' tableau-de-bord.html && ok "--attente change le rafraîchi
 verifier "--attente non numérique = 64" 64 "Usage" scripts/tableau-de-bord.sh --attente abc
 verifier "argument inconnu = 64" 64 "Usage" scripts/tableau-de-bord.sh --bad
 rm -f tableau-de-bord.html
-perl -e 'alarm 4; exec @ARGV' scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1; code=$?
+{ perl -e 'alarm 4; exec @ARGV' scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
 [ -f tableau-de-bord.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
 rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
 verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh

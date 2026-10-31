@@ -70,6 +70,71 @@ verifier "puis 001-03 (dépendance en liste multi-lignes)" 0 "^001-03$" scripts/
 issue_id "$p" 001-03 "Fait" docs/prd/001-m.md "[CA-03]" "[001-02]"
 verifier "plus aucune issue prête = code 1" 1 "" scripts/etat-issues.sh --prochaine
 
+echo "tableau-de-bord.sh"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+cat > backlog.md <<'EOF'
+# Backlog
+## Besoins fonctionnels
+
+| ID | Besoin | Priorité | Statut | PRD | Décisions |
+|----|--------|----------|--------|-----|-----------|
+| F-01 | Export <script>alert(1)</script> & "co" | P1 | Fait | docs/prd/001-m.md | |
+| F-02 | Import des données | P2 | En cours | | |
+| F-03 | | P1 | À faire | | |
+| F-04 | Recherche | P3 | À faire | | |
+
+## Besoins non fonctionnels
+
+| ID | Besoin | Statut |
+|----|--------|--------|
+| NF-01 | Ne doit pas apparaître | À faire |
+EOF
+issue_id "$p" 001-01 "Fait" docs/prd/001-m.md "[CA-01]" "[]"
+issue_id "$p" 001-02 "À faire" docs/prd/001-m.md "[CA-02]" "[001-01]"
+issue_id "$p" 001-03 "À faire" docs/prd/001-m.md "[CA-03]" "[001-02]"
+verifier "génère tableau-de-bord.html à la racine" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
+[ -f tableau-de-bord.html ] && ok "le fichier HTML existe" || ko "le fichier HTML existe"
+grep -q '<meta http-equiv="refresh" content="30">' tableau-de-bord.html && ok "rafraîchissement automatique à 30 s par défaut" || ko "rafraîchissement par défaut"
+grep -q 'F-02' tableau-de-bord.html && grep -q 'Import des données' tableau-de-bord.html && ok "les besoins du backlog sont affichés" || ko "besoins affichés"
+! grep -q 'F-03' tableau-de-bord.html && ok "ligne vide (ID sans besoin) ignorée" || ko "ligne vide ignorée"
+! grep -q 'NF-01' tableau-de-bord.html && ok "besoins non fonctionnels non listés" || ko "besoins non fonctionnels"
+grep -q '001-02' tableau-de-bord.html && grep -q 'T001-02' tableau-de-bord.html && ok "les issues sont affichées" || ko "issues affichées"
+grep -q 'Prochaine issue prête : <strong>001-02</strong>' tableau-de-bord.html && ok "prochaine issue prête = 001-02" || ko "prochaine issue prête"
+! grep -q '<script' tableau-de-bord.html && grep -q '&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;' tableau-de-bord.html && ok "cs01_ texte du backlog échappé (pas de <script>)" || ko "cs01_ échappement du backlog" "$(grep -n 'script' tableau-de-bord.html | head -3)"
+grep -q 'class="compteur[^"]*">Fait : 1<' tableau-de-bord.html && ok "compteurs par statut" || ko "compteurs par statut"
+grep -q '<th>PRD</th>' tableau-de-bord.html && ok "toutes les colonnes ont leur titre" || ko "titres de colonnes"
+issue_id "$p" 001-04 "À faire" docs/prd/001-m.md "[CA-04]" "[]"
+sed -i.bak "s/^titre: T001-04/titre: <img src=x onerror=1> l'a/" docs/issues/001-04-x.md; rm -f docs/issues/*.bak
+scripts/tableau-de-bord.sh >/dev/null
+! grep -q '<img' tableau-de-bord.html && grep -q '&lt;img src=x onerror=1&gt; l&#39;a' tableau-de-bord.html && ok "cs02_ titre d'issue échappé" || ko "cs02_ échappement des issues" "$(grep -n 'img' tableau-de-bord.html | head -3)"
+verifier "--sortie écrit dans le fichier demandé" 0 "autre.html" scripts/tableau-de-bord.sh --sortie autre.html
+[ -f autre.html ] && ok "fichier de --sortie créé" || ko "fichier de --sortie créé"
+scripts/tableau-de-bord.sh --attente 5 >/dev/null
+grep -q 'content="5"' tableau-de-bord.html && ok "--attente change le rafraîchissement" || ko "--attente"
+verifier "--attente non numérique = 64" 64 "Usage" scripts/tableau-de-bord.sh --attente abc
+verifier "argument inconnu = 64" 64 "Usage" scripts/tableau-de-bord.sh --bad
+rm -f tableau-de-bord.html
+{ perl -e 'alarm 4; exec @ARGV' scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
+[ -f tableau-de-bord.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
+rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
+cat > backlog.md <<'EOF'
+## Besoins fonctionnels
+
+| ID | Besoin | Priorité | Statut | PRD | Décisions |
+|----|--------|----------|--------|-----|-----------|
+| F-05 | a \| b | P2 | En revue | docs/prd/005-m.md | |
+| F-06 | Statut inventé | P2 | Inconnu | | |
+EOF
+printf -- '---\nid: 009-01\ntitre: Titre\nprd: docs/prd/zzz-prd.md\nbesoin: F-09\nstatut: À faire\ndepend_de: []\n---\n' > docs/issues/009-01-x.md
+scripts/tableau-de-bord.sh >/dev/null
+grep -q '<td>F-09</td>' tableau-de-bord.html && ! grep -q 'zzz-prd' tableau-de-bord.html && grep -q '<th>Besoin</th></tr></thead>' tableau-de-bord.html && ok "issues : colonne Besoin lue dans le champ besoin (pas prd)" || ko "colonne Besoin des issues" "$(grep -n 'F-09\|zzz' tableau-de-bord.html | head -3)"
+grep -q '<td>F-05</td><td>a | b</td><td>P2</td><td>En revue</td><td>docs/prd/005-m.md</td>' tableau-de-bord.html && ok "\\| dans une cellule du backlog ne décale pas les colonnes" || ko "\\| dans une cellule" "$(grep -n 'F-05' tableau-de-bord.html | head -3)"
+grep -q 'class="compteur[^"]*">(autre) : 1<' tableau-de-bord.html && grep -c 'class="compteur' tableau-de-bord.html | grep -q '^14$' && ok "statut inconnu compté dans un compteur (autre)" || ko "compteur (autre)" "$(grep -n 'compteur' tableau-de-bord.html | head -20)"
+err="$(scripts/tableau-de-bord.sh --sortie absent/x.html 2>&1 >/dev/null)"; code=$?
+{ [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $p/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
+rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
+verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
+
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 mkdir -p docs/prd

@@ -46,7 +46,7 @@ Pas de code de production sans un test RED préalable qui échoue. Cycle : RED, 
 
 ## Processus (factory)
 Les besoins sont inventoriés dans `backlog.md` (statuts, priorités, décisions) ; le détail est dans `docs/prd/` (le QUOI : comportement, contrats,
-critères) ; le suivi dans `docs/issues/` (une issue = un fichier) ; les revues dans `docs/reviews/` ; les leçons dans `docs/lecons.md`.
+critères) ; le suivi dans `docs/issues/` (une issue = un fichier) ; les revues dans `docs/reviews/` ; les leçons dans `docs/lessons.md`.
 Voir `factory/README.md`. Idée, puis cadrage (grill-me), ADR, PRD, issues, `/deliver` (TDD, revue, corrections, vérification), PR.
 Rôles : `spec-writer`, `developer`, `code-reviewer` (prompts dans `factory/prompts/`), coordonnés par la session principale (voir « Orchestration » ci-dessous).
 Sécurité : la checklist `owasp-check` (`factory/skills/`) s'applique à chaque rôle ; toute vulnérabilité OWASP avérée est BLOQUANTE.
@@ -71,7 +71,7 @@ ils posent leurs questions dans un bloc `## QUESTIONS` de leur rapport, qu'elle 
 3. **Issues** : `/to-tickets` dans `docs/issues/`, découpage approuvé par l'utilisateur, `scripts/couverture-prd.sh <prd>` à `OK` (chaque critère couvert par exactement une issue).
 4. **Livraison**, issue par issue dans l'ordre des dépendances : `/deliver` (développeur, vérifications de la session, reviewer, corrections en 3 itérations au plus, définition de fini). Besoin à `En cours` puis `En revue`.
 5. **Revue indépendante** de la branche (`/code-review`) avant la fusion ; ses constats bloquants repartent au développeur, puis nouvelle revue.
-6. **Clôture** : besoin à `Fait` quand toutes ses issues le sont et que l'utilisateur a fusionné ; lister les passages du PRD, du backlog et des ADR devenus faux et les proposer à l'utilisateur ; ajouter les leçons du cycle à `docs/lecons.md` ; rapport final court.
+6. **Clôture** : besoin à `Fait` quand toutes ses issues le sont et que l'utilisateur a fusionné ; lister les passages du PRD, du backlog et des ADR devenus faux et les proposer à l'utilisateur ; ajouter les leçons du cycle à `docs/lessons.md` ; rapport final court.
 
 ## Agent skills
 Les skills de la factory lisent leur configuration ici :

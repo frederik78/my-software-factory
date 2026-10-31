@@ -22,7 +22,7 @@ Projet construit avec la Software Factory (`factory/`). Les règles de travail, 
 | Spécifications : comportement, contrats, critères (PRD) | [`docs/prd/`](docs/prd/) |
 | Suivi des issues (statut, dépendances, commits) | [`docs/issues/`](docs/issues/) (état : `scripts/etat-issues.sh` ; vue HTML : `scripts/tableau-de-bord.sh`) |
 | Revues de code archivées | [`docs/reviews/`](docs/reviews/) |
-| Leçons du projet | [`docs/lecons.md`](docs/lecons.md) |
+| Leçons du projet | [`docs/lessons.md`](docs/lessons.md) |
 
 ## Travailler avec la Software Factory
 Le cycle d'un besoin, du cadrage à la fusion :
@@ -33,7 +33,7 @@ cadrage (/grill-with-docs) -> ADR -> PRD (agent spec-writer) -> issues (/to-tick
 ```
 
 - Guide complet, commandes, règles et dépannage : [`factory/README.md`](factory/README.md).
-- Démarrage d'un projet (garde-fous à mettre en place avant la première issue) : [`factory/DEMARRER-UN-PROJET.md`](factory/DEMARRER-UN-PROJET.md).
+- Démarrage d'un projet (garde-fous à mettre en place avant la première issue) : [`factory/START-A-PROJECT.md`](factory/START-A-PROJECT.md).
 - Les agents ne poussent ni ne fusionnent : vous fusionnez, branche par branche, dans `develop` avec `git merge --no-ff`.
 - Modèle de branches : `main` = releases (tags `vX.Y.Z`, vous y fusionnez `develop`), `develop` = intégration (les branches de travail en partent et y reviennent par PR), `hotfix/<slug>` part de `main` pour un correctif urgent.
 

@@ -282,7 +282,7 @@ verifier "migration : l'ancien docs/lecons.md reçoit un message git mv" 0 "git 
 verifier "migration : l'ancien _modele.md reçoit un message git mv" 0 "git mv docs/issues/_modele.md docs/issues/_template.md" ./factory/init-projet.sh
 [ ! -e docs/lessons.md ] && [ ! -e docs/issues/_template.md ] && ok "migration : aucun doublon créé" || ko "migration : aucun doublon créé"
 [ "$(cat docs/lecons.md)" = "mes leçons" ] && ok "migration : l'ancien fichier est intact" || ko "migration : l'ancien fichier est intact"
-git mv docs/lecons.md docs/lessons.md && git mv docs/issues/_modele.md docs/issues/_template.md
+mv docs/lecons.md docs/lessons.md && mv docs/issues/_modele.md docs/issues/_template.md
 out="$(./factory/init-projet.sh 2>&1)"; printf '%s' "$out" | grep -q 'git mv' && ko "migration : plus de message après renommage" "$out" || ok "migration : plus de message après renommage"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 cp "$factory/templates/docs/issues/_template.md" docs/issues/_template.md 2>/dev/null; issue_id "$p" 003-01 "À faire" docs/prd/p.md "[CA-01]" "[]"

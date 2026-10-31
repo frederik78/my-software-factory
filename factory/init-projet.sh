@@ -38,10 +38,25 @@ copier() { # copier <source> <destination relative> : sans jamais écraser ; le 
   echo "créé       $rel"; crees=$((crees + 1))
 }
 
+# Fichiers renommés (version 1.6.1) : un projet déjà initialisé garde l'ancien nom. On ne crée pas de doublon et on ne renomme
+# jamais seul : on indique la commande à lancer. Format : "<nouveau nom>:<ancien nom>".
+renommes="docs/lessons.md:docs/lecons.md docs/issues/_template.md:docs/issues/_modele.md"
+ancien_nom() { # ancien_nom <nouveau nom> : affiche l'ancien nom s'il existe encore alors que le nouveau n'existe pas
+  local paire
+  for paire in $renommes; do
+    if [ "${paire%%:*}" = "$1" ] && [ -e "${paire#*:}" ] && [ ! -e "$1" ]; then printf '%s' "${paire#*:}"; return 0; fi
+  done
+  return 1
+}
+
 # 1. Tronc commun
 gitignore_cree=0; [ -e .gitignore ] || gitignore_cree=1
 while IFS= read -r -d '' src; do
-  copier "$src" "${src#"$modeles"/}"
+  rel="${src#"$modeles"/}"
+  if ancien="$(ancien_nom "$rel")"; then
+    echo "à migrer   $ancien porte l'ancien nom : git mv $ancien $rel (puis relancez ce script)"; gardes=$((gardes + 1)); continue
+  fi
+  copier "$src" "$rel"
 done < <(find "$modeles" -type f ! -name '.DS_Store' -print0 | sort -z)
 
 # 2. Fichiers propres à la stack
@@ -81,14 +96,14 @@ if [ -n "$version" ]; then
   if [ -z "$precedente" ]; then
     echo "$version" > .factory-version; echo "créé       .factory-version ($version)"
   elif [ "$precedente" != "$version" ]; then
-    echo "$version" > .factory-version; echo "mis à jour .factory-version ($precedente -> $version) : lire factory/CHANGELOG.md et factory/MISE-A-JOUR.md"
+    echo "$version" > .factory-version; echo "mis à jour .factory-version ($precedente -> $version) : lire factory/CHANGELOG.md et factory/UPGRADE.md"
   fi
 fi
 
 ./factory/sync.sh
 
 echo
-echo "$crees fichier(s) créé(s), $gardes conservé(s) (stack : $stack). Étapes suivantes : voir factory/DEMARRER-UN-PROJET.md"
+echo "$crees fichier(s) créé(s), $gardes conservé(s) (stack : $stack). Étapes suivantes : voir factory/START-A-PROJECT.md"
 if [ ! -f .factory-verify ] && [ ! -x ./mvnw ] && [ ! -x ./gradlew ] && [ -z "${COMMANDE_VERIFY:-}" ]; then
   echo "À faire : créer .factory-verify (une ligne : la commande de vérification complète) ; scripts/verify-clean.sh et la CI en ont besoin."
 fi

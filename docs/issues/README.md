@@ -2,7 +2,7 @@
 
 Une issue = un fichier `docs/issues/<prd>-<nn>-<slug>.md` : une tranche verticale livrable seule, issue du découpage d'un PRD
 (skill `to-tickets`). `<prd>` est le numéro du PRD, `<nn>` le rang de l'issue. Le PRD décrit le comportement attendu ; l'issue porte le **suivi**
-(statut, dépendances, branche, commits, revue). Modèle : `_modele.md`. La skill `deliver` lit et met à jour ces fichiers.
+(statut, dépendances, branche, commits, revue). Modèle : `_template.md`. La skill `deliver` lit et met à jour ces fichiers.
 
 ## Format
 En-tête YAML : `id`, `titre`, `prd`, `besoin`, `statut` (`À faire` -> `En cours` -> `En revue` -> `Fait`), `depend_de` (ids d'issues qui doivent être

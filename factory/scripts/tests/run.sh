@@ -73,7 +73,7 @@ verifier "puis 001-03 (dépendance en liste multi-lignes)" 0 "^001-03$" scripts/
 issue_id "$p" 001-03 "Fait" docs/prd/001-m.md "[CA-03]" "[001-02]"
 verifier "plus aucune issue prête = code 1" 1 "" scripts/etat-issues.sh --prochaine
 
-echo "tableau-de-bord.sh"
+echo "dashboard.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 cat > backlog.md <<'EOF'
 # Backlog
@@ -95,45 +95,46 @@ EOF
 issue_id "$p" 001-01 "Fait" docs/prd/001-m.md "[CA-01]" "[]"
 issue_id "$p" 001-02 "À faire" docs/prd/001-m.md "[CA-02]" "[001-01]"
 issue_id "$p" 001-03 "À faire" docs/prd/001-m.md "[CA-03]" "[001-02]"
-verifier "génère tableau-de-bord.html à la racine" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
-[ -f tableau-de-bord.html ] && ok "le fichier HTML existe" || ko "le fichier HTML existe"
-grep -q '<meta http-equiv="refresh" content="30">' tableau-de-bord.html && ok "rafraîchissement automatique à 30 s par défaut" || ko "rafraîchissement par défaut"
-grep -q 'F-02' tableau-de-bord.html && grep -q 'Import des données' tableau-de-bord.html && ok "les besoins du backlog sont affichés" || ko "besoins affichés"
-! grep -q 'F-03' tableau-de-bord.html && ok "ligne vide (ID sans besoin) ignorée" || ko "ligne vide ignorée"
-! grep -q 'NF-01' tableau-de-bord.html && ok "besoins non fonctionnels non listés" || ko "besoins non fonctionnels"
-grep -q '001-02' tableau-de-bord.html && grep -q 'T001-02' tableau-de-bord.html && ok "les issues sont affichées" || ko "issues affichées"
-grep -q 'Prochaine issue prête : <strong>001-02</strong>' tableau-de-bord.html && ok "prochaine issue prête = 001-02" || ko "prochaine issue prête"
-! grep -q '<script' tableau-de-bord.html && grep -q '&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;' tableau-de-bord.html && ok "cs01_ texte du backlog échappé (pas de <script>)" || ko "cs01_ échappement du backlog" "$(grep -n 'script' tableau-de-bord.html | head -3)"
+verifier "génère dashboard.html à la racine" 0 "dashboard.html" scripts/dashboard.sh
+[ -f dashboard.html ] && ok "le fichier HTML existe" || ko "le fichier HTML existe"
+grep -qx '<title>Dashboard</title>' dashboard.html && grep -qx '<h1>Dashboard</h1>' dashboard.html && ok "titre de la page : « Dashboard »" || ko "titre Dashboard" "$(grep -n '<title>\|<h1>' dashboard.html)"
+grep -q '<meta http-equiv="refresh" content="30">' dashboard.html && ok "rafraîchissement automatique à 30 s par défaut" || ko "rafraîchissement par défaut"
+grep -q 'F-02' dashboard.html && grep -q 'Import des données' dashboard.html && ok "les besoins du backlog sont affichés" || ko "besoins affichés"
+! grep -q 'F-03' dashboard.html && ok "ligne vide (ID sans besoin) ignorée" || ko "ligne vide ignorée"
+! grep -q 'NF-01' dashboard.html && ok "besoins non fonctionnels non listés" || ko "besoins non fonctionnels"
+grep -q '001-02' dashboard.html && grep -q 'T001-02' dashboard.html && ok "les issues sont affichées" || ko "issues affichées"
+grep -q 'Prochaine issue prête : <strong>001-02</strong>' dashboard.html && ok "prochaine issue prête = 001-02" || ko "prochaine issue prête"
+! grep -q '<script' dashboard.html && grep -q '&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;' dashboard.html && ok "cs01_ texte du backlog échappé (pas de <script>)" || ko "cs01_ échappement du backlog" "$(grep -n 'script' dashboard.html | head -3)"
 # Kanban : en-têtes « Statut (n) » d'une section, dans l'ordre de la page, séparés par « | ».
-colonnes() { awk -v id="$1" 'index($0, "<section id=\"" id "\"") { dedans = 1 } dedans && /<\/section>/ { dedans = 0 } dedans && /<h3/ { gsub(/<[^>]*>/, ""); printf "%s|", $0 }' tableau-de-bord.html; }
-carte() { grep -F "<strong>$1</strong>" tableau-de-bord.html | grep -F 'class="carte'; } # carte <id> : la ligne de la carte
+colonnes() { awk -v id="$1" 'index($0, "<section id=\"" id "\"") { dedans = 1 } dedans && /<\/section>/ { dedans = 0 } dedans && /<h3/ { gsub(/<[^>]*>/, ""); printf "%s|", $0 }' dashboard.html; }
+carte() { grep -F "<strong>$1</strong>" dashboard.html | grep -F 'class="carte'; } # carte <id> : la ligne de la carte
 [ "$(colonnes besoins)" = "À faire (1)|En clarification (0)|Spécifié (0)|En cours (1)|En revue (0)|Fait (1)|" ] && ok "kanban besoins : une colonne par statut du backlog, dans l'ordre, avec le nombre (pas de (autre) inutile)" || ko "colonnes des besoins" "$(colonnes besoins)"
 [ "$(colonnes issues)" = "À faire (2)|En cours (0)|En revue (0)|Fait (1)|" ] && ok "kanban issues : une colonne par statut du cycle des issues, dans l'ordre (pas de (autre) inutile)" || ko "colonnes des issues" "$(colonnes issues)"
-grep -q '<h3 class="statut-fait">Fait (1)</h3>' tableau-de-bord.html && grep -q '<h3 class="statut-afaire">À faire (2)</h3>' tableau-de-bord.html && ok "en-tête de colonne coloré selon le statut" || ko "couleur des en-têtes" "$(grep -n '<h3' tableau-de-bord.html | head -5)"
+grep -q '<h3 class="statut-fait">Fait (1)</h3>' dashboard.html && grep -q '<h3 class="statut-afaire">À faire (2)</h3>' dashboard.html && ok "en-tête de colonne coloré selon le statut" || ko "couleur des en-têtes" "$(grep -n '<h3' dashboard.html | head -5)"
 [ "$(carte F-01)" = '<div class="carte"><strong>F-01</strong> <span class="titre">Export &lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;</span><span class="detail">P1</span><span class="detail">PRD : docs/prd/001-m.md</span></div>' ] && ok "carte de besoin : ID, libellé, priorité, PRD en texte" || ko "carte de besoin" "$(carte F-01)"
 [ "$(carte F-02)" = '<div class="carte"><strong>F-02</strong> <span class="titre">Import des données</span><span class="detail">P2</span></div>' ] && ok "carte de besoin sans PRD : pas de mention PRD" || ko "carte de besoin sans PRD" "$(carte F-02)"
 carte 001-02 | grep -q 'class="carte prochaine".*<span class="marqueur marqueur-prochaine">prochaine</span>' && ! carte 001-02 | grep -q 'bloquée' && ok "marqueur « prochaine » sur l'issue de etat-issues.sh --prochaine (dépendance Fait : pas bloquée)" || ko "marqueur prochaine" "$(carte 001-02)"
 carte 001-03 | grep -q 'class="carte bloquee".*<span class="marqueur marqueur-bloquee">bloquée</span>' && ! carte 001-03 | grep -q '>prochaine<' && ok "marqueur « bloquée » sur une issue À faire dont une dépendance n'est pas Fait" || ko "marqueur bloquée" "$(carte 001-03)"
 [ "$(carte 001-01)" = '<div class="carte"><strong>001-01</strong> <span class="titre">T001-01</span></div>' ] && ok "carte d'issue Fait sans besoin ni dépendance : ni marqueur ni ligne vide" || ko "carte d'issue minimale" "$(carte 001-01)"
-awk '/<section id="issues"/ { s = 1 } s && /<h3[^>]*>En cours \(0\)<\/h3>/ { getline; print; exit }' tableau-de-bord.html | grep -qx '<p class="vide">—</p>' && ok "colonne vide : « — » discret" || ko "colonne vide" "$(grep -n -A1 'En cours (0)' tableau-de-bord.html | head -4)"
-awk '/<section id="issues"/ { s = 1 } s && /class="carte/ { sub(/.*<strong>/, ""); sub(/<\/strong>.*/, ""); printf "%s ", $0 }' tableau-de-bord.html | grep -qx '001-02 001-03 001-01 ' && ok "cartes dans l'ordre des fichiers, par colonne" || ko "ordre des cartes" "$(grep -n 'class="carte' tableau-de-bord.html)"
-grep -A2 '<section id="en-cours">' tableau-de-bord.html | grep -q 'Aucune issue en cours.' && [ "$(grep -n '<section id="en-cours">' tableau-de-bord.html | cut -d: -f1)" -lt "$(grep -n '<section id="besoins">' tableau-de-bord.html | cut -d: -f1)" ] && ok "encart En cours en haut de page : « Aucune issue en cours. »" || ko "encart sans issue en cours" "$(grep -n -A3 'en-cours' tableau-de-bord.html)"
-! grep -q 'class="compteur' tableau-de-bord.html && ! grep -q '<table' tableau-de-bord.html && ok "plus de compteurs ni de tables (redondants avec les en-têtes de colonnes)" || ko "compteurs ou tables restants"
-grep -q 'grid-auto-columns: minmax' tableau-de-bord.html && grep -q 'overflow-x: auto' tableau-de-bord.html && ! grep -Eqi '<script|<link|src=|@import|url\(' tableau-de-bord.html && ok "mise en page CSS seule (grid, défilement horizontal), aucune ressource externe ni JavaScript" || ko "CSS seule"
+awk '/<section id="issues"/ { s = 1 } s && /<h3[^>]*>En cours \(0\)<\/h3>/ { getline; print; exit }' dashboard.html | grep -qx '<p class="vide">—</p>' && ok "colonne vide : « — » discret" || ko "colonne vide" "$(grep -n -A1 'En cours (0)' dashboard.html | head -4)"
+awk '/<section id="issues"/ { s = 1 } s && /class="carte/ { sub(/.*<strong>/, ""); sub(/<\/strong>.*/, ""); printf "%s ", $0 }' dashboard.html | grep -qx '001-02 001-03 001-01 ' && ok "cartes dans l'ordre des fichiers, par colonne" || ko "ordre des cartes" "$(grep -n 'class="carte' dashboard.html)"
+grep -A2 '<section id="en-cours">' dashboard.html | grep -q 'Aucune issue en cours.' && [ "$(grep -n '<section id="en-cours">' dashboard.html | cut -d: -f1)" -lt "$(grep -n '<section id="besoins">' dashboard.html | cut -d: -f1)" ] && ok "encart En cours en haut de page : « Aucune issue en cours. »" || ko "encart sans issue en cours" "$(grep -n -A3 'en-cours' dashboard.html)"
+! grep -q 'class="compteur' dashboard.html && ! grep -q '<table' dashboard.html && ok "plus de compteurs ni de tables (redondants avec les en-têtes de colonnes)" || ko "compteurs ou tables restants"
+grep -q 'grid-auto-columns: minmax' dashboard.html && grep -q 'overflow-x: auto' dashboard.html && ! grep -Eqi '<script|<link|src=|@import|url\(' dashboard.html && ok "mise en page CSS seule (grid, défilement horizontal), aucune ressource externe ni JavaScript" || ko "CSS seule"
 issue_id "$p" 001-04 "À faire" docs/prd/001-m.md "[CA-04]" "[]"
 sed -i.bak "s/^titre: T001-04/titre: <img src=x onerror=1> l'a/" docs/issues/001-04-x.md; rm -f docs/issues/*.bak
-scripts/tableau-de-bord.sh >/dev/null
-! grep -q '<img' tableau-de-bord.html && grep -q '&lt;img src=x onerror=1&gt; l&#39;a' tableau-de-bord.html && ok "cs02_ titre d'issue échappé" || ko "cs02_ échappement des issues" "$(grep -n 'img' tableau-de-bord.html | head -3)"
-verifier "--sortie écrit dans le fichier demandé" 0 "autre.html" scripts/tableau-de-bord.sh --sortie autre.html
+scripts/dashboard.sh >/dev/null
+! grep -q '<img' dashboard.html && grep -q '&lt;img src=x onerror=1&gt; l&#39;a' dashboard.html && ok "cs02_ titre d'issue échappé" || ko "cs02_ échappement des issues" "$(grep -n 'img' dashboard.html | head -3)"
+verifier "--sortie écrit dans le fichier demandé" 0 "autre.html" scripts/dashboard.sh --sortie autre.html
 [ -f autre.html ] && ok "fichier de --sortie créé" || ko "fichier de --sortie créé"
-scripts/tableau-de-bord.sh --attente 5 >/dev/null
-grep -q 'content="5"' tableau-de-bord.html && ok "--attente change le rafraîchissement" || ko "--attente"
-verifier "--attente non numérique = 64" 64 "Usage" scripts/tableau-de-bord.sh --attente abc
-verifier "argument inconnu = 64" 64 "Usage" scripts/tableau-de-bord.sh --bad
-rm -f tableau-de-bord.html
-{ perl -e 'alarm 4; exec @ARGV' scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
-[ -f tableau-de-bord.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
-rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
+scripts/dashboard.sh --attente 5 >/dev/null
+grep -q 'content="5"' dashboard.html && ok "--attente change le rafraîchissement" || ko "--attente"
+verifier "--attente non numérique = 64" 64 "Usage" scripts/dashboard.sh --attente abc
+verifier "argument inconnu = 64" 64 "Usage" scripts/dashboard.sh --bad
+rm -f dashboard.html
+{ perl -e 'alarm 4; exec @ARGV' scripts/dashboard.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
+[ -f dashboard.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
+rm -rf docs/issues backlog.md dashboard.html; mkdir -p docs/issues
 cat > backlog.md <<'EOF'
 ## Besoins fonctionnels
 
@@ -146,33 +147,33 @@ printf -- '---\nid: 009-01\ntitre: Titre\nprd: docs/prd/zzz-prd.md\nbesoin: F-09
 printf -- '---\nid: 009-02\ntitre: <script>x</script> & y\nbesoin: F-09\nstatut: En cours\ndepend_de: [009-01, 009-03]\n---\n' > docs/issues/009-02-x.md
 printf -- '---\nid: 009-03\ntitre: Relue\nbesoin: F-09\nstatut: En revue\ndepend_de: []\n---\n' > docs/issues/009-03-x.md
 printf -- '---\nid: 009-04\ntitre: Hors cycle\nbesoin: F-09\nstatut: Spécifié\ndepend_de: []\n---\n' > docs/issues/009-04-x.md
-scripts/tableau-de-bord.sh >/dev/null
-carte 009-01 | grep -q '<span class="detail">F-09</span>' && ! grep -q 'zzz-prd' tableau-de-bord.html && ok "issues : besoin lu dans le champ besoin (pas prd)" || ko "besoin des issues" "$(grep -n 'F-09\|zzz' tableau-de-bord.html | head -3)"
+scripts/dashboard.sh >/dev/null
+carte 009-01 | grep -q '<span class="detail">F-09</span>' && ! grep -q 'zzz-prd' dashboard.html && ok "issues : besoin lu dans le champ besoin (pas prd)" || ko "besoin des issues" "$(grep -n 'F-09\|zzz' dashboard.html | head -3)"
 [ "$(carte F-05)" = '<div class="carte"><strong>F-05</strong> <span class="titre">a | b</span><span class="detail">P2</span><span class="detail">PRD : docs/prd/005-m.md</span></div>' ] && ok "\\| dans une cellule du backlog ne décale pas les champs" || ko "\\| dans une cellule" "$(carte F-05)"
-[ "$(colonnes besoins)" = "À faire (0)|En clarification (0)|Spécifié (0)|En cours (0)|En revue (1)|Fait (0)|(autre) (1)|" ] && grep -q '<h3 class="statut-inconnu">(autre) (1)</h3>' tableau-de-bord.html && awk '/<h3[^>]*>\(autre\) \(1\)</ { getline; print; exit }' tableau-de-bord.html | grep -q '<strong>F-06</strong>' && ok "besoin à statut inconnu : colonne (autre) en dernier" || ko "colonne (autre) des besoins" "$(colonnes besoins)"
+[ "$(colonnes besoins)" = "À faire (0)|En clarification (0)|Spécifié (0)|En cours (0)|En revue (1)|Fait (0)|(autre) (1)|" ] && grep -q '<h3 class="statut-inconnu">(autre) (1)</h3>' dashboard.html && awk '/<h3[^>]*>\(autre\) \(1\)</ { getline; print; exit }' dashboard.html | grep -q '<strong>F-06</strong>' && ok "besoin à statut inconnu : colonne (autre) en dernier" || ko "colonne (autre) des besoins" "$(colonnes besoins)"
 [ "$(colonnes issues)" = "À faire (1)|En cours (1)|En revue (1)|Fait (0)|(autre) (1)|" ] && carte 009-04 | grep -q 'Hors cycle' && ok "issue hors du cycle des issues (Spécifié) : colonne (autre)" || ko "colonne (autre) des issues" "$(colonnes issues)"
 [ "$(carte 009-02)" = '<div class="carte"><strong>009-02</strong> <span class="titre">&lt;script&gt;x&lt;/script&gt; &amp; y</span><span class="detail">F-09</span><span class="detail">dépend de : 009-01, 009-03</span></div>' ] && ok "cs03_ carte d'issue : id, titre échappé, besoin, dépendances (pas de marqueur hors À faire)" || ko "cs03_ carte d'issue" "$(carte 009-02)"
-! grep -qi '<script' tableau-de-bord.html && ok "cs03_ aucune balise <script> dans la page" || ko "cs03_ <script> dans la page" "$(grep -n -i '<script' tableau-de-bord.html)"
-encart="$(awk '/<section id="en-cours">/ { s = 1 } s { print } s && /<\/section>/ { exit }' tableau-de-bord.html)"
+! grep -qi '<script' dashboard.html && ok "cs03_ aucune balise <script> dans la page" || ko "cs03_ <script> dans la page" "$(grep -n -i '<script' dashboard.html)"
+encart="$(awk '/<section id="en-cours">/ { s = 1 } s { print } s && /<\/section>/ { exit }' dashboard.html)"
 printf '%s' "$encart" | grep -qF '<li><strong>009-02</strong> &lt;script&gt;x&lt;/script&gt; &amp; y' && printf '%s' "$encart" | grep -qF '<li><strong>009-03</strong> Relue' && ! printf '%s' "$encart" | grep -q '009-01\|009-04\|Aucune issue' && ok "encart En cours : issues En cours et En revue (référence + titre), seulement elles" || ko "encart avec issues en cours" "$encart"
-err="$(scripts/tableau-de-bord.sh --sortie absent/x.html 2>&1 >/dev/null)"; code=$?
+err="$(scripts/dashboard.sh --sortie absent/x.html 2>&1 >/dev/null)"; code=$?
 { [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $PWD/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
-rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
-verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
+rm -rf docs/issues backlog.md dashboard.html; mkdir -p docs/issues
+verifier "sans backlog ni issue : page générée sans erreur" 0 "dashboard.html" scripts/dashboard.sh
 droits() { ls -l "$1" | cut -c1-10; }
-rm -f tableau-de-bord.html; (umask 022 && scripts/tableau-de-bord.sh >/dev/null)
-[ "$(droits tableau-de-bord.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits tableau-de-bord.html)"
-rm -f tableau-de-bord.html; (umask 027 && scripts/tableau-de-bord.sh >/dev/null)
-[ "$(droits tableau-de-bord.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits tableau-de-bord.html)"
+rm -f dashboard.html; (umask 022 && scripts/dashboard.sh >/dev/null)
+[ "$(droits dashboard.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits dashboard.html)"
+rm -f dashboard.html; (umask 027 && scripts/dashboard.sh >/dev/null)
+[ "$(droits dashboard.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits dashboard.html)"
 # Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
 cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
 printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
-rm -f generation-en-cours; scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+rm -f generation-en-cours; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
 n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
-restes="$(ls tableau-de-bord.html.* 2>/dev/null)"
+restes="$(ls dashboard.html.* 2>/dev/null)"
 [ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
-cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours tableau-de-bord.html*
+cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours dashboard.html*
 
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -243,6 +244,14 @@ verifier "init : relance sans rien écraser" 0 "conservé +AGENTS.md" ./factory/
 tail -1 AGENTS.md | grep -q MODIFIÉ && ok "AGENTS.md modifié est conservé" || ko "AGENTS.md modifié est conservé"
 [ -f .claude/agents/developer.md ] && grep -q '^tools: Read, Write, Edit, Glob, Grep, Bash$' .claude/agents/developer.md && ok "agent généré avec les outils de l'en-tête (sans suivi de progression)" || ko "agent généré" "$(cat .claude/agents/developer.md 2>&1 | head -6)"
 [ ! -e factory/prompts/orchestrator.md ] && [ ! -e .claude/agents/orchestrator.md ] && ok "pas de prompt ni d'agent orchestrateur (rôle de la session principale)" || ko "pas de prompt ni d'agent orchestrateur"
+[ -L scripts/dashboard.sh ] && [ "$(readlink scripts/dashboard.sh)" = "../factory/scripts/dashboard.sh" ] && [ -x scripts/dashboard.sh ] && ok "init : scripts/dashboard.sh lié (lien relatif vers factory/scripts/)" || ko "init : lien scripts/dashboard.sh" "$(ls -l scripts/ 2>&1 | tr '\n' '|')"
+grep -qx 'dashboard.html' .gitignore && ok "init : dashboard.html dans le .gitignore créé" || ko "init : dashboard.html dans le .gitignore" "$(grep -n html .gitignore)"
+# Migration 1.8.0 : l'ancien lien du script renommé est mort ; init-projet.sh le signale avec la commande, sans rien supprimer.
+ln -s ../factory/scripts/tableau-de-bord.sh scripts/tableau-de-bord.sh
+out="$(./factory/init-projet.sh 2>&1)"
+printf '%s\n' "$out" | grep -qxF "à supprimer scripts/tableau-de-bord.sh : lien mort (script retiré ou renommé), supprimez-le : rm scripts/tableau-de-bord.sh" && [ -L scripts/tableau-de-bord.sh ] && ok "migration : lien mort dans scripts/ signalé avec la commande rm, jamais supprimé" || ko "migration : lien mort signalé" "$(printf '%s' "$out" | grep -n 'scripts/' | tr '\n' '|')"
+rm scripts/tableau-de-bord.sh
+out="$(./factory/init-projet.sh 2>&1)"; printf '%s' "$out" | grep -q 'à supprimer' && ko "migration : plus de message une fois le lien mort supprimé" "$out" || ok "migration : plus de message une fois le lien mort supprimé"
 mkdir -p "$HOME/.claude/plugins"; echo '{"plugins":{"savvy-progress@x":[]}}' > "$HOME/.claude/plugins/installed_plugins.json"
 ./factory/sync.sh >/dev/null && grep -q 'mcp__savvy-progress__step' .claude/agents/developer.md && ok "suivi de progression ajouté si le plugin est installé" || ko "suivi de progression ajouté"
 ! grep -q '3 à 8' .claude/agents/developer.md && grep -q 'selon la mission' .claude/agents/developer.md && grep -q 'ajuste' .claude/agents/developer.md && grep -q 'sans plancher ni plafond' .claude/agents/developer.md && grep -q 'ignore-le et poursuis' .claude/agents/developer.md && ok "suivi de progression : nombre d'étapes dynamique (plus de « 3 à 8 »), garde-fous conservés" || ko "suivi de progression dynamique" "$(grep -n 'étape' .claude/agents/developer.md)"
@@ -376,6 +385,9 @@ anciens='lecons|_modele|LECONS|DEMARRER-UN-PROJET|MISE-A-JOUR'
 # Les anciens noms ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
 restes="$(git -C "$factory/.." grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "aucun ancien nom de fichier .md dans le dépôt (hors CHANGELOG, migration et test)" || ko "aucun ancien nom de fichier .md dans le dépôt" "$restes"
+# Renommage 1.8.0 (dashboard) : l'ancien nom ne subsiste que dans le CHANGELOG (historique et migration) et ce test.
+restes="$(git -C "$factory/.." grep -n -i -E "tableau.de.bord" -- . ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
+[ -z "$restes" ] && ok "plus aucune mention de l'ancien nom du dashboard (hors CHANGELOG et ce test)" || ko "mentions de l'ancien nom du dashboard" "$restes"
 [ -f "$factory/LESSONS.md" ] && [ -f "$factory/START-A-PROJECT.md" ] && [ -f "$factory/UPGRADE.md" ] && ok "factory/LESSONS.md, START-A-PROJECT.md et UPGRADE.md existent" || ko "fichiers de factory/ renommés"
 p="$(mktemp -d "$racine_tmp/m.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
 git init -q .; mkdir -p docs/issues; echo "mes leçons" > docs/lecons.md; echo "mon modèle" > docs/issues/_modele.md

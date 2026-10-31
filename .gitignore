@@ -19,3 +19,6 @@ HELP.md
 
 # Généré par scripts/dashboard.sh
 dashboard.html
+
+# Configuration personnelle de la factory (adresse de notification...) ; .factory.conf, lui, est versionné
+.factory.local.conf

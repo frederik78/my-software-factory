@@ -117,6 +117,22 @@ rm -f tableau-de-bord.html
 { perl -e 'alarm 4; exec @ARGV' scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
 [ -f tableau-de-bord.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
 rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
+cat > backlog.md <<'EOF'
+## Besoins fonctionnels
+
+| ID | Besoin | Priorité | Statut | PRD | Décisions |
+|----|--------|----------|--------|-----|-----------|
+| F-05 | a \| b | P2 | En revue | docs/prd/005-m.md | |
+| F-06 | Statut inventé | P2 | Inconnu | | |
+EOF
+printf -- '---\nid: 009-01\ntitre: Titre\nprd: docs/prd/zzz-prd.md\nbesoin: F-09\nstatut: À faire\ndepend_de: []\n---\n' > docs/issues/009-01-x.md
+scripts/tableau-de-bord.sh >/dev/null
+grep -q '<td>F-09</td>' tableau-de-bord.html && ! grep -q 'zzz-prd' tableau-de-bord.html && grep -q '<th>Besoin</th></tr></thead>' tableau-de-bord.html && ok "issues : colonne Besoin lue dans le champ besoin (pas prd)" || ko "colonne Besoin des issues" "$(grep -n 'F-09\|zzz' tableau-de-bord.html | head -3)"
+grep -q '<td>F-05</td><td>a | b</td><td>P2</td><td>En revue</td><td>docs/prd/005-m.md</td>' tableau-de-bord.html && ok "\\| dans une cellule du backlog ne décale pas les colonnes" || ko "\\| dans une cellule" "$(grep -n 'F-05' tableau-de-bord.html | head -3)"
+grep -q 'class="compteur[^"]*">(autre) : 1<' tableau-de-bord.html && grep -c 'class="compteur' tableau-de-bord.html | grep -q '^14$' && ok "statut inconnu compté dans un compteur (autre)" || ko "compteur (autre)" "$(grep -n 'compteur' tableau-de-bord.html | head -20)"
+err="$(scripts/tableau-de-bord.sh --sortie absent/x.html 2>&1 >/dev/null)"; code=$?
+{ [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $p/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
+rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
 verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
 
 echo "couverture-prd.sh"

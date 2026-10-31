@@ -125,12 +125,12 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
 | `scripts/tableau-de-bord.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML des besoins du `backlog.md` et des issues par statut (compteurs, prochaine issue prête) ; `--boucle` la régénère en continu |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (84 vérifications) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (88 vérifications) |
 | `./factory/sync.sh` | Recrée les alias de skills et les agents depuis les en-têtes de `factory/prompts/` |
 | `./factory/init-projet.sh` | Initialise un projet (sans rien écraser) |
 
 ### Détail des scripts
-Dix scripts, en trois groupes. Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
+Dix scripts, en trois groupes : mise en place (2), contrôle et suivi d'une livraison (6), outils internes (2). Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
 
 **Mise en place (vous les lancez)**
 
@@ -139,7 +139,7 @@ Dix scripts, en trois groupes. Les `scripts/*.sh` à la racine d'un projet sont 
 | `factory/init-projet.sh` | Prépare un projet : `README.md`, `AGENTS.md`, `backlog.md`, `docs/`, modèle de PR, et les fichiers de la stack choisie (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`). Ne remplace jamais un fichier existant ; lie les scripts dans `scripts/`, écrit `.factory-version`, appelle `sync.sh`. Option `--stack java-maven\|python\|node\|aucune`. | Au départ, puis après une mise à jour de la factory |
 | `factory/sync.sh` | Recrée les alias de skills et **génère les agents** (`spec-writer`, `developer`, `code-reviewer`) depuis l'en-tête YAML de `factory/prompts/`. N'ajoute le suivi de progression que si le plugin est installé. | Après un clone, ou après modification d'un prompt |
 
-**Contrôle d'une livraison (la session et les agents les lancent pendant `/deliver`)**
+**Contrôle et suivi d'une livraison (la session et les agents les lancent pendant `/deliver` ; `tableau-de-bord.sh` aussi, par vous, à tout moment)**
 
 | Script | Question à laquelle il répond | Résultat |
 |---|---|---|
@@ -147,7 +147,7 @@ Dix scripts, en trois groupes. Les `scripts/*.sh` à la racine d'un projet sont 
 | `scripts/criteres-sans-test.sh <issue>` | « Chaque critère de l'issue a-t-il un test qui le nomme ? » (`--tous` : toutes les issues commencées) | `OK` ou la liste des critères sans test ; une issue sans aucun critère est une erreur |
 | `scripts/couverture-prd.sh <prd>` | « Chaque critère du PRD est-il couvert par exactement une issue ? » | `OK`, ou critères sans issue, en double, ou inconnus du PRD |
 | `scripts/etat-issues.sh` | « Où en sont les issues ? » Lit leurs en-têtes ; `--statut S` filtre ; `--prochaine` donne la première issue prête (toutes ses dépendances sont `Fait`) | Tableau Markdown, ou un identifiant |
-| `scripts/tableau-de-bord.sh` | « Où en est le projet, d'un coup d'œil ? » Écrit `tableau-de-bord.html` (à ouvrir dans un navigateur, rafraîchi toutes les 30 s ; `--attente S` change le délai) avec les besoins et les issues par statut, les compteurs et la prochaine issue prête ; `--sortie F` change le fichier ; `--boucle S` régénère toutes les S secondes jusqu'à Ctrl-C. Aucun modèle, aucun JavaScript, tout texte lu est échappé HTML | Fichier HTML (non versionné) |
+| `scripts/tableau-de-bord.sh` | « Où en est le projet, d'un coup d'œil ? » Écrit `tableau-de-bord.html` (à ouvrir dans un navigateur, rafraîchi toutes les 30 s ; `--attente S` change le délai) avec les besoins et les issues par statut, les compteurs (dont « (autre) » pour un statut hors cycle) et la prochaine issue prête ; `--sortie F` change le fichier (son dossier doit exister, sinon code 64) ; `--boucle S` régénère toutes les S secondes jusqu'à Ctrl-C. Aucun modèle, aucun JavaScript, tout texte lu est échappé HTML | Fichier HTML (non versionné) |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister` | « Comment isoler une issue ? » `creer` fait un `git worktree` sur la branche de l'issue (option `--base` pour des branches empilées) ; `nettoyer` le supprime une fois la branche fusionnée (option `--branche`) | Dossier, branche et base |
 
 **Outils internes**
@@ -336,7 +336,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (84 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (88 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.

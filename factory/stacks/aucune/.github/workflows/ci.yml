@@ -4,8 +4,8 @@ name: ci
 on:
   push:
     branches: [main, develop]
+  # Toute PR, y compris empilée sur une branche feat/ : pas de filtre de branche.
   pull_request:
-    branches: [main, develop]
   schedule:
     - cron: "0 6 * * 1"   # lundi : nouvelles vulnérabilités de dépendances
 permissions:

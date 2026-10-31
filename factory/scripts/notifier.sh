@@ -12,7 +12,7 @@
 #   NOTIFICATION_EXPEDITEUR    facultatif : en-tête From.
 # Contrat avec la commande : elle reçoit le message complet sur son entrée standard (en-têtes From si l'expéditeur est renseigné, To, Subject,
 # MIME-Version, Content-Type text/plain UTF-8, ligne vide, corps) et le destinataire en DERNIER argument.
-#   Exemples : « msmtp -a compte » lance `msmtp -a compte dest@example.com` ; « sendmail -t » lit aussi les en-têtes.
+#   Exemples : « msmtp -a compte » lance `msmtp -a compte dest@example.com` ; « sendmail -oi » lance `sendmail -oi dest@example.com` (pas -t, qui ignore le destinataire passé en argument).
 # Les secrets (mot de passe SMTP, clé d'API) restent dans la configuration de l'outil d'envoi (~/.msmtprc, trousseau), jamais dans le dépôt.
 # Sécurité : la commande est exécutée comme un tableau de mots, jamais par eval ni sh -c ; les retours à la ligne et caractères de contrôle
 # du sujet et de l'expéditeur sont remplacés (aucun en-tête injecté).

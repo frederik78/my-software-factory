@@ -6,6 +6,8 @@ set -uo pipefail
 # Isolement de l'environnement appelant : verify-clean.sh donne la priorité à COMMANDE_VERIFY, et les bouchons lisent STUB_CODE ;
 # hérités (par exemple quand cette suite est elle-même lancée par verify-clean.sh avec COMMANDE_VERIFY), ils fausseraient les cas.
 unset COMMANDE_VERIFY STUB_CODE
+# Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
+unset FACTORY_MAX_ITERATIONS_REVUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -22,6 +24,14 @@ verifier() {
   sortie="$("$@" 2>&1)"; code=$?
   if [ "$code" -ne "$attendu" ]; then ko "$desc" "code $code au lieu de $attendu ; sortie : $(printf '%s' "$sortie" | head -5 | tr '\n' '|')"; return; fi
   if [ -n "$motif" ] && ! printf '%s' "$sortie" | grep -Eq "$motif"; then ko "$desc" "motif « $motif » absent ; sortie : $(printf '%s' "$sortie" | head -5 | tr '\n' '|')"; return; fi
+  ok "$desc"
+}
+# verifier_exact <description> <code attendu> <sortie exacte attendue (stdout et stderr mêlés)> <commande...>
+verifier_exact() {
+  local desc="$1" attendu="$2" texte="$3"; shift 3
+  local sortie code
+  sortie="$("$@" 2>&1)"; code=$?
+  if [ "$code" -ne "$attendu" ] || [ "$sortie" != "$texte" ]; then ko "$desc" "code $code (attendu $attendu) ; sortie : $(printf '%s' "$sortie" | head -5 | tr '\n' '|')"; return; fi
   ok "$desc"
 }
 
@@ -246,6 +256,13 @@ tail -1 AGENTS.md | grep -q MODIFIÉ && ok "AGENTS.md modifié est conservé" ||
 [ ! -e factory/prompts/orchestrator.md ] && [ ! -e .claude/agents/orchestrator.md ] && ok "pas de prompt ni d'agent orchestrateur (rôle de la session principale)" || ko "pas de prompt ni d'agent orchestrateur"
 [ -L scripts/dashboard.sh ] && [ "$(readlink scripts/dashboard.sh)" = "../factory/scripts/dashboard.sh" ] && [ -x scripts/dashboard.sh ] && ok "init : scripts/dashboard.sh lié (lien relatif vers factory/scripts/)" || ko "init : lien scripts/dashboard.sh" "$(ls -l scripts/ 2>&1 | tr '\n' '|')"
 grep -qx 'dashboard.html' .gitignore && ok "init : dashboard.html dans le .gitignore créé" || ko "init : dashboard.html dans le .gitignore" "$(grep -n html .gitignore)"
+[ -f .factory.conf ] && grep -qx 'MAX_ITERATIONS_REVUE=5' .factory.conf && grep -qx 'NOTIFICATION_COMMANDE=' .factory.conf && grep -qx 'NOTIFICATION_DESTINATAIRE=' .factory.conf && grep -qx 'NOTIFICATION_EXPEDITEUR=' .factory.conf && ok "init : .factory.conf créé (5 itérations, notification vide)" || ko "init : .factory.conf créé" "$(cat .factory.conf 2>&1 | grep -v '^#' | tr '\n' '|')"
+grep -qx '.factory.local.conf' .gitignore && ok "init : .factory.local.conf dans le .gitignore créé" || ko "init : .factory.local.conf dans le .gitignore"
+rappel="Notifications : renseignez NOTIFICATION_COMMANDE et NOTIFICATION_DESTINATAIRE dans .factory.local.conf (non versionné) pour être prévenu d'une issue bloquée en revue."
+printf '%s\n' "$(./factory/init-projet.sh 2>&1)" | grep -qxF "$rappel" && ok "init : rappel de renseigner .factory.local.conf" || ko "init : rappel .factory.local.conf"
+printf 'NOTIFICATION_COMMANDE=sendmail\nNOTIFICATION_DESTINATAIRE=moi@example.com\n' > .factory.local.conf
+printf '%s\n' "$(./factory/init-projet.sh 2>&1)" | grep -qF "Notifications :" && ko "init : plus de rappel une fois la notification configurée" || ok "init : plus de rappel une fois la notification configurée"
+rm .factory.local.conf
 # Migration 1.8.0 : l'ancien lien du script renommé est mort ; init-projet.sh le signale avec la commande, sans rien supprimer.
 ln -s ../factory/scripts/tableau-de-bord.sh scripts/tableau-de-bord.sh
 out="$(./factory/init-projet.sh 2>&1)"
@@ -310,7 +327,8 @@ grep -q '__pycache__' .gitignore && ! grep -q 'maven' .gitignore && ok ".gitigno
 mkdir "$p/stackj"; cp -R "$factory" "$p/stackj/factory"; rm -rf "$p/stackj/factory/scripts/tests"; cd "$p/stackj" || exit 1
 git init -q .; printf 'mon-gitignore\n' > .gitignore
 verifier "stack java-maven avec .gitignore existant : lignes à ajouter signalées" 0 "à faire +\.gitignore existait déjà" ./factory/init-projet.sh --stack java-maven
-[ "$(cat .gitignore)" = "mon-gitignore" ] && ok ".gitignore existant intact" || ko ".gitignore existant intact"
+out="$(cat .gitignore)"; [ "$out" = "mon-gitignore" ] && ok ".gitignore existant intact" || ko ".gitignore existant intact"
+printf '%s\n' "$(./factory/init-projet.sh --stack java-maven 2>&1)" | grep -qxF "à faire    .gitignore : ajoutez la ligne .factory.local.conf (configuration personnelle, à ne pas versionner)" && ok ".gitignore existant sans .factory.local.conf : ligne à ajouter signalée" || ko ".gitignore existant : .factory.local.conf signalé"
 grep -q 'mvnw' .github/workflows/ci.yml && ok "ci.yml de la stack java-maven" || ko "ci.yml de la stack java-maven"
 mkdir "$p/stackn"; cp -R "$factory" "$p/stackn/factory"; rm -rf "$p/stackn/factory/scripts/tests"; cd "$p/stackn" || exit 1
 git init -q .
@@ -401,6 +419,84 @@ p="$(nouveau_projet)"; cd "$p" || exit 1
 cp "$factory/templates/docs/issues/_template.md" docs/issues/_template.md 2>/dev/null; issue_id "$p" 003-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
 out="$(scripts/etat-issues.sh 2>&1)"; printf '%s' "$out" | grep -q '003-01' && ! printf '%s' "$out" | grep -q '_template' && ok "etat-issues.sh ignore _template.md" || ko "etat-issues.sh ignore _template.md" "$out"
 verifier "couverture-prd.sh et criteres-sans-test.sh lisent les issues avec _template.md présent" 1 "" scripts/criteres-sans-test.sh 003-01
+
+echo "config-factory.sh (configuration du projet : .factory.conf, .factory.local.conf, variables FACTORY_*)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+invalide="MAX_ITERATIONS_REVUE invalide : entier >= 1 attendu (voir .factory.conf, .factory.local.conf, FACTORY_MAX_ITERATIONS_REVUE)."
+verifier_exact "sans aucune configuration : 5 itérations par défaut" 0 "5" scripts/config-factory.sh --max-iterations
+printf '# Commentaire\n\n  # commentaire indenté\nMAX_ITERATIONS_REVUE=7\nNOTIFICATION_COMMANDE=\n' > .factory.conf
+verifier_exact ".factory.conf lu (commentaires et lignes vides ignorés)" 0 "7" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=2\n' > .factory.local.conf
+verifier_exact ".factory.local.conf l'emporte sur .factory.conf" 0 "2" scripts/config-factory.sh --max-iterations
+verifier_exact "FACTORY_MAX_ITERATIONS_REVUE l'emporte sur les deux fichiers" 0 "9" env FACTORY_MAX_ITERATIONS_REVUE=9 scripts/config-factory.sh --max-iterations
+verifier_exact "borne : 1 accepté" 0 "1" env FACTORY_MAX_ITERATIONS_REVUE=1 scripts/config-factory.sh --max-iterations
+verifier_exact "borne : 0 refusé (code 64, message exact, sans recopier la valeur)" 64 "$invalide" env FACTORY_MAX_ITERATIONS_REVUE=0 scripts/config-factory.sh --max-iterations
+verifier_exact "valeur non numérique (abc) refusée (64)" 64 "$invalide" env FACTORY_MAX_ITERATIONS_REVUE=abc scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=-3\n' > .factory.local.conf
+verifier_exact "valeur négative dans un fichier refusée (64)" 64 "$invalide" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=4\r\n' > .factory.local.conf
+verifier_exact "fin de ligne CRLF tolérée" 0 "4" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=5; touch pwned1\n' > .factory.local.conf
+verifier_exact "cs_config fichier jamais sourcé : « 5; touch pwned1 » refusée comme invalide" 64 "$invalide" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=$(touch pwned2)\n' > .factory.local.conf
+verifier_exact "cs_config fichier jamais sourcé : « \$(touch pwned2) » refusée comme invalide" 64 "$invalide" scripts/config-factory.sh --max-iterations
+printf 'touch pwned3\nMAX_ITERATIONS_REVUE=`touch pwned4`\nSECRET_INCONNU=abc\n' > .factory.local.conf
+scripts/config-factory.sh >/dev/null 2>&1; scripts/config-factory.sh --max-iterations >/dev/null 2>&1
+[ ! -e pwned1 ] && [ ! -e pwned2 ] && [ ! -e pwned3 ] && [ ! -e pwned4 ] && ok "cs_config aucune commande des fichiers de configuration n'est exécutée" || ko "cs_config commande exécutée depuis la configuration" "$(ls pwned* 2>&1 | tr '\n' ' ')"
+printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRET_INCONNU=abc\n' > .factory.local.conf
+verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "MAX_ITERATIONS_REVUE=6
+NOTIFICATION_COMMANDE=
+NOTIFICATION_DESTINATAIRE=moi@example.com
+NOTIFICATION_EXPEDITEUR=" scripts/config-factory.sh
+verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
+
+echo "notifier.sh (courriel par commande paramétrable)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+mkdir outils; printf 'Constat bloquant restant\nBranche : feat/x\n' > corps.txt
+cat > outils/faux-envoi.sh <<'FIN'
+#!/bin/sh
+# Commande d'envoi factice : écrit ses arguments (un par ligne) et son entrée standard à côté d'elle.
+: > "$(dirname "$0")/args.txt"; for a in "$@"; do printf '%s\n' "$a" >> "$(dirname "$0")/args.txt"; done
+cat > "$(dirname "$0")/message.txt"
+FIN
+chmod +x outils/faux-envoi.sh
+verifier "sans argument = usage (64), même non configuré" 64 "^Usage" scripts/notifier.sh
+verifier "option inconnue = 64" 64 "^Usage" scripts/notifier.sh --bidon
+verifier "--sujet sans valeur = 64" 64 "^Usage" scripts/notifier.sh --sujet
+verifier "--test et --sujet ensemble = 64" 64 "^Usage" scripts/notifier.sh --test --sujet s
+verifier_exact "non configuré : code 3 et message exact" 3 "Notification non envoyée : configuration incomplète (renseignez NOTIFICATION_COMMANDE, NOTIFICATION_DESTINATAIRE dans .factory.local.conf)." scripts/notifier.sh --sujet s --corps-fichier corps.txt
+printf 'NOTIFICATION_COMMANDE=%s -a compte\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+verifier_exact "destinataire seul manquant : code 3, message ne citant que lui" 3 "Notification non envoyée : configuration incomplète (renseignez NOTIFICATION_DESTINATAIRE dans .factory.local.conf)." scripts/notifier.sh --sujet s --corps-fichier corps.txt
+printf 'NOTIFICATION_DESTINATAIRE=-oQ/tmp/x\n' >> .factory.local.conf
+verifier_exact "cs_notif destinataire commençant par « - » refusé (pas d'option injectée dans la commande)" 3 "Notification non envoyée : NOTIFICATION_DESTINATAIRE invalide (une adresse sans espace, ne commençant pas par « - ») ; corrigez-le dans .factory.local.conf." scripts/notifier.sh --sujet s --corps-fichier corps.txt
+[ ! -e outils/args.txt ] && ok "cs_notif commande non lancée quand le destinataire est invalide" || ko "commande lancée malgré un destinataire invalide"
+printf 'NOTIFICATION_COMMANDE=%s -a compte\nNOTIFICATION_DESTINATAIRE=dest@example.com\nNOTIFICATION_EXPEDITEUR=Factory <factory@example.com>\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+verifier_exact "envoi : code 0 et confirmation" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --sujet "[factory] 001-02 bloquée après 5 revues" --corps-fichier corps.txt
+[ "$(cat outils/args.txt 2>/dev/null)" = "$(printf -- '-a\ncompte\ndest@example.com')" ] && ok "commande découpée en mots, destinataire en dernier argument" || ko "arguments de la commande" "$(tr '\n' '|' < outils/args.txt 2>&1)"
+printf 'From: Factory <factory@example.com>\nTo: dest@example.com\nSubject: [factory] 001-02 bloquée après 5 revues\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nConstat bloquant restant\nBranche : feat/x\n' > attendu.txt
+cmp -s attendu.txt outils/message.txt && ok "message sur l'entrée standard : From, To, Subject, en-têtes MIME, ligne vide, corps" || ko "message transmis" "$(diff attendu.txt outils/message.txt 2>&1 | head -6 | tr '\n' '|')"
+printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+printf 'corps lu sur stdin\n' | scripts/notifier.sh --sujet "Essai" >/dev/null 2>&1
+[ "$(head -1 outils/message.txt)" = "To: dest@example.com" ] && [ "$(tail -1 outils/message.txt)" = "corps lu sur stdin" ] && ok "sans expéditeur : pas d'en-tête From ; corps lu sur l'entrée standard" || ko "sans expéditeur / corps sur stdin" "$(tr '\n' '|' < outils/message.txt)"
+scripts/notifier.sh --sujet "$(printf 'a\r\nBcc: espion@example.com')" --corps-fichier corps.txt >/dev/null 2>&1
+! grep -q '^Bcc:' outils/message.txt && grep -qx 'Subject: a  Bcc: espion@example.com' outils/message.txt && [ "$(grep -c '^Subject:' outils/message.txt)" -eq 1 ] && ok "cs_notif CR/LF du sujet neutralisés : aucun en-tête injecté" || ko "injection d'en-tête par le sujet" "$(tr '\n' '|' < outils/message.txt)"
+verifier_exact "--test : message d'essai envoyé" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --test
+grep -qx "Subject: \[factory\] Notification d'essai" outils/message.txt && grep -q "^Message d'essai" outils/message.txt && ok "--test : sujet et corps d'essai" || ko "--test : sujet et corps" "$(tr '\n' '|' < outils/message.txt)"
+verifier_exact "commande en échec : code 4 et message" 4 "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code 1)." env FACTORY_NOTIFICATION_COMMANDE=false scripts/notifier.sh --sujet s --corps-fichier corps.txt
+verifier "commande introuvable : code 4" 4 "a échoué" env FACTORY_NOTIFICATION_COMMANDE="$p/outils/absente.sh" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+verifier "--corps-fichier introuvable = 64" 64 "introuvable" scripts/notifier.sh --sujet s --corps-fichier absent.txt
+printf 'NOTIFICATION_COMMANDE=%s ; touch pwned $(touch pwned2)\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+[ ! -e pwned ] && [ ! -e pwned2 ] && [ "$(cat outils/args.txt)" = "$(printf ';\ntouch\npwned\n$(touch\npwned2)\ndest@example.com')" ] && ok "cs_notif commande ni évaluée ni passée à un shell : « ; » et « \$( ) » restent des arguments" || ko "commande évaluée par un shell" "$(ls pwned* 2>&1) $(tr '\n' '|' < outils/args.txt)"
+
+echo "limite des itérations de revue (documentation)"
+restes="$(git -C "$factory/.." grep -n -i -E "3 itérations|trois itérations" -- . ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
+[ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
+grep -q 'scripts/config-factory.sh --max-iterations' "$factory/skills/deliver/SKILL.md" && grep -q 'scripts/notifier.sh' "$factory/skills/deliver/SKILL.md" && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
+[ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/../AGENTS.md")" -ge 2 ] && [ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/templates/AGENTS.md")" -ge 2 ] && ok "AGENTS.md et son modèle : limite MAX_ITERATIONS_REVUE aux étapes 4 et 5" || ko "AGENTS.md : MAX_ITERATIONS_REVUE aux étapes 4 et 5"
+adresses="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' "$factory/templates/.factory.conf" "$factory/../.factory.conf" 2>/dev/null | grep -v '@example\.com$' | tr '\n' ' ')"
+[ -f "$factory/templates/.factory.conf" ] && [ -z "$adresses" ] && ok "modèle .factory.conf : aucune adresse réelle (example.com seulement)" || ko "adresses du modèle .factory.conf" "$adresses"
+grep -qx '.factory.local.conf' "$factory/../.gitignore" && grep -qx '.factory.local.conf' "$factory/templates/.gitignore" && ok ".factory.local.conf ignoré par git (dépôt et modèle)" || ko ".factory.local.conf dans les .gitignore"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

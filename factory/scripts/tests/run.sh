@@ -495,6 +495,7 @@ env FACTORY_NOTIFICATION_EXPEDITEUR="$(printf 'x@example.com\r\nBcc: y@example.c
 # Sujet RFC 2047 : mots encodés de l'en-tête Subject (pliage compris), un par ligne ; decoder_mot <mot> : texte décodé.
 mots_sujet() { awk '/^Subject:/ { sub(/^Subject: /, ""); print; s = 1; next } s && /^ / { sub(/^ /, ""); print; next } { s = 0 }' outils/message.txt; }
 decoder_mot() { local b="${1#=?UTF-8?B?}"; printf '%s' "${b%?=}" | base64 --decode; }
+scripts/notifier.sh --sujet "[factory] 001-02 bloquée après 5 revues" --corps-fichier corps.txt >/dev/null 2>&1
 grep -qx 'Subject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1ZXM=?=' outils/message.txt && [ "$(decoder_mot "$(mots_sujet)")" = "[factory] 001-02 bloquée après 5 revues" ] && ok "sujet non ASCII encodé RFC 2047 (=?UTF-8?B?…?=) et décodable" || ko "sujet RFC 2047" "$(grep '^Subject' outils/message.txt)"
 printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
 scripts/notifier.sh --sujet "[factory] Essai ASCII 1" --corps-fichier corps.txt >/dev/null 2>&1

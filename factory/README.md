@@ -125,7 +125,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
 | `scripts/tableau-de-bord.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML des besoins du `backlog.md` et des issues par statut (compteurs, prochaine issue prête) ; `--boucle` la régénère en continu |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (98 vérifications) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (109 vérifications) |
 | `./factory/sync.sh` | Recrée les alias de skills et les agents depuis les en-têtes de `factory/prompts/` |
 | `./factory/init-projet.sh` | Initialise un projet (sans rien écraser) |
 
@@ -338,7 +338,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (98 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (109 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.

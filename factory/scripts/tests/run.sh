@@ -436,6 +436,13 @@ printf 'MAX_ITERATIONS_REVUE=-3\n' > .factory.local.conf
 verifier_exact "valeur négative dans un fichier refusée (64)" 64 "$invalide" scripts/config-factory.sh --max-iterations
 printf 'MAX_ITERATIONS_REVUE=4\r\n' > .factory.local.conf
 verifier_exact "fin de ligne CRLF tolérée" 0 "4" scripts/config-factory.sh --max-iterations
+printf '  MAX_ITERATIONS_REVUE = 2  \n' > .factory.local.conf
+verifier_exact "ligne indentée, espaces autour de « = » et en fin de valeur acceptés" 0 "2" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUEX=3\nMAX_ITERATIONS_REVUE_BIS=3\n' > .factory.local.conf
+verifier_exact "clé seulement préfixe d'une autre (MAX_ITERATIONS_REVUEX) : non reconnue" 0 "7" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE = 3; touch pwned5\n' > .factory.local.conf
+verifier_exact "cs_config avec espaces autour de « = » : toujours jamais sourcé, valeur refusée" 64 "$invalide" scripts/config-factory.sh --max-iterations
+[ ! -e pwned5 ] && ok "cs_config « CLÉ = valeur; commande » n'exécute rien" || ko "cs_config commande exécutée (espaces autour de =)"
 printf 'MAX_ITERATIONS_REVUE=5; touch pwned1\n' > .factory.local.conf
 verifier_exact "cs_config fichier jamais sourcé : « 5; touch pwned1 » refusée comme invalide" 64 "$invalide" scripts/config-factory.sh --max-iterations
 printf 'MAX_ITERATIONS_REVUE=$(touch pwned2)\n' > .factory.local.conf
@@ -449,6 +456,9 @@ NOTIFICATION_COMMANDE=
 NOTIFICATION_DESTINATAIRE=moi@example.com
 NOTIFICATION_EXPEDITEUR=" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
+printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
+out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"
+out="$(env FACTORY_NOTIFICATION_COMMANDE= scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_COMMANDE=' && ok "variable FACTORY_* définie mais vide : efface la valeur des fichiers" || ko "variable vide prioritaire" "$(env FACTORY_NOTIFICATION_COMMANDE= scripts/config-factory.sh | tr '\n' '|')"
 
 echo "notifier.sh (courriel par commande paramétrable)"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -473,13 +483,44 @@ verifier_exact "cs_notif destinataire commençant par « - » refusé (pas d'opt
 printf 'NOTIFICATION_COMMANDE=%s -a compte\nNOTIFICATION_DESTINATAIRE=dest@example.com\nNOTIFICATION_EXPEDITEUR=Factory <factory@example.com>\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
 verifier_exact "envoi : code 0 et confirmation" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --sujet "[factory] 001-02 bloquée après 5 revues" --corps-fichier corps.txt
 [ "$(cat outils/args.txt 2>/dev/null)" = "$(printf -- '-a\ncompte\ndest@example.com')" ] && ok "commande découpée en mots, destinataire en dernier argument" || ko "arguments de la commande" "$(tr '\n' '|' < outils/args.txt 2>&1)"
-printf 'From: Factory <factory@example.com>\nTo: dest@example.com\nSubject: [factory] 001-02 bloquée après 5 revues\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nConstat bloquant restant\nBranche : feat/x\n' > attendu.txt
-cmp -s attendu.txt outils/message.txt && ok "message sur l'entrée standard : From, To, Subject, en-têtes MIME, ligne vide, corps" || ko "message transmis" "$(diff attendu.txt outils/message.txt 2>&1 | head -6 | tr '\n' '|')"
+printf 'From: Factory <factory@example.com>\nTo: dest@example.com\nSubject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1ZXM=?=\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nConstat bloquant restant\nBranche : feat/x\n' > attendu.txt
+cmp -s attendu.txt outils/message.txt && ok "message sur l'entrée standard : From, To, Subject (RFC 2047, valeur connue), en-têtes MIME, ligne vide, corps" || ko "message transmis" "$(diff attendu.txt outils/message.txt 2>&1 | head -6 | tr '\n' '|')"
 printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
 printf 'corps lu sur stdin\n' | scripts/notifier.sh --sujet "Essai" >/dev/null 2>&1
 [ "$(head -1 outils/message.txt)" = "To: dest@example.com" ] && [ "$(tail -1 outils/message.txt)" = "corps lu sur stdin" ] && ok "sans expéditeur : pas d'en-tête From ; corps lu sur l'entrée standard" || ko "sans expéditeur / corps sur stdin" "$(tr '\n' '|' < outils/message.txt)"
 scripts/notifier.sh --sujet "$(printf 'a\r\nBcc: espion@example.com')" --corps-fichier corps.txt >/dev/null 2>&1
 ! grep -q '^Bcc:' outils/message.txt && grep -qx 'Subject: a  Bcc: espion@example.com' outils/message.txt && [ "$(grep -c '^Subject:' outils/message.txt)" -eq 1 ] && ok "cs_notif CR/LF du sujet neutralisés : aucun en-tête injecté" || ko "injection d'en-tête par le sujet" "$(tr '\n' '|' < outils/message.txt)"
+env FACTORY_NOTIFICATION_EXPEDITEUR="$(printf 'x@example.com\r\nBcc: y@example.com')" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+! grep -q '^Bcc:' outils/message.txt && grep -qx 'From: x@example.com  Bcc: y@example.com' outils/message.txt && [ "$(grep -c '^From:' outils/message.txt)" -eq 1 ] && ok "cs_notif CR/LF de l'expéditeur neutralisés : From sur une seule ligne, aucun en-tête injecté" || ko "injection d'en-tête par l'expéditeur" "$(tr '\r\n' '^|' < outils/message.txt)"
+# Sujet RFC 2047 : mots encodés de l'en-tête Subject (pliage compris), un par ligne ; decoder_mot <mot> : texte décodé.
+mots_sujet() { awk '/^Subject:/ { sub(/^Subject: /, ""); print; s = 1; next } s && /^ / { sub(/^ /, ""); print; next } { s = 0 }' outils/message.txt; }
+decoder_mot() { local b="${1#=?UTF-8?B?}"; printf '%s' "${b%?=}" | base64 --decode; }
+grep -qx 'Subject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1ZXM=?=' outils/message.txt && [ "$(decoder_mot "$(mots_sujet)")" = "[factory] 001-02 bloquée après 5 revues" ] && ok "sujet non ASCII encodé RFC 2047 (=?UTF-8?B?…?=) et décodable" || ko "sujet RFC 2047" "$(grep '^Subject' outils/message.txt)"
+printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+scripts/notifier.sh --sujet "[factory] Essai ASCII 1" --corps-fichier corps.txt >/dev/null 2>&1
+grep -qx 'Subject: \[factory\] Essai ASCII 1' outils/message.txt && ok "sujet ASCII pur : inchangé" || ko "sujet ASCII" "$(grep '^Subject' outils/message.txt)"
+long="[factory] 001-02 bloquée après 5 revues : défaut répété « éèàçô » sur la branche feat/001-02-créer 🙂 fin ÉÈ"
+scripts/notifier.sh --sujet "$long" --corps-fichier corps.txt >/dev/null 2>&1
+n=0; trop_long=0; mal_forme=0; decode=""
+while IFS= read -r m; do
+  n=$((n + 1)); [ "${#m}" -le 75 ] || trop_long=1
+  printf '%s' "$m" | LC_ALL=C grep -Eqx '=\?UTF-8\?B\?[A-Za-z0-9+/=]+\?=' || mal_forme=1
+  decoder_mot "$m" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 || mal_forme=1
+  decode="$decode$(decoder_mot "$m")"
+done <<FIN
+$(mots_sujet)
+FIN
+[ "$n" -ge 2 ] && [ "$trop_long" -eq 0 ] && [ "$mal_forme" -eq 0 ] && [ "$decode" = "$long" ] && ok "sujet long : $n mots encodés de 75 caractères au plus, caractères UTF-8 entiers, décodage concaténé = sujet" || ko "sujet long RFC 2047" "n=$n trop_long=$trop_long mal_forme=$mal_forme ; $(mots_sujet | tr '\n' '|')"
+env FACTORY_NOTIFICATION_EXPEDITEUR="Fabrique é <f@example.com>" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+de="$(grep '^From:' outils/message.txt)"; nom="${de#From: }"; nom="${nom% <f@example.com>}"
+[ "${de% <f@example.com>}" != "$de" ] && [ "$(decoder_mot "$nom")" = "Fabrique é" ] && ok "expéditeur : nom non ASCII encodé RFC 2047, adresse intacte" || ko "expéditeur RFC 2047" "$de"
+env FACTORY_NOTIFICATION_EXPEDITEUR="Factory <factory@example.com>" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+grep -qx 'From: Factory <factory@example.com>' outils/message.txt && ok "expéditeur ASCII : inchangé" || ko "expéditeur ASCII" "$(grep '^From:' outils/message.txt)"
+rm -f outils/args.txt outils/message.txt
+verifier_exact "cs_notif destinataire avec retour à la ligne refusé (code 3)" 3 "Notification non envoyée : NOTIFICATION_DESTINATAIRE invalide (une adresse sans espace, ne commençant pas par « - ») ; corrigez-le dans .factory.local.conf." env FACTORY_NOTIFICATION_DESTINATAIRE="$(printf 'a@example.com\nBcc: x@example.com')" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+[ ! -e outils/args.txt ] && [ ! -e outils/message.txt ] && ok "cs_notif destinataire avec retour à la ligne : rien transmis à la commande" || ko "commande lancée malgré un destinataire avec retour à la ligne"
+verifier_exact "cs_notif destinataire avec espace refusé (code 3)" 3 "Notification non envoyée : NOTIFICATION_DESTINATAIRE invalide (une adresse sans espace, ne commençant pas par « - ») ; corrigez-le dans .factory.local.conf." env FACTORY_NOTIFICATION_DESTINATAIRE="a@example.com b@example.com" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+[ ! -e outils/args.txt ] && ok "cs_notif destinataire avec espace : commande non lancée" || ko "commande lancée malgré un destinataire avec espace"
 verifier_exact "--test : message d'essai envoyé" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --test
 grep -qx "Subject: \[factory\] Notification d'essai" outils/message.txt && grep -q "^Message d'essai" outils/message.txt && ok "--test : sujet et corps d'essai" || ko "--test : sujet et corps" "$(tr '\n' '|' < outils/message.txt)"
 verifier_exact "commande en échec : code 4 et message" 4 "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code 1)." env FACTORY_NOTIFICATION_COMMANDE=false scripts/notifier.sh --sujet s --corps-fichier corps.txt
@@ -493,6 +534,8 @@ echo "limite des itérations de revue (documentation)"
 restes="$(git -C "$factory/.." grep -n -i -E "3 itérations|trois itérations" -- . ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
 grep -q 'scripts/config-factory.sh --max-iterations' "$factory/skills/deliver/SKILL.md" && grep -q 'scripts/notifier.sh' "$factory/skills/deliver/SKILL.md" && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
+grep -q "au moins un BLOQUANT" "$factory/skills/deliver/SKILL.md" && grep -q "IMPORTANT.*sans courriel" "$factory/skills/deliver/SKILL.md" && ok "/deliver : courriel seulement s'il reste au moins un BLOQUANT (IMPORTANT seuls : remontés sans courriel)" || ko "/deliver : courriel réservé aux BLOQUANT"
+grep -qx 'NOTIFICATION_COMMANDE=' "$factory/templates/.factory.conf" && grep -q 'NOTIFICATION_COMMANDE=sendmail -oi' "$factory/templates/.factory.conf" && ! git -C "$factory/.." grep -q -E 'sendmail -t[^a-z]|sendmail -t$' -- ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' ':!*.factory.conf' && ! grep -q '=sendmail -t' "$factory/templates/.factory.conf" && ok "exemple sendmail -oi (destinataire en argument), plus d'exemple sendmail -t" || ko "exemple sendmail" "$(git -C "$factory/.." grep -n 'sendmail' | head -5 | tr '\n' '|')"
 [ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/../AGENTS.md")" -ge 2 ] && [ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/templates/AGENTS.md")" -ge 2 ] && ok "AGENTS.md et son modèle : limite MAX_ITERATIONS_REVUE aux étapes 4 et 5" || ko "AGENTS.md : MAX_ITERATIONS_REVUE aux étapes 4 et 5"
 adresses="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' "$factory/templates/.factory.conf" "$factory/../.factory.conf" 2>/dev/null | grep -v '@example\.com$' | tr '\n' ' ')"
 [ -f "$factory/templates/.factory.conf" ] && [ -z "$adresses" ] && ok "modèle .factory.conf : aucune adresse réelle (example.com seulement)" || ko "adresses du modèle .factory.conf" "$adresses"

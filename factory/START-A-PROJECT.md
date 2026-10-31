@@ -42,6 +42,8 @@ Ces éléments appartiennent à une première issue « socle » (`000-01`). Ils 
 - [ ] **Branches** : `develop` créée depuis `main` et définie comme branche par défaut sur GitHub ; `main` et `develop` protégées (pas de commit direct, PR et CI verte exigées) ; la CI se déclenche sur les deux.
 - [ ] **Modèle de PR** (`.github/pull_request_template.md`, créé par `init-projet.sh`) en place : il reprend la preuve avant / après et les décisions en attente.
 - [ ] **Licence** de chaque dépendance ajoutée vérifiée.
+- [ ] **Limite des revues et notification** : `MAX_ITERATIONS_REVUE` dans `.factory.conf` (5 par défaut) ; chaque personne renseigne `NOTIFICATION_COMMANDE` et `NOTIFICATION_DESTINATAIRE` dans `.factory.local.conf` (ignoré par git),
+      secrets dans l'outil d'envoi (`~/.msmtprc`, trousseau), puis vérifie avec `scripts/notifier.sh --test`.
 - [ ] `scripts/verify-clean.sh` vert sur le socle ; `factory/scripts/tests/run.sh` vert.
 - [ ] Pour Java : relire l'annexe `factory/skills/owasp-check/JAVA.md`.
 

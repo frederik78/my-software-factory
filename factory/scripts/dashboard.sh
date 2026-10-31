@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Tableau de bord HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
+# Dashboard : page HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
 # Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. La page se rafraîchit seule (balise meta).
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
 #
-# Usage : scripts/tableau-de-bord.sh [--sortie <fichier>] [--attente <secondes>] [--boucle <secondes>]
-#   --sortie   fichier généré (défaut : tableau-de-bord.html à la racine du projet)
+# Usage : scripts/dashboard.sh [--sortie <fichier>] [--attente <secondes>] [--boucle <secondes>]
+#   --sortie   fichier généré (défaut : dashboard.html à la racine du projet)
 #   --attente  délai de rafraîchissement automatique de la page (défaut : 30)
 #   --boucle   régénère le fichier toutes les <secondes> jusqu'à Ctrl-C (sinon une seule génération)
 # Code de sortie : 0 ; 64 si les arguments sont invalides ou si le dossier de --sortie n'existe pas (il n'est pas créé).
@@ -14,7 +14,7 @@ racine="$(cd "$(dirname "$0")/.." && pwd)"
 dossier_scripts="$(cd "$(dirname "$0")" && pwd)"
 usage() { echo "Usage : $0 [--sortie <fichier>] [--attente <secondes>] [--boucle <secondes>]" >&2; exit 64; }
 
-sortie="tableau-de-bord.html"; attente=30; boucle=""
+sortie="dashboard.html"; attente=30; boucle=""
 nombre() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge 1 ]; }
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -174,7 +174,7 @@ generer() { # page complète sur la sortie standard
 <head>
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="$attente">
-<title>Tableau de bord</title>
+<title>Dashboard</title>
 <style>
 body { font-family: system-ui, sans-serif; margin: 2rem; color: #222; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12rem, 1fr); gap: .8rem; overflow-x: auto; padding-bottom: .5rem; }
@@ -198,7 +198,7 @@ body { font-family: system-ui, sans-serif; margin: 2rem; color: #222; }
 </style>
 </head>
 <body>
-<h1>Tableau de bord</h1>
+<h1>Dashboard</h1>
 <p>Généré le $(date '+%Y-%m-%d à %H:%M:%S'), rafraîchi toutes les ${attente} s.</p>
 $(encart_en_cours "$i")
 <section id="besoins">

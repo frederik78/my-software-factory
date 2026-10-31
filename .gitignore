@@ -17,5 +17,5 @@ HELP.md
 .claude/agents/
 .claude/settings.local.json
 
-# Généré par scripts/tableau-de-bord.sh
-tableau-de-bord.html
+# Généré par scripts/dashboard.sh
+dashboard.html

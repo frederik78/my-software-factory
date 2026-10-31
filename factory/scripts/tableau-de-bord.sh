@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tableau de bord HTML statique : besoins du backlog.md et issues de docs/issues/, regroupés par statut.
+# Tableau de bord HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
 # Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. La page se rafraîchit seule (balise meta).
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
 #
@@ -34,20 +34,26 @@ cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$dossier_scripts/lib-issues.sh"
 
-# Statuts du cycle (même ordre que backlog.md) et classes CSS correspondantes (liste fermée, jamais le texte brut).
-statuts=("À faire" "En clarification" "Spécifié" "En cours" "En revue" "Fait")
-classes=(afaire clarification specifie encours enrevue fait)
-# Rang de la colonne « statut » dans les lignes produites par besoins_backlog et issues_dossier.
+# Statuts du cycle, dans l'ordre des colonnes : besoins (backlog.md) et issues (docs/issues/README.md).
+statuts_besoins=("À faire" "En clarification" "Spécifié" "En cours" "En revue" "Fait")
+statuts_issues=("À faire" "En cours" "En revue" "Fait")
+classes=(afaire clarification specifie encours enrevue fait) # une par statut de besoin (liste fermée, jamais le texte brut)
+# Rang du champ « statut » dans les lignes produites par besoins_backlog et issues_dossier.
 RANG_STATUT_BESOIN=4; RANG_STATUT_ISSUE=3
 sep=$'\037' # séparateur de champs non blanc : les champs vides ne sont pas fusionnés par read
 
 echappe() { # echappe <texte> : échappement HTML
   printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
 }
-classe() { # classe <statut> : nom de classe CSS, « inconnu » hors du cycle
+classe() { # classe <statut> : nom de classe CSS, « inconnu » hors du cycle des besoins
   local i
-  for i in "${!statuts[@]}"; do [ "${statuts[$i]}" = "$1" ] && { echo "${classes[$i]}"; return; }; done
+  for i in "${!statuts_besoins[@]}"; do [ "${statuts_besoins[$i]}" = "$1" ] && { echo "${classes[$i]}"; return; }; done
   echo inconnu
+}
+parmi() { # parmi <valeur> <liste...> : vrai si la valeur figure dans la liste
+  local v="$1" x; shift
+  for x in "$@"; do [ "$x" = "$v" ] && return 0; done
+  return 1
 }
 
 besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd » du tableau « Besoins fonctionnels »
@@ -63,7 +69,7 @@ besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd �
   ' backlog.md
 }
 
-issues_dossier() { # lignes « id SEP titre SEP statut SEP dépendances SEP besoin (F-xx) » lues dans les en-têtes
+issues_dossier() { # lignes « id SEP titre SEP statut SEP dépendances SEP besoin (F-xx) » lues dans les en-têtes, dans l'ordre des fichiers
   local f deps
   while IFS= read -r f; do
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
@@ -71,48 +77,97 @@ issues_dossier() { # lignes « id SEP titre SEP statut SEP dépendances SEP beso
   done < <(issue_fichiers)
 }
 
-compteurs() { # compteurs <lignes> <rang du statut> : un compteur par statut
-  local s n reste
-  reste="$(printf '%s\n' "$1" | awk 'NF { n++ } END { print n + 0 }')"
-  for s in "${statuts[@]}"; do
-    n="$(printf '%s\n' "$1" | awk -v FS="$sep" -v c="$2" -v s="$s" '$c == s { n++ } END { print n + 0 }')"
-    reste=$((reste - n))
-    printf '<span class="compteur statut-%s">%s : %s</span>\n' "$(classe "$s")" "$(echappe "$s")" "$n"
-  done
-  printf '<span class="compteur statut-inconnu">(autre) : %s</span>\n' "$reste"
+carte_besoin() { # carte_besoin <ligne de besoins_backlog>
+  local id libelle priorite statut prd
+  IFS="$sep" read -r id libelle priorite statut prd <<< "$1"
+  printf '<div class="carte"><strong>%s</strong> <span class="titre">%s</span>' "$(echappe "$id")" "$(echappe "$libelle")"
+  [ -z "$priorite" ] || printf '<span class="detail">%s</span>' "$(echappe "$priorite")"
+  [ -z "$prd" ] || printf '<span class="detail">PRD : %s</span>' "$(echappe "$prd")"
+  printf '</div>\n'
 }
 
-tableau() { # tableau <lignes> <rang du statut> <titres de colonnes séparés par SEP> : une table par statut, dans l'ordre du cycle
-  local s ligne champ n rang_stat="$2" statut_ligne
-  for s in "${statuts[@]}" "(autre)"; do
-    n=0
-    while IFS= read -r ligne; do
-      [ -n "$ligne" ] || continue
-      statut_ligne="$(printf '%s' "$ligne" | awk -v FS="$sep" -v c="$rang_stat" '{ print $c }')"
-      if [ "$s" = "(autre)" ]; then
-        [ "$(classe "$statut_ligne")" = inconnu ] || continue
-      else
-        [ "$statut_ligne" = "$s" ] || continue
-      fi
-      if [ "$n" -eq 0 ]; then
-        printf '<h3 class="statut-%s">%s</h3>\n<table class="statut-%s"><thead><tr>' "$(classe "$statut_ligne")" "$(echappe "$s")" "$(classe "$statut_ligne")"
-        while IFS= read -r champ; do printf '<th>%s</th>' "$(echappe "$champ")"; done < <(printf '%s\n' "$3" | tr "$sep" '\n')
-        printf '</tr></thead>\n<tbody>\n'
-      fi
-      n=$((n + 1))
-      printf '<tr>'
-      while IFS= read -r champ; do printf '<td>%s</td>' "$(echappe "$champ")"; done < <(printf '%s' "$ligne" | awk -v FS="$sep" -v OFS='\n' '{ $1 = $1; print }')
-      printf '</tr>\n'
-    done <<< "$1"
-    [ "$n" -gt 0 ] && printf '</tbody></table>\n'
+# Contexte des cartes d'issues, rempli par generer : issue prête (etat-issues.sh --prochaine) et statut de chaque id.
+prochaine=""; ids_issues=(); statuts_lus=()
+statut_issue() { # statut_issue <id> : statut lu, vide si l'issue n'existe pas
+  local i=0
+  while [ "$i" -lt "${#ids_issues[@]}" ]; do
+    [ "${ids_issues[$i]}" = "$1" ] && { printf '%s' "${statuts_lus[$i]}"; return; }
+    i=$((i + 1))
   done
-  return 0
+}
+bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est À faire et qu'une dépendance n'est pas Fait
+  local dep
+  [ "$1" = "À faire" ] || return 1
+  while IFS= read -r dep; do
+    [ -n "$dep" ] && [ "$(statut_issue "$dep")" != "Fait" ] && return 0
+  done < <(printf '%s\n' "$2" | tr ',' '\n' | sed 's/^ *//; s/ *$//')
+  return 1
+}
+carte_issue() { # carte_issue <ligne de issues_dossier>
+  local id titre statut deps besoin marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin <<< "$1"
+  if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
+    etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
+  fi
+  if bloquee "$statut" "$deps"; then
+    etats="$etats bloquee"; marques="$marques"'<span class="marqueur marqueur-bloquee">bloquée</span>'
+  fi
+  printf '<div class="carte%s"><strong>%s</strong> <span class="titre">%s</span>%s' "$etats" "$(echappe "$id")" "$(echappe "$titre")" "$marques"
+  [ -z "$besoin" ] || printf '<span class="detail">%s</span>' "$(echappe "$besoin")"
+  [ -z "$deps" ] || printf '<span class="detail">dépend de : %s</span>' "$(echappe "$deps")"
+  printf '</div>\n'
+}
+
+dans_colonne() { # dans_colonne <statut lu> <colonne> <statuts du cycle...> : la colonne « (autre) » reçoit les statuts hors du cycle
+  local statut="$1" colonne="$2"; shift 2
+  if [ "$colonne" = "(autre)" ]; then ! parmi "$statut" "$@"; else [ "$statut" = "$colonne" ]; fi
+}
+kanban() { # kanban <lignes> <rang du statut> <fonction de carte> <statuts du cycle...> : une colonne par statut, plus « (autre) » si besoin
+  local lignes="$1" rang="$2" carte="$3"; shift 3
+  local ligne s i n autre=0
+  local -a liste=() statuts_liste=() colonnes=("$@")
+  while IFS= read -r ligne; do
+    [ -n "$ligne" ] || continue
+    s="$(printf '%s' "$ligne" | cut -d "$sep" -f "$rang")"
+    liste+=("$ligne"); statuts_liste+=("$s")
+    parmi "$s" "$@" || autre=1
+  done <<< "$lignes"
+  [ "$autre" -eq 0 ] || colonnes+=("(autre)")
+  printf '<div class="kanban">\n'
+  for s in "${colonnes[@]}"; do
+    n=0; i=0
+    while [ "$i" -lt "${#liste[@]}" ]; do dans_colonne "${statuts_liste[$i]}" "$s" "$@" && n=$((n + 1)); i=$((i + 1)); done
+    printf '<div class="colonne">\n<h3 class="statut-%s">%s (%s)</h3>\n' "$(classe "$s")" "$(echappe "$s")" "$n"
+    i=0
+    while [ "$i" -lt "${#liste[@]}" ]; do dans_colonne "${statuts_liste[$i]}" "$s" "$@" && "$carte" "${liste[$i]}"; i=$((i + 1)); done
+    [ "$n" -gt 0 ] || printf '<p class="vide">—</p>\n'
+    printf '</div>\n'
+  done
+  printf '</div>\n'
+}
+
+encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cours et En revue, ou « Aucune issue en cours. »
+  local id titre statut deps besoin n=0
+  printf '<section id="en-cours">\n<h2>En cours</h2>\n'
+  while IFS="$sep" read -r id titre statut deps besoin; do
+    parmi "$statut" "En cours" "En revue" || continue
+    [ "$n" -gt 0 ] || printf '<ul>\n'
+    n=$((n + 1))
+    printf '<li><strong>%s</strong> %s <span class="etiquette statut-%s">%s</span></li>\n' "$(echappe "$id")" "$(echappe "$titre")" "$(classe "$statut")" "$(echappe "$statut")"
+  done <<< "$1"
+  if [ "$n" -gt 0 ]; then printf '</ul>\n'; else printf '<p>Aucune issue en cours.</p>\n'; fi
+  printf '</section>\n'
 }
 
 generer() { # page complète sur la sortie standard
-  local b i prochaine
+  local b i id statut
   b="$(besoins_backlog)"; i="$(issues_dossier)"
   prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
+  ids_issues=(); statuts_lus=()
+  while IFS="$sep" read -r id _ statut _; do
+    [ -n "$id" ] || continue
+    ids_issues+=("$id"); statuts_lus+=("$statut")
+  done <<< "$i"
   cat <<HTML
 <!DOCTYPE html>
 <html lang="fr">
@@ -122,30 +177,39 @@ generer() { # page complète sur la sortie standard
 <title>Tableau de bord</title>
 <style>
 body { font-family: system-ui, sans-serif; margin: 2rem; color: #222; }
-table { border-collapse: collapse; margin-bottom: 1rem; width: 100%; }
-th, td { border: 1px solid #ccc; padding: .3rem .6rem; text-align: left; }
-.compteur { display: inline-block; padding: .2rem .7rem; margin: 0 .4rem .4rem 0; border-radius: 1rem; }
+.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12rem, 1fr); gap: .8rem; overflow-x: auto; padding-bottom: .5rem; }
+.colonne { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: .4rem; min-width: 0; }
+.colonne h3 { margin: 0; padding: .4rem .6rem; font-size: 1rem; border-radius: .4rem .4rem 0 0; }
+.carte { background: #fff; border: 1px solid #d1d5db; border-left: 4px solid #9ca3af; border-radius: .3rem; margin: .5rem; padding: .4rem .5rem; overflow-wrap: anywhere; break-inside: avoid; }
+.carte.prochaine { border-left-color: #2563eb; } .carte.bloquee { border-left-color: #dc2626; }
+.marqueur { display: inline-block; margin-left: .3rem; padding: 0 .4rem; border-radius: .6rem; font-size: .75rem; color: #fff; }
+.marqueur-prochaine { background: #2563eb; } .marqueur-bloquee { background: #dc2626; }
+.detail { display: block; font-size: .85rem; color: #555; }
+.vide { margin: .5rem; text-align: center; color: #9ca3af; }
+.etiquette { padding: 0 .4rem; border-radius: .6rem; font-size: .8rem; }
 .statut-afaire { background: #e5e7eb; } .statut-clarification { background: #fde68a; }
 .statut-specifie { background: #bfdbfe; } .statut-encours { background: #fdba74; }
 .statut-enrevue { background: #ddd6fe; } .statut-fait { background: #bbf7d0; }
 .statut-inconnu { background: #fecaca; }
-h3 { padding: .2rem .6rem; border-radius: .3rem; }
+@media print {
+  body { margin: 0; } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .kanban { grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); overflow: visible; }
+}
 </style>
 </head>
 <body>
 <h1>Tableau de bord</h1>
 <p>Généré le $(date '+%Y-%m-%d à %H:%M:%S'), rafraîchi toutes les ${attente} s.</p>
+$(encart_en_cours "$i")
+<section id="besoins">
 <h2>Besoins</h2>
-<p>
-$(compteurs "$b" "$RANG_STATUT_BESOIN")
-</p>
-$(tableau "$b" "$RANG_STATUT_BESOIN" "ID${sep}Besoin${sep}Priorité${sep}Statut${sep}PRD")
+$(kanban "$b" "$RANG_STATUT_BESOIN" carte_besoin "${statuts_besoins[@]}")
+</section>
+<section id="issues">
 <h2>Issues</h2>
 <p>$(if [ -n "$prochaine" ]; then printf 'Prochaine issue prête : <strong>%s</strong>' "$(echappe "$prochaine")"; else printf 'Aucune issue prête.'; fi)</p>
-<p>
-$(compteurs "$i" "$RANG_STATUT_ISSUE")
-</p>
-$(tableau "$i" "$RANG_STATUT_ISSUE" "Id${sep}Titre${sep}Statut${sep}Dépend de${sep}Besoin")
+$(kanban "$i" "$RANG_STATUT_ISSUE" carte_issue "${statuts_issues[@]}")
+</section>
 </body>
 </html>
 HTML

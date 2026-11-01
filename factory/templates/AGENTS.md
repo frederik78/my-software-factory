@@ -29,7 +29,7 @@ Ne jamais appeler directement un outil propre à un fournisseur dans le code app
 ## Architecture
 La structure est décidée dans un ADR (`docs/adr/0001-architecture.md`) AVANT le premier code, et appliquée par des tests d'architecture qui
 échouent à la moindre violation. Elle ne change pas sans nouvel ADR.
-<Arborescence des packages, rôle de chaque couche, sens des dépendances. N'écrire ici que ce que le code ne montre pas (flux de travail, contraintes, décisions) : l'agent lit le reste lui-même dans le code.>
+<Par défaut, des couches de services (référence Java : `factory/stacks/java-maven/README.md`) ; un autre style se justifie dans l'ADR. Arborescence des packages, rôle de chaque couche, sens des dépendances. N'écrire ici que ce que le code ne montre pas (flux de travail, contraintes, décisions) : l'agent lit le reste lui-même dans le code.>
 
 ## Règles
 - **INTERDIT** aux agents : pousser, fusionner, réécrire l'historique (`git push`, `reset --hard`, `clean`, `branch -D`, `checkout --`, `restore`) ; lire ou copier les fichiers de secrets. Seul l'utilisateur

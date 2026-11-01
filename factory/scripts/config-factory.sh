@@ -14,7 +14,12 @@ cd "$racine" || exit 1
 
 MAX_ITERATIONS_DEFAUT=5
 defaut() { # defaut <clé> : valeur par défaut d'une clé connue
-  case "$1" in MAX_ITERATIONS_REVUE) echo "$MAX_ITERATIONS_DEFAUT" ;; *) echo "" ;; esac
+  case "$1" in
+    MAX_ITERATIONS_REVUE) echo "$MAX_ITERATIONS_DEFAUT" ;;
+    AGENT_MODELE) echo "$AGENT_MODELE_DEFAUT" ;;
+    AGENT_EFFORT) echo "$AGENT_EFFORT_DEFAUT" ;;
+    *) echo "" ;;
+  esac
 }
 
 case "${1:-}" in

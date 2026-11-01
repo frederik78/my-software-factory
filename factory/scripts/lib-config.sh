@@ -12,7 +12,10 @@
 # Si une clé apparaît plusieurs fois, la dernière gagne.
 # Compatible bash 3.2 (macOS).
 
-CONFIG_CLES="MAX_ITERATIONS_REVUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR"
+CONFIG_CLES="AGENT_MODELE AGENT_EFFORT MAX_ITERATIONS_REVUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR"
+
+AGENT_MODELE_DEFAUT=opus
+AGENT_EFFORT_DEFAUT=low
 
 # config_fichier_valeur <fichier> <clé> : affiche la valeur de la clé dans le fichier ; code 1 si le fichier ou la clé est absent.
 config_fichier_valeur() {

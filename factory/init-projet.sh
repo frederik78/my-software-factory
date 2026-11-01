@@ -5,6 +5,7 @@
 #     ./factory/init-projet.sh [--nom "Nom du projet"] [--stack java-maven|python|node|aucune] [--sans-claude]
 # --stack choisit le dossier factory/stacks/<stack>/ (défaut : aucune = squelette indépendant de la stack ; voir factory/stacks/*/README.md).
 # --sans-claude : projet sans Claude Code ; ni CLAUDE.md ni rien sous .claude/ n'est créé, et sync.sh est lancé avec --sans-claude.
+# Crée aussi .factory.conf (configuration de la factory : limite des revues, notification) depuis factory/templates/.
 # N'écrase JAMAIS un fichier existant : chaque fichier déjà présent est conservé et signalé. Relançable sans risque.
 set -euo pipefail
 
@@ -75,6 +76,10 @@ while IFS= read -r -d '' src; do
   copier "$src" "$rel"
 done < <(find "$pile" -type f ! -name '.DS_Store' -print0 | sort -z)
 if [ -f "$pile/factory-verify" ]; then copier "$pile/factory-verify" .factory-verify; fi
+# .factory.local.conf (configuration personnelle) ne doit jamais être versionné ; un .gitignore existant n'est pas modifié, la ligne est signalée.
+if ! grep -qx '.factory.local.conf' .gitignore 2>/dev/null; then
+  echo "à faire    .gitignore : ajoutez la ligne .factory.local.conf (configuration personnelle, à ne pas versionner)"
+fi
 if [ -f "$pile/gitignore.append" ]; then
   if [ "$gitignore_cree" -eq 1 ]; then
     cat "$pile/gitignore.append" >> .gitignore; echo "complété   .gitignore (lignes de la stack $stack)"
@@ -92,6 +97,14 @@ for s in factory/scripts/*.sh; do
   else
     ln -s "../$s" "$cible"
     echo "lié        $cible"
+  fi
+done
+# Lien vers un script de la factory retiré ou renommé (ex. version 1.8.0) : signalé avec la commande, jamais supprimé seul.
+for cible in scripts/*.sh; do
+  if [ -L "$cible" ] && [ ! -e "$cible" ]; then
+    case "$(readlink "$cible")" in
+      ../factory/scripts/*) echo "à supprimer $cible : lien mort (script retiré ou renommé), supprimez-le : rm $cible" ;;
+    esac
   fi
 done
 
@@ -112,6 +125,11 @@ echo
 echo "$crees fichier(s) créé(s), $gardes conservé(s) (stack : $stack). Étapes suivantes : voir factory/START-A-PROJECT.md"
 if [ ! -f .factory-verify ] && [ ! -x ./mvnw ] && [ ! -x ./gradlew ] && [ -z "${COMMANDE_VERIFY:-}" ]; then
   echo "À faire : créer .factory-verify (une ligne : la commande de vérification complète) ; scripts/verify-clean.sh et la CI en ont besoin."
+fi
+# shellcheck source=scripts/lib-config.sh
+. factory/scripts/lib-config.sh
+if [ -z "$(config_valeur NOTIFICATION_COMMANDE "")" ] || [ -z "$(config_valeur NOTIFICATION_DESTINATAIRE "")" ]; then
+  echo "Notifications : renseignez NOTIFICATION_COMMANDE et NOTIFICATION_DESTINATAIRE dans .factory.local.conf (non versionné) pour être prévenu d'une issue bloquée en revue."
 fi
 echo "Modèle de branches : main = releases (tags vX.Y.Z), develop = intégration ; les branches de travail partent de develop et y reviennent par PR."
 if ! git show-ref --verify --quiet refs/heads/develop; then

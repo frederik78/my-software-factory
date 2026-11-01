@@ -6,6 +6,8 @@ set -uo pipefail
 # Isolement de l'environnement appelant : verify-clean.sh donne la priorité à COMMANDE_VERIFY, et les bouchons lisent STUB_CODE ;
 # hérités (par exemple quand cette suite est elle-même lancée par verify-clean.sh avec COMMANDE_VERIFY), ils fausseraient les cas.
 unset COMMANDE_VERIFY STUB_CODE
+# Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
+unset FACTORY_MAX_ITERATIONS_REVUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -23,6 +25,44 @@ verifier() {
   if [ "$code" -ne "$attendu" ]; then ko "$desc" "code $code au lieu de $attendu ; sortie : $(printf '%s' "$sortie" | head -5 | tr '\n' '|')"; return; fi
   if [ -n "$motif" ] && ! printf '%s' "$sortie" | grep -Eq "$motif"; then ko "$desc" "motif « $motif » absent ; sortie : $(printf '%s' "$sortie" | head -5 | tr '\n' '|')"; return; fi
   ok "$desc"
+}
+# verifier_exact <description> <code attendu> <sortie exacte attendue (stdout et stderr mêlés)> <commande...>
+verifier_exact() {
+  local desc="$1" attendu="$2" texte="$3"; shift 3
+  local sortie code
+  sortie="$("$@" 2>&1)"; code=$?
+  if [ "$code" -ne "$attendu" ] || [ "$sortie" != "$texte" ]; then ko "$desc" "code $code (attendu $attendu) ; sortie : $(printf '%s' "$sortie" | head -5 | tr '\n' '|')"; return; fi
+  ok "$desc"
+}
+
+# Vérifications de documentation sur ce dépôt (racine de la factory) : elles lisent le dépôt par lire_depot / chercher_depot.
+# Dépôt git : lecture depuis HEAD, pour que la suite ne dépende pas de l'arbre de travail (un agent qui modifie un fichier ou change
+# de branche pendant la suite ne la fait plus échouer au hasard). Conséquence voulue : une modification NON COMMITÉE d'un fichier
+# n'est pas vue par ces vérifications ; commitez avant de lancer la suite. Hors dépôt git (copie de verify-clean.sh, sans .git) :
+# lecture des fichiers de la copie.
+depot="$(cd "$factory/.." && pwd)"
+depot_git() { # depot_git <racine> : vrai si <racine> est la racine d'un dépôt git qui a un HEAD
+  local haut; haut="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ "$(cd "$haut" && pwd -P)" = "$(cd "$1" && pwd -P)" ] && git -C "$1" rev-parse -q --verify HEAD >/dev/null
+}
+lire_depot() { # lire_depot <racine> <chemin relatif> : contenu du fichier (HEAD ou fichier, voir ci-dessus)
+  if depot_git "$1"; then git -C "$1" show "HEAD:$2" 2>/dev/null; else cat "$1/$2" 2>/dev/null; fi
+  return 0
+}
+chercher_depot() { # chercher_depot <racine> [-i] <motif grep -E> [chemins exclus (motifs de chemin)...] : lignes « fichier:ligne:texte »
+  local racine="$1" casse="" motif x; shift
+  if [ "$1" = "-i" ]; then casse="-i"; shift; fi
+  motif="$1"; shift
+  if depot_git "$racine"; then
+    local specs=(.); for x in "$@"; do specs+=(":!$x"); done
+    git -C "$racine" grep -n -I -E $casse -e "$motif" HEAD -- "${specs[@]}" 2>/dev/null
+  else
+    (cd "$racine" && find . -type f ! -path './.git/*' | sed 's|^\./||' | while IFS= read -r f; do
+      for x in "$@"; do case "$f" in $x) continue 2 ;; esac; done
+      grep -n -I -E $casse -e "$motif" "$f" 2>/dev/null | awk -v f="$f" '{ print f ":" $0 }'
+    done)
+  fi
+  return 0
 }
 
 # Dépôt jetable avec les scripts liés comme dans un vrai projet.
@@ -73,7 +113,7 @@ verifier "puis 001-03 (dépendance en liste multi-lignes)" 0 "^001-03$" scripts/
 issue_id "$p" 001-03 "Fait" docs/prd/001-m.md "[CA-03]" "[001-02]"
 verifier "plus aucune issue prête = code 1" 1 "" scripts/etat-issues.sh --prochaine
 
-echo "tableau-de-bord.sh"
+echo "dashboard.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 cat > backlog.md <<'EOF'
 # Backlog
@@ -95,31 +135,46 @@ EOF
 issue_id "$p" 001-01 "Fait" docs/prd/001-m.md "[CA-01]" "[]"
 issue_id "$p" 001-02 "À faire" docs/prd/001-m.md "[CA-02]" "[001-01]"
 issue_id "$p" 001-03 "À faire" docs/prd/001-m.md "[CA-03]" "[001-02]"
-verifier "génère tableau-de-bord.html à la racine" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
-[ -f tableau-de-bord.html ] && ok "le fichier HTML existe" || ko "le fichier HTML existe"
-grep -q '<meta http-equiv="refresh" content="30">' tableau-de-bord.html && ok "rafraîchissement automatique à 30 s par défaut" || ko "rafraîchissement par défaut"
-grep -q 'F-02' tableau-de-bord.html && grep -q 'Import des données' tableau-de-bord.html && ok "les besoins du backlog sont affichés" || ko "besoins affichés"
-! grep -q 'F-03' tableau-de-bord.html && ok "ligne vide (ID sans besoin) ignorée" || ko "ligne vide ignorée"
-! grep -q 'NF-01' tableau-de-bord.html && ok "besoins non fonctionnels non listés" || ko "besoins non fonctionnels"
-grep -q '001-02' tableau-de-bord.html && grep -q 'T001-02' tableau-de-bord.html && ok "les issues sont affichées" || ko "issues affichées"
-grep -q 'Prochaine issue prête : <strong>001-02</strong>' tableau-de-bord.html && ok "prochaine issue prête = 001-02" || ko "prochaine issue prête"
-! grep -q '<script' tableau-de-bord.html && grep -q '&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;' tableau-de-bord.html && ok "cs01_ texte du backlog échappé (pas de <script>)" || ko "cs01_ échappement du backlog" "$(grep -n 'script' tableau-de-bord.html | head -3)"
-grep -q 'class="compteur[^"]*">Fait : 1<' tableau-de-bord.html && ok "compteurs par statut" || ko "compteurs par statut"
-grep -q '<th>PRD</th>' tableau-de-bord.html && ok "toutes les colonnes ont leur titre" || ko "titres de colonnes"
+verifier "génère dashboard.html à la racine" 0 "dashboard.html" scripts/dashboard.sh
+[ -f dashboard.html ] && ok "le fichier HTML existe" || ko "le fichier HTML existe"
+grep -qx '<title>Dashboard</title>' dashboard.html && grep -qx '<h1>Dashboard</h1>' dashboard.html && ok "titre de la page : « Dashboard »" || ko "titre Dashboard" "$(grep -n '<title>\|<h1>' dashboard.html)"
+grep -q '<meta http-equiv="refresh" content="30">' dashboard.html && ok "rafraîchissement automatique à 30 s par défaut" || ko "rafraîchissement par défaut"
+grep -q 'F-02' dashboard.html && grep -q 'Import des données' dashboard.html && ok "les besoins du backlog sont affichés" || ko "besoins affichés"
+! grep -q 'F-03' dashboard.html && ok "ligne vide (ID sans besoin) ignorée" || ko "ligne vide ignorée"
+! grep -q 'NF-01' dashboard.html && ok "besoins non fonctionnels non listés" || ko "besoins non fonctionnels"
+grep -q '001-02' dashboard.html && grep -q 'T001-02' dashboard.html && ok "les issues sont affichées" || ko "issues affichées"
+grep -q 'Prochaine issue prête : <strong>001-02</strong>' dashboard.html && ok "prochaine issue prête = 001-02" || ko "prochaine issue prête"
+! grep -q '<script' dashboard.html && grep -q '&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;' dashboard.html && ok "cs01_ texte du backlog échappé (pas de <script>)" || ko "cs01_ échappement du backlog" "$(grep -n 'script' dashboard.html | head -3)"
+# Kanban : en-têtes « Statut (n) » d'une section, dans l'ordre de la page, séparés par « | ».
+colonnes() { awk -v id="$1" 'index($0, "<section id=\"" id "\"") { dedans = 1 } dedans && /<\/section>/ { dedans = 0 } dedans && /<h3/ { gsub(/<[^>]*>/, ""); printf "%s|", $0 }' dashboard.html; }
+carte() { grep -F "<strong>$1</strong>" dashboard.html | grep -F 'class="carte'; } # carte <id> : la ligne de la carte
+[ "$(colonnes besoins)" = "À faire (1)|En clarification (0)|Spécifié (0)|En cours (1)|En revue (0)|Fait (1)|" ] && ok "kanban besoins : une colonne par statut du backlog, dans l'ordre, avec le nombre (pas de (autre) inutile)" || ko "colonnes des besoins" "$(colonnes besoins)"
+[ "$(colonnes issues)" = "À faire (2)|En cours (0)|En revue (0)|Fait (1)|" ] && ok "kanban issues : une colonne par statut du cycle des issues, dans l'ordre (pas de (autre) inutile)" || ko "colonnes des issues" "$(colonnes issues)"
+grep -q '<h3 class="statut-fait">Fait (1)</h3>' dashboard.html && grep -q '<h3 class="statut-afaire">À faire (2)</h3>' dashboard.html && ok "en-tête de colonne coloré selon le statut" || ko "couleur des en-têtes" "$(grep -n '<h3' dashboard.html | head -5)"
+[ "$(carte F-01)" = '<div class="carte"><strong>F-01</strong> <span class="titre">Export &lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot;</span><span class="detail">P1</span><span class="detail">PRD : docs/prd/001-m.md</span></div>' ] && ok "carte de besoin : ID, libellé, priorité, PRD en texte" || ko "carte de besoin" "$(carte F-01)"
+[ "$(carte F-02)" = '<div class="carte"><strong>F-02</strong> <span class="titre">Import des données</span><span class="detail">P2</span></div>' ] && ok "carte de besoin sans PRD : pas de mention PRD" || ko "carte de besoin sans PRD" "$(carte F-02)"
+carte 001-02 | grep -q 'class="carte prochaine".*<span class="marqueur marqueur-prochaine">prochaine</span>' && ! carte 001-02 | grep -q 'bloquée' && ok "marqueur « prochaine » sur l'issue de etat-issues.sh --prochaine (dépendance Fait : pas bloquée)" || ko "marqueur prochaine" "$(carte 001-02)"
+carte 001-03 | grep -q 'class="carte bloquee".*<span class="marqueur marqueur-bloquee">bloquée</span>' && ! carte 001-03 | grep -q '>prochaine<' && ok "marqueur « bloquée » sur une issue À faire dont une dépendance n'est pas Fait" || ko "marqueur bloquée" "$(carte 001-03)"
+[ "$(carte 001-01)" = '<div class="carte"><strong>001-01</strong> <span class="titre">T001-01</span></div>' ] && ok "carte d'issue Fait sans besoin ni dépendance : ni marqueur ni ligne vide" || ko "carte d'issue minimale" "$(carte 001-01)"
+awk '/<section id="issues"/ { s = 1 } s && /<h3[^>]*>En cours \(0\)<\/h3>/ { getline; print; exit }' dashboard.html | grep -qx '<p class="vide">—</p>' && ok "colonne vide : « — » discret" || ko "colonne vide" "$(grep -n -A1 'En cours (0)' dashboard.html | head -4)"
+awk '/<section id="issues"/ { s = 1 } s && /class="carte/ { sub(/.*<strong>/, ""); sub(/<\/strong>.*/, ""); printf "%s ", $0 }' dashboard.html | grep -qx '001-02 001-03 001-01 ' && ok "cartes dans l'ordre des fichiers, par colonne" || ko "ordre des cartes" "$(grep -n 'class="carte' dashboard.html)"
+grep -A2 '<section id="en-cours">' dashboard.html | grep -q 'Aucune issue en cours.' && [ "$(grep -n '<section id="en-cours">' dashboard.html | cut -d: -f1)" -lt "$(grep -n '<section id="besoins">' dashboard.html | cut -d: -f1)" ] && ok "encart En cours en haut de page : « Aucune issue en cours. »" || ko "encart sans issue en cours" "$(grep -n -A3 'en-cours' dashboard.html)"
+! grep -q 'class="compteur' dashboard.html && ! grep -q '<table' dashboard.html && ok "plus de compteurs ni de tables (redondants avec les en-têtes de colonnes)" || ko "compteurs ou tables restants"
+grep -q 'grid-auto-columns: minmax' dashboard.html && grep -q 'overflow-x: auto' dashboard.html && ! grep -Eqi '<script|<link|src=|@import|url\(' dashboard.html && ok "mise en page CSS seule (grid, défilement horizontal), aucune ressource externe ni JavaScript" || ko "CSS seule"
 issue_id "$p" 001-04 "À faire" docs/prd/001-m.md "[CA-04]" "[]"
 sed -i.bak "s/^titre: T001-04/titre: <img src=x onerror=1> l'a/" docs/issues/001-04-x.md; rm -f docs/issues/*.bak
-scripts/tableau-de-bord.sh >/dev/null
-! grep -q '<img' tableau-de-bord.html && grep -q '&lt;img src=x onerror=1&gt; l&#39;a' tableau-de-bord.html && ok "cs02_ titre d'issue échappé" || ko "cs02_ échappement des issues" "$(grep -n 'img' tableau-de-bord.html | head -3)"
-verifier "--sortie écrit dans le fichier demandé" 0 "autre.html" scripts/tableau-de-bord.sh --sortie autre.html
+scripts/dashboard.sh >/dev/null
+! grep -q '<img' dashboard.html && grep -q '&lt;img src=x onerror=1&gt; l&#39;a' dashboard.html && ok "cs02_ titre d'issue échappé" || ko "cs02_ échappement des issues" "$(grep -n 'img' dashboard.html | head -3)"
+verifier "--sortie écrit dans le fichier demandé" 0 "autre.html" scripts/dashboard.sh --sortie autre.html
 [ -f autre.html ] && ok "fichier de --sortie créé" || ko "fichier de --sortie créé"
-scripts/tableau-de-bord.sh --attente 5 >/dev/null
-grep -q 'content="5"' tableau-de-bord.html && ok "--attente change le rafraîchissement" || ko "--attente"
-verifier "--attente non numérique = 64" 64 "Usage" scripts/tableau-de-bord.sh --attente abc
-verifier "argument inconnu = 64" 64 "Usage" scripts/tableau-de-bord.sh --bad
-rm -f tableau-de-bord.html
-{ perl -e 'alarm 4; exec @ARGV' scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
-[ -f tableau-de-bord.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
-rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
+scripts/dashboard.sh --attente 5 >/dev/null
+grep -q 'content="5"' dashboard.html && ok "--attente change le rafraîchissement" || ko "--attente"
+verifier "--attente non numérique = 64" 64 "Usage" scripts/dashboard.sh --attente abc
+verifier "argument inconnu = 64" 64 "Usage" scripts/dashboard.sh --bad
+rm -f dashboard.html
+{ perl -e 'alarm 4; exec @ARGV' scripts/dashboard.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
+[ -f dashboard.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
+rm -rf docs/issues backlog.md dashboard.html; mkdir -p docs/issues
 cat > backlog.md <<'EOF'
 ## Besoins fonctionnels
 
@@ -129,28 +184,36 @@ cat > backlog.md <<'EOF'
 | F-06 | Statut inventé | P2 | Inconnu | | |
 EOF
 printf -- '---\nid: 009-01\ntitre: Titre\nprd: docs/prd/zzz-prd.md\nbesoin: F-09\nstatut: À faire\ndepend_de: []\n---\n' > docs/issues/009-01-x.md
-scripts/tableau-de-bord.sh >/dev/null
-grep -q '<td>F-09</td>' tableau-de-bord.html && ! grep -q 'zzz-prd' tableau-de-bord.html && grep -q '<th>Besoin</th></tr></thead>' tableau-de-bord.html && ok "issues : colonne Besoin lue dans le champ besoin (pas prd)" || ko "colonne Besoin des issues" "$(grep -n 'F-09\|zzz' tableau-de-bord.html | head -3)"
-grep -q '<td>F-05</td><td>a | b</td><td>P2</td><td>En revue</td><td>docs/prd/005-m.md</td>' tableau-de-bord.html && ok "\\| dans une cellule du backlog ne décale pas les colonnes" || ko "\\| dans une cellule" "$(grep -n 'F-05' tableau-de-bord.html | head -3)"
-grep -q 'class="compteur[^"]*">(autre) : 1<' tableau-de-bord.html && grep -c 'class="compteur' tableau-de-bord.html | grep -q '^14$' && ok "statut inconnu compté dans un compteur (autre)" || ko "compteur (autre)" "$(grep -n 'compteur' tableau-de-bord.html | head -20)"
-err="$(scripts/tableau-de-bord.sh --sortie absent/x.html 2>&1 >/dev/null)"; code=$?
+printf -- '---\nid: 009-02\ntitre: <script>x</script> & y\nbesoin: F-09\nstatut: En cours\ndepend_de: [009-01, 009-03]\n---\n' > docs/issues/009-02-x.md
+printf -- '---\nid: 009-03\ntitre: Relue\nbesoin: F-09\nstatut: En revue\ndepend_de: []\n---\n' > docs/issues/009-03-x.md
+printf -- '---\nid: 009-04\ntitre: Hors cycle\nbesoin: F-09\nstatut: Spécifié\ndepend_de: []\n---\n' > docs/issues/009-04-x.md
+scripts/dashboard.sh >/dev/null
+carte 009-01 | grep -q '<span class="detail">F-09</span>' && ! grep -q 'zzz-prd' dashboard.html && ok "issues : besoin lu dans le champ besoin (pas prd)" || ko "besoin des issues" "$(grep -n 'F-09\|zzz' dashboard.html | head -3)"
+[ "$(carte F-05)" = '<div class="carte"><strong>F-05</strong> <span class="titre">a | b</span><span class="detail">P2</span><span class="detail">PRD : docs/prd/005-m.md</span></div>' ] && ok "\\| dans une cellule du backlog ne décale pas les champs" || ko "\\| dans une cellule" "$(carte F-05)"
+[ "$(colonnes besoins)" = "À faire (0)|En clarification (0)|Spécifié (0)|En cours (0)|En revue (1)|Fait (0)|(autre) (1)|" ] && grep -q '<h3 class="statut-inconnu">(autre) (1)</h3>' dashboard.html && awk '/<h3[^>]*>\(autre\) \(1\)</ { getline; print; exit }' dashboard.html | grep -q '<strong>F-06</strong>' && ok "besoin à statut inconnu : colonne (autre) en dernier" || ko "colonne (autre) des besoins" "$(colonnes besoins)"
+[ "$(colonnes issues)" = "À faire (1)|En cours (1)|En revue (1)|Fait (0)|(autre) (1)|" ] && carte 009-04 | grep -q 'Hors cycle' && ok "issue hors du cycle des issues (Spécifié) : colonne (autre)" || ko "colonne (autre) des issues" "$(colonnes issues)"
+[ "$(carte 009-02)" = '<div class="carte"><strong>009-02</strong> <span class="titre">&lt;script&gt;x&lt;/script&gt; &amp; y</span><span class="detail">F-09</span><span class="detail">dépend de : 009-01, 009-03</span></div>' ] && ok "cs03_ carte d'issue : id, titre échappé, besoin, dépendances (pas de marqueur hors À faire)" || ko "cs03_ carte d'issue" "$(carte 009-02)"
+! grep -qi '<script' dashboard.html && ok "cs03_ aucune balise <script> dans la page" || ko "cs03_ <script> dans la page" "$(grep -n -i '<script' dashboard.html)"
+encart="$(awk '/<section id="en-cours">/ { s = 1 } s { print } s && /<\/section>/ { exit }' dashboard.html)"
+printf '%s' "$encart" | grep -qF '<li><strong>009-02</strong> &lt;script&gt;x&lt;/script&gt; &amp; y' && printf '%s' "$encart" | grep -qF '<li><strong>009-03</strong> Relue' && ! printf '%s' "$encart" | grep -q '009-01\|009-04\|Aucune issue' && ok "encart En cours : issues En cours et En revue (référence + titre), seulement elles" || ko "encart avec issues en cours" "$encart"
+err="$(scripts/dashboard.sh --sortie absent/x.html 2>&1 >/dev/null)"; code=$?
 { [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $PWD/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
-rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
-verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
+rm -rf docs/issues backlog.md dashboard.html; mkdir -p docs/issues
+verifier "sans backlog ni issue : page générée sans erreur" 0 "dashboard.html" scripts/dashboard.sh
 droits() { ls -l "$1" | cut -c1-10; }
-rm -f tableau-de-bord.html; (umask 022 && scripts/tableau-de-bord.sh >/dev/null)
-[ "$(droits tableau-de-bord.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits tableau-de-bord.html)"
-rm -f tableau-de-bord.html; (umask 027 && scripts/tableau-de-bord.sh >/dev/null)
-[ "$(droits tableau-de-bord.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits tableau-de-bord.html)"
+rm -f dashboard.html; (umask 022 && scripts/dashboard.sh >/dev/null)
+[ "$(droits dashboard.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits dashboard.html)"
+rm -f dashboard.html; (umask 027 && scripts/dashboard.sh >/dev/null)
+[ "$(droits dashboard.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits dashboard.html)"
 # Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
 cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
 printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
-rm -f generation-en-cours; scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+rm -f generation-en-cours; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
 n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
-restes="$(ls tableau-de-bord.html.* 2>/dev/null)"
+restes="$(ls dashboard.html.* 2>/dev/null)"
 [ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
-cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours tableau-de-bord.html*
+cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours dashboard.html*
 
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -225,6 +288,21 @@ verifier "init : relance sans rien écraser" 0 "conservé +AGENTS.md" ./factory/
 tail -1 AGENTS.md | grep -q MODIFIÉ && ok "AGENTS.md modifié est conservé" || ko "AGENTS.md modifié est conservé"
 [ -f .claude/agents/developer.md ] && grep -q '^tools: Read, Write, Edit, Glob, Grep, Bash$' .claude/agents/developer.md && ok "agent généré avec les outils de l'en-tête (sans suivi de progression)" || ko "agent généré" "$(cat .claude/agents/developer.md 2>&1 | head -6)"
 [ ! -e factory/prompts/orchestrator.md ] && [ ! -e .claude/agents/orchestrator.md ] && ok "pas de prompt ni d'agent orchestrateur (rôle de la session principale)" || ko "pas de prompt ni d'agent orchestrateur"
+[ -L scripts/dashboard.sh ] && [ "$(readlink scripts/dashboard.sh)" = "../factory/scripts/dashboard.sh" ] && [ -x scripts/dashboard.sh ] && ok "init : scripts/dashboard.sh lié (lien relatif vers factory/scripts/)" || ko "init : lien scripts/dashboard.sh" "$(ls -l scripts/ 2>&1 | tr '\n' '|')"
+grep -qx 'dashboard.html' .gitignore && ok "init : dashboard.html dans le .gitignore créé" || ko "init : dashboard.html dans le .gitignore" "$(grep -n html .gitignore)"
+[ -f .factory.conf ] && grep -qx 'MAX_ITERATIONS_REVUE=5' .factory.conf && grep -qx 'NOTIFICATION_COMMANDE=' .factory.conf && grep -qx 'NOTIFICATION_DESTINATAIRE=' .factory.conf && grep -qx 'NOTIFICATION_EXPEDITEUR=' .factory.conf && ok "init : .factory.conf créé (5 itérations, notification vide)" || ko "init : .factory.conf créé" "$(cat .factory.conf 2>&1 | grep -v '^#' | tr '\n' '|')"
+grep -qx '.factory.local.conf' .gitignore && ok "init : .factory.local.conf dans le .gitignore créé" || ko "init : .factory.local.conf dans le .gitignore"
+rappel="Notifications : renseignez NOTIFICATION_COMMANDE et NOTIFICATION_DESTINATAIRE dans .factory.local.conf (non versionné) pour être prévenu d'une issue bloquée en revue."
+printf '%s\n' "$(./factory/init-projet.sh 2>&1)" | grep -qxF "$rappel" && ok "init : rappel de renseigner .factory.local.conf" || ko "init : rappel .factory.local.conf"
+printf 'NOTIFICATION_COMMANDE=sendmail\nNOTIFICATION_DESTINATAIRE=moi@example.com\n' > .factory.local.conf
+printf '%s\n' "$(./factory/init-projet.sh 2>&1)" | grep -qF "Notifications :" && ko "init : plus de rappel une fois la notification configurée" || ok "init : plus de rappel une fois la notification configurée"
+rm .factory.local.conf
+# Migration 1.8.0 : l'ancien lien du script renommé est mort ; init-projet.sh le signale avec la commande, sans rien supprimer.
+ln -s ../factory/scripts/tableau-de-bord.sh scripts/tableau-de-bord.sh
+out="$(./factory/init-projet.sh 2>&1)"
+printf '%s\n' "$out" | grep -qxF "à supprimer scripts/tableau-de-bord.sh : lien mort (script retiré ou renommé), supprimez-le : rm scripts/tableau-de-bord.sh" && [ -L scripts/tableau-de-bord.sh ] && ok "migration : lien mort dans scripts/ signalé avec la commande rm, jamais supprimé" || ko "migration : lien mort signalé" "$(printf '%s' "$out" | grep -n 'scripts/' | tr '\n' '|')"
+rm scripts/tableau-de-bord.sh
+out="$(./factory/init-projet.sh 2>&1)"; printf '%s' "$out" | grep -q 'à supprimer' && ko "migration : plus de message une fois le lien mort supprimé" "$out" || ok "migration : plus de message une fois le lien mort supprimé"
 mkdir -p "$HOME/.claude/plugins"; echo '{"plugins":{"savvy-progress@x":[]}}' > "$HOME/.claude/plugins/installed_plugins.json"
 ./factory/sync.sh >/dev/null && grep -q 'mcp__savvy-progress__step' .claude/agents/developer.md && ok "suivi de progression ajouté si le plugin est installé" || ko "suivi de progression ajouté"
 ! grep -q '3 à 8' .claude/agents/developer.md && grep -q 'selon la mission' .claude/agents/developer.md && grep -q 'ajuste' .claude/agents/developer.md && grep -q 'sans plancher ni plafond' .claude/agents/developer.md && grep -q 'ignore-le et poursuis' .claude/agents/developer.md && ok "suivi de progression : nombre d'étapes dynamique (plus de « 3 à 8 »), garde-fous conservés" || ko "suivi de progression dynamique" "$(grep -n 'étape' .claude/agents/developer.md)"
@@ -283,7 +361,8 @@ grep -q '__pycache__' .gitignore && ! grep -q 'maven' .gitignore && ok ".gitigno
 mkdir "$p/stackj"; cp -R "$factory" "$p/stackj/factory"; rm -rf "$p/stackj/factory/scripts/tests"; cd "$p/stackj" || exit 1
 git init -q .; printf 'mon-gitignore\n' > .gitignore
 verifier "stack java-maven avec .gitignore existant : lignes à ajouter signalées" 0 "à faire +\.gitignore existait déjà" ./factory/init-projet.sh --stack java-maven
-[ "$(cat .gitignore)" = "mon-gitignore" ] && ok ".gitignore existant intact" || ko ".gitignore existant intact"
+out="$(cat .gitignore)"; [ "$out" = "mon-gitignore" ] && ok ".gitignore existant intact" || ko ".gitignore existant intact"
+printf '%s\n' "$(./factory/init-projet.sh --stack java-maven 2>&1)" | grep -qxF "à faire    .gitignore : ajoutez la ligne .factory.local.conf (configuration personnelle, à ne pas versionner)" && ok ".gitignore existant sans .factory.local.conf : ligne à ajouter signalée" || ko ".gitignore existant : .factory.local.conf signalé"
 grep -q 'mvnw' .github/workflows/ci.yml && ok "ci.yml de la stack java-maven" || ko "ci.yml de la stack java-maven"
 mkdir "$p/stackn"; cp -R "$factory" "$p/stackn/factory"; rm -rf "$p/stackn/factory/scripts/tests"; cd "$p/stackn" || exit 1
 git init -q .
@@ -334,9 +413,10 @@ w="$(nouveau_projet)"; cd "$w" || exit 1
 git init -q -b tronc . && issue_id "$w" 005-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
 git add -A >/dev/null && git commit -qm "socle"
 verifier "creer sans aucune base : message citant origin/develop" 64 "^Aucune base trouvée \(develop, origin/develop, origin/HEAD, main, master\) : passez --base\.$" scripts/worktree-issue.sh creer 005-01
-for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/workflows/ci.yml; do
-  declencheurs="$(awk '/^on:/ { dans = 1; next } dans && /^[^ ]/ { exit } dans { print }' "$ci")"
-  [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(grep -c 'branches:' "$ci")" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : ${ci#"$factory"/../}" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
+for ci in .github/workflows/ci.yml $(cd "$depot" && ls factory/stacks/*/.github/workflows/ci.yml); do
+  contenu="$(lire_depot "$depot" "$ci")"
+  declencheurs="$(printf '%s\n' "$contenu" | awk '/^on:/ { dans = 1; next } dans && /^[^ ]/ { exit } dans { print }')"
+  [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(printf '%s\n' "$contenu" | grep -c 'branches:')" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : $ci" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
 done
 
 # [A05] Aucune étape actions/checkout ne laisse le jeton dans .git/config : persist-credentials: false (aucun job ne pousse).
@@ -355,13 +435,13 @@ migration_170="$(awk '/^## 1\.7\.0$/ { dans = 1; next } dans && /^## / { exit } 
 printf '%s' "$migration_170" | grep -q 'init-projet\.sh --sans-claude' && ! printf '%s' "$migration_170" | grep -q 'sync\.sh --claude' && ok "CHANGELOG 1.7.0 : migration avec init-projet.sh --sans-claude, sans le conseil sync.sh --claude" || ko "CHANGELOG 1.7.0 : ligne Migration" "$migration_170"
 
 echo "CI et vérification de ce dépôt (racine)"
-ci_racine="$factory/../.github/workflows/ci.yml"
-! grep -qE 'mvnw|setup-java|NVD|maven' "$ci_racine" && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(grep -nE 'mvnw|setup-java|NVD|maven' "$ci_racine" | head -3 | tr '\n' '|')"
-grep -qE '^ +- run: \./scripts/verify-clean\.sh$' "$ci_racine" && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
-[ "$(grep -E 'uses:' "$ci_racine" | sed 's/^ *- *//' | sort -u)" = "$(grep -E 'uses:' "$factory/stacks/aucune/.github/workflows/ci.yml" | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(grep -E 'uses:' "$ci_racine" | tr '\n' '|')"
-[ -f "$factory/../.factory-verify" ] && [ "$(head -1 "$factory/../.factory-verify")" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(head -1 "$factory/../.factory-verify" 2>&1)"
-dependabot_racine="$factory/../.github/dependabot.yml"
-! grep -q 'package-ecosystem: maven' "$dependabot_racine" && grep -q 'package-ecosystem: github-actions' "$dependabot_racine" && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(grep -n 'package-ecosystem' "$dependabot_racine" | tr '\n' '|')"
+ci_racine="$(lire_depot "$depot" .github/workflows/ci.yml)"
+[ -n "$ci_racine" ] && ! printf '%s\n' "$ci_racine" | grep -qE 'mvnw|setup-java|NVD|maven' && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(printf '%s\n' "$ci_racine" | grep -nE 'mvnw|setup-java|NVD|maven' | head -3 | tr '\n' '|')"
+printf '%s\n' "$ci_racine" | grep -qE '^ +- run: \./scripts/verify-clean\.sh$' && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
+[ "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" = "$(lire_depot "$depot" factory/stacks/aucune/.github/workflows/ci.yml | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | tr '\n' '|')"
+[ "$(lire_depot "$depot" .factory-verify | head -1)" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(lire_depot "$depot" .factory-verify | head -1)"
+dependabot_racine="$(lire_depot "$depot" .github/dependabot.yml)"
+! printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: maven' && printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: github-actions' && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(printf '%s\n' "$dependabot_racine" | grep -n 'package-ecosystem' | tr '\n' '|')"
 
 echo "noms de fichiers *.md en anglais"
 p="$(mktemp -d "$racine_tmp/n.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
@@ -370,16 +450,9 @@ git init -q .; export HOME="$p/home"; mkdir -p "$HOME"
 [ -f docs/lessons.md ] && [ -f docs/issues/_template.md ] && ok "init : docs/lessons.md et docs/issues/_template.md créés" || ko "init : docs/lessons.md et docs/issues/_template.md créés"
 [ ! -e docs/lecons.md ] && [ ! -e docs/issues/_modele.md ] && ok "init : aucun ancien nom créé" || ko "init : aucun ancien nom créé"
 anciens='lecons|_modele|LECONS|DEMARRER-UN-PROJET|MISE-A-JOUR'
-# restes_anciens_noms <dossier> : lignes citant un ancien nom ; ils ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
-# Dépôt git : git grep (fichiers suivis). Sinon (copie de verify-clean.sh, donc la CI) : grep récursif avec les mêmes exclusions, sans .git.
-restes_anciens_noms() {
-  if [ -e "$1/.git" ]; then
-    git -C "$1" grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>&1
-  else
-    (cd "$1" && grep -rnIE --exclude-dir=.git "$anciens" . | sed 's|^\./||' | grep -vE '^(factory/CHANGELOG\.md|factory/init-projet\.sh|factory/scripts/tests/run\.sh):')
-  fi
-}
-restes="$(restes_anciens_noms "$factory/.." | head -5 | tr '\n' '|')"
+# Les anciens noms ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
+restes_anciens_noms() { chercher_depot "$1" "$anciens" factory/CHANGELOG.md factory/init-projet.sh factory/scripts/tests/run.sh; }
+restes="$(restes_anciens_noms "$depot" | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "aucun ancien nom de fichier .md dans le dépôt (hors CHANGELOG, migration et test)" || ko "aucun ancien nom de fichier .md dans le dépôt" "$restes"
 # Mutation : la vérification doit aussi mordre hors dépôt git (copie de verify-clean.sh, donc la CI), avec les mêmes exclusions.
 copie_sans_git="$(mktemp -d "$racine_tmp/s.XXXXXX")"; mkdir -p "$copie_sans_git/factory/scripts/tests" "$copie_sans_git/docs"
@@ -387,8 +460,11 @@ for exclu in factory/CHANGELOG.md factory/init-projet.sh factory/scripts/tests/r
 [ -z "$(restes_anciens_noms "$copie_sans_git")" ] && ok "hors dépôt git : CHANGELOG, init-projet.sh et run.sh restent exclus" || ko "hors dépôt git : exclusions" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
 echo "voir docs/lecons.md" > "$copie_sans_git/docs/README.md"
 restes_anciens_noms "$copie_sans_git" | grep -q '^docs/README.md:1:voir docs/lecons.md$' && ok "hors dépôt git : un ancien nom est détecté (pas de vérification à vide)" || ko "hors dépôt git : un ancien nom est détecté" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
-git -C "$copie_sans_git" init -q && git -C "$copie_sans_git" add -A
-restes_anciens_noms "$copie_sans_git" | grep -q '^docs/README.md:1:voir docs/lecons.md$' && ok "dépôt git : un ancien nom suivi est détecté" || ko "dépôt git : un ancien nom suivi est détecté" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
+git -C "$copie_sans_git" init -q && git -C "$copie_sans_git" add -A && git -C "$copie_sans_git" -c user.name=t -c user.email=t@example.com commit -qm "chore: copie"
+restes_anciens_noms "$copie_sans_git" | grep -q '^HEAD:docs/README.md:1:voir docs/lecons.md$' && ok "dépôt git : un ancien nom commité est détecté (lecture depuis HEAD)" || ko "dépôt git : un ancien nom commité est détecté" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
+# Renommage 1.8.0 (dashboard) : l'ancien nom ne subsiste que dans le CHANGELOG (historique et migration) et ce test.
+restes="$(chercher_depot "$depot" -i "tableau.de.bord" factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
+[ -z "$restes" ] && ok "plus aucune mention de l'ancien nom du dashboard (hors CHANGELOG et ce test)" || ko "mentions de l'ancien nom du dashboard" "$restes"
 [ -f "$factory/LESSONS.md" ] && [ -f "$factory/START-A-PROJECT.md" ] && [ -f "$factory/UPGRADE.md" ] && ok "factory/LESSONS.md, START-A-PROJECT.md et UPGRADE.md existent" || ko "fichiers de factory/ renommés"
 p="$(mktemp -d "$racine_tmp/m.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
 git init -q .; mkdir -p docs/issues; echo "mes leçons" > docs/lecons.md; echo "mon modèle" > docs/issues/_modele.md
@@ -402,6 +478,148 @@ p="$(nouveau_projet)"; cd "$p" || exit 1
 cp "$factory/templates/docs/issues/_template.md" docs/issues/_template.md 2>/dev/null; issue_id "$p" 003-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
 out="$(scripts/etat-issues.sh 2>&1)"; printf '%s' "$out" | grep -q '003-01' && ! printf '%s' "$out" | grep -q '_template' && ok "etat-issues.sh ignore _template.md" || ko "etat-issues.sh ignore _template.md" "$out"
 verifier "couverture-prd.sh et criteres-sans-test.sh lisent les issues avec _template.md présent" 1 "" scripts/criteres-sans-test.sh 003-01
+
+echo "config-factory.sh (configuration du projet : .factory.conf, .factory.local.conf, variables FACTORY_*)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+invalide="MAX_ITERATIONS_REVUE invalide : entier >= 1 attendu (voir .factory.conf, .factory.local.conf, FACTORY_MAX_ITERATIONS_REVUE)."
+verifier_exact "sans aucune configuration : 5 itérations par défaut" 0 "5" scripts/config-factory.sh --max-iterations
+printf '# Commentaire\n\n  # commentaire indenté\nMAX_ITERATIONS_REVUE=7\nNOTIFICATION_COMMANDE=\n' > .factory.conf
+verifier_exact ".factory.conf lu (commentaires et lignes vides ignorés)" 0 "7" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=2\n' > .factory.local.conf
+verifier_exact ".factory.local.conf l'emporte sur .factory.conf" 0 "2" scripts/config-factory.sh --max-iterations
+verifier_exact "FACTORY_MAX_ITERATIONS_REVUE l'emporte sur les deux fichiers" 0 "9" env FACTORY_MAX_ITERATIONS_REVUE=9 scripts/config-factory.sh --max-iterations
+verifier_exact "borne : 1 accepté" 0 "1" env FACTORY_MAX_ITERATIONS_REVUE=1 scripts/config-factory.sh --max-iterations
+verifier_exact "borne : 0 refusé (code 64, message exact, sans recopier la valeur)" 64 "$invalide" env FACTORY_MAX_ITERATIONS_REVUE=0 scripts/config-factory.sh --max-iterations
+verifier_exact "valeur non numérique (abc) refusée (64)" 64 "$invalide" env FACTORY_MAX_ITERATIONS_REVUE=abc scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=-3\n' > .factory.local.conf
+verifier_exact "valeur négative dans un fichier refusée (64)" 64 "$invalide" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=4\r\n' > .factory.local.conf
+verifier_exact "fin de ligne CRLF tolérée" 0 "4" scripts/config-factory.sh --max-iterations
+printf '  MAX_ITERATIONS_REVUE = 2  \n' > .factory.local.conf
+verifier_exact "ligne indentée, espaces autour de « = » et en fin de valeur acceptés" 0 "2" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUEX=3\nMAX_ITERATIONS_REVUE_BIS=3\n' > .factory.local.conf
+verifier_exact "clé seulement préfixe d'une autre (MAX_ITERATIONS_REVUEX) : non reconnue" 0 "7" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE = 3; touch pwned5\n' > .factory.local.conf
+verifier_exact "cs_config avec espaces autour de « = » : toujours jamais sourcé, valeur refusée" 64 "$invalide" scripts/config-factory.sh --max-iterations
+[ ! -e pwned5 ] && ok "cs_config « CLÉ = valeur; commande » n'exécute rien" || ko "cs_config commande exécutée (espaces autour de =)"
+printf 'MAX_ITERATIONS_REVUE=5; touch pwned1\n' > .factory.local.conf
+verifier_exact "cs_config fichier jamais sourcé : « 5; touch pwned1 » refusée comme invalide" 64 "$invalide" scripts/config-factory.sh --max-iterations
+printf 'MAX_ITERATIONS_REVUE=$(touch pwned2)\n' > .factory.local.conf
+verifier_exact "cs_config fichier jamais sourcé : « \$(touch pwned2) » refusée comme invalide" 64 "$invalide" scripts/config-factory.sh --max-iterations
+printf 'touch pwned3\nMAX_ITERATIONS_REVUE=`touch pwned4`\nSECRET_INCONNU=abc\n' > .factory.local.conf
+scripts/config-factory.sh >/dev/null 2>&1; scripts/config-factory.sh --max-iterations >/dev/null 2>&1
+[ ! -e pwned1 ] && [ ! -e pwned2 ] && [ ! -e pwned3 ] && [ ! -e pwned4 ] && ok "cs_config aucune commande des fichiers de configuration n'est exécutée" || ko "cs_config commande exécutée depuis la configuration" "$(ls pwned* 2>&1 | tr '\n' ' ')"
+printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRET_INCONNU=abc\n' > .factory.local.conf
+verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "MAX_ITERATIONS_REVUE=6
+NOTIFICATION_COMMANDE=
+NOTIFICATION_DESTINATAIRE=moi@example.com
+NOTIFICATION_EXPEDITEUR=" scripts/config-factory.sh
+verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
+printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
+out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"
+out="$(env FACTORY_NOTIFICATION_COMMANDE= scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_COMMANDE=' && ok "variable FACTORY_* définie mais vide : efface la valeur des fichiers" || ko "variable vide prioritaire" "$(env FACTORY_NOTIFICATION_COMMANDE= scripts/config-factory.sh | tr '\n' '|')"
+
+echo "notifier.sh (courriel par commande paramétrable)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+mkdir outils; printf 'Constat bloquant restant\nBranche : feat/x\n' > corps.txt
+cat > outils/faux-envoi.sh <<'FIN'
+#!/bin/sh
+# Commande d'envoi factice : écrit ses arguments (un par ligne) et son entrée standard à côté d'elle.
+: > "$(dirname "$0")/args.txt"; for a in "$@"; do printf '%s\n' "$a" >> "$(dirname "$0")/args.txt"; done
+cat > "$(dirname "$0")/message.txt"
+FIN
+chmod +x outils/faux-envoi.sh
+verifier "sans argument = usage (64), même non configuré" 64 "^Usage" scripts/notifier.sh
+verifier "option inconnue = 64" 64 "^Usage" scripts/notifier.sh --bidon
+verifier "--sujet sans valeur = 64" 64 "^Usage" scripts/notifier.sh --sujet
+verifier "--test et --sujet ensemble = 64" 64 "^Usage" scripts/notifier.sh --test --sujet s
+verifier_exact "non configuré : code 3 et message exact" 3 "Notification non envoyée : configuration incomplète (renseignez NOTIFICATION_COMMANDE, NOTIFICATION_DESTINATAIRE dans .factory.local.conf)." scripts/notifier.sh --sujet s --corps-fichier corps.txt
+printf 'NOTIFICATION_COMMANDE=%s -a compte\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+verifier_exact "destinataire seul manquant : code 3, message ne citant que lui" 3 "Notification non envoyée : configuration incomplète (renseignez NOTIFICATION_DESTINATAIRE dans .factory.local.conf)." scripts/notifier.sh --sujet s --corps-fichier corps.txt
+printf 'NOTIFICATION_DESTINATAIRE=-oQ/tmp/x\n' >> .factory.local.conf
+verifier_exact "cs_notif destinataire commençant par « - » refusé (pas d'option injectée dans la commande)" 3 "Notification non envoyée : NOTIFICATION_DESTINATAIRE invalide (une adresse sans espace, ne commençant pas par « - ») ; corrigez-le dans .factory.local.conf." scripts/notifier.sh --sujet s --corps-fichier corps.txt
+[ ! -e outils/args.txt ] && ok "cs_notif commande non lancée quand le destinataire est invalide" || ko "commande lancée malgré un destinataire invalide"
+printf 'NOTIFICATION_COMMANDE=%s -a compte\nNOTIFICATION_DESTINATAIRE=dest@example.com\nNOTIFICATION_EXPEDITEUR=Factory <factory@example.com>\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+verifier_exact "envoi : code 0 et confirmation" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --sujet "[factory] 001-02 bloquée après 5 revues" --corps-fichier corps.txt
+[ "$(cat outils/args.txt 2>/dev/null)" = "$(printf -- '-a\ncompte\ndest@example.com')" ] && ok "commande découpée en mots, destinataire en dernier argument" || ko "arguments de la commande" "$(tr '\n' '|' < outils/args.txt 2>&1)"
+printf 'From: Factory <factory@example.com>\nTo: dest@example.com\nSubject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1?=\n =?UTF-8?B?ZXM=?=\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nConstat bloquant restant\nBranche : feat/x\n' > attendu.txt
+cmp -s attendu.txt outils/message.txt && ok "message sur l'entrée standard : From, To, Subject (RFC 2047, valeur connue), en-têtes MIME, ligne vide, corps" || ko "message transmis" "$(diff attendu.txt outils/message.txt 2>&1 | head -6 | tr '\n' '|')"
+printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+printf 'corps lu sur stdin\n' | scripts/notifier.sh --sujet "Essai" >/dev/null 2>&1
+[ "$(head -1 outils/message.txt)" = "To: dest@example.com" ] && [ "$(tail -1 outils/message.txt)" = "corps lu sur stdin" ] && ok "sans expéditeur : pas d'en-tête From ; corps lu sur l'entrée standard" || ko "sans expéditeur / corps sur stdin" "$(tr '\n' '|' < outils/message.txt)"
+scripts/notifier.sh --sujet "$(printf 'a\r\nBcc: espion@example.com')" --corps-fichier corps.txt >/dev/null 2>&1
+! grep -q '^Bcc:' outils/message.txt && grep -qx 'Subject: a  Bcc: espion@example.com' outils/message.txt && [ "$(grep -c '^Subject:' outils/message.txt)" -eq 1 ] && ok "cs_notif CR/LF du sujet neutralisés : aucun en-tête injecté" || ko "injection d'en-tête par le sujet" "$(tr '\n' '|' < outils/message.txt)"
+env FACTORY_NOTIFICATION_EXPEDITEUR="$(printf 'x@example.com\r\nBcc: y@example.com')" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+! grep -q '^Bcc:' outils/message.txt && grep -qx 'From: x@example.com  Bcc: y@example.com' outils/message.txt && [ "$(grep -c '^From:' outils/message.txt)" -eq 1 ] && ok "cs_notif CR/LF de l'expéditeur neutralisés : From sur une seule ligne, aucun en-tête injecté" || ko "injection d'en-tête par l'expéditeur" "$(tr '\r\n' '^|' < outils/message.txt)"
+# Sujet RFC 2047 : mots encodés de l'en-tête Subject (pliage compris), un par ligne ; decoder_mot <mot> : texte décodé.
+mots_sujet() { awk '/^Subject:/ { sub(/^Subject: /, ""); print; s = 1; next } s && /^ / { sub(/^ /, ""); print; next } { s = 0 }' outils/message.txt; }
+lignes_entete() { awk -v n="$1" 'index($0, n ": ") == 1 { print; s = 1; next } s && /^ / { print; next } { s = 0 }' outils/message.txt; } # lignes brutes (pliage compris)
+plus_longue() { lignes_entete "$1" | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }'; }
+decoder_mot() { local b="${1#=?UTF-8?B?}"; printf '%s' "${b%?=}" | base64 --decode; }
+scripts/notifier.sh --sujet "[factory] 001-02 bloquée après 5 revues" --corps-fichier corps.txt >/dev/null 2>&1
+grep -qx 'Subject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1?=' outils/message.txt && grep -qx ' =?UTF-8?B?ZXM=?=' outils/message.txt && [ "$(mots_sujet | while IFS= read -r m; do decoder_mot "$m"; done)" = "[factory] 001-02 bloquée après 5 revues" ] && ok "sujet non ASCII encodé RFC 2047 (=?UTF-8?B?…?=) et décodable" || ko "sujet RFC 2047" "$(grep '^Subject' outils/message.txt)"
+printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+scripts/notifier.sh --sujet "[factory] Essai ASCII 1" --corps-fichier corps.txt >/dev/null 2>&1
+grep -qx 'Subject: \[factory\] Essai ASCII 1' outils/message.txt && ok "sujet ASCII pur : inchangé" || ko "sujet ASCII" "$(grep '^Subject' outils/message.txt)"
+# 38 octets ASCII puis « é » (2 octets) : la limite du premier mot (39 octets, « Subject: » compris dans les 76 caractères de la ligne)
+# tombe au milieu de ce caractère, qui doit passer entier au mot suivant.
+long="[factory] 001-02 bloquee apres 5 rev: éèàçô sur la branche feat/001-02-créer 🙂 et encore des accents ÉÈÀ fin"
+scripts/notifier.sh --sujet "$long" --corps-fichier corps.txt >/dev/null 2>&1
+n=0; trop_long=0; mal_forme=0; decode=""
+while IFS= read -r m; do
+  n=$((n + 1)); [ "${#m}" -le 75 ] || trop_long=1
+  printf '%s' "$m" | LC_ALL=C grep -Eqx '=\?UTF-8\?B\?[A-Za-z0-9+/=]+\?=' || mal_forme=1
+  decoder_mot "$m" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 || mal_forme=1
+  decode="$decode$(decoder_mot "$m")"
+done <<FIN
+$(mots_sujet)
+FIN
+[ "$n" -ge 2 ] && [ "$trop_long" -eq 0 ] && [ "$mal_forme" -eq 0 ] && [ "$decode" = "$long" ] && ok "sujet long : $n mots encodés de 75 caractères au plus, caractères UTF-8 entiers, décodage concaténé = sujet" || ko "sujet long RFC 2047" "n=$n trop_long=$trop_long mal_forme=$mal_forme ; $(mots_sujet | tr '\n' '|')"
+[ "$(plus_longue Subject)" -le 76 ] && [ "$(plus_longue Subject)" -ge 60 ] && ok "sujet long : chaque ligne pliée de l'en-tête Subject fait 76 caractères au plus (RFC 2047 §2), « Subject: » compris" || ko "longueur des lignes Subject" "$(lignes_entete Subject | awk '{ print length($0) }' | tr '\n' ' ')"
+nom_long="Fabrique logicielle très spéciale de l'équipe qualité, édition « été »"
+env FACTORY_NOTIFICATION_EXPEDITEUR="$nom_long <f@example.com>" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+nom_decode="$(lignes_entete From | sed -e 's/^From: //' -e 's/^ //' | tr ' ' '\n' | grep '^=?UTF-8?B?' | while IFS= read -r m; do decoder_mot "$m"; done)"
+[ "$(plus_longue From)" -le 76 ] && [ "$(lignes_entete From | wc -l | tr -d ' ')" -ge 2 ] && [ "$nom_decode" = "$nom_long" ] && lignes_entete From | grep -q '<f@example.com>$' && ok "expéditeur au nom long : lignes From de 76 caractères au plus, nom décodé intact, adresse conservée" || ko "expéditeur au nom long" "$(lignes_entete From | tr '\n' '|')"
+env FACTORY_NOTIFICATION_EXPEDITEUR="Fabrique é <f@example.com>" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+de="$(grep '^From:' outils/message.txt)"; nom="${de#From: }"; nom="${nom% <f@example.com>}"
+[ "${de% <f@example.com>}" != "$de" ] && [ "$(decoder_mot "$nom")" = "Fabrique é" ] && ok "expéditeur : nom non ASCII encodé RFC 2047, adresse intacte" || ko "expéditeur RFC 2047" "$de"
+env FACTORY_NOTIFICATION_EXPEDITEUR="Factory <factory@example.com>" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+grep -qx 'From: Factory <factory@example.com>' outils/message.txt && ok "expéditeur ASCII : inchangé" || ko "expéditeur ASCII" "$(grep '^From:' outils/message.txt)"
+rm -f outils/args.txt outils/message.txt
+verifier_exact "cs_notif destinataire avec retour à la ligne refusé (code 3)" 3 "Notification non envoyée : NOTIFICATION_DESTINATAIRE invalide (une adresse sans espace, ne commençant pas par « - ») ; corrigez-le dans .factory.local.conf." env FACTORY_NOTIFICATION_DESTINATAIRE="$(printf 'a@example.com\nBcc: x@example.com')" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+[ ! -e outils/args.txt ] && [ ! -e outils/message.txt ] && ok "cs_notif destinataire avec retour à la ligne : rien transmis à la commande" || ko "commande lancée malgré un destinataire avec retour à la ligne"
+verifier_exact "cs_notif destinataire avec espace refusé (code 3)" 3 "Notification non envoyée : NOTIFICATION_DESTINATAIRE invalide (une adresse sans espace, ne commençant pas par « - ») ; corrigez-le dans .factory.local.conf." env FACTORY_NOTIFICATION_DESTINATAIRE="a@example.com b@example.com" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+[ ! -e outils/args.txt ] && ok "cs_notif destinataire avec espace : commande non lancée" || ko "commande lancée malgré un destinataire avec espace"
+verifier_exact "--test : message d'essai envoyé" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --test
+grep -qx "Subject: \[factory\] Notification d'essai" outils/message.txt && grep -q "^Message d'essai" outils/message.txt && ok "--test : sujet et corps d'essai" || ko "--test : sujet et corps" "$(tr '\n' '|' < outils/message.txt)"
+verifier_exact "commande en échec : code 4 et message" 4 "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code 1)." env FACTORY_NOTIFICATION_COMMANDE=false scripts/notifier.sh --sujet s --corps-fichier corps.txt
+verifier "commande introuvable : code 4" 4 "a échoué" env FACTORY_NOTIFICATION_COMMANDE="$p/outils/absente.sh" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+verifier "--corps-fichier introuvable = 64" 64 "introuvable" scripts/notifier.sh --sujet s --corps-fichier absent.txt
+printf 'NOTIFICATION_COMMANDE=%s ; touch pwned $(touch pwned2)\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
+scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+[ ! -e pwned ] && [ ! -e pwned2 ] && [ "$(cat outils/args.txt)" = "$(printf ';\ntouch\npwned\n$(touch\npwned2)\ndest@example.com')" ] && ok "cs_notif commande ni évaluée ni passée à un shell : « ; » et « \$( ) » restent des arguments" || ko "commande évaluée par un shell" "$(ls pwned* 2>&1) $(tr '\n' '|' < outils/args.txt)"
+
+echo "lecture du dépôt pour les vérifications de documentation (HEAD si dépôt git, sinon fichiers)"
+d="$(mktemp -d "$racine_tmp/doc.XXXXXX")"; mkdir "$d/git" "$d/copie"
+printf 'commité MAX_ITERATIONS_REVUE\n' > "$d/git/AGENTS.md"; printf 'motif-commite\n' > "$d/git/a.md"
+git -C "$d/git" init -q . && git -C "$d/git" add -A && git -C "$d/git" -c user.name=t -c user.email=t@example.com commit -qm socle
+printf 'non commité\n' > "$d/git/AGENTS.md"; printf 'motif-local\n' > "$d/git/a.md"; printf 'motif-local\n' > "$d/git/nouveau.md"
+[ "$(lire_depot "$d/git" AGENTS.md)" = "commité MAX_ITERATIONS_REVUE" ] && ok "dépôt git : lecture depuis HEAD, une modification non commitée ne change rien" || ko "lire_depot depuis HEAD" "$(lire_depot "$d/git" AGENTS.md)"
+[ -n "$(chercher_depot "$d/git" 'motif-commite')" ] && [ -z "$(chercher_depot "$d/git" 'motif-local')" ] && ok "dépôt git : recherche dans HEAD (ni fichier modifié ni fichier non suivi)" || ko "chercher_depot dans HEAD" "$(chercher_depot "$d/git" 'motif-')"
+printf 'fichier\n' > "$d/copie/AGENTS.md"; mkdir "$d/copie/docs"; printf 'motif-copie\n' > "$d/copie/docs/x.md"; printf 'motif-copie\n' > "$d/copie/docs/exclu.md"
+[ "$(lire_depot "$d/copie" AGENTS.md)" = "fichier" ] && [ "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | wc -l | tr -d ' ')" = "1" ] && chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | grep -q 'docs/x.md' && ok "hors dépôt git (copie de verify-clean.sh) : lecture et recherche dans les fichiers, exclusions respectées" || ko "lecture hors dépôt git" "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | tr '\n' '|')"
+
+echo "limite des itérations de revue (documentation)"
+restes="$(chercher_depot "$depot" -i "3 itérations|trois itérations" factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
+deliver="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"; conf_modele="$(lire_depot "$depot" factory/templates/.factory.conf)"
+[ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
+printf '%s\n' "$deliver" | grep -q 'scripts/config-factory.sh --max-iterations' && printf '%s\n' "$deliver" | grep -q 'scripts/notifier.sh' && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
+printf '%s\n' "$deliver" | grep -q "au moins un BLOQUANT" && printf '%s\n' "$deliver" | grep -q "IMPORTANT.*sans courriel" && ok "/deliver : courriel seulement s'il reste au moins un BLOQUANT (IMPORTANT seuls : remontés sans courriel)" || ko "/deliver : courriel réservé aux BLOQUANT"
+printf '%s\n' "$conf_modele" | grep -qx 'NOTIFICATION_COMMANDE=' && printf '%s\n' "$conf_modele" | grep -q 'NOTIFICATION_COMMANDE=sendmail -oi' && [ -z "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh)" ] && ok "exemple sendmail -oi (destinataire en argument), aucun exemple avec -t (sendmail ou mail)" || ko "exemple avec -t" "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
+[ "$(lire_depot "$depot" AGENTS.md | grep -c 'MAX_ITERATIONS_REVUE')" -ge 2 ] && [ "$(lire_depot "$depot" factory/templates/AGENTS.md | grep -c 'MAX_ITERATIONS_REVUE')" -ge 2 ] && ok "AGENTS.md et son modèle : limite MAX_ITERATIONS_REVUE aux étapes 4 et 5" || ko "AGENTS.md : MAX_ITERATIONS_REVUE aux étapes 4 et 5"
+adresses="$({ printf '%s\n' "$conf_modele"; lire_depot "$depot" .factory.conf; } | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' | grep -v '@example\.com$' | tr '\n' ' ')"
+[ -n "$conf_modele" ] && [ -z "$adresses" ] && ok "modèle .factory.conf : aucune adresse réelle (example.com seulement)" || ko "adresses du modèle .factory.conf" "$adresses"
+lire_depot "$depot" .gitignore | grep -qx '.factory.local.conf' && lire_depot "$depot" factory/templates/.gitignore | grep -qx '.factory.local.conf' && ok ".factory.local.conf ignoré par git (dépôt et modèle)" || ko ".factory.local.conf dans les .gitignore"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

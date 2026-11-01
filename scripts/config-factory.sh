@@ -1,0 +1,1 @@
+../factory/scripts/config-factory.sh

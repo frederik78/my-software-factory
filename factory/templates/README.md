@@ -20,7 +20,7 @@ Projet construit avec la Software Factory (`factory/`). Les règles de travail, 
 | Vocabulaire du métier | [`GLOSSARY.md`](GLOSSARY.md) |
 | Décisions d'architecture (ADR) | [`docs/adr/`](docs/adr/) |
 | Spécifications : comportement, contrats, critères (PRD) | [`docs/prd/`](docs/prd/) |
-| Suivi des issues (statut, dépendances, commits) | [`docs/issues/`](docs/issues/) (état : `scripts/etat-issues.sh` ; vue HTML : `scripts/tableau-de-bord.sh`) |
+| Suivi des issues (statut, dépendances, commits) | [`docs/issues/`](docs/issues/) (état : `scripts/etat-issues.sh` ; vue HTML : `scripts/dashboard.sh`) |
 | Revues de code archivées | [`docs/reviews/`](docs/reviews/) |
 | Leçons du projet | [`docs/lessons.md`](docs/lessons.md) |
 

@@ -17,8 +17,10 @@ Package racine : `<...>`.
 - `scripts/criteres-sans-test.sh <issue>` : critères CA/CS d'une issue qu'aucun test ne mentionne
 - `scripts/couverture-prd.sh <prd>` : chaque critère du PRD est couvert par exactement une issue
 - `scripts/etat-issues.sh [--prochaine]` : état des issues (lu dans leurs en-têtes)
-- `scripts/tableau-de-bord.sh [--sortie <fichier>] [--attente <s>] [--boucle <s>]` : tableau de bord HTML statique (`tableau-de-bord.html`, non versionné) des besoins et des issues par statut ; sans modèle ni dépendance
+- `scripts/dashboard.sh [--sortie <fichier>] [--attente <s>] [--boucle <s>]` : dashboard HTML statique (`dashboard.html`, non versionné) des besoins et des issues par statut ; sans modèle ni dépendance
 - `scripts/worktree-issue.sh creer|nettoyer|lister` : une issue dans son propre dossier de travail (`git worktree`)
+- `scripts/config-factory.sh [--max-iterations]` : configuration effective de la factory (`.factory.conf`, `.factory.local.conf` non versionné, variables `FACTORY_*`)
+- `scripts/notifier.sh --sujet <s> [--corps-fichier <f>] | --test` : courriel par la commande configurée (issue bloquée en revue)
 - `factory/scripts/tests/run.sh` : tests des scripts de la factory
 - `./factory/sync.sh` : recrée les alias de skills (`.agents/skills`) ; avec `CLAUDE.md` (le seul dossier `.claude/` ne suffit pas), appelle `factory/sync-claude.sh` (propre à Claude Code : `.claude/skills` et enveloppes d'agents). Options `--claude`, `--sans-claude`
 
@@ -69,8 +71,8 @@ ils posent leurs questions dans un bloc `## QUESTIONS` de leur rapport, qu'elle 
 1. **Cadrage** : interview (`grill-me` / `grill-with-docs`) pour le glossaire et les contraintes ; si le module apporte une décision structurante (architecture, stockage, fournisseur, dépendance majeure), proposer un ADR `proposé` et le faire valider AVANT tout code.
 2. **PRD** : agent `spec-writer`. S'il rend un bloc `## QUESTIONS`, poser les questions à l'utilisateur (groupées, avec options et recommandation), consigner les réponses dans le PRD, relancer le rôle jusqu'à `## QUESTIONS : aucune`. Faire valider le PRD ; besoin à `Spécifié`.
 3. **Issues** : `/to-tickets` dans `docs/issues/`, découpage approuvé par l'utilisateur, `scripts/couverture-prd.sh <prd>` à `OK` (chaque critère couvert par exactement une issue).
-4. **Livraison**, issue par issue dans l'ordre des dépendances : `/deliver` (développeur, vérifications de la session, reviewer, corrections en 3 itérations au plus, définition de fini). Besoin à `En cours` puis `En revue`.
-5. **Revue indépendante** de la branche (`/code-review`) avant la fusion ; ses constats bloquants repartent au développeur, puis nouvelle revue.
+4. **Livraison**, issue par issue dans l'ordre des dépendances : `/deliver` (développeur, vérifications de la session, reviewer, corrections en `MAX_ITERATIONS_REVUE` itérations au plus (5 par défaut, voir `.factory.conf` ; au-delà, le blocage est remonté à l'utilisateur, avec un courriel par `scripts/notifier.sh` s'il reste au moins un BLOQUANT), définition de fini). Besoin à `En cours` puis `En revue`.
+5. **Revue indépendante** de la branche (`/code-review`) avant la fusion ; ses constats bloquants repartent au développeur, puis nouvelle revue ; la même limite de `MAX_ITERATIONS_REVUE` itérations (et la même règle d'arrêt au-delà) vaut pour ces corrections.
 6. **Clôture** : besoin à `Fait` quand toutes ses issues le sont et que l'utilisateur a fusionné ; lister les passages du PRD, du backlog et des ADR devenus faux et les proposer à l'utilisateur ; ajouter les leçons du cycle à `docs/lessons.md` ; rapport final court.
 
 ## Agent skills

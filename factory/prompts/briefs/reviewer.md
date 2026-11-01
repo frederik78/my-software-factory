@@ -4,7 +4,7 @@ Modèle de message à donner au sous-agent `code-reviewer` (il ne voit pas la co
 
 ```
 Répertoire de travail : {{chemin absolu du projet}} (fais `cd` dedans ; lecture seule ; une mutation se fait dans une copie jetable hors du projet, supprimée ensuite).
-Mission : relire l'issue {{id}} « {{titre}} » ({{prd}}), itération {{n}}. Lecture seule : tu ne modifies ni le code ni le dépôt.
+Mission : relire l'issue {{id}} « {{titre}} » ({{prd}}), itération {{n}} sur {{max}} (`scripts/config-factory.sh --max-iterations`). Lecture seule : tu ne modifies ni le code ni le dépôt.
 
 Plage de commits : {{base}}..HEAD sur la branche {{branche}} ({{git log --oneline de la plage}}).
 

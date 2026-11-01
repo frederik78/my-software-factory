@@ -16,7 +16,7 @@
 # Les secrets (mot de passe SMTP, clé d'API) restent dans la configuration de l'outil d'envoi (~/.msmtprc, trousseau), jamais dans le dépôt.
 # Sécurité : la commande est exécutée comme un tableau de mots, jamais par eval ni sh -c ; les retours à la ligne et caractères de contrôle
 # du sujet et de l'expéditeur sont remplacés (aucun en-tête injecté).
-# Encodage : un sujet non ASCII est émis en mots encodés RFC 2047 (=?UTF-8?B?…?=, pliés si besoin) ; idem pour le nom de l'expéditeur
+# Encodage : un sujet non ASCII est émis en mots encodés RFC 2047 (=?UTF-8?B?…?=, pliés en lignes de 76 caractères au plus) ; idem pour le nom de l'expéditeur
 # de forme « Nom <adresse> ». Un sujet ASCII est transmis tel quel.
 # Codes de sortie : 0 envoyé ; 3 non configuré (ou destinataire invalide) ; 4 échec de la commande ; 64 usage.
 set -uo pipefail
@@ -75,31 +75,39 @@ en_tete() { # en_tete <valeur> : une seule ligne (CR, LF et tabulations remplac�
 
 non_ascii() { printf '%s' "$1" | LC_ALL=C grep -q '[^ -~]'; } # non_ascii <texte> : vrai si un octet n'est pas ASCII imprimable
 
-# rfc2047 <texte> : texte ASCII inchangé ; sinon mots encodés =?UTF-8?B?…?= de 75 caractères au plus (45 octets par mot), coupés sur des
-# caractères UTF-8 entiers et pliés (saut de ligne + espace) pour tenir dans un en-tête. Indépendant de la locale : travaille sur les octets (od).
+# rfc2047 <texte> <préfixe> : texte ASCII inchangé ; sinon mots encodés =?UTF-8?B?…?= pliés (saut de ligne + espace), chaque ligne
+# faisant 76 caractères au plus (RFC 2047 §2) : la première compte les <préfixe> caractères qui la précèdent (« Subject: » = 9), les
+# suivantes leur espace initial. Coupure sur des caractères UTF-8 entiers. Indépendant de la locale : travaille sur les octets (od).
+LIGNE_MAX=76
+octets_par_mot() { echo $(( (LIGNE_MAX - $1 - 12) / 4 * 3 )); } # octets_par_mot <caractères avant le mot> : 12 = « =?UTF-8?B? » + « ?= »
 rfc2047() {
   if ! non_ascii "$1"; then printf '%s' "$1"; return; fi
-  local h n=0 taille morceau="" sortie="" sep=""
+  local h n=0 taille morceau="" sortie="" sep="" limite
+  limite="$(octets_par_mot "$2")"
   for h in $(printf '%s' "$1" | od -An -v -tx1); do
     case "$h" in
       [0-7]?) taille=1 ;; [c-d]?) taille=2 ;; e?) taille=3 ;; f?) taille=4 ;; *) taille=0 ;; # 8x-bx : octet de continuation
     esac
-    if [ "$taille" -gt 0 ] && [ $((n + taille)) -gt 45 ]; then
+    if [ "$taille" -gt 0 ] && [ $((n + taille)) -gt "$limite" ]; then
       sortie="$sortie$sep=?UTF-8?B?$(printf '%b' "$morceau" | base64 | tr -d '\n')?="; sep=$'\n '; morceau=""; n=0
+      limite="$(octets_par_mot 1)"
     fi
     morceau="$morceau\\x$h"; n=$((n + 1))
   done
   printf '%s' "$sortie$sep=?UTF-8?B?$(printf '%b' "$morceau" | base64 | tr -d '\n')?="
 }
 
-# expediteur_encode <valeur> : forme « Nom <adresse> » avec nom non ASCII -> nom encodé RFC 2047 ; toute autre forme inchangée.
+# expediteur_encode <valeur> : forme « Nom <adresse> » avec nom non ASCII -> nom encodé RFC 2047 (après « From: »), l'adresse sur la même
+# ligne si elle tient dans les 76 caractères, sinon sur une ligne pliée ; toute autre forme inchangée.
 expediteur_encode() {
-  local nom adresse
+  local nom adresse encode derniere
   case "$1" in
     *' <'*'>')
       adresse="<${1##*<}"; nom="${1% <*}"
       case "$adresse" in *' '*) printf '%s' "$1"; return ;; esac
-      printf '%s %s' "$(rfc2047 "$nom")" "$adresse" ;;
+      encode="$(rfc2047 "$nom" 6)"
+      case "$encode" in *$'\n'*) derniere="${encode##*$'\n'}" ;; *) derniere="From: $encode" ;; esac
+      if [ $(( ${#derniere} + 1 + ${#adresse} )) -le "$LIGNE_MAX" ]; then printf '%s %s' "$encode" "$adresse"; else printf '%s\n %s' "$encode" "$adresse"; fi ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -107,7 +115,7 @@ expediteur_encode() {
 message() {
   [ -n "$expediteur" ] && printf 'From: %s\n' "$(expediteur_encode "$(en_tete "$expediteur")")"
   printf 'To: %s\n' "$destinataire"
-  printf 'Subject: %s\n' "$(rfc2047 "$(en_tete "$sujet")")"
+  printf 'Subject: %s\n' "$(rfc2047 "$(en_tete "$sujet")" 9)"
   printf 'MIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\n'
   if [ "$essai" -eq 1 ]; then
     printf "Message d'essai envoyé par scripts/notifier.sh pour le projet %s.\n" "$(basename "$racine")"

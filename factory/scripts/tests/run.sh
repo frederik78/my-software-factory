@@ -483,7 +483,7 @@ verifier_exact "cs_notif destinataire commençant par « - » refusé (pas d'opt
 printf 'NOTIFICATION_COMMANDE=%s -a compte\nNOTIFICATION_DESTINATAIRE=dest@example.com\nNOTIFICATION_EXPEDITEUR=Factory <factory@example.com>\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
 verifier_exact "envoi : code 0 et confirmation" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --sujet "[factory] 001-02 bloquée après 5 revues" --corps-fichier corps.txt
 [ "$(cat outils/args.txt 2>/dev/null)" = "$(printf -- '-a\ncompte\ndest@example.com')" ] && ok "commande découpée en mots, destinataire en dernier argument" || ko "arguments de la commande" "$(tr '\n' '|' < outils/args.txt 2>&1)"
-printf 'From: Factory <factory@example.com>\nTo: dest@example.com\nSubject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1ZXM=?=\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nConstat bloquant restant\nBranche : feat/x\n' > attendu.txt
+printf 'From: Factory <factory@example.com>\nTo: dest@example.com\nSubject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1?=\n =?UTF-8?B?ZXM=?=\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n\nConstat bloquant restant\nBranche : feat/x\n' > attendu.txt
 cmp -s attendu.txt outils/message.txt && ok "message sur l'entrée standard : From, To, Subject (RFC 2047, valeur connue), en-têtes MIME, ligne vide, corps" || ko "message transmis" "$(diff attendu.txt outils/message.txt 2>&1 | head -6 | tr '\n' '|')"
 printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
 printf 'corps lu sur stdin\n' | scripts/notifier.sh --sujet "Essai" >/dev/null 2>&1
@@ -494,9 +494,11 @@ env FACTORY_NOTIFICATION_EXPEDITEUR="$(printf 'x@example.com\r\nBcc: y@example.c
 ! grep -q '^Bcc:' outils/message.txt && grep -qx 'From: x@example.com  Bcc: y@example.com' outils/message.txt && [ "$(grep -c '^From:' outils/message.txt)" -eq 1 ] && ok "cs_notif CR/LF de l'expéditeur neutralisés : From sur une seule ligne, aucun en-tête injecté" || ko "injection d'en-tête par l'expéditeur" "$(tr '\r\n' '^|' < outils/message.txt)"
 # Sujet RFC 2047 : mots encodés de l'en-tête Subject (pliage compris), un par ligne ; decoder_mot <mot> : texte décodé.
 mots_sujet() { awk '/^Subject:/ { sub(/^Subject: /, ""); print; s = 1; next } s && /^ / { sub(/^ /, ""); print; next } { s = 0 }' outils/message.txt; }
+lignes_entete() { awk -v n="$1" 'index($0, n ": ") == 1 { print; s = 1; next } s && /^ / { print; next } { s = 0 }' outils/message.txt; } # lignes brutes (pliage compris)
+plus_longue() { lignes_entete "$1" | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }'; }
 decoder_mot() { local b="${1#=?UTF-8?B?}"; printf '%s' "${b%?=}" | base64 --decode; }
 scripts/notifier.sh --sujet "[factory] 001-02 bloquée après 5 revues" --corps-fichier corps.txt >/dev/null 2>&1
-grep -qx 'Subject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1ZXM=?=' outils/message.txt && [ "$(decoder_mot "$(mots_sujet)")" = "[factory] 001-02 bloquée après 5 revues" ] && ok "sujet non ASCII encodé RFC 2047 (=?UTF-8?B?…?=) et décodable" || ko "sujet RFC 2047" "$(grep '^Subject' outils/message.txt)"
+grep -qx 'Subject: =?UTF-8?B?W2ZhY3RvcnldIDAwMS0wMiBibG9xdcOpZSBhcHLDqHMgNSByZXZ1?=' outils/message.txt && grep -qx ' =?UTF-8?B?ZXM=?=' outils/message.txt && [ "$(mots_sujet | while IFS= read -r m; do decoder_mot "$m"; done)" = "[factory] 001-02 bloquée après 5 revues" ] && ok "sujet non ASCII encodé RFC 2047 (=?UTF-8?B?…?=) et décodable" || ko "sujet RFC 2047" "$(grep '^Subject' outils/message.txt)"
 printf 'NOTIFICATION_COMMANDE=%s\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf
 scripts/notifier.sh --sujet "[factory] Essai ASCII 1" --corps-fichier corps.txt >/dev/null 2>&1
 grep -qx 'Subject: \[factory\] Essai ASCII 1' outils/message.txt && ok "sujet ASCII pur : inchangé" || ko "sujet ASCII" "$(grep '^Subject' outils/message.txt)"
@@ -513,6 +515,11 @@ done <<FIN
 $(mots_sujet)
 FIN
 [ "$n" -ge 2 ] && [ "$trop_long" -eq 0 ] && [ "$mal_forme" -eq 0 ] && [ "$decode" = "$long" ] && ok "sujet long : $n mots encodés de 75 caractères au plus, caractères UTF-8 entiers, décodage concaténé = sujet" || ko "sujet long RFC 2047" "n=$n trop_long=$trop_long mal_forme=$mal_forme ; $(mots_sujet | tr '\n' '|')"
+[ "$(plus_longue Subject)" -le 76 ] && [ "$(plus_longue Subject)" -ge 60 ] && ok "sujet long : chaque ligne pliée de l'en-tête Subject fait 76 caractères au plus (RFC 2047 §2), « Subject: » compris" || ko "longueur des lignes Subject" "$(lignes_entete Subject | awk '{ print length($0) }' | tr '\n' ' ')"
+nom_long="Fabrique logicielle très spéciale de l'équipe qualité, édition « été »"
+env FACTORY_NOTIFICATION_EXPEDITEUR="$nom_long <f@example.com>" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
+nom_decode="$(lignes_entete From | sed -e 's/^From: //' -e 's/^ //' | tr ' ' '\n' | grep '^=?UTF-8?B?' | while IFS= read -r m; do decoder_mot "$m"; done)"
+[ "$(plus_longue From)" -le 76 ] && [ "$(lignes_entete From | wc -l | tr -d ' ')" -ge 2 ] && [ "$nom_decode" = "$nom_long" ] && lignes_entete From | grep -q '<f@example.com>$' && ok "expéditeur au nom long : lignes From de 76 caractères au plus, nom décodé intact, adresse conservée" || ko "expéditeur au nom long" "$(lignes_entete From | tr '\n' '|')"
 env FACTORY_NOTIFICATION_EXPEDITEUR="Fabrique é <f@example.com>" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
 de="$(grep '^From:' outils/message.txt)"; nom="${de#From: }"; nom="${nom% <f@example.com>}"
 [ "${de% <f@example.com>}" != "$de" ] && [ "$(decoder_mot "$nom")" = "Fabrique é" ] && ok "expéditeur : nom non ASCII encodé RFC 2047, adresse intacte" || ko "expéditeur RFC 2047" "$de"
@@ -532,12 +539,22 @@ printf 'NOTIFICATION_COMMANDE=%s ; touch pwned $(touch pwned2)\nNOTIFICATION_DES
 scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1
 [ ! -e pwned ] && [ ! -e pwned2 ] && [ "$(cat outils/args.txt)" = "$(printf ';\ntouch\npwned\n$(touch\npwned2)\ndest@example.com')" ] && ok "cs_notif commande ni évaluée ni passée à un shell : « ; » et « \$( ) » restent des arguments" || ko "commande évaluée par un shell" "$(ls pwned* 2>&1) $(tr '\n' '|' < outils/args.txt)"
 
+echo "lecture du dépôt pour les vérifications de documentation (HEAD si dépôt git, sinon fichiers)"
+d="$(mktemp -d "$racine_tmp/doc.XXXXXX")"; mkdir "$d/git" "$d/copie"
+printf 'commité MAX_ITERATIONS_REVUE\n' > "$d/git/AGENTS.md"; printf 'motif-commite\n' > "$d/git/a.md"
+git -C "$d/git" init -q . && git -C "$d/git" add -A && git -C "$d/git" -c user.name=t -c user.email=t@example.com commit -qm socle
+printf 'non commité\n' > "$d/git/AGENTS.md"; printf 'motif-local\n' > "$d/git/a.md"; printf 'motif-local\n' > "$d/git/nouveau.md"
+[ "$(lire_depot "$d/git" AGENTS.md)" = "commité MAX_ITERATIONS_REVUE" ] && ok "dépôt git : lecture depuis HEAD, une modification non commitée ne change rien" || ko "lire_depot depuis HEAD" "$(lire_depot "$d/git" AGENTS.md)"
+[ -n "$(chercher_depot "$d/git" 'motif-commite')" ] && [ -z "$(chercher_depot "$d/git" 'motif-local')" ] && ok "dépôt git : recherche dans HEAD (ni fichier modifié ni fichier non suivi)" || ko "chercher_depot dans HEAD" "$(chercher_depot "$d/git" 'motif-')"
+printf 'fichier\n' > "$d/copie/AGENTS.md"; mkdir "$d/copie/docs"; printf 'motif-copie\n' > "$d/copie/docs/x.md"; printf 'motif-copie\n' > "$d/copie/docs/exclu.md"
+[ "$(lire_depot "$d/copie" AGENTS.md)" = "fichier" ] && [ "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | wc -l | tr -d ' ')" = "1" ] && chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | grep -q 'docs/x.md' && ok "hors dépôt git (copie de verify-clean.sh) : lecture et recherche dans les fichiers, exclusions respectées" || ko "lecture hors dépôt git" "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | tr '\n' '|')"
+
 echo "limite des itérations de revue (documentation)"
 restes="$(git -C "$factory/.." grep -n -i -E "3 itérations|trois itérations" -- . ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
 grep -q 'scripts/config-factory.sh --max-iterations' "$factory/skills/deliver/SKILL.md" && grep -q 'scripts/notifier.sh' "$factory/skills/deliver/SKILL.md" && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
 grep -q "au moins un BLOQUANT" "$factory/skills/deliver/SKILL.md" && grep -q "IMPORTANT.*sans courriel" "$factory/skills/deliver/SKILL.md" && ok "/deliver : courriel seulement s'il reste au moins un BLOQUANT (IMPORTANT seuls : remontés sans courriel)" || ko "/deliver : courriel réservé aux BLOQUANT"
-grep -qx 'NOTIFICATION_COMMANDE=' "$factory/templates/.factory.conf" && grep -q 'NOTIFICATION_COMMANDE=sendmail -oi' "$factory/templates/.factory.conf" && ! git -C "$factory/.." grep -q -E 'sendmail -t[^a-z]|sendmail -t$' -- ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' ':!*.factory.conf' && ! grep -q '=sendmail -t' "$factory/templates/.factory.conf" && ok "exemple sendmail -oi (destinataire en argument), plus d'exemple sendmail -t" || ko "exemple sendmail" "$(git -C "$factory/.." grep -n 'sendmail' | head -5 | tr '\n' '|')"
+grep -qx 'NOTIFICATION_COMMANDE=' "$factory/templates/.factory.conf" && grep -q 'NOTIFICATION_COMMANDE=sendmail -oi' "$factory/templates/.factory.conf" && [ -z "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh)" ] && ok "exemple sendmail -oi (destinataire en argument), aucun exemple avec -t (sendmail ou mail)" || ko "exemple avec -t" "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
 [ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/../AGENTS.md")" -ge 2 ] && [ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/templates/AGENTS.md")" -ge 2 ] && ok "AGENTS.md et son modèle : limite MAX_ITERATIONS_REVUE aux étapes 4 et 5" || ko "AGENTS.md : MAX_ITERATIONS_REVUE aux étapes 4 et 5"
 adresses="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' "$factory/templates/.factory.conf" "$factory/../.factory.conf" 2>/dev/null | grep -v '@example\.com$' | tr '\n' ' ')"
 [ -f "$factory/templates/.factory.conf" ] && [ -z "$adresses" ] && ok "modèle .factory.conf : aucune adresse réelle (example.com seulement)" || ko "adresses du modèle .factory.conf" "$adresses"

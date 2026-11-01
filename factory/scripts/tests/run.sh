@@ -599,6 +599,28 @@ printf '#!/bin/sh\nexit 1\n' > outils/echec-sans-lire.sh; chmod +x outils/echec-
 head -c 1100000 /dev/zero | tr '\0' 'x' > gros-corps.txt
 sans_sigpipe() { (trap '' PIPE; exec "$@"); }
 verifier_exact "commande en échec sans lire un gros message (SIGPIPE ignoré) : code 4, message exact, aucun « Broken pipe »" 4 "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code 1)." sans_sigpipe env FACTORY_NOTIFICATION_COMMANDE="$p/outils/echec-sans-lire.sh" scripts/notifier.sh --sujet s --corps-fichier gros-corps.txt
+# Fichier temporaire du message : créé dans TMPDIR (ici un dossier dédié), droits 0600, supprimé après un envoi, un échec ou une interruption.
+# Les commandes espions listent TMPDIR pendant l'envoi (preuve que le fichier existait, donc que le dossier vide après n'est pas un faux positif).
+mkdir tmp-notif
+printf '#!/bin/sh\nls -l "$TMPDIR" > "$(dirname "$0")/tmp-pendant.txt"\ncat > /dev/null\nexit "${ESPION_CODE:-0}"\n' > outils/espion.sh
+printf '#!/bin/sh\nls -l "$TMPDIR" > "$(dirname "$0")/tmp-pendant.txt"\necho $$ > "$(dirname "$0")/lent.pid"\nexec sleep 30\n' > outils/espion-lent.sh
+chmod +x outils/espion.sh outils/espion-lent.sh
+# Droits lus par ls -l : « @ » (attributs étendus, macOS), « . » ou « + » (contexte de sécurité, ACL) peuvent suivre les 10 caractères.
+un_fichier_0600() { [ "$(grep -c '^[-dl]' outils/tmp-pendant.txt 2>/dev/null)" = "1" ] && grep -Eq '^-rw-------[@.+ ]' outils/tmp-pendant.txt; }
+tmp_vide() { [ -z "$(ls -A tmp-notif)" ]; }
+rm -f outils/tmp-pendant.txt
+verifier_exact "fichier temporaire : envoi réussi (code 0)" 0 "Notification envoyée à dest@example.com." env TMPDIR="$p/tmp-notif" FACTORY_NOTIFICATION_COMMANDE="$p/outils/espion.sh" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+un_fichier_0600 && tmp_vide && ok "fichier temporaire : un seul fichier 0600 pendant l'envoi, aucun après un envoi réussi" || ko "fichier temporaire après envoi réussi" "pendant : $(tr '\n' '|' < outils/tmp-pendant.txt 2>&1) ; après : $(ls -A tmp-notif | tr '\n' ' ')"
+rm -f outils/tmp-pendant.txt
+verifier_exact "fichier temporaire : commande en échec (code 4)" 4 "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code 1)." env TMPDIR="$p/tmp-notif" ESPION_CODE=1 FACTORY_NOTIFICATION_COMMANDE="$p/outils/espion.sh" scripts/notifier.sh --sujet s --corps-fichier corps.txt
+un_fichier_0600 && tmp_vide && ok "fichier temporaire : aucun après un échec de la commande (code 4)" || ko "fichier temporaire après échec" "pendant : $(tr '\n' '|' < outils/tmp-pendant.txt 2>&1) ; après : $(ls -A tmp-notif | tr '\n' ' ')"
+rm -f outils/tmp-pendant.txt outils/lent.pid
+env TMPDIR="$p/tmp-notif" FACTORY_NOTIFICATION_COMMANDE="$p/outils/espion-lent.sh" scripts/notifier.sh --sujet s --corps-fichier corps.txt >/dev/null 2>&1 &
+pid_notif=$!; n=0
+while [ ! -s outils/lent.pid ] && [ "$n" -lt 100 ]; do sleep 0.1; n=$((n + 1)); done
+kill -TERM "$pid_notif" 2>/dev/null; [ -s outils/lent.pid ] && kill -TERM "$(cat outils/lent.pid)" 2>/dev/null
+wait "$pid_notif"; code_notif=$?
+[ "$code_notif" -ne 0 ] && un_fichier_0600 && tmp_vide && ok "fichier temporaire : aucun après une interruption (SIGTERM pendant l'envoi, code $code_notif)" || ko "fichier temporaire après interruption" "code $code_notif ; pendant : $(tr '\n' '|' < outils/tmp-pendant.txt 2>&1) ; après : $(ls -A tmp-notif | tr '\n' ' ')"
 verifier "commande introuvable : code 4" 4 "a échoué" env FACTORY_NOTIFICATION_COMMANDE="$p/outils/absente.sh" scripts/notifier.sh --sujet s --corps-fichier corps.txt
 verifier "--corps-fichier introuvable = 64" 64 "introuvable" scripts/notifier.sh --sujet s --corps-fichier absent.txt
 printf 'NOTIFICATION_COMMANDE=%s ; touch pwned $(touch pwned2)\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf

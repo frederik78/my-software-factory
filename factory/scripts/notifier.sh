@@ -127,10 +127,17 @@ message() {
   fi
 }
 
-# Code de la commande seule (PIPESTATUS) : une commande qui réussit sans lire tout le message ne doit pas compter comme un échec.
-message | "${mots[@]}" "$destinataire" >&2
-codes=("${PIPESTATUS[@]}")
-if [ "${codes[1]}" -ne 0 ]; then
-  echo "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code ${codes[1]})." >&2; exit 4
+# Message complet écrit d'abord dans un fichier temporaire (0600, dans TMPDIR), puis donné à la commande par redirection : pas de tube,
+# donc ni SIGPIPE ni « write error: Broken pipe » quand la commande se termine sans lire le message (une commande qui réussit sans
+# tout lire n'est pas un échec). Le fichier est supprimé à la sortie, y compris en cas d'échec ou d'interruption.
+fichier_message=""
+trap '[ -z "$fichier_message" ] || rm -f "$fichier_message"' EXIT
+trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM
+fichier_message="$(umask 077 && mktemp "${TMPDIR:-/tmp}/notifier.XXXXXX")" && message > "$fichier_message" \
+  || { echo "Notification non envoyée : impossible de préparer le message dans un fichier temporaire." >&2; exit 4; }
+"${mots[@]}" "$destinataire" < "$fichier_message" >&2
+code=$?
+if [ "$code" -ne 0 ]; then
+  echo "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code $code)." >&2; exit 4
 fi
 echo "Notification envoyée à $destinataire."

@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 1.9.2
+- Correctif : `factory/scripts/tests/run.sh` passe dans un projet. Les 5 vérifications de la racine (CI, `.factory-verify`, Dependabot) ne s'exécutent que dans le dépôt de la factory, repéré par le fichier `.factory-depot`, qui n'est jamais copié dans un projet.
+- `LESSONS.md` : leçon n° 24.
+- Tests : 252 vérifications dans le dépôt de la factory (3 de plus) ; un projet en exécute 5 de moins, et le signale.
+- Migration : remplacer `factory/` ; rien d'autre à faire.
+
 ## 1.9.1
 - Correctif : la CI de la stack `java-maven` n'échoue plus avant l'issue socle. Sans `pom.xml`, `setup-java` et `./mvnw` sont ignorés et le job l'indique par une notice. Le job `securite` suit la même règle.
 - `LESSONS.md` : leçon n° 23.

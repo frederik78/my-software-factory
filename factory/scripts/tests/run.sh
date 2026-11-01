@@ -45,6 +45,7 @@ depot_git() { # depot_git <racine> : vrai si <racine> est la racine d'un dépôt
   local haut; haut="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 1
   [ "$(cd "$haut" && pwd -P)" = "$(cd "$1" && pwd -P)" ] && git -C "$1" rev-parse -q --verify HEAD >/dev/null
 }
+est_depot_factory() { [ -f "$1/.factory-depot" ]; } # le marqueur est à la racine, hors de factory/ : un projet ne le reçoit jamais
 lire_depot() { # lire_depot <racine> <chemin relatif> : contenu du fichier (HEAD ou fichier, voir ci-dessus)
   if depot_git "$1"; then git -C "$1" show "HEAD:$2" 2>/dev/null; else cat "$1/$2" 2>/dev/null; fi
   return 0
@@ -442,13 +443,26 @@ migration_170="$(awk '/^## 1\.7\.0$/ { dans = 1; next } dans && /^## / { exit } 
 printf '%s' "$migration_170" | grep -q 'init-projet\.sh --sans-claude' && ! printf '%s' "$migration_170" | grep -q 'sync\.sh --claude' && ok "CHANGELOG 1.7.0 : migration avec init-projet.sh --sans-claude, sans le conseil sync.sh --claude" || ko "CHANGELOG 1.7.0 : ligne Migration" "$migration_170"
 
 echo "CI et vérification de ce dépôt (racine)"
-ci_racine="$(lire_depot "$depot" .github/workflows/ci.yml)"
-[ -n "$ci_racine" ] && ! printf '%s\n' "$ci_racine" | grep -qE 'mvnw|setup-java|NVD|maven' && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(printf '%s\n' "$ci_racine" | grep -nE 'mvnw|setup-java|NVD|maven' | head -3 | tr '\n' '|')"
-printf '%s\n' "$ci_racine" | grep -qE '^ +- run: \./scripts/verify-clean\.sh$' && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
-[ "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" = "$(lire_depot "$depot" factory/stacks/aucune/.github/workflows/ci.yml | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | tr '\n' '|')"
-[ "$(lire_depot "$depot" .factory-verify | head -1)" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(lire_depot "$depot" .factory-verify | head -1)"
-dependabot_racine="$(lire_depot "$depot" .github/dependabot.yml)"
-! printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: maven' && printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: github-actions' && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(printf '%s\n' "$dependabot_racine" | grep -n 'package-ecosystem' | tr '\n' '|')"
+# Ces règles visent le dépôt de la factory : la racine d'un projet a sa propre stack, sa CI et son Dependabot.
+if est_depot_factory "$depot"; then
+  ci_racine="$(lire_depot "$depot" .github/workflows/ci.yml)"
+  [ -n "$ci_racine" ] && ! printf '%s\n' "$ci_racine" | grep -qE 'mvnw|setup-java|NVD|maven' && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(printf '%s\n' "$ci_racine" | grep -nE 'mvnw|setup-java|NVD|maven' | head -3 | tr '\n' '|')"
+  printf '%s\n' "$ci_racine" | grep -qE '^ +- run: \./scripts/verify-clean\.sh$' && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
+  [ "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" = "$(lire_depot "$depot" factory/stacks/aucune/.github/workflows/ci.yml | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | tr '\n' '|')"
+  [ "$(lire_depot "$depot" .factory-verify | head -1)" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(lire_depot "$depot" .factory-verify | head -1)"
+  dependabot_racine="$(lire_depot "$depot" .github/dependabot.yml)"
+  ! printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: maven' && printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: github-actions' && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(printf '%s\n' "$dependabot_racine" | grep -n 'package-ecosystem' | tr '\n' '|')"
+else
+  echo "  ignoré : ce dépôt est un projet, pas le dépôt de la factory"
+fi
+
+echo "Dépôt de la factory ou projet"
+est_depot_factory "$(nouveau_projet)"; [ $? -eq 1 ] && ok "un projet n'est pas le dépôt de la factory" || ko "un projet pris pour le dépôt de la factory"
+[ ! -e "$factory/templates/.factory-depot" ] && ok "le marqueur .factory-depot n'est pas copié dans les projets" || ko "marqueur .factory-depot dans les modèles"
+# Les deux signaux se gardent l'un l'autre : perdre le marqueur ne doit pas désactiver en silence les vérifications de la racine.
+if [ "$(lire_depot "$depot" .factory-verify | head -1)" = "factory/scripts/tests/run.sh" ]; then
+  est_depot_factory "$depot"; [ $? -eq 0 ] && ok "dépôt de la factory : marqueur .factory-depot présent" || ko "dépôt de la factory sans marqueur .factory-depot"
+fi
 
 echo "noms de fichiers *.md en anglais"
 p="$(mktemp -d "$racine_tmp/n.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1

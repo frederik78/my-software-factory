@@ -429,6 +429,13 @@ for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/wor
   [ "${bilan% *}" -gt 0 ] && [ "${bilan#* }" -eq 0 ] && ok "CI : chaque actions/checkout a persist-credentials: false : ${ci#"$factory"/../}" || ko "CI : persist-credentials: false sur chaque checkout : $ci" "étapes checkout / sans l'option : $bilan"
 done
 
+# Avant l'issue socle, un projet Java n'a pas de pom.xml : setup-java (cache: maven) et ./mvnw échoueraient sur chaque push.
+ci_java="$factory/stacks/java-maven/.github/workflows/ci.yml"
+etapes_java="$(grep -cE 'uses: actions/setup-java@|run: \./mvnw' "$ci_java")"
+gardes_java="$(grep -cF "hashFiles('pom.xml') != ''" "$ci_java")"
+[ "$etapes_java" -gt 0 ] && [ "$gardes_java" -eq "$etapes_java" ] && ok "CI java-maven : setup-java et mvnw ne s'exécutent que si pom.xml existe" || ko "CI java-maven : garde pom.xml manquante" "$gardes_java garde(s) pour $etapes_java étape(s)"
+grep -qF "hashFiles('pom.xml') == ''" "$ci_java" && grep -q '::notice::' "$ci_java" && ok "CI java-maven : sans pom.xml, le job signale que la vérification est ignorée" || ko "CI java-maven : aucun signalement sans pom.xml"
+
 echo "Mise à jour d'un projet sans Claude Code"
 grep -q '\./factory/init-projet\.sh --sans-claude' "$factory/UPGRADE.md" && ok "UPGRADE.md : relancer init-projet.sh --sans-claude pour un projet sans Claude Code" || ko "UPGRADE.md cite init-projet.sh --sans-claude"
 migration_170="$(awk '/^## 1\.7\.0$/ { dans = 1; next } dans && /^## / { exit } dans && /^- Migration/ { print }' "$factory/CHANGELOG.md")"

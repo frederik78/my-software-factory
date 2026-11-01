@@ -35,6 +35,36 @@ verifier_exact() {
   ok "$desc"
 }
 
+# Vérifications de documentation sur ce dépôt (racine de la factory) : elles lisent le dépôt par lire_depot / chercher_depot.
+# Dépôt git : lecture depuis HEAD, pour que la suite ne dépende pas de l'arbre de travail (un agent qui modifie un fichier ou change
+# de branche pendant la suite ne la fait plus échouer au hasard). Conséquence voulue : une modification NON COMMITÉE d'un fichier
+# n'est pas vue par ces vérifications ; commitez avant de lancer la suite. Hors dépôt git (copie de verify-clean.sh, sans .git) :
+# lecture des fichiers de la copie.
+depot="$(cd "$factory/.." && pwd)"
+depot_git() { # depot_git <racine> : vrai si <racine> est la racine d'un dépôt git qui a un HEAD
+  local haut; haut="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ "$(cd "$haut" && pwd -P)" = "$(cd "$1" && pwd -P)" ] && git -C "$1" rev-parse -q --verify HEAD >/dev/null
+}
+lire_depot() { # lire_depot <racine> <chemin relatif> : contenu du fichier (HEAD ou fichier, voir ci-dessus)
+  if depot_git "$1"; then git -C "$1" show "HEAD:$2" 2>/dev/null; else cat "$1/$2" 2>/dev/null; fi
+  return 0
+}
+chercher_depot() { # chercher_depot <racine> [-i] <motif grep -E> [chemins exclus (motifs de chemin)...] : lignes « fichier:ligne:texte »
+  local racine="$1" casse="" motif x; shift
+  if [ "$1" = "-i" ]; then casse="-i"; shift; fi
+  motif="$1"; shift
+  if depot_git "$racine"; then
+    local specs=(.); for x in "$@"; do specs+=(":!$x"); done
+    git -C "$racine" grep -n -I -E $casse -e "$motif" HEAD -- "${specs[@]}" 2>/dev/null
+  else
+    (cd "$racine" && find . -type f ! -path './.git/*' | sed 's|^\./||' | while IFS= read -r f; do
+      for x in "$@"; do case "$f" in $x) continue 2 ;; esac; done
+      grep -n -I -E $casse -e "$motif" "$f" 2>/dev/null | awk -v f="$f" '{ print f ":" $0 }'
+    done)
+  fi
+  return 0
+}
+
 # Dépôt jetable avec les scripts liés comme dans un vrai projet.
 nouveau_projet() {
   local d; d="$(mktemp -d "$racine_tmp/p.XXXXXX")"
@@ -379,19 +409,20 @@ w="$(nouveau_projet)"; cd "$w" || exit 1
 git init -q -b tronc . && issue_id "$w" 005-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
 git add -A >/dev/null && git commit -qm "socle"
 verifier "creer sans aucune base : message citant origin/develop" 64 "^Aucune base trouvée \(develop, origin/develop, origin/HEAD, main, master\) : passez --base\.$" scripts/worktree-issue.sh creer 005-01
-for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/workflows/ci.yml; do
-  declencheurs="$(awk '/^on:/ { dans = 1; next } dans && /^[^ ]/ { exit } dans { print }' "$ci")"
-  [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(grep -c 'branches:' "$ci")" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : ${ci#"$factory"/../}" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
+for ci in .github/workflows/ci.yml $(cd "$depot" && ls factory/stacks/*/.github/workflows/ci.yml); do
+  contenu="$(lire_depot "$depot" "$ci")"
+  declencheurs="$(printf '%s\n' "$contenu" | awk '/^on:/ { dans = 1; next } dans && /^[^ ]/ { exit } dans { print }')"
+  [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(printf '%s\n' "$contenu" | grep -c 'branches:')" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : $ci" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
 done
 
 echo "CI et vérification de ce dépôt (racine)"
-ci_racine="$factory/../.github/workflows/ci.yml"
-! grep -qE 'mvnw|setup-java|NVD|maven' "$ci_racine" && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(grep -nE 'mvnw|setup-java|NVD|maven' "$ci_racine" | head -3 | tr '\n' '|')"
-grep -qE '^ +- run: \./scripts/verify-clean\.sh$' "$ci_racine" && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
-[ "$(grep -E 'uses:' "$ci_racine" | sed 's/^ *- *//' | sort -u)" = "$(grep -E 'uses:' "$factory/stacks/aucune/.github/workflows/ci.yml" | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(grep -E 'uses:' "$ci_racine" | tr '\n' '|')"
-[ -f "$factory/../.factory-verify" ] && [ "$(head -1 "$factory/../.factory-verify")" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(head -1 "$factory/../.factory-verify" 2>&1)"
-dependabot_racine="$factory/../.github/dependabot.yml"
-! grep -q 'package-ecosystem: maven' "$dependabot_racine" && grep -q 'package-ecosystem: github-actions' "$dependabot_racine" && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(grep -n 'package-ecosystem' "$dependabot_racine" | tr '\n' '|')"
+ci_racine="$(lire_depot "$depot" .github/workflows/ci.yml)"
+[ -n "$ci_racine" ] && ! printf '%s\n' "$ci_racine" | grep -qE 'mvnw|setup-java|NVD|maven' && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(printf '%s\n' "$ci_racine" | grep -nE 'mvnw|setup-java|NVD|maven' | head -3 | tr '\n' '|')"
+printf '%s\n' "$ci_racine" | grep -qE '^ +- run: \./scripts/verify-clean\.sh$' && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
+[ "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" = "$(lire_depot "$depot" factory/stacks/aucune/.github/workflows/ci.yml | grep -E 'uses:' | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(printf '%s\n' "$ci_racine" | grep -E 'uses:' | tr '\n' '|')"
+[ "$(lire_depot "$depot" .factory-verify | head -1)" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(lire_depot "$depot" .factory-verify | head -1)"
+dependabot_racine="$(lire_depot "$depot" .github/dependabot.yml)"
+! printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: maven' && printf '%s\n' "$dependabot_racine" | grep -q 'package-ecosystem: github-actions' && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(printf '%s\n' "$dependabot_racine" | grep -n 'package-ecosystem' | tr '\n' '|')"
 
 echo "noms de fichiers *.md en anglais"
 p="$(mktemp -d "$racine_tmp/n.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
@@ -401,10 +432,10 @@ git init -q .; export HOME="$p/home"; mkdir -p "$HOME"
 [ ! -e docs/lecons.md ] && [ ! -e docs/issues/_modele.md ] && ok "init : aucun ancien nom créé" || ko "init : aucun ancien nom créé"
 anciens='lecons|_modele|LECONS|DEMARRER-UN-PROJET|MISE-A-JOUR'
 # Les anciens noms ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
-restes="$(git -C "$factory/.." grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
+restes="$(chercher_depot "$depot" "$anciens" factory/CHANGELOG.md factory/init-projet.sh factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "aucun ancien nom de fichier .md dans le dépôt (hors CHANGELOG, migration et test)" || ko "aucun ancien nom de fichier .md dans le dépôt" "$restes"
 # Renommage 1.8.0 (dashboard) : l'ancien nom ne subsiste que dans le CHANGELOG (historique et migration) et ce test.
-restes="$(git -C "$factory/.." grep -n -i -E "tableau.de.bord" -- . ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
+restes="$(chercher_depot "$depot" -i "tableau.de.bord" factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "plus aucune mention de l'ancien nom du dashboard (hors CHANGELOG et ce test)" || ko "mentions de l'ancien nom du dashboard" "$restes"
 [ -f "$factory/LESSONS.md" ] && [ -f "$factory/START-A-PROJECT.md" ] && [ -f "$factory/UPGRADE.md" ] && ok "factory/LESSONS.md, START-A-PROJECT.md et UPGRADE.md existent" || ko "fichiers de factory/ renommés"
 p="$(mktemp -d "$racine_tmp/m.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
@@ -550,15 +581,16 @@ printf 'fichier\n' > "$d/copie/AGENTS.md"; mkdir "$d/copie/docs"; printf 'motif-
 [ "$(lire_depot "$d/copie" AGENTS.md)" = "fichier" ] && [ "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | wc -l | tr -d ' ')" = "1" ] && chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | grep -q 'docs/x.md' && ok "hors dépôt git (copie de verify-clean.sh) : lecture et recherche dans les fichiers, exclusions respectées" || ko "lecture hors dépôt git" "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | tr '\n' '|')"
 
 echo "limite des itérations de revue (documentation)"
-restes="$(git -C "$factory/.." grep -n -i -E "3 itérations|trois itérations" -- . ':!factory/CHANGELOG.md' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
+restes="$(chercher_depot "$depot" -i "3 itérations|trois itérations" factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
+deliver="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"; conf_modele="$(lire_depot "$depot" factory/templates/.factory.conf)"
 [ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
-grep -q 'scripts/config-factory.sh --max-iterations' "$factory/skills/deliver/SKILL.md" && grep -q 'scripts/notifier.sh' "$factory/skills/deliver/SKILL.md" && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
-grep -q "au moins un BLOQUANT" "$factory/skills/deliver/SKILL.md" && grep -q "IMPORTANT.*sans courriel" "$factory/skills/deliver/SKILL.md" && ok "/deliver : courriel seulement s'il reste au moins un BLOQUANT (IMPORTANT seuls : remontés sans courriel)" || ko "/deliver : courriel réservé aux BLOQUANT"
-grep -qx 'NOTIFICATION_COMMANDE=' "$factory/templates/.factory.conf" && grep -q 'NOTIFICATION_COMMANDE=sendmail -oi' "$factory/templates/.factory.conf" && [ -z "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh)" ] && ok "exemple sendmail -oi (destinataire en argument), aucun exemple avec -t (sendmail ou mail)" || ko "exemple avec -t" "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
-[ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/../AGENTS.md")" -ge 2 ] && [ "$(grep -c 'MAX_ITERATIONS_REVUE' "$factory/templates/AGENTS.md")" -ge 2 ] && ok "AGENTS.md et son modèle : limite MAX_ITERATIONS_REVUE aux étapes 4 et 5" || ko "AGENTS.md : MAX_ITERATIONS_REVUE aux étapes 4 et 5"
-adresses="$(grep -ohE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' "$factory/templates/.factory.conf" "$factory/../.factory.conf" 2>/dev/null | grep -v '@example\.com$' | tr '\n' ' ')"
-[ -f "$factory/templates/.factory.conf" ] && [ -z "$adresses" ] && ok "modèle .factory.conf : aucune adresse réelle (example.com seulement)" || ko "adresses du modèle .factory.conf" "$adresses"
-grep -qx '.factory.local.conf' "$factory/../.gitignore" && grep -qx '.factory.local.conf' "$factory/templates/.gitignore" && ok ".factory.local.conf ignoré par git (dépôt et modèle)" || ko ".factory.local.conf dans les .gitignore"
+printf '%s\n' "$deliver" | grep -q 'scripts/config-factory.sh --max-iterations' && printf '%s\n' "$deliver" | grep -q 'scripts/notifier.sh' && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
+printf '%s\n' "$deliver" | grep -q "au moins un BLOQUANT" && printf '%s\n' "$deliver" | grep -q "IMPORTANT.*sans courriel" && ok "/deliver : courriel seulement s'il reste au moins un BLOQUANT (IMPORTANT seuls : remontés sans courriel)" || ko "/deliver : courriel réservé aux BLOQUANT"
+printf '%s\n' "$conf_modele" | grep -qx 'NOTIFICATION_COMMANDE=' && printf '%s\n' "$conf_modele" | grep -q 'NOTIFICATION_COMMANDE=sendmail -oi' && [ -z "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh)" ] && ok "exemple sendmail -oi (destinataire en argument), aucun exemple avec -t (sendmail ou mail)" || ko "exemple avec -t" "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
+[ "$(lire_depot "$depot" AGENTS.md | grep -c 'MAX_ITERATIONS_REVUE')" -ge 2 ] && [ "$(lire_depot "$depot" factory/templates/AGENTS.md | grep -c 'MAX_ITERATIONS_REVUE')" -ge 2 ] && ok "AGENTS.md et son modèle : limite MAX_ITERATIONS_REVUE aux étapes 4 et 5" || ko "AGENTS.md : MAX_ITERATIONS_REVUE aux étapes 4 et 5"
+adresses="$({ printf '%s\n' "$conf_modele"; lire_depot "$depot" .factory.conf; } | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' | grep -v '@example\.com$' | tr '\n' ' ')"
+[ -n "$conf_modele" ] && [ -z "$adresses" ] && ok "modèle .factory.conf : aucune adresse réelle (example.com seulement)" || ko "adresses du modèle .factory.conf" "$adresses"
+lire_depot "$depot" .gitignore | grep -qx '.factory.local.conf' && lire_depot "$depot" factory/templates/.gitignore | grep -qx '.factory.local.conf' && ok ".factory.local.conf ignoré par git (dépôt et modèle)" || ko ".factory.local.conf dans les .gitignore"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

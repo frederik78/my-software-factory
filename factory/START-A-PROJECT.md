@@ -25,6 +25,7 @@ Relançable sans risque. Une autre stack que celles-ci : choisir `aucune`, puis 
 2. Interview `/grill-with-docs` : glossaire (`GLOSSARY.md`, à la racine) et vocabulaire du métier.
 3. **ADR d'architecture et de stack** (`docs/adr/0001-…`, format `0000-template.md`), validés par l'utilisateur : langage, framework, base de données,
    structure des packages et sens des dépendances, authentification, gestion du schéma, fournisseurs externes. Ne pas commencer à coder avant.
+   **Architecture par défaut : des couches de services**, avec des interfaces seulement aux frontières externes à doubler. Partir de la référence de la stack quand elle en a une (`factory/stacks/java-maven/README.md`) et consigner chaque écart ; un autre style, comme l'hexagone, se justifie dans l'ADR.
 4. Compléter `AGENTS.md` (stack, commandes, architecture, règles métier) à partir des ADR. N'y mettre que le **flux de travail et les contraintes que le code ne montre pas** : l'agent lit lui-même l'arborescence et les fichiers ; y recopier ce qu'il peut lire dans le code ne lui apprend rien et se périme.
 
 ## 3. Mettre en place les garde-fous AVANT la première issue

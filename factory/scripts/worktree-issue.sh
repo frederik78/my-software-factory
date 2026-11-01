@@ -61,7 +61,7 @@ case "$commande" in
       shift
     done
     branche="$(branche_de "$id")" || { echo "Issue introuvable : $id" >&2; exit 64; }
-    base="${base:-$(base_par_defaut)}" || { echo "Aucune base trouvée (develop, origin/HEAD, main, master) : passez --base." >&2; exit 64; }
+    base="${base:-$(base_par_defaut)}" || { echo "Aucune base trouvée (develop, origin/develop, origin/HEAD, main, master) : passez --base." >&2; exit 64; }
     git rev-parse --verify --quiet "$base^{commit}" >/dev/null || { echo "Base inconnue : $base" >&2; exit 64; }
     if [ "$(git rev-parse --abbrev-ref HEAD)" = "$branche" ] || git show-ref --verify --quiet "refs/heads/$branche"; then
       echo "La branche $branche existe déjà : reprenez-la (git worktree add <dossier> $branche) ou supprimez-la." >&2; exit 1

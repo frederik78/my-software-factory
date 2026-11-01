@@ -17,6 +17,7 @@ Choisissez la stack (dossiers `factory/stacks/<stack>/`) :
 ```
 Crée, sans jamais rien écraser : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `.claude/settings.json` (refus de permissions), `.factory-version`, `docs/` (adr, prd, issues, reviews, agents, `lessons.md`),
 `.gitignore`, les fichiers de la stack (CI, Dependabot, `.factory-verify`), les liens `scripts/`, puis lance `factory/sync.sh` (alias de skills ; avec `CLAUDE.md`, aussi les agents de Claude Code via `sync-claude.sh`).
+Projet sans Claude Code : `--sans-claude` ne crée ni `CLAUDE.md` ni rien sous `.claude/`, et lance `sync.sh --sans-claude` ; garder l'option à chaque relance (mise à jour de la factory), sinon `init-projet.sh` crée `CLAUDE.md` et `.claude/` qui manquent. Le mode Claude de `sync.sh` ne dépend que de `CLAUDE.md` (pas du dossier `.claude/`).
 Relançable sans risque. Une autre stack que celles-ci : choisir `aucune`, puis § 3 et `factory/README.md` § 8.
 
 ## 2. Cadrer (avec l'utilisateur, avant tout code)

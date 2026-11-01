@@ -151,9 +151,16 @@ $(tableau "$i" "$RANG_STATUT_ISSUE" "Id${sep}Titre${sep}Statut${sep}Dépend de${
 HTML
 }
 
+# Fichier temporaire en cours d'écriture : supprimé à la sortie, y compris sur erreur ou interruption (Ctrl-C en --boucle).
+tmp=""
+trap '[ -z "$tmp" ] || rm -f "$tmp"' EXIT
+trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
+droits_umask="$(printf '%o' $(( 0666 & ~0$(umask) )))" # mktemp crée en 0600 : la page doit être lisible comme tout fichier créé
+
 ecrire() { # écriture atomique : un navigateur ne lit jamais une page à moitié écrite
-  local tmp; tmp="$(mktemp "${sortie}.XXXXXX")" || exit 1
-  generer > "$tmp" && mv "$tmp" "$sortie" || { rm -f "$tmp"; exit 1; }
+  tmp="$(mktemp "${sortie}.XXXXXX")" || exit 1
+  chmod "$droits_umask" "$tmp" && generer > "$tmp" && mv "$tmp" "$sortie" || exit 1
+  tmp=""
 }
 
 if [ -n "$boucle" ]; then

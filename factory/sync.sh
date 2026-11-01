@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Expose la factory aux outils d'agents, de façon neutre vis-à-vis du fournisseur de LLM.
 #  - skills : lien symbolique .agents/skills -> ../factory/skills (Codex et autres outils lisant .agents/).
-#  - Claude Code : si le projet lui est destiné (présence de CLAUDE.md ou du dossier .claude/), appelle factory/sync-claude.sh
+#  - Claude Code : si le projet lui est destiné (présence de CLAUDE.md), appelle factory/sync-claude.sh
 #    (lien .claude/skills, enveloppes d'agents, suivi de progression), qui est propre à Claude Code et utilisable seul.
-# Options : --sans-claude (n'appelle jamais sync-claude.sh) ; --claude (l'appelle même sans CLAUDE.md ni .claude/).
+#    Le seul dossier .claude/ ne suffit pas : init-projet.sh le crée (settings.json) et d'autres outils peuvent en avoir un.
+# Options : --sans-claude (n'appelle jamais sync-claude.sh) ; --claude (l'appelle même sans CLAUDE.md).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -21,7 +22,7 @@ mkdir -p .agents
 ln -sfn ../factory/skills .agents/skills
 echo "Alias créés : .agents/skills"
 
-if [ "$mode" = auto ] && { [ -f CLAUDE.md ] || [ -d .claude ]; }; then mode=claude; fi
+if [ "$mode" = auto ] && [ -f CLAUDE.md ]; then mode=claude; fi
 if [ "$mode" = claude ]; then
   ./factory/sync-claude.sh
 fi

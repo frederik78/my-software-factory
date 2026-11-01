@@ -19,9 +19,13 @@ la boucle ci-dessous est autorisée par la demande de livrer l'issue.
    **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Dès qu'un autre agent peut travailler en même temps, isole l'issue dans son propre dossier : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
    crée `../<dépôt>-<id>` sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
    `scripts/worktree-issue.sh nettoyer <issue> --branche`.
+   **Correctif urgent sur une release** (bug en production que l'utilisateur demande de corriger sans attendre la prochaine release) : branche `hotfix/<slug>` créée depuis `main` à jour
+   (en dossier isolé : `git worktree add -b hotfix/<slug> ../<dépôt>-hotfix-<slug> main`), PR vers `main` ; après sa fusion dans `main`, l'utilisateur fusionne aussi `main` (ou la branche
+   `hotfix/<slug>`) dans `develop`. L'agent travaille sur la branche `hotfix/<slug>`, jamais sur `main` ni sur `develop`, et ne fusionne rien.
 4. Fixe la **base** (borne de `git log <base>..HEAD` pour toute la livraison). Si la branche est créée depuis `develop` : `<base>` = `git merge-base HEAD develop`
    (à défaut de `develop` : `origin/develop`, `origin/HEAD`, `main`, `master`). Si elle est créée depuis la branche d'une issue dont elle dépend et qui n'est pas fusionnée (branches empilées) : `<base>` = la pointe de cette
    branche (`git rev-parse HEAD` au démarrage), sinon la revue relirait les commits de l'issue précédente.
+   Correctif urgent (`hotfix/<slug>`) : `<base>` = `git merge-base HEAD main`.
 5. Mets `statut: En cours` et `branche:` dans l'issue et **commite-le toi-même** (`docs: issue <id> en cours`) : c'est toi qui tiens les fichiers d'issue et de revue, les agents n'y touchent pas, et
    l'arbre doit être propre avant de lancer le développeur.
 

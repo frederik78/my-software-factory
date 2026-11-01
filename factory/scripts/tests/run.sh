@@ -3,6 +3,9 @@
 #     factory/scripts/tests/run.sh
 # Chaque cas travaille dans un dépôt jetable ; rien n'est écrit dans le dépôt courant. Compatible bash 3.2 (macOS).
 set -uo pipefail
+# Isolement de l'environnement appelant : verify-clean.sh donne la priorité à COMMANDE_VERIFY, et les bouchons lisent STUB_CODE ;
+# hérités (par exemple quand cette suite est elle-même lancée par verify-clean.sh avec COMMANDE_VERIFY), ils fausseraient les cas.
+unset COMMANDE_VERIFY STUB_CODE
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -134,6 +137,20 @@ err="$(scripts/tableau-de-bord.sh --sortie absent/x.html 2>&1 >/dev/null)"; code
 { [ "$code" -eq 64 ] && [ "$err" = "Erreur : le dossier de sortie « $PWD/absent » n'existe pas." ] && [ ! -e absent ]; } && ok "--sortie vers un dossier inexistant : message clair, code 64, dossier non créé" || ko "--sortie dossier inexistant" "code $code ; $err"
 rm -rf docs/issues backlog.md tableau-de-bord.html; mkdir -p docs/issues
 verifier "sans backlog ni issue : page générée sans erreur" 0 "tableau-de-bord.html" scripts/tableau-de-bord.sh
+droits() { ls -l "$1" | cut -c1-10; }
+rm -f tableau-de-bord.html; (umask 022 && scripts/tableau-de-bord.sh >/dev/null)
+[ "$(droits tableau-de-bord.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits tableau-de-bord.html)"
+rm -f tableau-de-bord.html; (umask 027 && scripts/tableau-de-bord.sh >/dev/null)
+[ "$(droits tableau-de-bord.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits tableau-de-bord.html)"
+# Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
+cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
+printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
+rm -f generation-en-cours; scripts/tableau-de-bord.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
+kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+restes="$(ls tableau-de-bord.html.* 2>/dev/null)"
+[ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
+cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours tableau-de-bord.html*
 
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -154,6 +171,7 @@ verifier "PRD sans critère défini = erreur" 1 "aucun critère défini" scripts
 verifier "sans argument = usage (64)" 64 "Usage" scripts/couverture-prd.sh
 
 echo "verify-clean.sh"
+[ -z "${COMMANDE_VERIFY+x}" ] && [ -z "${STUB_CODE+x}" ] && ok "suite isolée de l'environnement appelant : ni COMMANDE_VERIFY ni STUB_CODE hérités" || ko "suite isolée de l'environnement appelant" "COMMANDE_VERIFY=${COMMANDE_VERIFY-<absent>} STUB_CODE=${STUB_CODE-<absent>}"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 git init -q . && printf '.env\ntarget/\n' > .gitignore && echo "SECRET" > .env && echo "x" > fichier.txt
 cat > mvnw <<'EOF'
@@ -184,6 +202,10 @@ verifier "wrapper ./gradlew détecté" 0 "Tests : Ran 2 tests" scripts/verify-cl
 rm gradlew
 echo 'echo "$#" > args.txt && cat args.txt && echo "Ran 5 tests in 0s"' > .factory-verify
 verifier "syntaxe shell (&&) acceptée, arguments transmis" 0 "Ran 5 tests" scripts/verify-clean.sh -- -a -b
+echo 'echo "  ok   un cas"; echo "TESTS OK : 142 vérifications"' > .factory-verify
+verifier "résumé de la suite de la factory reconnu (succès)" 0 "^Tests : TESTS OK : 142 vérifications$" scripts/verify-clean.sh
+echo 'echo "TESTS EN ECHEC : 2 sur 145"; exit 1' > .factory-verify
+verifier "résumé de la suite de la factory reconnu (échec)" 1 "^Tests : TESTS EN ECHEC : 2 sur 145$" scripts/verify-clean.sh
 git add -A >/dev/null 2>&1
 unset TMPDIR
 
@@ -224,7 +246,7 @@ d="$(depot_sync s-avec)"; cd "$d" || exit 1; touch CLAUDE.md
 rm -rf .claude; ./factory/sync-claude.sh >/dev/null 2>&1; ln -sfn ../factory/skills .agents/skills; instantane "$d" > "$d/apres-claude.txt"
 [ -s "$d/apres-sync.txt" ] && cmp -s "$d/apres-sync.txt" "$d/apres-claude.txt" && grep -q '^F .claude/agents/developer.md' "$d/apres-sync.txt" && grep -q '^L .claude/skills' "$d/apres-sync.txt" && ok "sync.sh avec CLAUDE.md : mêmes agents et liens que sync-claude.sh seul" || ko "sync.sh avec CLAUDE.md = sync-claude.sh" "$(diff "$d/apres-sync.txt" "$d/apres-claude.txt" 2>&1 | head -5)"
 d="$(depot_sync s-dossier)"; cd "$d" || exit 1; mkdir .claude
-./factory/sync.sh >/dev/null 2>&1; [ -L .claude/skills ] && [ -f .claude/agents/developer.md ] && ok "dossier .claude/ seul : configuré pour Claude Code" || ko "dossier .claude/ seul"
+./factory/sync.sh >/dev/null 2>&1; [ ! -e .claude/skills ] && [ ! -e .claude/agents ] && ok "dossier .claude/ seul (sans CLAUDE.md) : pas de mode Claude" || ko "dossier .claude/ seul : pas de mode Claude" "$(ls -A .claude 2>&1 | tr '\n' ' ')"
 d="$(depot_sync s-nu)"; cd "$d" || exit 1
 verifier "projet sans CLAUDE.md ni .claude : sync.sh réussit" 0 "" ./factory/sync.sh
 [ -L .agents/skills ] && [ ! -e .claude ] && ok "projet sans CLAUDE.md ni .claude : rien de Claude créé" || ko "projet sans CLAUDE.md ni .claude" "$(ls -A 2>&1 | tr '\n' ' ')"
@@ -235,6 +257,19 @@ verifier "sync-claude.sh seul : réussit et annonce ses agents" 0 "developer" ./
 verifier "sync.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync.sh --bidon
 verifier "sync-claude.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync-claude.sh --bidon
 verifier "sync.sh : --claude et --sans-claude ensemble = 64" 64 "Usage" ./factory/sync.sh --claude --sans-claude
+d="$(depot_sync s-vide)"; cd "$d" || exit 1
+rm -f factory/prompts/*.md; printf '# Prompt sans en-tête\n' > factory/prompts/libre.md
+bash_ancien=/bin/bash; [ -x "$bash_ancien" ] || bash_ancien="$BASH"
+verifier "sync-claude.sh sans aucun agent à générer, sous $("$bash_ancien" -c 'echo "bash $BASH_VERSION"') (set -u)" 0 "agents :" "$bash_ancien" ./factory/sync-claude.sh
+
+echo "init-projet.sh --sans-claude"
+d="$(depot_sync i-sans)"; cd "$d" || exit 1
+verifier "init --sans-claude : réussit" 0 "créé +AGENTS.md" ./factory/init-projet.sh --sans-claude
+[ ! -e CLAUDE.md ] && [ ! -e .claude ] && ok "init --sans-claude : ni CLAUDE.md ni dossier .claude/" || ko "init --sans-claude : rien de Claude" "$(ls -A 2>&1 | tr '\n' ' ')"
+[ -L .agents/skills ] && [ -f AGENTS.md ] && [ -f .github/workflows/ci.yml ] && ok "init --sans-claude : .agents/skills, AGENTS.md et CI créés" || ko "init --sans-claude : fichiers neutres"
+verifier "init --sans-claude relancé : toujours rien de Claude" 0 "" ./factory/init-projet.sh --sans-claude
+[ ! -e CLAUDE.md ] && [ ! -e .claude ] && ok "init --sans-claude relancé : ni CLAUDE.md ni .claude/" || ko "init --sans-claude relancé" "$(ls -A 2>&1 | tr '\n' ' ')"
+verifier "init : option inconnue = 64 et usage citant --sans-claude" 64 "Usage.*--sans-claude" ./factory/init-projet.sh --bidon
 
 echo "init-projet.sh --stack"
 mkdir "$p/stackpy"; cp -R "$factory" "$p/stackpy/factory"; rm -rf "$p/stackpy/factory/scripts/tests"; cd "$p/stackpy" || exit 1
@@ -288,9 +323,45 @@ verifier "creer --base reste prioritaire sur develop" 0 "\(main\)" scripts/workt
 d2="$(dirname "$w")/$nomw-002-02"; echo "t" > "$d2/t.txt" && git -C "$d2" add -A && git -C "$d2" commit -qm "feat: travail"
 git checkout -q main && git merge -q --no-ff feat/002-02-x -m "fusion dans main seulement" >/dev/null
 verifier "nettoyer vérifie la fusion dans develop (pas main)" 1 "n'est pas fusionnée dans develop" scripts/worktree-issue.sh nettoyer 002-02
+w="$(nouveau_projet)"; cd "$w" || exit 1
+git init -q -b main . && issue_id "$w" 004-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
+git add -A >/dev/null && git commit -qm "socle"
+distant="$(mktemp -d "$racine_tmp/distant.XXXXXX")"; git clone -q "$w" "$distant/d" && git -C "$distant/d" checkout -q -b develop && echo r > "$distant/d/r.txt" && git -C "$distant/d" add -A && git -C "$distant/d" commit -qm "chore: develop distante"
+git remote add origin "$distant/d" && git fetch -q origin
+! git show-ref --verify --quiet refs/heads/develop && verifier "creer sans develop locale : repli sur origin/develop" 0 "\(origin/develop\)" scripts/worktree-issue.sh creer 004-01 || ko "develop absente localement (préparation du test)"
+[ -f "$(dirname "$w")/$(basename "$w")-004-01/r.txt" ] && ok "la branche d'issue part de origin/develop" || ko "la branche d'issue part de origin/develop"
+w="$(nouveau_projet)"; cd "$w" || exit 1
+git init -q -b tronc . && issue_id "$w" 005-01 "À faire" docs/prd/p.md "[CA-01]" "[]"
+git add -A >/dev/null && git commit -qm "socle"
+verifier "creer sans aucune base : message citant origin/develop" 64 "^Aucune base trouvée \(develop, origin/develop, origin/HEAD, main, master\) : passez --base\.$" scripts/worktree-issue.sh creer 005-01
 for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/workflows/ci.yml; do
-  grep -Eq 'branches: \[main, develop\]' "$ci" && [ "$(grep -c 'branches: \[main, develop\]' "$ci")" -eq 2 ] && ok "CI déclenchée sur main et develop (push et PR) : ${ci#"$factory"/../}" || ko "CI déclenchée sur main et develop : $ci"
+  declencheurs="$(awk '/^on:/ { dans = 1; next } dans && /^[^ ]/ { exit } dans { print }' "$ci")"
+  [ "$(printf '%s\n' "$declencheurs" | grep -A1 '^  push:$' | sed -n 2p)" = "    branches: [main, develop]" ] && [ "$(grep -c 'branches:' "$ci")" -eq 1 ] && printf '%s\n' "$declencheurs" | grep -q '^  pull_request:$' && ok "CI : push sur main et develop, toute PR (même empilée), sans filtre de branche : ${ci#"$factory"/../}" || ko "CI : push main/develop et PR sans filtre : $ci" "$(printf '%s' "$declencheurs" | tr '\n' '|')"
 done
+
+# [A05] Aucune étape actions/checkout ne laisse le jeton dans .git/config : persist-credentials: false (aucun job ne pousse).
+for ci in "$factory/../.github/workflows/ci.yml" "$factory"/stacks/*/.github/workflows/ci.yml; do
+  bilan="$(awk '
+    /^ *$/ { next }
+    /- uses: actions\/checkout@/ { if (dans && !vu) manque++; n++; dans = 1; vu = 0; ind = index($0, "-"); next }
+    dans { match($0, /[^ ]/); if (RSTART <= ind) { if (!vu) manque++; dans = 0 } else if ($0 ~ /^ +persist-credentials: false$/) vu = 1 }
+    END { if (dans && !vu) manque++; print n + 0, manque + 0 }' "$ci")"
+  [ "${bilan% *}" -gt 0 ] && [ "${bilan#* }" -eq 0 ] && ok "CI : chaque actions/checkout a persist-credentials: false : ${ci#"$factory"/../}" || ko "CI : persist-credentials: false sur chaque checkout : $ci" "étapes checkout / sans l'option : $bilan"
+done
+
+echo "Mise à jour d'un projet sans Claude Code"
+grep -q '\./factory/init-projet\.sh --sans-claude' "$factory/UPGRADE.md" && ok "UPGRADE.md : relancer init-projet.sh --sans-claude pour un projet sans Claude Code" || ko "UPGRADE.md cite init-projet.sh --sans-claude"
+migration_170="$(awk '/^## 1\.7\.0$/ { dans = 1; next } dans && /^## / { exit } dans && /^- Migration/ { print }' "$factory/CHANGELOG.md")"
+printf '%s' "$migration_170" | grep -q 'init-projet\.sh --sans-claude' && ! printf '%s' "$migration_170" | grep -q 'sync\.sh --claude' && ok "CHANGELOG 1.7.0 : migration avec init-projet.sh --sans-claude, sans le conseil sync.sh --claude" || ko "CHANGELOG 1.7.0 : ligne Migration" "$migration_170"
+
+echo "CI et vérification de ce dépôt (racine)"
+ci_racine="$factory/../.github/workflows/ci.yml"
+! grep -qE 'mvnw|setup-java|NVD|maven' "$ci_racine" && ok "CI racine : ni mvnw, ni setup-java, ni Maven, ni NVD" || ko "CI racine sans Java ni Maven" "$(grep -nE 'mvnw|setup-java|NVD|maven' "$ci_racine" | head -3 | tr '\n' '|')"
+grep -qE '^ +- run: \./scripts/verify-clean\.sh$' "$ci_racine" && ok "CI racine : le job verify lance ./scripts/verify-clean.sh" || ko "CI racine : appel de ./scripts/verify-clean.sh"
+[ "$(grep -E 'uses:' "$ci_racine" | sed 's/^ *- *//' | sort -u)" = "$(grep -E 'uses:' "$factory/stacks/aucune/.github/workflows/ci.yml" | sed 's/^ *- *//' | sort -u)" ] && ok "CI racine : mêmes actions et empreintes que le modèle aucune" || ko "CI racine : actions épinglées comme le modèle aucune" "$(grep -E 'uses:' "$ci_racine" | tr '\n' '|')"
+[ -f "$factory/../.factory-verify" ] && [ "$(head -1 "$factory/../.factory-verify")" = "factory/scripts/tests/run.sh" ] && ok ".factory-verify racine : désigne factory/scripts/tests/run.sh" || ko ".factory-verify racine" "$(head -1 "$factory/../.factory-verify" 2>&1)"
+dependabot_racine="$factory/../.github/dependabot.yml"
+! grep -q 'package-ecosystem: maven' "$dependabot_racine" && grep -q 'package-ecosystem: github-actions' "$dependabot_racine" && ok "dependabot racine : github-actions seulement, pas de maven" || ko "dependabot racine" "$(grep -n 'package-ecosystem' "$dependabot_racine" | tr '\n' '|')"
 
 echo "noms de fichiers *.md en anglais"
 p="$(mktemp -d "$racine_tmp/n.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
@@ -299,9 +370,25 @@ git init -q .; export HOME="$p/home"; mkdir -p "$HOME"
 [ -f docs/lessons.md ] && [ -f docs/issues/_template.md ] && ok "init : docs/lessons.md et docs/issues/_template.md créés" || ko "init : docs/lessons.md et docs/issues/_template.md créés"
 [ ! -e docs/lecons.md ] && [ ! -e docs/issues/_modele.md ] && ok "init : aucun ancien nom créé" || ko "init : aucun ancien nom créé"
 anciens='lecons|_modele|LECONS|DEMARRER-UN-PROJET|MISE-A-JOUR'
-# Les anciens noms ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
-restes="$(git -C "$factory/.." grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>/dev/null | head -5 | tr '\n' '|')"
+# restes_anciens_noms <dossier> : lignes citant un ancien nom ; ils ne subsistent que dans l'historique (CHANGELOG), la migration (init-projet.sh) et ce test.
+# Dépôt git : git grep (fichiers suivis). Sinon (copie de verify-clean.sh, donc la CI) : grep récursif avec les mêmes exclusions, sans .git.
+restes_anciens_noms() {
+  if [ -e "$1/.git" ]; then
+    git -C "$1" grep -nE "$anciens" -- . ':!factory/CHANGELOG.md' ':!factory/init-projet.sh' ':!factory/scripts/tests/run.sh' 2>&1
+  else
+    (cd "$1" && grep -rnIE --exclude-dir=.git "$anciens" . | sed 's|^\./||' | grep -vE '^(factory/CHANGELOG\.md|factory/init-projet\.sh|factory/scripts/tests/run\.sh):')
+  fi
+}
+restes="$(restes_anciens_noms "$factory/.." | head -5 | tr '\n' '|')"
 [ -z "$restes" ] && ok "aucun ancien nom de fichier .md dans le dépôt (hors CHANGELOG, migration et test)" || ko "aucun ancien nom de fichier .md dans le dépôt" "$restes"
+# Mutation : la vérification doit aussi mordre hors dépôt git (copie de verify-clean.sh, donc la CI), avec les mêmes exclusions.
+copie_sans_git="$(mktemp -d "$racine_tmp/s.XXXXXX")"; mkdir -p "$copie_sans_git/factory/scripts/tests" "$copie_sans_git/docs"
+for exclu in factory/CHANGELOG.md factory/init-projet.sh factory/scripts/tests/run.sh; do echo "docs/lecons.md" > "$copie_sans_git/$exclu"; done
+[ -z "$(restes_anciens_noms "$copie_sans_git")" ] && ok "hors dépôt git : CHANGELOG, init-projet.sh et run.sh restent exclus" || ko "hors dépôt git : exclusions" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
+echo "voir docs/lecons.md" > "$copie_sans_git/docs/README.md"
+restes_anciens_noms "$copie_sans_git" | grep -q '^docs/README.md:1:voir docs/lecons.md$' && ok "hors dépôt git : un ancien nom est détecté (pas de vérification à vide)" || ko "hors dépôt git : un ancien nom est détecté" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
+git -C "$copie_sans_git" init -q && git -C "$copie_sans_git" add -A
+restes_anciens_noms "$copie_sans_git" | grep -q '^docs/README.md:1:voir docs/lecons.md$' && ok "dépôt git : un ancien nom suivi est détecté" || ko "dépôt git : un ancien nom suivi est détecté" "$(restes_anciens_noms "$copie_sans_git" | head -3 | tr '\n' '|')"
 [ -f "$factory/LESSONS.md" ] && [ -f "$factory/START-A-PROJECT.md" ] && [ -f "$factory/UPGRADE.md" ] && ok "factory/LESSONS.md, START-A-PROJECT.md et UPGRADE.md existent" || ko "fichiers de factory/ renommés"
 p="$(mktemp -d "$racine_tmp/m.XXXXXX")"; mkdir "$p/depot"; cp -R "$factory" "$p/depot/factory"; rm -rf "$p/depot/factory/scripts/tests"; cd "$p/depot" || exit 1
 git init -q .; mkdir -p docs/issues; echo "mes leçons" > docs/lecons.md; echo "mon modèle" > docs/issues/_modele.md

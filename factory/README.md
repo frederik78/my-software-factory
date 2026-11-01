@@ -125,20 +125,20 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
 | `scripts/tableau-de-bord.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML des besoins du `backlog.md` et des issues par statut (compteurs, prochaine issue prête) ; `--boucle` la régénère en continu |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (123 vérifications) |
-| `./factory/sync.sh [--claude\|--sans-claude]` | Recrée le lien `.agents/skills` (neutre) puis, si le projet a un `CLAUDE.md` ou un dossier `.claude/`, appelle `sync-claude.sh` |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (154 vérifications) |
+| `./factory/sync.sh [--claude\|--sans-claude]` | Recrée le lien `.agents/skills` (neutre) puis, si le projet a un `CLAUDE.md` (le seul dossier `.claude/` ne suffit pas), appelle `sync-claude.sh` |
 | `./factory/sync-claude.sh` | Propre à Claude Code : lien `.claude/skills` et agents générés depuis les en-têtes de `factory/prompts/` |
-| `./factory/init-projet.sh` | Initialise un projet (sans rien écraser) |
+| `./factory/init-projet.sh [--sans-claude]` | Initialise un projet (sans rien écraser) ; `--sans-claude` : ni `CLAUDE.md` ni `.claude/` |
 
 ### Détail des scripts
-Dix scripts, en trois groupes : mise en place (2), contrôle et suivi d'une livraison (6), outils internes (2). Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
+Onze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une livraison (6), outils internes (2). Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
 
 **Mise en place (vous les lancez)**
 
 | Script | À quoi il sert | Quand |
 |---|---|---|
-| `factory/init-projet.sh` | Prépare un projet : `README.md`, `AGENTS.md`, `backlog.md`, `docs/`, modèle de PR, et les fichiers de la stack choisie (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`). Ne remplace jamais un fichier existant ; lie les scripts dans `scripts/`, écrit `.factory-version`, appelle `sync.sh`. Les scripts `factory/*.sh` ne sont pas liés dans `scripts/` : ils se lancent depuis `factory/`. Option `--stack java-maven\|python\|node\|aucune`. | Au départ, puis après une mise à jour de la factory |
-| `factory/sync.sh` | Neutre : crée le lien `.agents/skills`, puis appelle `sync-claude.sh` si le projet a un `CLAUDE.md` ou un dossier `.claude/` (`--claude` force l'appel, `--sans-claude` l'interdit ; autre option = code 64). | Après un clone, ou après modification d'un prompt |
+| `factory/init-projet.sh` | Prépare un projet : `README.md`, `AGENTS.md`, `backlog.md`, `docs/`, modèle de PR, et les fichiers de la stack choisie (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`). Ne remplace jamais un fichier existant ; lie les scripts dans `scripts/`, écrit `.factory-version`, appelle `sync.sh`. Les scripts `factory/*.sh` ne sont pas liés dans `scripts/` : ils se lancent depuis `factory/`. Option `--stack java-maven\|python\|node\|aucune` ; `--sans-claude` ne crée ni `CLAUDE.md` ni rien sous `.claude/` et lance `sync.sh --sans-claude` (option inconnue = code 64). | Au départ, puis après une mise à jour de la factory |
+| `factory/sync.sh` | Neutre : crée le lien `.agents/skills`, puis appelle `sync-claude.sh` si le projet a un `CLAUDE.md`, pas sur le seul dossier `.claude/` (`--claude` force l'appel, `--sans-claude` l'interdit ; autre option = code 64). | Après un clone, ou après modification d'un prompt |
 | `factory/sync-claude.sh` | Propre à Claude Code, utilisable seul : lien `.claude/skills` et **génération des agents** (`spec-writer`, `developer`, `code-reviewer`) depuis l'en-tête YAML de `factory/prompts/`. N'ajoute le suivi de progression que si le plugin est installé : l'agent fixe lui-même le nombre d'étapes selon la mission (une étape = un résultat vérifiable, sans plancher ni plafond) et peut ajuster `total` en cours de route. Les valeurs de `tools:` sont des noms d'outils de Claude Code. | Après un clone, ou après modification d'un prompt |
 
 **Contrôle et suivi d'une livraison (la session et les agents les lancent pendant `/deliver` ; `tableau-de-bord.sh` aussi, par vous, à tout moment)**
@@ -204,7 +204,7 @@ Les skills `to-spec`, `implement` et `setup-matt-pocock-skills` de l'amont ont �
 |---|---|---|
 | Prompts (`factory/prompts/`, corps du texte), skills (`factory/skills/`, exposés par `.agents/skills`), scripts (`scripts/`), `AGENTS.md`, `backlog.md`, `docs/` ; mode « Sans sous-agents » de la skill `deliver` (rôles joués à la suite dans des sessions neuves) | `factory/sync-claude.sh` (`.claude/skills`, `.claude/agents/`), `.claude/settings.json` (refus de permissions), `CLAUDE.md`, noms d'outils du champ `tools:` des prompts (`Read`, `Bash`...), plugin savvy-progress (`mcp__savvy-progress__step`) | Les refus de permissions d'`.claude/settings.json` dans la configuration de l'outil ; la lecture de `AGENTS.md` et des prompts de rôle (l'en-tête YAML s'ignore) ; la traduction des noms d'outils ; le lancement des rôles (sous-agents ou sessions neuves) |
 
-`./factory/sync.sh --sans-claude` n'écrit rien de propre à Claude Code. Un projet existant relance `./factory/init-projet.sh` après avoir remplacé `factory/` pour obtenir `sync-claude.sh`.
+`./factory/init-projet.sh --sans-claude` et `./factory/sync.sh --sans-claude` n'écrivent rien de propre à Claude Code. Un projet existant obtient `sync-claude.sh` en remplaçant `factory/` (le script fait partie du dossier) ; relancer ensuite `./factory/init-projet.sh` met à jour `.factory-version` et les liens, et crée `CLAUDE.md` et `.claude/` s'ils manquent : un projet sans Claude Code relance `./factory/init-projet.sh --sans-claude`.
 
 ## 10. Permissions et limites des agents
 `.claude/settings.json` refuse aux agents : `git push`, `reset --hard`, `clean`, `branch -D`, `checkout --`, `restore`, la lecture de `.env` et de `secrets/`. Limites : le « lecture seule » du reviewer est une consigne (il a `Bash` pour lancer le build) ;
@@ -222,12 +222,12 @@ Seule la session principale peut interroger l'utilisateur : les sous-agents n'on
 | `criteres-sans-test.sh` signale un critère qui a pourtant un test | Le nom du test ne contient pas l'identifiant du critère : le renommer (`test_ca10_…`). |
 | `criteres-sans-test.sh` : « aucun critère déclaré » | Le champ `criteres` de l'issue est vide ou illisible ; il accepte `[CA-01, CS-02]` ou une liste à tirets. |
 | `couverture-prd.sh` : « aucun critère défini » | Les critères du PRD doivent commencer par `- **CA-10**` (puce, identifiant en gras). |
-| `verify-clean.sh` : « Tests : inconnu » | La sortie du build n'est pas reconnue (ni Maven, ni unittest, ni pytest) ; le code de sortie reste fiable. |
+| `verify-clean.sh` : « Tests : inconnu » | La sortie du build n'est pas reconnue (ni Maven, ni unittest, ni pytest, ni la suite de la factory) ; le code de sortie reste fiable. |
 | Un agent rend un rapport vide | La session le relance (le format de rapport l'interdit) ; voir `LESSONS.md` n° 5. |
 | Une branche empilée relit les commits de l'issue précédente | La base est la pointe de la branche dont l'issue dépend (skill `deliver`, étape 0). |
 
 ## 12. Mettre à jour la factory
-Procédure dans `UPGRADE.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents), puis `factory/scripts/tests/run.sh`.
+Procédure dans `UPGRADE.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents ; `--sans-claude` pour un projet sans Claude Code, sinon il crée `CLAUDE.md` et `.claude/` s'ils manquent), puis `factory/scripts/tests/run.sh`.
 Les skills sont copiés, pas liés : modifiables, mais notez les écarts dans `skills/SOURCES.md`. Les langues : prompts, docs et messages en français ; les skills de mattpocock/skills restent en anglais.
 
 ## 13. Arborescence d'un projet initialisé
@@ -344,7 +344,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (123 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (154 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.

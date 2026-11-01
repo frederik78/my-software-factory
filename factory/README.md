@@ -203,7 +203,7 @@ Vérifier : `scripts/config-factory.sh`, puis `scripts/notifier.sh --test`.
 | `prompts/` | Prompts des trois agents (`spec-writer`, `developer`, `code-reviewer`), `report-format.md`, `briefs/` ; l'en-tête YAML alimente les agents ; le rôle d'orchestrateur est décrit dans `AGENTS.md` (« Orchestration ») |
 | `scripts/` | Scripts de contrôle (§ 5) et leurs tests |
 | `templates/` | Fichiers de départ d'un projet (indépendants de la stack), copiés par `init-projet.sh` |
-| `stacks/` | Fichiers propres à une stack, copiés par `init-projet.sh --stack` : `java-maven`, `python`, `node`, `aucune` (CI, Dependabot, `.factory-verify`, `.gitignore`) |
+| `stacks/` | Fichiers propres à une stack, copiés par `init-projet.sh --stack` : `java-maven`, `python`, `node`, `aucune` (CI, Dependabot, `.factory-verify`, `.gitignore`) ; le README de `java-maven` contient aussi l'architecture de référence en couches de services |
 | `init-projet.sh`, `sync.sh`, `sync-claude.sh` | Initialisation du projet ; alias de skills (neutre) ; lien et agents de Claude Code |
 | `LESSONS.md`, `START-A-PROJECT.md` | Retour d'expérience ; checklist de démarrage |
 | `VERSION`, `CHANGELOG.md`, `UPGRADE.md` | Version (marquée dans `.factory-version` du projet), historique, procédure de mise à jour |

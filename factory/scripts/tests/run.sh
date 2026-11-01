@@ -7,7 +7,7 @@ set -uo pipefail
 # hérités (par exemple quand cette suite est elle-même lancée par verify-clean.sh avec COMMANDE_VERIFY), ils fausseraient les cas.
 unset COMMANDE_VERIFY STUB_CODE
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_MAX_ITERATIONS_REVUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MAX_ITERATIONS_REVUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -341,6 +341,34 @@ rm -f factory/prompts/*.md; printf '# Prompt sans en-tête\n' > factory/prompts/
 bash_ancien=/bin/bash; [ -x "$bash_ancien" ] || bash_ancien="$BASH"
 verifier "sync-claude.sh sans aucun agent à générer, sous $("$bash_ancien" -c 'echo "bash $BASH_VERSION"') (set -u)" 0 "agents :" "$bash_ancien" ./factory/sync-claude.sh
 
+echo "sync-claude.sh : modèle et effort des agents"
+d="$(depot_sync s-modele)"; cd "$d" || exit 1
+entete_agent() { sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md"; }
+a_champ() { entete_agent "$1" | grep -qx "$2"; }
+./factory/sync-claude.sh >/dev/null 2>&1
+a_champ developer 'model: opus' && a_champ code-reviewer 'model: opus' && a_champ spec-writer 'model: opus' && ok "sans configuration : modèle opus pour chaque agent" || ko "modèle par défaut"
+a_champ developer 'effort: low' && a_champ code-reviewer 'effort: low' && a_champ spec-writer 'effort: low' && ok "sans configuration : effort low pour chaque agent" || ko "effort par défaut"
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=high\n' > .factory.conf; ./factory/sync-claude.sh >/dev/null 2>&1
+a_champ developer 'model: sonnet' && a_champ developer 'effort: high' && ok ".factory.conf choisit le modèle et l'effort" || ko ".factory.conf modèle et effort"
+printf 'AGENT_EFFORT=medium\n' > .factory.local.conf; ./factory/sync-claude.sh >/dev/null 2>&1
+a_champ developer 'effort: medium' && ok ".factory.local.conf l'emporte sur .factory.conf" || ko ".factory.local.conf effort"
+FACTORY_AGENT_MODELE=claude-opus-5-5 FACTORY_AGENT_EFFORT=max ./factory/sync-claude.sh >/dev/null 2>&1
+a_champ developer 'model: claude-opus-5-5' && a_champ developer 'effort: max' && ok "FACTORY_AGENT_* l'emporte sur les fichiers" || ko "FACTORY_AGENT_*"
+rm -f .factory.local.conf; printf 'AGENT_MODELE=\nAGENT_EFFORT=\n' > .factory.conf; ./factory/sync-claude.sh >/dev/null 2>&1
+! entete_agent developer | grep -qE '^(model|effort):' && ok "valeur vide : champ absent, l'agent hérite de la session" || ko "valeur vide"
+printf 'AGENT_MODELE=opus\nAGENT_EFFORT=low\n' > .factory.conf; ./factory/sync-claude.sh >/dev/null 2>&1; cp .claude/agents/developer.md "$p/developer-avant.md"
+printf 'AGENT_EFFORT=extreme\n' > .factory.conf
+verifier_exact "effort hors liste refusé (64, sans recopier la valeur)" 64 "AGENT_EFFORT invalide : low, medium, high, xhigh, max ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_AGENT_EFFORT)." ./factory/sync-claude.sh
+printf 'AGENT_MODELE=opus\ntools: Bash\n' > .factory.conf; printf 'AGENT_MODELE=opus tools: Bash\n' > .factory.local.conf
+verifier_exact "cs_config modèle avec espace et deux-points refusé : aucun champ injecté dans l'en-tête" 64 "AGENT_MODELE invalide : minuscules, chiffres, points et tirets, ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_AGENT_MODELE)." ./factory/sync-claude.sh
+cmp -s .claude/agents/developer.md "$p/developer-avant.md" && ok "valeur refusée : enveloppes inchangées" || ko "enveloppe modifiée malgré une valeur refusée"
+rm -f .factory.local.conf .factory.conf
+awk 'NR==2{print; print "model: haiku"; print "effort: high"; next}1' factory/prompts/developer.md > "$p/dev.md" && cp "$p/dev.md" factory/prompts/developer.md
+./factory/sync-claude.sh >/dev/null 2>&1
+a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ code-reviewer 'model: opus' && ok "l'en-tête d'un prompt l'emporte pour ce rôle seulement" || ko "en-tête de prompt"
+config_liste="$(bash factory/scripts/config-factory.sh 2>/dev/null)"
+printf '%s\n' "$config_liste" | grep -qx 'AGENT_MODELE=opus' && printf '%s\n' "$config_liste" | grep -qx 'AGENT_EFFORT=low' && ok "config-factory.sh affiche les valeurs par défaut du modèle et de l'effort" || ko "config-factory.sh modèle et effort" "$config_liste"
+
 echo "init-projet.sh --sans-claude"
 d="$(depot_sync i-sans)"; cd "$d" || exit 1
 verifier "init --sans-claude : réussit" 0 "créé +AGENTS.md" ./factory/init-projet.sh --sans-claude
@@ -531,7 +559,9 @@ printf 'touch pwned3\nMAX_ITERATIONS_REVUE=`touch pwned4`\nSECRET_INCONNU=abc\n'
 scripts/config-factory.sh >/dev/null 2>&1; scripts/config-factory.sh --max-iterations >/dev/null 2>&1
 [ ! -e pwned1 ] && [ ! -e pwned2 ] && [ ! -e pwned3 ] && [ ! -e pwned4 ] && ok "cs_config aucune commande des fichiers de configuration n'est exécutée" || ko "cs_config commande exécutée depuis la configuration" "$(ls pwned* 2>&1 | tr '\n' ' ')"
 printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRET_INCONNU=abc\n' > .factory.local.conf
-verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "MAX_ITERATIONS_REVUE=6
+verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "AGENT_MODELE=opus
+AGENT_EFFORT=low
+MAX_ITERATIONS_REVUE=6
 NOTIFICATION_COMMANDE=
 NOTIFICATION_DESTINATAIRE=moi@example.com
 NOTIFICATION_EXPEDITEUR=" scripts/config-factory.sh

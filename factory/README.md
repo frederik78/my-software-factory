@@ -127,7 +127,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
 | `scripts/config-factory.sh [--max-iterations]` | Configuration effective de la factory (`.factory.conf`, `.factory.local.conf`, variables `FACTORY_*`) ; `--max-iterations` : limite des revues |
 | `scripts/notifier.sh --sujet S [--corps-fichier F] \| --test` | Courriel par la commande configurée (issue bloquée après `MAX_ITERATIONS_REVUE` revues) ; `--test` : message d'essai |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (249 vérifications) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (252 vérifications) |
 | `./factory/sync.sh [--claude\|--sans-claude]` | Recrée le lien `.agents/skills` (neutre) puis, si le projet a un `CLAUDE.md` (le seul dossier `.claude/` ne suffit pas), appelle `sync-claude.sh` |
 | `./factory/sync-claude.sh` | Propre à Claude Code : lien `.claude/skills` et agents générés depuis les en-têtes de `factory/prompts/` |
 | `./factory/init-projet.sh [--sans-claude]` | Initialise un projet (sans rien écraser) ; `--sans-claude` : ni `CLAUDE.md` ni `.claude/` |
@@ -364,7 +364,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (249 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (252 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.

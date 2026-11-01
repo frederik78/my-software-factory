@@ -1,5 +1,13 @@
 # Historique des versions
 
+## 1.10.0
+- Modèle et effort des agents configurables : `AGENT_MODELE` (`opus` par défaut) et `AGENT_EFFORT` (`low` par défaut), aux trois niveaux habituels (`.factory.conf`, `.factory.local.conf`, `FACTORY_*`). `sync-claude.sh` les écrit dans les enveloppes `.claude/agents/`. Valeur vide : l'agent hérite de la session. L'en-tête d'un prompt l'emporte pour son rôle.
+- Sécurité : une valeur hors format est refusée (code 64), sans modifier les enveloppes, pour qu'elle n'ajoute aucun champ à l'en-tête YAML.
+- **Changement de comportement** : sans configuration, les agents ne suivent plus le modèle de la session, ils passent en Opus avec un effort faible. Pour garder l'ancien comportement : `AGENT_MODELE=` et `AGENT_EFFORT=`.
+- `LESSONS.md` : leçon n° 25.
+- Tests : 263 vérifications.
+- Migration : remplacer `factory/`, relancer `./factory/init-projet.sh`, puis ajouter si besoin les deux clés à `.factory.conf` ; il n'est pas écrasé.
+
 ## 1.9.2
 - Correctif : `factory/scripts/tests/run.sh` passe dans un projet. Les 5 vérifications de la racine (CI, `.factory-verify`, Dependabot) ne s'exécutent que dans le dépôt de la factory, repéré par le fichier `.factory-depot`, qui n'est jamais copié dans un projet.
 - `LESSONS.md` : leçon n° 24.

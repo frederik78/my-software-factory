@@ -2,8 +2,9 @@
 # PROPRE À CLAUDE CODE : expose la factory à Claude Code. Utilisable seul, ou appelé par factory/sync.sh.
 #  - skills : lien symbolique .claude/skills -> ../factory/skills
 #  - rôles  : enveloppes .claude/agents/*.md générées depuis les en-têtes YAML de factory/prompts/*.md.
-#             Source unique : l'en-tête du prompt (name, description, tools, skills, model facultatif). Un prompt sans `name:` n'a pas
+#             Source unique : l'en-tête du prompt (name, description, tools, skills, model et effort facultatifs). Un prompt sans `name:` n'a pas
 #             d'enveloppe (l'orchestrateur n'a pas de prompt : c'est la session principale, décrite dans AGENTS.md).
+#             Modèle et effort : en-tête du prompt, sinon AGENT_MODELE et AGENT_EFFORT (voir lib-config.sh) ; valeur vide = champ absent, l'agent hérite de la session.
 #  - suivi de progression : si le plugin savvy-progress est installé, son outil est ajouté aux agents et leur consigne l'utilise.
 #
 # Noms d'outils : le champ `tools:` d'un prompt est recopié tel quel dans l'enveloppe ; ses valeurs (Read, Write, Edit, Glob, Grep, Bash,
@@ -13,6 +14,19 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 [ "$#" -eq 0 ] || { echo "Usage : factory/sync-claude.sh (sans option)" >&2; exit 64; }
+
+# shellcheck source=scripts/lib-config.sh
+. factory/scripts/lib-config.sh
+modele_defaut="$(config_valeur AGENT_MODELE "$AGENT_MODELE_DEFAUT")"
+effort_defaut="$(config_valeur AGENT_EFFORT "$AGENT_EFFORT_DEFAUT")"
+# Ces valeurs sont écrites dans un en-tête YAML : une valeur hors format pourrait y ajouter un champ, par exemple des outils.
+if ! [[ "$modele_defaut" =~ ^([a-z0-9][a-z0-9.-]*)?$ ]]; then
+  echo "AGENT_MODELE invalide : minuscules, chiffres, points et tirets, ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_AGENT_MODELE)." >&2; exit 64
+fi
+case "$effort_defaut" in
+  ''|low|medium|high|xhigh|max) ;;
+  *) echo "AGENT_EFFORT invalide : low, medium, high, xhigh, max ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_AGENT_EFFORT)." >&2; exit 64 ;;
+esac
 
 mkdir -p .claude
 ln -sfn ../factory/skills .claude/skills
@@ -39,7 +53,8 @@ for prompt in factory/prompts/*.md; do
   desc="$(champ "$prompt" description)"
   outils="$(champ "$prompt" tools)"
   skills="$(champ "$prompt" skills)"
-  modele="$(champ "$prompt" model)"
+  modele="$(champ "$prompt" model)"; [ -n "$modele" ] || modele="$modele_defaut"
+  effort="$(champ "$prompt" effort)"; [ -n "$effort" ] || effort="$effort_defaut"
   [ -n "$desc" ] && [ -n "$outils" ] || { echo "En-tête incomplet (description et tools requis) : $prompt" >&2; exit 1; }
   [ "$progression" -eq 1 ] && outils="$outils, mcp__savvy-progress__step"
   {
@@ -48,6 +63,7 @@ for prompt in factory/prompts/*.md; do
     echo "description: $desc"
     echo "tools: $outils"
     [ -n "$modele" ] && echo "model: $modele"
+    [ -n "$effort" ] && echo "effort: $effort"
     if [ -n "$skills" ]; then
       echo "skills:"
       for s in $skills; do echo "  - $s"; done

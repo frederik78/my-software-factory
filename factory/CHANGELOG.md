@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 1.9.0
+- Architecture par défaut : des couches de services, avec des interfaces seulement aux frontières externes à doubler. Un autre style se justifie dans l'ADR (`START-A-PROJECT.md`, `templates/AGENTS.md`).
+- Architecture de référence pour Spring Boot dans `stacks/java-maven/README.md` : structure, droits d'accès entre couches, règles ArchUnit, tests par couche.
+- `LESSONS.md` : leçons n° 18 à 22, issues du cadrage d'un deuxième projet ; seule la n° 20 est appliquée dans cette version.
+- Migration : remplacer `factory/` ; un projet existant garde son ADR, et le modèle d'`AGENTS.md` ne le remplace pas.
+
 ## 1.8.1
 - Correctif : `scripts/notifier.sh` n'émet plus « write error: Broken pipe » quand la commande d'envoi échoue sans lire le message (CI rouge sous Linux, où SIGPIPE est ignoré). Le message complet est écrit dans un fichier temporaire (`mktemp` dans `TMPDIR`, droits 0600, supprimé à la sortie, y compris après un échec ou une interruption), puis donné à la commande par redirection, sans tube. Codes de sortie, en-têtes, encodage RFC 2047 et exécution sans `eval` inchangés ; nouveau cas d'échec (code 4) si le fichier temporaire ne peut pas être préparé.
 - Tests : 247 vérifications (6 de plus). Le cas « commande en échec » est rendu déterministe : commande qui se termine sans lire, corps de 1,1 Mo (plus grand que le tampon d'un tube) et SIGPIPE ignoré comme sur GitHub Actions ; il échouait avant le correctif sur macOS comme sous Linux. Fichier temporaire : un seul, en 0600, pendant l'envoi ; aucun après un envoi réussi, un échec ou un SIGTERM.

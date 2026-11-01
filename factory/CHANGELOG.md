@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.8.1
+- Correctif : `scripts/notifier.sh` n'émet plus « write error: Broken pipe » quand la commande d'envoi échoue sans lire le message (CI rouge sous Linux, où SIGPIPE est ignoré). Le message complet est écrit dans un fichier temporaire (`mktemp` dans `TMPDIR`, droits 0600, supprimé à la sortie, y compris après un échec ou une interruption), puis donné à la commande par redirection, sans tube. Codes de sortie, en-têtes, encodage RFC 2047 et exécution sans `eval` inchangés ; nouveau cas d'échec (code 4) si le fichier temporaire ne peut pas être préparé.
+- Tests : 247 vérifications (6 de plus). Le cas « commande en échec » est rendu déterministe : commande qui se termine sans lire, corps de 1,1 Mo (plus grand que le tampon d'un tube) et SIGPIPE ignoré comme sur GitHub Actions ; il échouait avant le correctif sur macOS comme sous Linux. Fichier temporaire : un seul, en 0600, pendant l'envoi ; aucun après un envoi réussi, un échec ou un SIGTERM.
+- Migration : remplacer `factory/` ; rien d'autre à faire.
+
 ## 1.8.0
 - Le tableau de bord devient le « dashboard » : `factory/scripts/dashboard.sh` (lien `scripts/dashboard.sh`) écrit par défaut `dashboard.html`, titrée « Dashboard » ; `.gitignore` du modèle et documentation mis à jour. `init-projet.sh` signale tout lien mort de `scripts/` vers `factory/scripts/` (script retiré ou renommé) par « à supprimer <lien> … : rm <lien> », sans rien supprimer.
 - `scripts/dashboard.sh` affiche un Kanban qui identifie les issues au lieu de les compter : un encart « En cours » en haut de page (issues `En cours` et `En revue`, référence et titre, ou « Aucune issue en cours. ») ; sections « Besoins » et « Issues » en colonnes, une par statut du cycle dans l'ordre (backlog : À faire, En clarification, Spécifié, En cours, En revue, Fait ; issues : À faire, En cours, En revue, Fait), en-tête coloré « Statut (n) », « — » pour une colonne vide, colonne « (autre) » seulement si un statut est hors cycle.

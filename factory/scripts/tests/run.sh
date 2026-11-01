@@ -593,6 +593,12 @@ verifier_exact "cs_notif destinataire avec espace refusé (code 3)" 3 "Notificat
 verifier_exact "--test : message d'essai envoyé" 0 "Notification envoyée à dest@example.com." scripts/notifier.sh --test
 grep -qx "Subject: \[factory\] Notification d'essai" outils/message.txt && grep -q "^Message d'essai" outils/message.txt && ok "--test : sujet et corps d'essai" || ko "--test : sujet et corps" "$(tr '\n' '|' < outils/message.txt)"
 verifier_exact "commande en échec : code 4 et message" 4 "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code 1)." env FACTORY_NOTIFICATION_COMMANDE=false scripts/notifier.sh --sujet s --corps-fichier corps.txt
+# Commande qui échoue sans lire le message, corps de 1,1 Mo (plus grand que le tampon d'un tube) et SIGPIPE ignoré comme sur les
+# exécuteurs GitHub Actions : une écriture vers la commande ne peut alors que finir en « write error: Broken pipe », sur toute machine.
+printf '#!/bin/sh\nexit 1\n' > outils/echec-sans-lire.sh; chmod +x outils/echec-sans-lire.sh
+head -c 1100000 /dev/zero | tr '\0' 'x' > gros-corps.txt
+sans_sigpipe() { (trap '' PIPE; exec "$@"); }
+verifier_exact "commande en échec sans lire un gros message (SIGPIPE ignoré) : code 4, message exact, aucun « Broken pipe »" 4 "Notification non envoyée : la commande NOTIFICATION_COMMANDE a échoué (code 1)." sans_sigpipe env FACTORY_NOTIFICATION_COMMANDE="$p/outils/echec-sans-lire.sh" scripts/notifier.sh --sujet s --corps-fichier gros-corps.txt
 verifier "commande introuvable : code 4" 4 "a échoué" env FACTORY_NOTIFICATION_COMMANDE="$p/outils/absente.sh" scripts/notifier.sh --sujet s --corps-fichier corps.txt
 verifier "--corps-fichier introuvable = 64" 64 "introuvable" scripts/notifier.sh --sujet s --corps-fichier absent.txt
 printf 'NOTIFICATION_COMMANDE=%s ; touch pwned $(touch pwned2)\nNOTIFICATION_DESTINATAIRE=dest@example.com\n' "$p/outils/faux-envoi.sh" > .factory.local.conf

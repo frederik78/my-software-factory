@@ -1,10 +1,10 @@
 # Software Factory : guide d'utilisation
 
-La factory est un dossier `factory/` que l'on copie dans un projet. Elle fournit une chaîne de travail complète, de l'idée au code fusionné, avec des agents (développeur, reviewer, analyste), des skills, des scripts de contrôle et des modèles de fichiers. Tout est en Markdown et en shell : rien ne dépend d'un éditeur ou d'un fournisseur, sauf la génération des agents de Claude Code (`sync.sh`) et `.claude/settings.json`.
+La factory est un dossier `factory/` que l'on copie dans un projet. Elle fournit une chaîne de travail complète, de l'idée au code fusionné, avec des agents (développeur, reviewer, analyste), des skills, des scripts de contrôle et des modèles de fichiers. Tout est en Markdown et en shell : rien ne dépend d'un éditeur ou d'un fournisseur, sauf ce qui est propre à Claude Code (`sync-claude.sh`, `.claude/settings.json`, `CLAUDE.md` : voir § 9).
 
 Version courante : voir `factory/VERSION` ; historique : `CHANGELOG.md`.
 
-**Sommaire** : 1 En deux minutes · 2 Prérequis · 3 Démarrer un projet · 4 Cycle d'un besoin · 5 Commandes et scripts · 6 Règles à retenir · 7 Contenu du dossier · 8 Choisir ou adapter la stack · 9 Autres outils · 10 Permissions et limites ·
+**Sommaire** : 1 En deux minutes · 2 Prérequis · 3 Démarrer un projet · 4 Cycle d'un besoin · 5 Commandes et scripts · 6 Règles à retenir · 7 Contenu du dossier · 8 Choisir ou adapter la stack · 9 Indépendance du fournisseur · 10 Permissions et limites ·
 11 Dépannage · 12 Mettre à jour la factory · 13 Arborescence d'un projet · 14 Formats de référence · 15 Exemple de session · 16 Cas courants · 17 Étendre la factory · 18 Glossaire · 19 Ce qui est éprouvé
 
 ## 1. En deux minutes
@@ -12,7 +12,7 @@ Version courante : voir `factory/VERSION` ; historique : `CHANGELOG.md`.
 ```
 idée -> cadrage (/grill-with-docs) -> ADR (architecture, stack) -> PRD (agent spec-writer) -> issues (/to-tickets)
      -> pour chaque issue : /deliver  (developer TDD <-> code-reviewer, contrôles de la session)
-     -> /code-review de la branche -> fusion par vous (git merge --no-ff) -> clôture (documents à jour, leçons)
+     -> /code-review de la branche -> fusion dans develop par vous (git merge --no-ff) -> clôture (documents à jour, leçons)
 ```
 
 Les rôles de chacun :
@@ -30,7 +30,7 @@ Les quatre **phases** d'une issue, comme une chaîne de fabrication. Ce sont des
 
 | Phase | Ce qui se passe | Réalisée par | Nature | Où dans la factory |
 |---|---|---|---|---|
-| **Isoler** | L'issue a sa branche et, si d'autres agents travaillent en même temps, son propre dossier de travail ; rien n'est construit sur la branche principale | La session principale | Script et consigne de `/deliver` | `scripts/worktree-issue.sh`, `/deliver` étape 0 |
+| **Isoler** | L'issue a sa branche et, si d'autres agents travaillent en même temps, son propre dossier de travail ; rien n'est construit sur `main` ni sur `develop` | La session principale | Script et consigne de `/deliver` | `scripts/worktree-issue.sh`, `/deliver` étape 0 |
 | **Construire** | Le développeur code en TDD, dans une structure lisible par quelqu'un sans contexte | Agent `developer` | Agent | `prompts/developer.md`, `AGENTS.md`, ADR |
 | **Prouver** | Preuve avant / après, tests de garde-fous prouvés par mutation, rapports recoupés avec le dépôt, relecture | `developer` (fournit la preuve), `code-reviewer` (la vérifie), la session (recoupe) | Agents, session et scripts | `report-format.md`, `scripts/*.sh` |
 | **Livrer** | Définition de fini, PR avec sa preuve, retour de revue externe facultatif, fusion | La session principale, puis vous (fusion) | Skill `/deliver` et décision humaine | `/deliver` étapes 4 bis et 5, `.github/pull_request_template.md` |
@@ -47,12 +47,12 @@ Les quatre **phases** d'une issue, comme une chaîne de fabrication. Ce sont des
    ```
    ./factory/init-projet.sh --nom "Nom du projet" --stack java-maven     # ou python, node, aucune (défaut)
    ```
-   Cela crée, **sans jamais rien écraser** (relançable) : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `docs/` (adr, prd, issues, reviews, agents, `lecons.md`), les fichiers de la stack (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`),
+   Cela crée, **sans jamais rien écraser** (relançable) : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `docs/` (adr, prd, issues, reviews, agents, `lessons.md`), les fichiers de la stack (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`),
    `.claude/settings.json` (refus de permissions), `.gitignore`, `.factory-version`, les liens `scripts/`, puis les alias de skills et les agents.
 3. Ouvrez le projet dans Claude Code : les skills (`/deliver`, `/grill-with-docs`, `/to-tickets`…) et les agents sont disponibles.
 4. Si les agents n'apparaissent pas (après un clone par exemple) : `./factory/sync.sh`.
 
-La checklist détaillée du démarrage (garde-fous à mettre en place avant la première issue) est dans `DEMARRER-UN-PROJET.md`.
+La checklist détaillée du démarrage (garde-fous à mettre en place avant la première issue) est dans `START-A-PROJECT.md`.
 
 ## 4. Cycle d'un besoin
 
@@ -68,7 +68,7 @@ Les trois seuls agents sont `spec-writer`, `developer` et `code-reviewer`. La se
 | 3 | **Découpage en issues** | Skill `/to-tickets`, puis `scripts/couverture-prd.sh` | Vous approuvez le découpage |
 | 4 | **Livraison**, une issue après l'autre | Skill `/deliver` (qui lance `developer` et `code-reviewer`) | Vous tranchez les décisions de fond |
 | 5 | **Revue de la branche** | `/code-review` | |
-| 6 | **Fusion et clôture** | Vous (`git merge --no-ff`) | Vous fusionnez |
+| 6 | **Fusion et clôture** | Vous (`git merge --no-ff` dans `develop`) | Vous fusionnez |
 
 Ce n'est donc pas « `spec-writer` puis `/deliver` » : le cadrage vient avant (sans lui, `spec-writer` n'a ni glossaire ni ADR, et il ne vous interroge pas), et le découpage vient entre les deux (sans lui, `/deliver` n'a pas d'issue à livrer).
 Vous n'avez pas à retenir cette suite : la session la lit dans `AGENTS.md` à chaque démarrage. Vous pouvez dire « Traite le besoin F-01 » ; les commandes à taper vous-même sont `/grill-with-docs`, `/to-tickets` et `/deliver`.
@@ -85,7 +85,7 @@ comportement, contrats, règles de gestion, critères d'acceptation `- **CA-01**
 - Il ne vous interroge pas : il marque les lacunes `[À CLARIFIER Q-xx]` et les liste dans un bloc `## QUESTIONS`. La session principale vous les pose ; vous répondez, il corrige. Vous validez le PRD.
 
 ### Étape 3 : découper en issues
-Lancez `/to-tickets` : une issue par fichier dans `docs/issues/` (format de `_modele.md`), avec ses critères (`criteres`), ses dépendances (`depend_de`) et un statut. Puis :
+Lancez `/to-tickets` : une issue par fichier dans `docs/issues/` (format de `_template.md`), avec ses critères (`criteres`), ses dépendances (`depend_de`) et un statut. Puis :
 ```
 scripts/couverture-prd.sh docs/prd/NNN-module.md
 ```
@@ -107,8 +107,8 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 
 ### Étape 5 : clôturer
 1. `/code-review` sur la branche entière (standards et conformité).
-2. **Vous fusionnez** : `git merge --no-ff feat/…` (les agents ne poussent ni ne fusionnent).
-3. Passez le besoin à `Fait` dans `backlog.md` ; mettez à jour les passages du PRD, du backlog et des ADR devenus faux ; ajoutez les leçons à `docs/lecons.md`.
+2. **Vous fusionnez** dans `develop` : `git merge --no-ff feat/…` (les agents ne poussent ni ne fusionnent). La PR a pour base `develop`. Pour publier une release, vous fusionnez `develop` dans `main` (`git merge --no-ff develop`) puis vous taguez `vX.Y.Z`.
+3. Passez le besoin à `Fait` dans `backlog.md` ; mettez à jour les passages du PRD, du backlog et des ADR devenus faux ; ajoutez les leçons à `docs/lessons.md`.
 
 ## 5. Commandes et scripts
 
@@ -123,22 +123,25 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/criteres-sans-test.sh <issue>` | Critères d'une issue qu'aucun test ne mentionne (`--tous` : toutes les issues commencées) |
 | `scripts/couverture-prd.sh <prd>` | Chaque critère du PRD couvert par une seule issue |
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
+| `scripts/tableau-de-bord.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML des besoins du `backlog.md` et des issues par statut (compteurs, prochaine issue prête) ; `--boucle` la régénère en continu |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (65 vérifications) |
-| `./factory/sync.sh` | Recrée les alias de skills et les agents depuis les en-têtes de `factory/prompts/` |
-| `./factory/init-projet.sh` | Initialise un projet (sans rien écraser) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (154 vérifications) |
+| `./factory/sync.sh [--claude\|--sans-claude]` | Recrée le lien `.agents/skills` (neutre) puis, si le projet a un `CLAUDE.md` (le seul dossier `.claude/` ne suffit pas), appelle `sync-claude.sh` |
+| `./factory/sync-claude.sh` | Propre à Claude Code : lien `.claude/skills` et agents générés depuis les en-têtes de `factory/prompts/` |
+| `./factory/init-projet.sh [--sans-claude]` | Initialise un projet (sans rien écraser) ; `--sans-claude` : ni `CLAUDE.md` ni `.claude/` |
 
 ### Détail des scripts
-Dix scripts, en trois groupes. Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
+Onze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une livraison (6), outils internes (2). Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
 
 **Mise en place (vous les lancez)**
 
 | Script | À quoi il sert | Quand |
 |---|---|---|
-| `factory/init-projet.sh` | Prépare un projet : `README.md`, `AGENTS.md`, `backlog.md`, `docs/`, modèle de PR, et les fichiers de la stack choisie (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`). Ne remplace jamais un fichier existant ; lie les scripts dans `scripts/`, écrit `.factory-version`, appelle `sync.sh`. Option `--stack java-maven\|python\|node\|aucune`. | Au départ, puis après une mise à jour de la factory |
-| `factory/sync.sh` | Recrée les alias de skills et **génère les agents** (`spec-writer`, `developer`, `code-reviewer`) depuis l'en-tête YAML de `factory/prompts/`. N'ajoute le suivi de progression que si le plugin est installé. | Après un clone, ou après modification d'un prompt |
+| `factory/init-projet.sh` | Prépare un projet : `README.md`, `AGENTS.md`, `backlog.md`, `docs/`, modèle de PR, et les fichiers de la stack choisie (CI, Dependabot, `.factory-verify`, lignes du `.gitignore`). Ne remplace jamais un fichier existant ; lie les scripts dans `scripts/`, écrit `.factory-version`, appelle `sync.sh`. Les scripts `factory/*.sh` ne sont pas liés dans `scripts/` : ils se lancent depuis `factory/`. Option `--stack java-maven\|python\|node\|aucune` ; `--sans-claude` ne crée ni `CLAUDE.md` ni rien sous `.claude/` et lance `sync.sh --sans-claude` (option inconnue = code 64). | Au départ, puis après une mise à jour de la factory |
+| `factory/sync.sh` | Neutre : crée le lien `.agents/skills`, puis appelle `sync-claude.sh` si le projet a un `CLAUDE.md`, pas sur le seul dossier `.claude/` (`--claude` force l'appel, `--sans-claude` l'interdit ; autre option = code 64). | Après un clone, ou après modification d'un prompt |
+| `factory/sync-claude.sh` | Propre à Claude Code, utilisable seul : lien `.claude/skills` et **génération des agents** (`spec-writer`, `developer`, `code-reviewer`) depuis l'en-tête YAML de `factory/prompts/`. N'ajoute le suivi de progression que si le plugin est installé : l'agent fixe lui-même le nombre d'étapes selon la mission (une étape = un résultat vérifiable, sans plancher ni plafond) et peut ajuster `total` en cours de route. Les valeurs de `tools:` sont des noms d'outils de Claude Code. | Après un clone, ou après modification d'un prompt |
 
-**Contrôle d'une livraison (la session et les agents les lancent pendant `/deliver`)**
+**Contrôle et suivi d'une livraison (la session et les agents les lancent pendant `/deliver` ; `tableau-de-bord.sh` aussi, par vous, à tout moment)**
 
 | Script | Question à laquelle il répond | Résultat |
 |---|---|---|
@@ -146,6 +149,7 @@ Dix scripts, en trois groupes. Les `scripts/*.sh` à la racine d'un projet sont 
 | `scripts/criteres-sans-test.sh <issue>` | « Chaque critère de l'issue a-t-il un test qui le nomme ? » (`--tous` : toutes les issues commencées) | `OK` ou la liste des critères sans test ; une issue sans aucun critère est une erreur |
 | `scripts/couverture-prd.sh <prd>` | « Chaque critère du PRD est-il couvert par exactement une issue ? » | `OK`, ou critères sans issue, en double, ou inconnus du PRD |
 | `scripts/etat-issues.sh` | « Où en sont les issues ? » Lit leurs en-têtes ; `--statut S` filtre ; `--prochaine` donne la première issue prête (toutes ses dépendances sont `Fait`) | Tableau Markdown, ou un identifiant |
+| `scripts/tableau-de-bord.sh` | « Où en est le projet, d'un coup d'œil ? » Écrit `tableau-de-bord.html` (à ouvrir dans un navigateur, rafraîchi toutes les 30 s ; `--attente S` change le délai) avec les besoins et les issues par statut, les compteurs (dont « (autre) » pour un statut hors cycle) et la prochaine issue prête ; `--sortie F` change le fichier (son dossier doit exister, sinon code 64) ; `--boucle S` régénère toutes les S secondes jusqu'à Ctrl-C. Aucun modèle, aucun JavaScript, tout texte lu est échappé HTML | Fichier HTML (non versionné) |
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister` | « Comment isoler une issue ? » `creer` fait un `git worktree` sur la branche de l'issue (option `--base` pour des branches empilées) ; `nettoyer` le supprime une fois la branche fusionnée (option `--branche`) | Dossier, branche et base |
 
 **Outils internes**
@@ -155,19 +159,20 @@ Dix scripts, en trois groupes. Les `scripts/*.sh` à la racine d'un projet sont 
 | `scripts/lib-issues.sh` | Bibliothèque partagée (à sourcer, pas à lancer) : lit l'en-tête YAML des issues (listes sur une ou plusieurs lignes) et reconnaît les identifiants de critères sous toutes leurs formes (`CA-10`, `ca10`, `ca_10`) |
 | `factory/scripts/tests/run.sh` | Les vérifications des scripts ci-dessus, dans des dépôts jetables ; à relancer après toute modification d'un script |
 
-**Qui lance quoi** : vous, `init-projet.sh`, `sync.sh` et `nettoyer` après une fusion ; la session principale pendant `/deliver`, `etat-issues.sh`, `couverture-prd.sh`, `verify-clean.sh`, `criteres-sans-test.sh` et `worktree-issue.sh creer` ;
+**Qui lance quoi** : vous, `init-projet.sh`, `sync.sh` et `nettoyer` après une fusion ; la session principale pendant `/deliver`, `etat-issues.sh`, `tableau-de-bord.sh`, `couverture-prd.sh`, `verify-clean.sh`, `criteres-sans-test.sh` et `worktree-issue.sh creer` ;
 les agents, `verify-clean.sh` (le développeur en fin de travail, le relecteur pour confirmer) et `criteres-sans-test.sh`.
 **Pourquoi des scripts** : ce qui se vérifie mécaniquement est confié à des scripts testés, pas au jugement d'un modèle ; la session ne croit jamais un rapport d'agent sans le recouper avec eux.
 
 ## 6. Règles à retenir
 - **Git** : une branche et une PR par issue, commits atomiques conventionnels (`feat:`, `fix:`, `test:`…). Seul l'utilisateur pousse et fusionne, avec `git merge --no-ff`.
+- **Modèle de branches** : `main` = releases seulement (tags `vX.Y.Z`, personne n'y commite ; l'utilisateur y fusionne `develop` puis tague) ; `develop` = intégration, base de toutes les branches de travail (`feat/…`, `fix/…`, `docs/…`, `refactor/…`, `test/…`, `build/…`) et cible des PR ; `hotfix/<slug>` part de `main` et est fusionné dans `main` PUIS dans `develop` par l'utilisateur ; branches empilées inchangées (base = pointe de la branche dont l'issue dépend). Les agents ne travaillent jamais directement sur `main` ni sur `develop`.
 - **Rapports** : format imposé (`prompts/report-format.md`) ; la session ne croit jamais un rapport sans le recouper avec le dépôt.
 - **Traçabilité** : le nom d'un test contient l'identifiant du critère couvert (`test_ca10_…`, `cs07_…`).
 - **Tests de garde-fous** : message d'erreur vérifié par égalité exacte, borne testée par sa valeur (limite acceptée, limite + 1 refusée), tests prouvés par mutation.
 - **Pas d'abstraction « au cas où »** : une interface n'existe que pour une frontière externe à doubler ou avec deux implémentations réelles.
 - **Questions** : seule la session principale peut interroger l'utilisateur ; les agents posent leurs questions dans un bloc `## QUESTIONS`, d'où l'importance du cadrage (§ 4, étape 1).
 - **Documents** : `backlog.md` et le PRD sont à vous ; la session ne modifie que les statuts du backlog et liste les passages devenus faux.
-- **Parallélisme et isolation** : jamais de travail sur la branche principale ; un `git worktree` par agent (`scripts/worktree-issue.sh`) ; jamais deux agents dans le même dossier.
+- **Parallélisme et isolation** : jamais de travail sur `main` ni sur `develop` ; un `git worktree` par agent (`scripts/worktree-issue.sh`) ; jamais deux agents dans le même dossier.
 - **Preuve** : un agent prouve (avant / après : test qui échoue puis réussit, chiffres mesurés, captures), il n'affirme pas ; la PR reprend cette preuve (`.github/pull_request_template.md`).
 - **Lisibilité** : le code doit être compréhensible par un développeur ou un agent sans contexte (pas de duplication, pas de code mort) ; le relecteur le contrôle.
 
@@ -180,9 +185,9 @@ les agents, `verify-clean.sh` (le développeur en fin de travail, le relecteur p
 | `scripts/` | Scripts de contrôle (§ 5) et leurs tests |
 | `templates/` | Fichiers de départ d'un projet (indépendants de la stack), copiés par `init-projet.sh` |
 | `stacks/` | Fichiers propres à une stack, copiés par `init-projet.sh --stack` : `java-maven`, `python`, `node`, `aucune` (CI, Dependabot, `.factory-verify`, `.gitignore`) |
-| `init-projet.sh`, `sync.sh` | Initialisation du projet ; alias de skills et agents |
-| `LECONS.md`, `DEMARRER-UN-PROJET.md` | Retour d'expérience ; checklist de démarrage |
-| `VERSION`, `CHANGELOG.md`, `MISE-A-JOUR.md` | Version (marquée dans `.factory-version` du projet), historique, procédure de mise à jour |
+| `init-projet.sh`, `sync.sh`, `sync-claude.sh` | Initialisation du projet ; alias de skills (neutre) ; lien et agents de Claude Code |
+| `LESSONS.md`, `START-A-PROJECT.md` | Retour d'expérience ; checklist de démarrage |
+| `VERSION`, `CHANGELOG.md`, `UPGRADE.md` | Version (marquée dans `.factory-version` du projet), historique, procédure de mise à jour |
 
 Les skills `to-spec`, `implement` et `setup-matt-pocock-skills` de l'amont ont été retirés : leur rôle est tenu par `spec-writer`, `deliver` et `init-projet.sh`.
 
@@ -193,15 +198,19 @@ Les skills `to-spec`, `implement` et `setup-matt-pocock-skills` de l'amont ont �
 - `owasp-check` est indépendant de la stack ; l'annexe `JAVA.md` complète pour Java/Spring Boot. Ajoutez une annexe `<STACK>.md` pour une autre technologie.
 - Dossier de tests : `scripts/criteres-sans-test.sh` détecte `src/test`, `tests` ou `test` (sinon variable `DOSSIER_TESTS`).
 
-## 9. Autres outils que Claude Code
-Les prompts, skills et scripts ne dépendent d'aucun éditeur. Pour un outil sans sous-agents, la skill `deliver` décrit un mode où les rôles sont joués à la suite dans des sessions neuves (section « Sans sous-agents »).
-Seuls `sync.sh` (enveloppes d'agents) et `.claude/settings.json` sont propres à Claude Code ; pour un autre outil, reproduire les refus de permissions dans sa configuration et lui faire lire le prompt du rôle (son en-tête YAML s'ignore).
+## 9. Indépendance du fournisseur
+
+| Neutre (fonctionne avec tout outil) | Propre à Claude Code | À reproduire pour un autre outil |
+|---|---|---|
+| Prompts (`factory/prompts/`, corps du texte), skills (`factory/skills/`, exposés par `.agents/skills`), scripts (`scripts/`), `AGENTS.md`, `backlog.md`, `docs/` ; mode « Sans sous-agents » de la skill `deliver` (rôles joués à la suite dans des sessions neuves) | `factory/sync-claude.sh` (`.claude/skills`, `.claude/agents/`), `.claude/settings.json` (refus de permissions), `CLAUDE.md`, noms d'outils du champ `tools:` des prompts (`Read`, `Bash`...), plugin savvy-progress (`mcp__savvy-progress__step`) | Les refus de permissions d'`.claude/settings.json` dans la configuration de l'outil ; la lecture de `AGENTS.md` et des prompts de rôle (l'en-tête YAML s'ignore) ; la traduction des noms d'outils ; le lancement des rôles (sous-agents ou sessions neuves) |
+
+`./factory/init-projet.sh --sans-claude` et `./factory/sync.sh --sans-claude` n'écrivent rien de propre à Claude Code. Un projet existant obtient `sync-claude.sh` en remplaçant `factory/` (le script fait partie du dossier) ; relancer ensuite `./factory/init-projet.sh` met à jour `.factory-version` et les liens, et crée `CLAUDE.md` et `.claude/` s'ils manquent : un projet sans Claude Code relance `./factory/init-projet.sh --sans-claude`.
 
 ## 10. Permissions et limites des agents
 `.claude/settings.json` refuse aux agents : `git push`, `reset --hard`, `clean`, `branch -D`, `checkout --`, `restore`, la lecture de `.env` et de `secrets/`. Limites : le « lecture seule » du reviewer est une consigne (il a `Bash` pour lancer le build) ;
 vérifiez avec `/permissions` que les règles s'appliquent aussi aux sous-agents dans votre version.
 Seule la session principale peut interroger l'utilisateur : les sous-agents n'ont pas d'outil de question, même déclaré. C'est pourquoi l'orchestrateur est un prompt joué par la session principale et non un agent
-(un agent orchestrateur autonome a été essayé : il fonctionne, mais ses questions ne remontent qu'en fin de rapport ; voir `LECONS.md` n° 17).
+(un agent orchestrateur autonome a été essayé : il fonctionne, mais ses questions ne remontent qu'en fin de rapport ; voir `LESSONS.md` n° 17).
 
 ## 11. Dépannage
 
@@ -209,16 +218,16 @@ Seule la session principale peut interroger l'utilisateur : les sous-agents n'on
 |---|---|
 | `verify-clean.sh` : « Aucune commande de vérification » | Ni `.factory-verify`, ni `COMMANDE_VERIFY`, ni wrapper `./mvnw` / `./gradlew` : créer `.factory-verify` (§ 8). |
 | `verify` échoue dans le dépôt avec des erreurs de classes générées, IDE ouvert | Le serveur Java de l'IDE recompile des classes générées sans leur processeur d'annotations. Utiliser `scripts/verify-clean.sh`. |
-| Les agents n'existent pas après un clone | `.claude/agents/` est généré et non versionné : lancer `./factory/sync.sh`. |
+| Les agents n'existent pas après un clone | `.claude/agents/` est généré et non versionné : lancer `./factory/sync.sh` (ou `sync-claude.sh`). |
 | `criteres-sans-test.sh` signale un critère qui a pourtant un test | Le nom du test ne contient pas l'identifiant du critère : le renommer (`test_ca10_…`). |
 | `criteres-sans-test.sh` : « aucun critère déclaré » | Le champ `criteres` de l'issue est vide ou illisible ; il accepte `[CA-01, CS-02]` ou une liste à tirets. |
 | `couverture-prd.sh` : « aucun critère défini » | Les critères du PRD doivent commencer par `- **CA-10**` (puce, identifiant en gras). |
-| `verify-clean.sh` : « Tests : inconnu » | La sortie du build n'est pas reconnue (ni Maven, ni unittest, ni pytest) ; le code de sortie reste fiable. |
-| Un agent rend un rapport vide | La session le relance (le format de rapport l'interdit) ; voir `LECONS.md` n° 5. |
+| `verify-clean.sh` : « Tests : inconnu » | La sortie du build n'est pas reconnue (ni Maven, ni unittest, ni pytest, ni la suite de la factory) ; le code de sortie reste fiable. |
+| Un agent rend un rapport vide | La session le relance (le format de rapport l'interdit) ; voir `LESSONS.md` n° 5. |
 | Une branche empilée relit les commits de l'issue précédente | La base est la pointe de la branche dont l'issue dépend (skill `deliver`, étape 0). |
 
 ## 12. Mettre à jour la factory
-Procédure dans `MISE-A-JOUR.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents), puis `factory/scripts/tests/run.sh`.
+Procédure dans `UPGRADE.md` : remplacer `factory/`, relancer `./factory/init-projet.sh` (met à jour `.factory-version`, régénère les agents ; `--sans-claude` pour un projet sans Claude Code, sinon il crée `CLAUDE.md` et `.claude/` s'ils manquent), puis `factory/scripts/tests/run.sh`.
 Les skills sont copiés, pas liés : modifiables, mais notez les écarts dans `skills/SOURCES.md`. Les langues : prompts, docs et messages en français ; les skills de mattpocock/skills restent en anglais.
 
 ## 13. Arborescence d'un projet initialisé
@@ -227,16 +236,16 @@ Les skills sont copiés, pas liés : modifiables, mais notez les écarts dans `s
 mon-projet/
 ├── README.md  AGENTS.md  CLAUDE.md  GLOSSARY.md  backlog.md      # à vous (la factory ne modifie que les statuts du backlog)
 ├── .factory-version  .factory-verify                             # version de la factory ; commande de vérification du projet
-├── .claude/settings.json                                         # refus de permissions (agents/ et skills/ y sont générés par sync.sh)
+├── .claude/settings.json                                         # refus de permissions (agents/ et skills/ y sont générés par sync-claude.sh)
 ├── .github/workflows/ci.yml  .github/dependabot.yml              # selon la stack
 ├── docs/
 │   ├── adr/       décisions d'architecture et de stack (0000-template.md, 0001-…)
 │   ├── prd/       un PRD par module : NNN-module.md
-│   ├── issues/    une issue par fichier : NNN-NN-slug.md (+ _modele.md)
+│   ├── issues/    une issue par fichier : NNN-NN-slug.md (+ _template.md)
 │   ├── reviews/   un rapport de revue par issue : NNN-NN.md
 │   ├── agents/    configuration lue par les skills (tracker d'issues, docs du domaine)
-│   └── lecons.md  leçons du projet
-├── scripts/       liens vers factory/scripts/ (verify-clean, criteres-sans-test, couverture-prd, etat-issues)
+│   └── lessons.md leçons du projet
+├── scripts/       liens vers factory/scripts/ (verify-clean, criteres-sans-test, couverture-prd, etat-issues, tableau-de-bord)
 └── factory/       la factory (skills, prompts, scripts, modèles, stacks)
 ```
 
@@ -269,7 +278,7 @@ Le corps contient Objectif, Périmètre (dans / hors), Critères d'acceptation (
 
 **Statuts d'un ADR** : `proposé` -> `accepté` -> `remplacé par NNNN`.
 
-**Branches et commits** : branche `feat/<prd>-<nn>-<slug>` (ex. `feat/001-03-formatage`) ; commits atomiques `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, `chore:`, avec un message qui dit le *pourquoi*. Un test et son code peuvent être deux commits (`test:` puis `feat:`).
+**Branches et commits** : branche `feat/<prd>-<nn>-<slug>` (ex. `feat/001-03-formatage`) créée depuis `develop` (`fix/…`, `docs/…`, etc. de même ; `hotfix/<slug>` depuis `main`) ; commits atomiques `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, `chore:`, avec un message qui dit le *pourquoi*. Un test et son code peuvent être deux commits (`test:` puis `feat:`).
 
 **Rapports des agents** : voir `prompts/report-format.md` (développeur : résumé, vérification chiffrée, commits, critères couverts, décisions, à trancher, non fait ; reviewer : verdict, build, constats classés, remarques de la revue précédente, documents devenus faux).
 
@@ -289,8 +298,8 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 | 8 | « /deliver 001-01 » | Branche, développeur, vérification, reviewer, corrections, issue à `Fait` ; compte rendu court |
 | 9 | « /deliver » (puis `scripts/etat-issues.sh --prochaine` pour voir laquelle) | Issue suivante ; répétez jusqu'à la dernière |
 | 10 | « /code-review » | Revue de la branche entière |
-| 11 | `git merge --no-ff feat/001-01-…` (dans le terminal, vous) | Fusion, branche par branche, dans l'ordre des dépendances |
-| 12 | « Clôture le besoin F-01 : documents à jour et leçons » | Passages devenus faux listés, leçons ajoutées à `docs/lecons.md` |
+| 11 | `git merge --no-ff feat/001-01-…` (dans le terminal, vous, sur `develop`) | Fusion dans `develop`, branche par branche, dans l'ordre des dépendances |
+| 12 | « Clôture le besoin F-01 : documents à jour et leçons » | Passages devenus faux listés, leçons ajoutées à `docs/lessons.md` |
 
 ## 16. Cas courants
 
@@ -311,7 +320,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 ## 17. Étendre la factory
 
 - **Ajouter une stack** : créez `factory/stacks/<stack>/` avec `.github/workflows/ci.yml`, `.github/dependabot.yml`, `factory-verify` (une ligne, copiée en `.factory-verify`), `gitignore.append` et `README.md` ; copiez la structure de `factory/stacks/python/`. Épinglez les actions par empreinte de commit. Lancez `factory/scripts/tests/run.sh`.
-- **Ajouter un rôle** : un prompt dans `factory/prompts/<nom>.md` avec l'en-tête YAML (`name`, `description`, `tools`, `skills`), puis `./factory/sync.sh` pour générer l'agent. N'y mettez que des outils réellement disponibles aux sous-agents (ils n'ont pas d'outil de question).
+- **Ajouter un rôle** : un prompt dans `factory/prompts/<nom>.md` avec l'en-tête YAML (`name`, `description`, `tools`, `skills`), puis `./factory/sync.sh` (ou `sync-claude.sh`) pour générer l'agent. N'y mettez que des outils réellement disponibles aux sous-agents (ils n'ont pas d'outil de question).
 - **Ajouter un skill** : un dossier `factory/skills/<nom>/SKILL.md` (en-tête `name`, `description`) ; les alias pointent sur le dossier `skills/`, rien d'autre à faire. Notez son origine ou ses écarts dans `skills/SOURCES.md`.
 - **Modifier un script** : ajoutez ou adaptez un cas dans `factory/scripts/tests/run.sh` ; la suite doit rester verte avec bash 5 et avec `/bin/bash` (3.2 sur macOS).
 - **Après toute modification** : incrémentez `factory/VERSION`, ajoutez une entrée au `CHANGELOG.md`, relancez `./factory/init-projet.sh` dans vos projets (voir § 12).
@@ -327,6 +336,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 | **Brief** | Message complet donné à un sous-agent, qui ne voit pas la conversation (`prompts/briefs/`). |
 | **Session principale** | La session Claude Code où vous travaillez ; elle joue l'orchestrateur et seule peut vous interroger. |
 | **Sous-agent / agent** | `spec-writer`, `developer`, `code-reviewer` : lancés par la session, ils rendent un rapport. |
+| **`main` / `develop`** | `main` : releases seulement (tags `vX.Y.Z`) ; `develop` : intégration, base et cible des branches de travail. |
 | **Base** | Commit de départ d'une livraison (`git log <base>..HEAD`) ; la pointe de la branche précédente pour des branches empilées. |
 | **Définition de fini** | Liste de contrôle de `/deliver` (build vert en copie propre, critères couverts, revue APPROUVÉ, commits atomiques, documents à jour). |
 | **Mutation** | Casser volontairement le code (retirer une borne, recopier l'entrée dans un message) pour vérifier qu'un test échoue. |
@@ -334,8 +344,8 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 
 ## 19. Ce qui est éprouvé, ce qui ne l'est pas
 
-- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (65 vérifications) ;
+- **Éprouvé** : la boucle `/deliver` (développeur, vérification, reviewer, corrections, clôture) sur un petit projet Python de trois issues, dont une avec une itération de correction ; les scripts (154 vérifications) ;
   l'initialisation d'un projet par stack.
 - **Pas encore éprouvé en situation réelle** : le cadrage (`/grill-with-docs`), la rédaction du PRD par `spec-writer`, `/code-review` sur une branche entière, la reprise d'une issue interrompue, le mode « sans sous-agents », les règles de permissions sur les sous-agents,
   les stacks `node` et `java-maven` de bout en bout avec cette version de la factory, les issues en parallèle (worktrees), le retour d'une revue externe et les preuves avant / après sur une interface.
-- Si l'une de ces étapes se passe mal, notez-le dans `docs/lecons.md` : c'est ainsi que cette factory s'améliore.
+- Si l'une de ces étapes se passe mal, notez-le dans `docs/lessons.md` : c'est ainsi que cette factory s'améliore.

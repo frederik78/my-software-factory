@@ -15,8 +15,9 @@ Choisissez la stack (dossiers `factory/stacks/<stack>/`) :
 ```
 ./factory/init-projet.sh --nom "Nom du projet" --stack java-maven
 ```
-Crée, sans jamais rien écraser : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `.claude/settings.json` (refus de permissions), `.factory-version`, `docs/` (adr, prd, issues, reviews, agents, `lecons.md`),
-`.gitignore`, les fichiers de la stack (CI, Dependabot, `.factory-verify`), les liens `scripts/`, puis lance `factory/sync.sh` (alias de skills et agents).
+Crée, sans jamais rien écraser : `README.md`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `backlog.md`, `.claude/settings.json` (refus de permissions), `.factory-version`, `docs/` (adr, prd, issues, reviews, agents, `lessons.md`),
+`.gitignore`, les fichiers de la stack (CI, Dependabot, `.factory-verify`), les liens `scripts/`, puis lance `factory/sync.sh` (alias de skills ; avec `CLAUDE.md`, aussi les agents de Claude Code via `sync-claude.sh`).
+Projet sans Claude Code : `--sans-claude` ne crée ni `CLAUDE.md` ni rien sous `.claude/`, et lance `sync.sh --sans-claude` ; garder l'option à chaque relance (mise à jour de la factory), sinon `init-projet.sh` crée `CLAUDE.md` et `.claude/` qui manquent. Le mode Claude de `sync.sh` ne dépend que de `CLAUDE.md` (pas du dossier `.claude/`).
 Relançable sans risque. Une autre stack que celles-ci : choisir `aucune`, puis § 3 et `factory/README.md` § 8.
 
 ## 2. Cadrer (avec l'utilisateur, avant tout code)
@@ -38,6 +39,7 @@ Ces éléments appartiennent à une première issue « socle » (`000-01`). Ils 
 - [ ] **Un test de contrat sur serveur réel** (port aléatoire) du premier endpoint exposé, y compris requêtes malformées et en-têtes de sécurité.
 - [ ] **CI** : actions épinglées par empreinte, détection de secrets (gitleaks) et Dependabot déjà en place dans les modèles ; ajouter les secrets nécessaires (`GITLEAKS_LICENSE` pour une organisation,
       `NVD_API_KEY` pour Java) ; vérifier que le job `verify` correspond à la stack.
+- [ ] **Branches** : `develop` créée depuis `main` et définie comme branche par défaut sur GitHub ; `main` et `develop` protégées (pas de commit direct, PR et CI verte exigées) ; la CI se déclenche sur les deux.
 - [ ] **Modèle de PR** (`.github/pull_request_template.md`, créé par `init-projet.sh`) en place : il reprend la preuve avant / après et les décisions en attente.
 - [ ] **Licence** de chaque dépendance ajoutée vérifiée.
 - [ ] `scripts/verify-clean.sh` vert sur le socle ; `factory/scripts/tests/run.sh` vert.
@@ -47,9 +49,9 @@ Ces éléments appartiennent à une première issue « socle » (`000-01`). Ils 
 1. `spec-writer` : PRD (`docs/prd/NNN-module.md`) : comportement, contrats, critères CA/CS, section sécurité. Pas de noms de packages ni de classes.
 2. Découpage en issues (`to-tickets`) dans `docs/issues/`, validé par l'utilisateur.
 3. Pour chaque issue, dans l'ordre : `/deliver <issue>`.
-4. `/code-review` sur la branche, fusion par l'utilisateur (`git merge --no-ff`), clôture (dérive documentaire, leçons).
+4. `/code-review` sur la branche, fusion dans `develop` par l'utilisateur (`git merge --no-ff`), clôture (dérive documentaire, leçons).
 
 ## 5. Entre deux cycles
-- Relire `docs/lecons.md` et `factory/LECONS.md` ; ajuster les prompts ou skills si une leçon le justifie (les écarts aux skills copiés de Matt Pocock
+- Relire `docs/lessons.md` et `factory/LESSONS.md` ; ajuster les prompts ou skills si une leçon le justifie (les écarts aux skills copiés de Matt Pocock
   sont notés dans `factory/skills/SOURCES.md`).
 - `./factory/sync.sh` après toute modification d'un en-tête de prompt.

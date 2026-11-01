@@ -2,7 +2,7 @@
 
 Une issue = un fichier `docs/issues/<prd>-<nn>-<slug>.md` : une tranche verticale livrable seule, issue du découpage d'un PRD
 (skill `to-tickets`). `<prd>` est le numéro du PRD, `<nn>` le rang de l'issue. Le PRD décrit le comportement attendu ; l'issue porte le **suivi**
-(statut, dépendances, branche, commits, revue). Modèle : `_modele.md`. La skill `deliver` lit et met à jour ces fichiers.
+(statut, dépendances, branche, commits, revue). Modèle : `_template.md`. La skill `deliver` lit et met à jour ces fichiers.
 
 ## Format
 En-tête YAML : `id`, `titre`, `prd`, `besoin`, `statut` (`À faire` -> `En cours` -> `En revue` -> `Fait`), `depend_de` (ids d'issues qui doivent être
@@ -19,4 +19,4 @@ Corps : Objectif, Périmètre (dans / hors), Critères d'acceptation (renvoi au 
 ## État
 Pas d'index à tenir à la main (il dériverait) : l'état se lit dans les en-têtes avec `scripts/etat-issues.sh` (tableau Markdown ; `--statut "À faire"`
 pour filtrer ; `--prochaine` donne la première issue prête, dépendances `Fait`). `scripts/couverture-prd.sh <prd>` vérifie que chaque critère du PRD est
-couvert par exactement une issue ; `scripts/criteres-sans-test.sh <issue>` que chaque critère d'une issue a un test.
+couvert par exactement une issue ; `scripts/criteres-sans-test.sh <issue>` que chaque critère d'une issue a un test. `scripts/tableau-de-bord.sh` écrit une page HTML (`tableau-de-bord.html`, non versionnée) de l'état des besoins et des issues.

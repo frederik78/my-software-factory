@@ -7,3 +7,6 @@ data/
 # Généré par ./factory/sync.sh (dépend de la machine : plugins installés) ; relancer sync.sh après un clone
 .claude/agents/
 .claude/settings.local.json
+
+# Généré par scripts/tableau-de-bord.sh
+tableau-de-bord.html

@@ -2,8 +2,9 @@
 # Prépare un nouveau projet autour de la factory : fichiers de départ (AGENTS.md, backlog, docs/...), fichiers propres à la stack (CI, Dependabot,
 # .gitignore, commande de vérification), scripts, alias de skills et d'agents.
 # À lancer depuis la racine d'un dépôt qui contient le dossier factory/ (copié ou cloné) :
-#     ./factory/init-projet.sh [--nom "Nom du projet"] [--stack java-maven|python|node|aucune]
+#     ./factory/init-projet.sh [--nom "Nom du projet"] [--stack java-maven|python|node|aucune] [--sans-claude]
 # --stack choisit le dossier factory/stacks/<stack>/ (défaut : aucune = squelette indépendant de la stack ; voir factory/stacks/*/README.md).
+# --sans-claude : projet sans Claude Code ; ni CLAUDE.md ni rien sous .claude/ n'est créé, et sync.sh est lancé avec --sans-claude.
 # N'écrase JAMAIS un fichier existant : chaque fichier déjà présent est conservé et signalé. Relançable sans risque.
 set -euo pipefail
 
@@ -11,11 +12,13 @@ racine="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$racine"
 nom="$(basename "$racine")"
 stack="aucune"
-usage() { echo "Usage : $0 [--nom \"Nom du projet\"] [--stack $(ls factory/stacks 2>/dev/null | paste -sd'|' -)]" >&2; exit 64; }
+sans_claude=0
+usage() { echo "Usage : $0 [--nom \"Nom du projet\"] [--stack $(ls factory/stacks 2>/dev/null | paste -sd'|' -)] [--sans-claude]" >&2; exit 64; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --nom) nom="${2:?--nom attend une valeur}"; shift ;;
     --stack) stack="${2:?--stack attend une valeur}"; shift ;;
+    --sans-claude) sans_claude=1 ;;
     *) usage ;;
   esac
   shift
@@ -38,10 +41,28 @@ copier() { # copier <source> <destination relative> : sans jamais écraser ; le 
   echo "créé       $rel"; crees=$((crees + 1))
 }
 
+# Fichiers renommés (version 1.6.1) : un projet déjà initialisé garde l'ancien nom. On ne crée pas de doublon et on ne renomme
+# jamais seul : on indique la commande à lancer. Format : "<nouveau nom>:<ancien nom>".
+renommes="docs/lessons.md:docs/lecons.md docs/issues/_template.md:docs/issues/_modele.md"
+ancien_nom() { # ancien_nom <nouveau nom> : affiche l'ancien nom s'il existe encore alors que le nouveau n'existe pas
+  local paire
+  for paire in $renommes; do
+    if [ "${paire%%:*}" = "$1" ] && [ -e "${paire#*:}" ] && [ ! -e "$1" ]; then printf '%s' "${paire#*:}"; return 0; fi
+  done
+  return 1
+}
+
 # 1. Tronc commun
 gitignore_cree=0; [ -e .gitignore ] || gitignore_cree=1
 while IFS= read -r -d '' src; do
-  copier "$src" "${src#"$modeles"/}"
+  rel="${src#"$modeles"/}"
+  if [ "$sans_claude" -eq 1 ]; then
+    case "$rel" in CLAUDE.md|.claude/*) continue ;; esac # propres à Claude Code
+  fi
+  if ancien="$(ancien_nom "$rel")"; then
+    echo "à migrer   $ancien porte l'ancien nom : git mv $ancien $rel (puis relancez ce script)"; gardes=$((gardes + 1)); continue
+  fi
+  copier "$src" "$rel"
 done < <(find "$modeles" -type f ! -name '.DS_Store' -print0 | sort -z)
 
 # 2. Fichiers propres à la stack
@@ -81,14 +102,18 @@ if [ -n "$version" ]; then
   if [ -z "$precedente" ]; then
     echo "$version" > .factory-version; echo "créé       .factory-version ($version)"
   elif [ "$precedente" != "$version" ]; then
-    echo "$version" > .factory-version; echo "mis à jour .factory-version ($precedente -> $version) : lire factory/CHANGELOG.md et factory/MISE-A-JOUR.md"
+    echo "$version" > .factory-version; echo "mis à jour .factory-version ($precedente -> $version) : lire factory/CHANGELOG.md et factory/UPGRADE.md"
   fi
 fi
 
-./factory/sync.sh
+if [ "$sans_claude" -eq 1 ]; then ./factory/sync.sh --sans-claude; else ./factory/sync.sh; fi
 
 echo
-echo "$crees fichier(s) créé(s), $gardes conservé(s) (stack : $stack). Étapes suivantes : voir factory/DEMARRER-UN-PROJET.md"
+echo "$crees fichier(s) créé(s), $gardes conservé(s) (stack : $stack). Étapes suivantes : voir factory/START-A-PROJECT.md"
 if [ ! -f .factory-verify ] && [ ! -x ./mvnw ] && [ ! -x ./gradlew ] && [ -z "${COMMANDE_VERIFY:-}" ]; then
   echo "À faire : créer .factory-verify (une ligne : la commande de vérification complète) ; scripts/verify-clean.sh et la CI en ont besoin."
+fi
+echo "Modèle de branches : main = releases (tags vX.Y.Z), develop = intégration ; les branches de travail partent de develop et y reviennent par PR."
+if ! git show-ref --verify --quiet refs/heads/develop; then
+  echo "À faire : créer la branche develop (git branch develop), la définir comme branche par défaut sur GitHub ; les agents ne travaillent ni sur main ni sur develop."
 fi

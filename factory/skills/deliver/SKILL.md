@@ -11,17 +11,21 @@ la boucle ci-dessous est autorisée par la demande de livrer l'issue.
 ## 0. Préparer
 1. Identifie l'issue : un numéro (« issue 2 » = `docs/issues/<prd>-02-*.md`, PRD le plus récent non terminé ; en cas de doute, demande), ou un chemin.
    « La suivante » = `scripts/etat-issues.sh --prochaine`. `scripts/etat-issues.sh` donne l'état de toutes les issues.
-   Lis le fichier d'issue, le PRD et les critères visés. Si l'issue n'existe pas, arrête-toi et propose de la créer (`docs/issues/_modele.md`).
+   Lis le fichier d'issue, le PRD et les critères visés. Si l'issue n'existe pas, arrête-toi et propose de la créer (`docs/issues/_template.md`).
 2. Vérifie les dépendances : chaque issue de `depend_de` doit être `Fait`, sinon arrête-toi et dis laquelle manque.
-3. Une branche et une PR par issue : `feat/<prd>-<nn>-<slug>`, créée depuis la branche principale à jour (ou depuis la branche de l'issue dont
+3. Une branche et une PR par issue : `feat/<prd>-<nn>-<slug>`, créée depuis `develop` à jour (ou depuis la branche de l'issue dont
    celle-ci dépend si elle n'est pas encore fusionnée). Si la branche existe déjà, reprends-la. Si l'utilisateur est sur une autre branche de
    travail non terminée, ne la quitte pas sans lui demander. `git status` doit être propre ; sinon signale les fichiers et demande quoi en faire.
-   **Jamais de travail sur la branche principale.** Dès qu'un autre agent peut travailler en même temps, isole l'issue dans son propre dossier : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
+   **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Dès qu'un autre agent peut travailler en même temps, isole l'issue dans son propre dossier : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
    crée `../<dépôt>-<id>` sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
    `scripts/worktree-issue.sh nettoyer <issue> --branche`.
-4. Fixe la **base** (borne de `git log <base>..HEAD` pour toute la livraison). Si la branche est créée depuis la branche principale : `<base>` = `git merge-base HEAD <branche principale>`
-   (`origin/HEAD`, sinon `main`, sinon `master`). Si elle est créée depuis la branche d'une issue dont elle dépend et qui n'est pas fusionnée (branches empilées) : `<base>` = la pointe de cette
+   **Correctif urgent sur une release** (bug en production que l'utilisateur demande de corriger sans attendre la prochaine release) : branche `hotfix/<slug>` créée depuis `main` à jour
+   (en dossier isolé : `git worktree add -b hotfix/<slug> ../<dépôt>-hotfix-<slug> main`), PR vers `main` ; après sa fusion dans `main`, l'utilisateur fusionne aussi `main` (ou la branche
+   `hotfix/<slug>`) dans `develop`. L'agent travaille sur la branche `hotfix/<slug>`, jamais sur `main` ni sur `develop`, et ne fusionne rien.
+4. Fixe la **base** (borne de `git log <base>..HEAD` pour toute la livraison). Si la branche est créée depuis `develop` : `<base>` = `git merge-base HEAD develop`
+   (à défaut de `develop` : `origin/develop`, `origin/HEAD`, `main`, `master`). Si elle est créée depuis la branche d'une issue dont elle dépend et qui n'est pas fusionnée (branches empilées) : `<base>` = la pointe de cette
    branche (`git rev-parse HEAD` au démarrage), sinon la revue relirait les commits de l'issue précédente.
+   Correctif urgent (`hotfix/<slug>`) : `<base>` = `git merge-base HEAD main`.
 5. Mets `statut: En cours` et `branche:` dans l'issue et **commite-le toi-même** (`docs: issue <id> en cours`) : c'est toi qui tiens les fichiers d'issue et de revue, les agents n'y touchent pas, et
    l'arbre doit être propre avant de lancer le développeur.
 
@@ -80,7 +84,7 @@ L'issue passe `Fait` seulement si TOUT est vrai :
 Mets à jour l'issue : `statut: Fait`, `commits:`, `revue:`, Notes (écarts, points mineurs ouverts). Si toutes les issues du besoin sont `Fait`, propose
 à l'utilisateur de passer le besoin à `Fait` dans `backlog.md`. Ne merge ni ne pousse jamais ; la fusion se fait par l'utilisateur avec
 `git merge --no-ff` (pour identifier clairement les branches mergées). Si la livraison a coûté du temps pour une raison qui se reproduira
-(outil, consigne ambiguë, rapport inutilisable), ajoute une ligne à `docs/lecons.md`.
+(outil, consigne ambiguë, rapport inutilisable), ajoute une ligne à `docs/lessons.md`.
 
 ## 6. Rendre compte (court)
 Une réponse de 15 lignes au plus : issue livrée, commits, **preuve avant / après en une ligne par critère** (l'utilisateur relit la preuve, pas le code ligne à ligne), résultat de `verify-clean.sh` (nombres), verdict de la revue (et nombre d'itérations), décisions que tu as prises

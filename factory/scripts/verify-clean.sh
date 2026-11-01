@@ -11,7 +11,7 @@
 # Commande de build, dans cet ordre : variable COMMANDE_VERIFY ; première ligne du fichier `.factory-verify` à la racine du projet (écriture shell permise : `npm ci && npm test`) ;
 # à défaut, le wrapper du projet s'il existe (`./mvnw -B clean verify`, `./gradlew --no-daemon clean build`) ; sinon le script s'arrête (code 64) en demandant de créer `.factory-verify`.
 # Les arguments passés après `--` sont ajoutés à la commande (disponibles comme "$@").
-# Le résumé chiffré reconnaît la sortie de Maven (« Tests run: n, Failures: … ») et celle de unittest/pytest (« Ran n tests »).
+# Le résumé chiffré reconnaît la sortie de Maven (« Tests run: n, Failures: … »), celle de unittest/pytest (« Ran n tests ») et celle de la suite de la factory (« TESTS OK : n vérifications », « TESTS EN ECHEC : x sur n »).
 # Code de sortie : celui du build (0 = tout est vert). Dernière ligne : « VERIFY OK » ou « VERIFY ECHEC (code n) ».
 set -uo pipefail
 
@@ -72,6 +72,7 @@ tests="$(grep -E '^\[(INFO|ERROR|WARNING)\] Tests run: [0-9]+, Failures: [0-9]+,
 if [ -z "$tests" ]; then
   tests="$(grep -E '^Ran [0-9]+ tests? in ' "$journal" | tail -1)"
   [ -z "$tests" ] && tests="$(grep -E '^=+ .*(passed|failed).* =+$|^[0-9]+ (passed|failed)' "$journal" | tail -1)"
+  [ -z "$tests" ] && tests="$(grep -E '^TESTS (OK : [0-9]+ vérifications|EN ECHEC : [0-9]+ sur [0-9]+)$' "$journal" | tail -1)"
 fi
 spotbugs="$(grep -E 'BugInstance size is [0-9]+' "$journal" | tail -1 | sed -E 's/.*(BugInstance size is [0-9]+).*/\1/')"
 

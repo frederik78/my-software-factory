@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 1.9.1
+- Correctif : la CI de la stack `java-maven` n'échoue plus avant l'issue socle. Sans `pom.xml`, `setup-java` et `./mvnw` sont ignorés et le job l'indique par une notice. Le job `securite` suit la même règle.
+- `LESSONS.md` : leçon n° 23.
+- Tests : 249 vérifications (2 de plus).
+- Migration : remplacer `factory/`. Un projet existant reprend le changement à la main (`diff -r factory/stacks/java-maven/.github .github`), inutile s'il a déjà son `pom.xml`.
+
 ## 1.9.0
 - Architecture par défaut : des couches de services, avec des interfaces seulement aux frontières externes à doubler. Un autre style se justifie dans l'ADR (`START-A-PROJECT.md`, `templates/AGENTS.md`).
 - Architecture de référence pour Spring Boot dans `stacks/java-maven/README.md` : structure, droits d'accès entre couches, règles ArchUnit, tests par couche.

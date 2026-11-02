@@ -45,3 +45,18 @@ src/main/resources/config/liquibase/   master.xml et changelogs
 - `client/` : implémentations testées sans service réel.
 
 Le choix d'authentification dépend du client : un jeton Bearer sans état convient à une API sans frontend, une session avec CSRF actif à une application web servie au navigateur.
+
+## Sécurité : partir de ce que Spring fournit
+Avant d'écrire un mécanisme à la main, lire ces points dans la version utilisée et dans le modèle JHipster (`generators/spring-boot/templates/src/main/java/_package_/config/SecurityConfiguration_imperative.java.ejs`, dépôt `jhipster/generator-jhipster`). JHipster 9 sert de référence de lecture, sans générateur ni dépendance.
+
+| Besoin | Commencer par |
+|---|---|
+| Connexion par session | `.formLogin()` avec handlers de statut, ce qui donne le changement d'identifiant de session et le renouvellement CSRF. Il attend un formulaire : pour une route JSON, `AuthenticationManager` et les `SessionAuthenticationStrategy`. |
+| Déconnexion | `.logout()` et `HttpStatusReturningLogoutSuccessHandler` ; il répond avant le contrôle d'accès. Dans une route : `CompositeLogoutHandler`. |
+| Durée et cookies de session | `server.servlet.session.timeout`, `server.servlet.session.cookie.*` |
+| Vérification du mot de passe | `UserDetailsService`, `PasswordEncoder`, `AuthenticationManager` |
+| CSRF pour une SPA | `CookieCsrfTokenRepository.withHttpOnlyFalse()`, `csrf.spa()` ou le gestionnaire de JHipster. Sans en-tête, ils peuvent lire un paramètre, donc le corps. |
+| En-têtes de sécurité | `.headers()`. Ils ne couvrent pas les requêtes rejetées avant la chaîne : pare-feu HTTP, Tomcat. |
+| Réponse 401 d'une API | `HttpStatusEntryPoint` |
+| Multipart et formulaires | `spring.servlet.multipart.*`, dont `resolve-lazily` ; `server.tomcat.max-http-form-post-size`, `max-swallow-size` |
+| Filtres qui lisent le corps avant la sécurité | `spring.mvc.formcontent.filter.enabled`, `spring.mvc.hiddenmethod.filter.enabled` |

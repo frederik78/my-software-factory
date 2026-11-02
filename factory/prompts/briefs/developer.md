@@ -16,6 +16,8 @@ Dans le périmètre : {{périmètre}}   Hors périmètre : {{hors périmètre, a
 Critères à couvrir : {{CA-xx, CS-xx, avec leur texte exact du PRD}}
 Preuve attendue (section « Preuve attendue » de l'issue) : {{test qui échoue puis réussit | chiffres avant / après avec la commande | captures}}
 
+Mécanismes du framework à utiliser dans cette issue : {{classes et propriétés repérées, et comment le fait la référence de l'ADR ; à défaut, « à chercher » (point « Le framework d'abord » de developer.md)}}
+
 Décisions déjà prises (ne les remets pas en cause) : {{décisions de l'utilisateur et de l'orchestrateur}}
 Points ouverts à traiter ou à ne pas traiter : {{remarques de revue précédentes, mineurs reportés}}
 Comportements non fixés par le PRD : choisis le plus sûr et cohérent avec l'existant, et liste-le dans « À trancher par l'utilisateur » de ton rapport.

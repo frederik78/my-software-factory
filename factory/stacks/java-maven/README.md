@@ -50,7 +50,7 @@ Le choix d'authentification dépend du client : un jeton Bearer sans état convi
 Pour toute application Spring Boot, avec ou sans frontend, sauf si l'ADR nomme une autre référence.
 
 1. **Ne pas réinventer.** Avant d'écrire un mécanisme, chercher le starter, la classe ou la propriété que Spring fournit dans la version utilisée. Une dépendance hors de Spring ou du code maison se justifie par un critère du PRD ou une mesure.
-2. **Se caler sur JHipster.** Pour un rôle que JHipster couvre, reprendre son emplacement, son nom de classe et sa forme. Les classes techniques gardent ses noms (`SecurityConfiguration`, `DomainUserDetailsService`, `ExceptionTranslator`) ; le métier garde le vocabulaire du glossaire.
+2. **Se caler sur JHipster.** Pour un rôle que JHipster couvre, reprendre son emplacement, son nom de classe et sa forme. Les classes techniques sont impérativement en anglais, et gardent ses noms quand ils existent (`SecurityConfiguration`, `DomainUserDetailsService`, `ExceptionTranslator`).
 3. **Ne rien télécharger d'entier.** Pas de générateur, pas de clone, pas d'application générée à conserver. On lit seulement les fichiers du rôle à écrire, à la version fixée par l'ADR :
 
    ```bash

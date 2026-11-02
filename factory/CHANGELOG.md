@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.13.0
+- Règle « Langue du code » : les classes techniques sont impérativement en anglais. Dans `AGENTS.md`, `developer.md` et le guide java ; en revue, une classe technique dans une autre langue est un constat IMPORTANT.
+- `LESSONS.md` : leçon n° 28.
+- Migration : remplacer `factory/`, relancer `./factory/init-projet.sh`, puis reprendre la ligne « Langue du code » dans `AGENTS.md`.
+
 ## 1.12.0
 - Applications Spring Boot : dépendances Spring d'abord, JHipster comme modèle pour l'emplacement, les noms et la forme du code. `stacks/java-maven/README.md` dit quel exemple et quels fichiers lire selon l'authentification et le frontend (aucun, Angular, React, Vue), un fichier à la fois, sans générateur ni clone.
 - Règle générale « La référence de code » : l'ADR fixe un projet et sa version ; chaque écart a une raison. Section « Alignement sur la référence » du rapport, contrôlée par `/deliver` ; écart sans raison = constat IMPORTANT en revue ; champ dans les briefs et le modèle d'ADR.

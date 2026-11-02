@@ -44,6 +44,7 @@ et remplis chaque champ à partir de l'issue (ne le résume pas de mémoire). Il
 - `git log --oneline <base>..HEAD` : les commits annoncés existent, `git status` est propre.
 - `scripts/verify-clean.sh` : vert, et le nombre de tests correspond à l'annonce (écart = explication demandée).
 - Section « Code écrit à la place du framework » du rapport : présente, et chaque raison est un critère du PRD ou une mesure. Sinon, retour au developer.
+- Section « Alignement sur la référence » du rapport : présente, chaque écart a une raison, et tu ouvres au moins un fichier de la référence pour la recouper. Sinon, retour au developer.
 - `scripts/criteres-sans-test.sh <issue>` : chaque critère de l'issue a un test dont le nom contient son identifiant (CA-xx / CS-xx). Un critère
   sans test = retour au developer (ou, si le critère est couvert par un test dont le nom ne suit pas la convention, renomme-le).
 

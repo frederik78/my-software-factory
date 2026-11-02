@@ -700,6 +700,15 @@ adresses="$({ printf '%s\n' "$conf_modele"; lire_depot "$depot" .factory.conf; }
 [ -n "$conf_modele" ] && [ -z "$adresses" ] && ok "modèle .factory.conf : aucune adresse réelle (example.com seulement)" || ko "adresses du modèle .factory.conf" "$adresses"
 lire_depot "$depot" .gitignore | grep -qx '.factory.local.conf' && lire_depot "$depot" factory/templates/.gitignore | grep -qx '.factory.local.conf' && ok ".factory.local.conf ignoré par git (dépôt et modèle)" || ko ".factory.local.conf dans les .gitignore"
 
+echo "règle du framework d'abord (documentation)"
+for f in factory/prompts/code-reviewer.md factory/prompts/report-format.md factory/prompts/briefs/developer.md factory/prompts/briefs/reviewer.md factory/skills/deliver/SKILL.md factory/stacks/java-maven/README.md; do
+  lire_depot "$depot" "$f" | grep -qi "framework" && ok "$f parle du framework d'abord" || ko "$f : règle du framework absente"
+done
+lire_depot "$depot" factory/prompts/developer.md | grep -q "Le framework d'abord" && ok "developer.md : règle du framework d'abord" || ko "developer.md : règle du framework absente"
+lire_depot "$depot" factory/prompts/report-format.md | grep -q "^## Code écrit à la place du framework$" && lire_depot "$depot" factory/skills/deliver/SKILL.md | grep -q "Code écrit à la place du framework" && ok "section du rapport contrôlée par /deliver" || ko "section du rapport non contrôlée par /deliver"
+lire_depot "$depot" factory/prompts/code-reviewer.md | grep -q "écrit à la main.*constat IMPORTANT" && ok "reviewer : équivalent injustifié = IMPORTANT" || ko "reviewer : gravité du constat framework"
+lire_depot "$depot" factory/templates/AGENTS.md | grep -q "Le framework d'abord" && lire_depot "$depot" factory/templates/docs/adr/0000-template.md | grep -q "Mécanismes du framework" && ok "modèles AGENTS.md et ADR : règle présente" || ko "modèles AGENTS.md et ADR : règle absente"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

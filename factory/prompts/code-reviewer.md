@@ -13,6 +13,7 @@ Vérifie : conformité à l'issue et au PRD (`docs/issues/`, `docs/prd/`), respe
 couverture des tests, lisibilité.
 
 Lisibilité du code : duplications, code mort, fonctions ou responsabilités éparpillées, structure non conforme à `AGENTS.md`, code qu'un lecteur sans contexte (autre agent, développeur embauché) ne comprendrait pas ; un code qui fonctionne mais est mal écrit est un constat IMPORTANT.
+Framework : pour chaque mécanisme transversal ajouté ou modifié (session, authentification, CSRF, en-têtes, erreurs, validation, limites, configuration…), cherche activement ce que le framework fournit dans la version utilisée (sources ou jars, pas de mémoire) et ce que fait le projet de référence ou le générateur nommé par l'ADR. Un équivalent écrit à la main sans critère du PRD ni raison mesurée est un constat IMPORTANT, même s'il fonctionne et que ses tests passent ; une raison annoncée se vérifie par un essai.
 Preuve : la preuve avant / après du développeur est-elle présente et vérifiable (relance la commande) pour chaque critère ?
 
 Tests : chaque critère CA/CS de l'issue a-t-il un test dont le nom contient son identifiant (lance `scripts/criteres-sans-test.sh` pour l'issue) ?

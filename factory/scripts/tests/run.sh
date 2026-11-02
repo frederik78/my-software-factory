@@ -722,6 +722,11 @@ for f in factory/prompts/briefs/developer.md factory/prompts/briefs/reviewer.md;
   lire_depot "$depot" "$f" | grep -q "Référence" && ok "$f : champ référence" || ko "$f : champ référence absent"
 done
 
+echo "langue du code (documentation)"
+for f in factory/templates/AGENTS.md factory/prompts/developer.md factory/prompts/code-reviewer.md factory/stacks/java-maven/README.md; do
+  lire_depot "$depot" "$f" | grep -q "classes techniques sont impérativement en anglais" && ok "$f : classes techniques en anglais" || ko "$f : règle de langue absente"
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

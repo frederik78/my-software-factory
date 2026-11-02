@@ -39,6 +39,7 @@ La structure est décidée dans un ADR (`docs/adr/0001-architecture.md`) AVANT l
 - Pas d'interface « au cas où » : une abstraction n'existe que pour une frontière externe à doubler ou s'il y a deux implémentations réelles.
 - Le framework d'abord : un mécanisme transversal (session, authentification, CSRF, en-têtes, erreurs, validation, configuration) utilise ce que le framework fournit ; un équivalent écrit à la main se justifie par un critère du PRD ou une mesure.
 - La référence de code : la structure et la mise en œuvre se calent sur le projet que l'ADR nomme, lu fichier par fichier ; tout écart de nom ou de forme a une raison. <Application Spring Boot : dépendances Spring d'abord, JHipster comme modèle, voir `factory/stacks/java-maven/README.md`. Sinon : le projet nommé par l'ADR, ou « aucune ».>
+- **Langue du code** : les classes techniques sont impérativement en anglais.
 - <Règles métier transverses du projet : unités, devises, configuration plutôt que constantes, validation, etc.>
 
 ## Tests (TDD obligatoire)

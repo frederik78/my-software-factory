@@ -17,6 +17,7 @@ Critères à couvrir : {{CA-xx, CS-xx, avec leur texte exact du PRD}}
 Preuve attendue (section « Preuve attendue » de l'issue) : {{test qui échoue puis réussit | chiffres avant / après avec la commande | captures}}
 
 Mécanismes du framework à utiliser dans cette issue : {{classes et propriétés repérées, et comment le fait la référence de l'ADR ; à défaut, « à chercher » (point « Le framework d'abord » de developer.md)}}
+Référence de code : {{projet et version fixés par l'ADR, fichiers à lire pour cette issue ; « aucune » si l'ADR n'en nomme pas}}
 
 Décisions déjà prises (ne les remets pas en cause) : {{décisions de l'utilisateur et de l'orchestrateur}}
 Points ouverts à traiter ou à ne pas traiter : {{remarques de revue précédentes, mineurs reportés}}

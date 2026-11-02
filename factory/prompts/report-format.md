@@ -43,6 +43,11 @@ Règles
 |---|---|---|
 Une ligne par mécanisme transversal écrit à la main. « aucun » si rien.
 
+## Alignement sur la référence
+| Fichier de la référence (version) | Fichier du projet | Identique, adapté ou absent | Raison de l'écart |
+|---|---|---|---|
+Une ligne par fichier ajouté ou modifié qui joue un rôle couvert par la référence de l'ADR. « sans objet » si l'ADR n'en nomme aucune.
+
 ## À trancher par l'utilisateur
 - Comportements non fixés par le PRD que tu as choisis seul (valeur, raison, alternative), à inscrire au PRD. « aucun » si rien.
 
@@ -64,6 +69,7 @@ La preuve avant / après du développeur est-elle présente, vérifiable (tu as 
 
 ## Framework
 Mécanismes transversaux écrits à la main : équivalent cherché dans le framework et la référence de l'ADR, verdict pour chacun. « aucun » si rien.
+Écarts à la référence : fichiers comparés et verdict pour chaque écart. « sans objet » si l'ADR n'en nomme aucune.
 
 ## Constats
 BLOQUANT / IMPORTANT / MINEUR : une ligne chacun, `fichier:ligne`, la catégorie OWASP entre crochets si sécurité ([A05]),

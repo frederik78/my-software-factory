@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 1.12.0
+- Applications Spring Boot : dépendances Spring d'abord, JHipster comme modèle pour l'emplacement, les noms et la forme du code. `stacks/java-maven/README.md` dit quel exemple et quels fichiers lire selon l'authentification et le frontend (aucun, Angular, React, Vue), un fichier à la fois, sans générateur ni clone.
+- Règle générale « La référence de code » : l'ADR fixe un projet et sa version ; chaque écart a une raison. Section « Alignement sur la référence » du rapport, contrôlée par `/deliver` ; écart sans raison = constat IMPORTANT en revue ; champ dans les briefs et le modèle d'ADR.
+- `LESSONS.md` : leçon n° 27.
+- Migration : remplacer `factory/`, relancer `./factory/init-projet.sh`, reprendre la ligne « La référence de code » dans `AGENTS.md` et fixer la référence dans l'ADR d'architecture.
+
 ## 1.11.0
 - Règle « Le framework d'abord » : avant d'écrire un mécanisme transversal, chercher ce que fournit le framework dans la version utilisée et lire le code de la référence nommée par l'ADR. Un équivalent à la main se justifie par un critère du PRD ou une mesure.
 - Contrôle à chaque étape : section « Code écrit à la place du framework » du rapport du développeur, vérifiée par `/deliver` ; section « Framework » de la revue, où un équivalent injustifié est un constat IMPORTANT ; champ dans les briefs ; rubrique dans le modèle d'ADR.

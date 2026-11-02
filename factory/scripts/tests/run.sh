@@ -709,6 +709,19 @@ lire_depot "$depot" factory/prompts/report-format.md | grep -q "^## Code écrit 
 lire_depot "$depot" factory/prompts/code-reviewer.md | grep -q "écrit à la main.*constat IMPORTANT" && ok "reviewer : équivalent injustifié = IMPORTANT" || ko "reviewer : gravité du constat framework"
 lire_depot "$depot" factory/templates/AGENTS.md | grep -q "Le framework d'abord" && lire_depot "$depot" factory/templates/docs/adr/0000-template.md | grep -q "Mécanismes du framework" && ok "modèles AGENTS.md et ADR : règle présente" || ko "modèles AGENTS.md et ADR : règle absente"
 
+echo "référence de code (documentation)"
+guide_java=$(lire_depot "$depot" factory/stacks/java-maven/README.md)
+for motif in "Spring d'abord, JHipster comme modèle" "raw.githubusercontent.com/jhipster/.*/v[0-9]" "Pas de générateur, pas de clone" "Sans frontend" "| Angular |" "| React |" "| Vue |" "Session et CSRF" "jhipster-framework"; do
+  printf '%s\n' "$guide_java" | grep -q "$motif" && ok "guide java : $motif" || ko "guide java : $motif absent"
+done
+lire_depot "$depot" factory/templates/AGENTS.md | grep -q "La référence de code" && lire_depot "$depot" factory/templates/docs/adr/0000-template.md | grep -q "^### Référence de code$" && ok "modèles AGENTS.md et ADR : référence de code" || ko "modèles AGENTS.md et ADR : référence de code absente"
+lire_depot "$depot" factory/prompts/developer.md | grep -q "factory/stacks/<stack>/README.md" && ok "developer.md renvoie au guide de la stack" || ko "developer.md : renvoi au guide de la stack absent"
+lire_depot "$depot" factory/prompts/report-format.md | grep -q "^## Alignement sur la référence$" && lire_depot "$depot" factory/skills/deliver/SKILL.md | grep -q "Alignement sur la référence" && ok "alignement du rapport contrôlé par /deliver" || ko "alignement du rapport non contrôlé par /deliver"
+lire_depot "$depot" factory/prompts/code-reviewer.md | grep -q "sans raison est un constat IMPORTANT" && ok "reviewer : écart à la référence sans raison = IMPORTANT" || ko "reviewer : gravité de l'écart à la référence"
+for f in factory/prompts/briefs/developer.md factory/prompts/briefs/reviewer.md; do
+  lire_depot "$depot" "$f" | grep -q "Référence" && ok "$f : champ référence" || ko "$f : champ référence absent"
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

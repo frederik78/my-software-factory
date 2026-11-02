@@ -1,5 +1,13 @@
 # Historique des versions
 
+## 1.11.0
+- Règle « Le framework d'abord » : avant d'écrire un mécanisme transversal, chercher ce que fournit le framework dans la version utilisée et lire le code de la référence nommée par l'ADR. Un équivalent à la main se justifie par un critère du PRD ou une mesure.
+- Contrôle à chaque étape : section « Code écrit à la place du framework » du rapport du développeur, vérifiée par `/deliver` ; section « Framework » de la revue, où un équivalent injustifié est un constat IMPORTANT ; champ dans les briefs ; rubrique dans le modèle d'ADR.
+- `stacks/java-maven/README.md` : table des mécanismes Spring et de la référence JHipster à consulter.
+- `LESSONS.md` : leçon n° 26.
+- Tests : 273 vérifications.
+- Migration : remplacer `factory/`, relancer `./factory/init-projet.sh`, puis reprendre la ligne « Le framework d'abord » dans `AGENTS.md` (`diff factory/templates/AGENTS.md AGENTS.md`), qui n'est pas écrasé.
+
 ## 1.10.0
 - Modèle et effort des agents configurables : `AGENT_MODELE` (`opus` par défaut) et `AGENT_EFFORT` (`low` par défaut), aux trois niveaux habituels (`.factory.conf`, `.factory.local.conf`, `FACTORY_*`). `sync-claude.sh` les écrit dans les enveloppes `.claude/agents/`. Valeur vide : l'agent hérite de la session. L'en-tête d'un prompt l'emporte pour son rôle.
 - Sécurité : une valeur hors format est refusée (code 64), sans modifier les enveloppes, pour qu'elle n'ajoute aucun champ à l'en-tête YAML.

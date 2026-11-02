@@ -47,7 +47,7 @@ src/main/resources/config/liquibase/   master.xml et changelogs
 Le choix d'authentification dépend du client : un jeton Bearer sans état convient à une API sans frontend, une session avec CSRF actif à une application web servie au navigateur.
 
 ## Sécurité : partir de ce que Spring fournit
-Avant d'écrire un mécanisme à la main, lire ces points dans la version utilisée et dans le modèle JHipster (`generators/spring-boot/templates/src/main/java/_package_/config/SecurityConfiguration_imperative.java.ejs`, dépôt `jhipster/generator-jhipster`). JHipster 9 sert de référence de lecture, sans générateur ni dépendance.
+Application de la règle « Le framework d'abord » : avant d'écrire un mécanisme à la main, lire ces points dans la version utilisée et dans le modèle JHipster (`generators/spring-boot/templates/src/main/java/_package_/config/SecurityConfiguration_imperative.java.ejs`, dépôt `jhipster/generator-jhipster`). JHipster 9 sert de référence de lecture, sans générateur ni dépendance.
 
 | Besoin | Commencer par |
 |---|---|

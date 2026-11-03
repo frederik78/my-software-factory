@@ -1,6 +1,6 @@
 # Historique des versions
 
-## 1.13.1
+## 1.14.0
 - Correctif : `criteres-sans-test.sh` répondait `OK` pour n'importe quelle mention dans le dossier de tests. Une Javadoc citant un critère masquait le retrait de son seul test. Seuls comptent maintenant le nom ou le titre d'une déclaration de test en Java, Kotlin, Python ou Node ; les limites restantes sont dans l'en-tête du script.
 - **Changement de comportement** : un critère cité seulement dans un commentaire, une chaîne ou un fichier de données passe à `MANQUE`, et le script répond 1 ; une fonction Python sans préfixe `test` ou une méthode Java privée aussi. Un projet dans un autre langage voit tous ses critères à `MANQUE`.
 - `LESSONS.md` : leçon n° 29.

@@ -19,7 +19,7 @@ Langue : les classes techniques sont impérativement en anglais ; une classe tec
 Preuve : la preuve avant / après du développeur est-elle présente et vérifiable (relance la commande) pour chaque critère ?
 
 Tests : chaque critère CA/CS de l'issue a-t-il un test dont le nom contient son identifiant (lance `scripts/criteres-sans-test.sh` pour l'issue) ?
-Pour chaque test qui protège un garde-fou (borne, validation, message d'erreur, contrôle de sécurité), fais une **mutation** dans une copie jetable hors du dépôt (retirer ou décaler la garde, faire
+Pour les tests des garde-fous (borne, validation, message d'erreur, contrôle de sécurité) **nouveaux ou modifiés dans cette passe**, 8 mutations au plus, en commençant par les plus risqués (sécurité, perte de données) ; liste dans le rapport ceux qui restent non vérifiés, sans les lancer. Fais chaque **mutation** dans une copie jetable hors du dépôt (retirer ou décaler la garde, faire
 recopier l'entrée dans le message) : le test doit échouer vite et proprement. Sous macOS il n'y a pas de `timeout` : `perl -e 'alarm 20; exec @ARGV' <commande>`. Un message d'erreur doit se vérifier par égalité exacte.
 Les assertions sont-elles réelles (pas de test tautologique, pas de valeur attendue recalculée comme le code) ? Un test « passé d'emblée » protège-t-il
 un vrai comportement ? Aucun test supprimé, désactivé ou affaibli sans justification ; aucun `sleep` fragile ; aucun service externe réel.

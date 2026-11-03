@@ -68,9 +68,15 @@ case "$commande" in *'"$@"'*|*'$@'*) ;; *) commande="$commande \"\$@\"" ;; esac
 bash -c "$commande" verify-clean ${mvn_args[@]+"${mvn_args[@]}"} >"$journal" 2>&1
 code=$?
 
-tests="$(grep -E '^\[(INFO|ERROR|WARNING)\] Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$' "$journal" | tail -1 | sed -E 's/^\[[A-Z]+\] //')"
+# Maven : une ligne de total par module et par greffon (surefire, failsafe) ; on les additionne pour qu'aucun test ignoré ne se perde.
+tests="$(grep -E '^\[(INFO|ERROR|WARNING)\] Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$' "$journal" | sed -E 's/[^0-9]+/ /g' | awk 'NF { t += $1; f += $2; e += $3; s += $4; n = 1 } END { if (n) printf "Tests run: %d, Failures: %d, Errors: %d, Skipped: %d\n", t, f, e, s }')"
 if [ -z "$tests" ]; then
   tests="$(grep -E '^Ran [0-9]+ tests? in ' "$journal" | tail -1)"
+  # unittest : la ligne suivante (« OK », « OK (skipped=2) », « FAILED (…) ») porte le nombre de tests ignorés.
+  if [ -n "$tests" ]; then
+    verdict="$(grep -E '^(OK|FAILED)( \(.*\))?$' "$journal" | tail -1)"
+    [ -z "$verdict" ] || tests="$tests ; $verdict"
+  fi
   [ -z "$tests" ] && tests="$(grep -E '^=+ .*(passed|failed).* =+$|^[0-9]+ (passed|failed)' "$journal" | tail -1)"
   [ -z "$tests" ] && tests="$(grep -E '^TESTS (OK : [0-9]+ vérifications|EN ECHEC : [0-9]+ sur [0-9]+)$' "$journal" | tail -1)"
 fi

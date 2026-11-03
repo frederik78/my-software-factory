@@ -397,6 +397,70 @@ restes="$(ls dashboard.html.* 2>/dev/null)"
 [ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
 cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours dashboard.html*
 
+echo "fin-issue.sh"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+fin_projet() { # dépôt git propre ; .factory-verify = <commande> ; un test ca10 dans src/test
+  printf '%s\n' "$1" > .factory-verify; printf 'void ca10_x() {}\n' > src/test/A.java
+  git add -A >/dev/null; git -c user.name=t -c user.email=t@t commit -qm "etat $RANDOM" --allow-empty
+}
+git init -q .; printf 'args.txt\n' > .gitignore
+issue_id "$p" 001-01 "En cours" docs/prd/001-m.md "[CA-10]" "[]"
+issue_id "$p" 001-02 "En cours" docs/prd/001-m.md "[CA-99]" "[]"
+maven() { printf "echo '[INFO] Tests run: %s, Failures: 0, Errors: 0, Skipped: %s'" "$1" "$2"; }
+fin_projet "$(maven 7 0)"; court="$(git rev-parse --short HEAD)"
+verifier_exact "fin-issue : dernière ligne de succès" 0 "FIN-ISSUE OK 001-01 $court : 7 tests, 0 échec, 0 ignoré" sh -c 'scripts/fin-issue.sh 001-01 2>&1 | tail -1; exit $(scripts/fin-issue.sh 001-01 >/dev/null 2>&1; echo $?)'
+verifier "fin-issue : commit vérifié complet affiché" 0 "Commit vérifié : $(git rev-parse HEAD)" scripts/fin-issue.sh 001-01
+verifier "fin-issue : critère manquant" 1 "FIN-ISSUE ECHEC : .*critère" scripts/fin-issue.sh 001-02
+verifier "fin-issue : issue inconnue = 64" 64 "Aucune issue" scripts/fin-issue.sh 999
+verifier "fin-issue : sans argument = 64" 64 "Usage" scripts/fin-issue.sh
+verifier "fin-issue : argument après l'issue sans -- = 64" 64 "Usage" scripts/fin-issue.sh 001-01 x
+fin_projet "exit 3"
+verifier "fin-issue : build rouge" 1 "FIN-ISSUE ECHEC : .*build" scripts/fin-issue.sh 001-01
+fin_projet "$(maven 7 6)"
+verifier "fin-issue : tests ignorés = échec" 1 "FIN-ISSUE ECHEC : 6 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+printf 'FIN_ISSUE_IGNORES_AUTORISES=6\n' > .factory.conf; git add -A; git -c user.name=t -c user.email=t@t commit -qm conf
+verifier "fin-issue : ignorés autorisés par la configuration" 0 "FIN-ISSUE OK 001-01 .* : 7 tests, 0 échec, 6 ignorés \(autorisés\)" scripts/fin-issue.sh 001-01
+printf 'FIN_ISSUE_IGNORES_AUTORISES=5\n' > .factory.conf; git add -A; git -c user.name=t -c user.email=t@t commit -qm conf
+verifier "fin-issue : plus d'ignorés que l'autorisation = échec (borne)" 1 "FIN-ISSUE ECHEC : 6 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+printf 'FIN_ISSUE_IGNORES_AUTORISES=abc\n' > .factory.conf; git add -A; git -c user.name=t -c user.email=t@t commit -qm conf
+verifier "fin-issue : autorisation invalide = 64" 64 "FIN_ISSUE_IGNORES_AUTORISES invalide" scripts/fin-issue.sh 001-01
+git rm -qf .factory.conf; git -c user.name=t -c user.email=t@t commit -qm conf
+fin_projet "echo bonjour"
+verifier "fin-issue : nombre illisible = échec dit clairement" 1 "FIN-ISSUE ECHEC : nombre de tests ignorés illisible" scripts/fin-issue.sh 001-01
+printf 'FIN_ISSUE_IGNORES_AUTORISES=inconnu\n' > .factory.conf; git add -A; git -c user.name=t -c user.email=t@t commit -qm conf
+verifier "fin-issue : illisible autorisé explicitement" 0 "FIN-ISSUE OK 001-01 .* : tests non comptés, ignorés inconnus \(autorisé\)" scripts/fin-issue.sh 001-01
+git rm -qf .factory.conf; git -c user.name=t -c user.email=t@t commit -qm conf
+fin_projet "$(maven 0 0)"
+verifier "fin-issue : zéro test = échec" 1 "FIN-ISSUE ECHEC : aucun test" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 5 passed, 2 skipped in 0.1s ='"
+verifier "fin-issue : ignorés lus chez pytest" 1 "FIN-ISSUE ECHEC : 2 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Ran 4 tests in 0.1s'; echo 'OK (skipped=1)'"
+verifier "fin-issue : ignorés lus chez unittest" 1 "FIN-ISSUE ECHEC : 1 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Ran 4 tests in 0.1s'; echo OK"
+verifier "fin-issue : unittest sans ignoré" 0 "FIN-ISSUE OK 001-01 .* : 4 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo 'TESTS OK : 9 vérifications'"
+verifier "fin-issue : suite de la factory" 0 "FIN-ISSUE OK 001-01 .* : 9 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo '[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 2'; echo '[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0'"
+verifier "verify-clean : Maven, les résumés de plusieurs modules sont additionnés" 0 "Tests : Tests run: 8, Failures: 0, Errors: 0, Skipped: 2" scripts/verify-clean.sh
+verifier "fin-issue : ignorés d'un premier module vus" 1 "FIN-ISSUE ECHEC : 2 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+ecrit="$p/args.txt"
+fin_projet "printf '[%s]\n' \"\$@\" > '$ecrit'; $(maven 1 0)"
+verifier "fin-issue : argument avec espaces après --" 0 "FIN-ISSUE OK" scripts/fin-issue.sh 001-01 -- "-Dessai.chrome=/A B/Google Chrome"
+[ "$(cat args.txt)" = "[-Dessai.chrome=/A B/Google Chrome]" ] && ok "fin-issue : l'argument arrive entier" || ko "fin-issue : l'argument arrive entier" "$(cat args.txt)"
+printf 'FIN_ISSUE_ARGUMENTS=-Dx=/A B/C D|-Pessai\n' > .factory.local.conf; printf '.factory.local.conf\n' >> .gitignore; git add -A; git -c user.name=t -c user.email=t@t commit -qm conf
+verifier "fin-issue : arguments de la configuration" 0 "FIN-ISSUE OK" scripts/fin-issue.sh 001-01 -- -Z
+[ "$(cat args.txt)" = "[-Dx=/A B/C D]
+[-Pessai]
+[-Z]" ] && ok "fin-issue : configuration découpée sur |, espaces gardés, puis arguments de --" || ko "fin-issue : configuration découpée" "$(cat args.txt)"
+touch nouveau.txt
+verifier "fin-issue : fichier non suivi = échec (il serait testé sans être dans le commit)" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
+: > nouveau.txt; git add nouveau.txt
+verifier "fin-issue : modification non commitée = échec" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
+git -c user.name=t -c user.email=t@t commit -qm n
+: > .factory.local.conf # sans argument : la commande de build ci-dessous les recopierait dans la ligne de résumé
+fin_projet "git -C '$p' -c user.name=t -c user.email=t@t commit -q --allow-empty -m pendant; $(maven 1 0)"
+verifier "fin-issue : commit pendant la vérification = échec" 1 "FIN-ISSUE ECHEC : HEAD a changé" scripts/fin-issue.sh 001-01
+
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 mkdir -p docs/prd
@@ -745,7 +809,9 @@ AGENT_EFFORT=low
 MAX_ITERATIONS_REVUE=6
 NOTIFICATION_COMMANDE=
 NOTIFICATION_DESTINATAIRE=moi@example.com
-NOTIFICATION_EXPEDITEUR=" scripts/config-factory.sh
+NOTIFICATION_EXPEDITEUR=
+FIN_ISSUE_ARGUMENTS=
+FIN_ISSUE_IGNORES_AUTORISES=" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
 printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
 out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"

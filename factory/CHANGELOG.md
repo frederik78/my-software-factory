@@ -7,6 +7,7 @@
 - `scripts/fin-issue.sh <issue> [-- <arguments>]` : contrôle exécuté en fin d'issue, exigé par `/deliver` avant `Fait`, sur un arbre propre et le commit affiché. Un test ignoré sans décision, un nombre illisible ou un fichier non suivi non ignoré est un échec. Clés `FIN_ISSUE_ARGUMENTS` et `FIN_ISSUE_IGNORES_AUTORISES`.
 - `verify-clean.sh` : additionne les résumés Maven (plusieurs modules ou greffons, seul le dernier était lu) et ajoute le verdict de unittest au résumé.
 - `MAX_ITERATIONS_REVUE` passe de 5 à 3 par défaut, car 5 relectures prennent trop de temps. Un projet existant garde la valeur de son `.factory.conf` ; pour adopter 3, il la change lui-même.
+- Vitesse : le relecteur ne mute que les garde-fous nouveaux ou modifiés de la passe, 8 au plus, et liste les autres ; le développeur lance des tests ciblés avant chaque commit intermédiaire, et `fin-issue.sh` complet avant son rapport.
 - `LESSONS.md` : leçon n° 30.
 - Migration : remplacer `factory/`, lancer `scripts/criteres-sans-test.sh --tous`, renommer les tests signalés, relancer `./factory/init-projet.sh` (lien `scripts/fin-issue.sh`), ajouter les clés `FIN_ISSUE_*` à `.factory.conf`, ignorer ou commiter les fichiers non suivis (`.vscode/` par exemple), puis reprendre les lignes `criteres-sans-test` et `fin-issue` dans `AGENTS.md`.
 

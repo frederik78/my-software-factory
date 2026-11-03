@@ -80,7 +80,7 @@ issue_id() { # issue_id <projet> <id> <statut> <prd> <criteres> <depend_de>
 
 echo "criteres-sans-test.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
-printf '@Test void ca10_x() {}\n// CS-07\n' > src/test/A.java
+printf '@Test void ca10_x() {}\n@Test void cs07_y() {}\n' > src/test/A.java
 issue_id "$p" 001-01 "En cours" docs/prd/001-m.md "[CA-10, CS-07]" "[]"
 verifier "liste en ligne couverte" 0 "OK .*2 critère" scripts/criteres-sans-test.sh 001-01
 issue_id "$p" 001-02 "En cours" docs/prd/001-m.md "
@@ -96,9 +96,189 @@ verifier "--tous ignore les issues « À faire »" 1 "" scripts/criteres-sans-te
 out="$(scripts/criteres-sans-test.sh --tous 2>&1)"; printf '%s' "$out" | grep -q "001-05" && ko "--tous ne liste pas 001-05" "$out" || ok "--tous ne liste pas 001-05"
 verifier "sans argument = usage (64)" 64 "Usage" scripts/criteres-sans-test.sh
 verifier "issue inconnue = 64" 64 "Aucune issue" scripts/criteres-sans-test.sh 999
-rm -rf src/test; mkdir tests; printf 'ca10 CS-07\n' > tests/t.py
+rm -rf src/test; mkdir tests; printf 'def test_ca10_x():\n    pass\ndef test_cs07_y():\n    pass\n' > tests/t.py
 verifier "dossier de tests détecté automatiquement (tests/)" 0 "OK .*2 critère" scripts/criteres-sans-test.sh 001-01
 rm -rf tests; verifier "dossier de tests absent = 64" 64 "introuvable" scripts/criteres-sans-test.sh 001-01
+
+echo "criteres-sans-test.sh : seule une déclaration de test couvre un critère"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+issue_id "$p" 001-01 "En cours" docs/prd/001-m.md "[CA-10]" "[]"
+# critere_fichier <description> <code attendu> <fichier de tests> : le contenu du fichier vient de l'entrée standard.
+critere_fichier() {
+  rm -rf src/test; mkdir -p "$(dirname "src/test/$3")"; cat > "src/test/$3"
+  if [ "$2" -eq 0 ]; then verifier "$1" 0 "OK .*1 critère" scripts/criteres-sans-test.sh 001-01
+  else verifier "$1" 1 "MANQUE .*1/1 sans test : CA-10" scripts/criteres-sans-test.sh 001-01; fi
+}
+critere_fichier "mention : commentaire //" 1 A.java <<'EOF'
+// CA-10
+@Test void autre() {}
+EOF
+critere_fichier "mention : Javadoc /** */" 1 A.java <<'EOF'
+/** Couvre ca10_x, voir CA-10. */
+class A {
+  /**
+   * CA-10
+   * void ca10_x() {
+   */
+  @Test void autre() {}
+}
+EOF
+critere_fichier "mention : commentaire #" 1 t.py <<'EOF'
+# CA-10
+def test_autre():
+    pass
+EOF
+critere_fichier "mention : docstring Python sur plusieurs lignes" 1 t.py <<'EOF'
+def test_autre():
+    """Vérifie un cas.
+
+    CA-10 : ca10_x
+    """
+EOF
+critere_fichier "mention : message d'assertion Java" 1 A.java <<'EOF'
+@Test void autre() { assertEquals(1, x, "CA-10"); }
+EOF
+critere_fichier "mention : message d'assertion Python" 1 t.py <<'EOF'
+def test_autre():
+    assert x == 1, "CA-10"
+EOF
+critere_fichier "mention : message d'assertion sur la ligne d'un test Node" 1 a.test.js <<'EOF'
+it('autre', () => expect(x, 'CA-10').toBe(1));
+EOF
+critere_fichier "mention : chaîne de test ordinaire" 1 a.test.ts <<'EOF'
+const id = "CA-10";
+foo('ca10');
+EOF
+critere_fichier "mention : chaîne qui contient une déclaration" 1 A.java <<'EOF'
+String s = "void ca10_x() {";
+log("@DisplayName(\"CA-10\")");
+EOF
+critere_fichier "mention : commentaire en fin de déclaration" 1 A.java <<'EOF'
+@Test void autre() {} // CA-10
+EOF
+critere_fichier "mention : fichier .md du dossier de tests" 1 notes.md <<'EOF'
+void ca10_x() {
+def test_ca10():
+it('CA-10', x)
+EOF
+critere_fichier "mention : fichier .json du dossier de tests" 1 data.json <<'EOF'
+{ "critere": "CA-10", "test": "void ca10_x(" }
+EOF
+critere_fichier "ligne commentée : // void ca10_x() {" 1 A.java <<'EOF'
+// void ca10_x() {
+EOF
+critere_fichier "ligne commentée : /* class Ca10Test" 1 A.java <<'EOF'
+/* class Ca10Test {
+EOF
+critere_fichier "ligne commentée : * @DisplayName" 1 A.java <<'EOF'
+ * @DisplayName("CA-10")
+EOF
+critere_fichier "ligne commentée : # def test_ca10" 1 t.py <<'EOF'
+    # def test_ca10():
+EOF
+critere_fichier "ligne commentée : // it('CA-10')" 1 a.test.js <<'EOF'
+  // it('CA-10', () => {});
+EOF
+critere_fichier "non déclaration : méthode Java privée (auxiliaire, jamais un test)" 1 A.java <<'EOF'
+private void ca10_x() {}
+EOF
+critere_fichier "non déclaration : fonction Python sans préfixe test" 1 t.py <<'EOF'
+def ca10_aide():
+    pass
+EOF
+critere_fichier "non déclaration : classe Python sans préfixe Test" 1 t.py <<'EOF'
+class Ca10Aide:
+    pass
+EOF
+critere_fichier "non déclaration : it.todo et it.skip" 1 a.test.js <<'EOF'
+it.todo('CA-10');
+it.skip('CA-10', () => {});
+EOF
+critere_fichier "déclaration : classe Java" 0 Ca10Test.java <<'EOF'
+public final class Ca10Test {
+EOF
+critere_fichier "déclaration : méthode Java" 0 A.java <<'EOF'
+    void ca10_x() {
+EOF
+critere_fichier "déclaration : méthode Java annotée, sur une ligne" 0 A.java <<'EOF'
+    @Test @Timeout(value = 5) public void CA_10_x() throws Exception {
+EOF
+critere_fichier "déclaration : @DisplayName" 0 A.java <<'EOF'
+    @DisplayName("CA-10 : la somme") 
+EOF
+critere_fichier "déclaration : @DisplayName devant la méthode" 0 A.java <<'EOF'
+    @DisplayName("CA 10") @Test void autre() {}
+EOF
+critere_fichier "déclaration : méthode après un @DisplayName sur la même ligne" 0 A.java <<'EOF'
+    @DisplayName("autre") @Test void ca10_x() {}
+EOF
+critere_fichier "déclaration : classe Kotlin" 0 A.kt <<'EOF'
+internal class Ca10Test {
+EOF
+critere_fichier "déclaration : fonction Kotlin" 0 A.kt <<'EOF'
+    @Test fun ca10_x() = runTest {
+EOF
+critere_fichier "déclaration : fonction Kotlin entre backticks" 0 A.kt <<'EOF'
+    fun `CA-10 la somme est juste`() {
+EOF
+critere_fichier "déclaration : @DisplayName en Kotlin" 0 A.kt <<'EOF'
+    @DisplayName("ca10 la somme")
+EOF
+critere_fichier "déclaration : def test_ Python" 0 t.py <<'EOF'
+def test_ca10_x():
+EOF
+critere_fichier "déclaration : async def test_ Python indenté" 0 t.py <<'EOF'
+    async def test_ca_10(self):
+EOF
+critere_fichier "déclaration : def testCa10 Python" 0 t.py <<'EOF'
+    def testCa10(self):
+EOF
+critere_fichier "déclaration : class TestCa10 Python" 0 t.py <<'EOF'
+class TestCa10:
+EOF
+critere_fichier "déclaration : class TestCa10 Python avec parent" 0 t.py <<'EOF'
+class TestCa10Somme(unittest.TestCase):
+EOF
+critere_fichier "déclaration : it, guillemets simples" 0 a.test.js <<'EOF'
+  it('CA-10 : la somme', () => {});
+EOF
+critere_fichier "déclaration : test, guillemets doubles" 0 a.test.ts <<'EOF'
+test("ca10 la somme", async () => {});
+EOF
+critere_fichier "déclaration : describe, backticks" 0 a.spec.mjs <<'EOF'
+describe(`CA 10`, () => {});
+EOF
+critere_fichier "déclaration : it.each sur une ligne" 0 a.test.tsx <<'EOF'
+it.each([1, 2])('CA-10 %s', (n) => {});
+EOF
+critere_fichier "déclaration : test.each, table entre backticks" 0 a.test.js <<'EOF'
+test.each`a${1}`("CA-10 $a", () => {});
+EOF
+critere_fichier "déclaration : it.each sur plusieurs lignes" 0 a.test.js <<'EOF'
+it.each([
+  [1],
+])(`CA-10 %s`, (n) => {});
+EOF
+critere_fichier "déclaration : test.describe, await" 0 a.spec.ts <<'EOF'
+await test.describe('CA-10', () => {});
+EOF
+critere_fichier "déclaration : méthode Java au nom accentué" 0 A.java <<'EOF'
+    void ca10_leJsonDuReçuEstComplet() {
+EOF
+critere_fichier "déclaration : classe Java au nom accentué" 0 A.java <<'EOF'
+class ReçuTest_ca10 extends Base {
+EOF
+critere_fichier "déclaration : fonction Python au nom accentué" 0 t.py <<'EOF'
+def test_reçu_ca10():
+EOF
+critere_fichier "motif : zéros de tête ignorés (ca010)" 0 A.java <<'EOF'
+void ca010_x() {
+EOF
+critere_fichier "motif : CA-1 n'est pas CA-10" 1 A.java <<'EOF'
+void ca1_x() {
+void ca100_x() {
+void xca10_x() {
+EOF
 
 echo "etat-issues.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1

@@ -37,6 +37,7 @@ fi
 
 # noms_de_tests : un nom ou un titre de test par ligne. Chaque motif s'ancre en début de ligne : un commentaire ne peut donc pas correspondre.
 # sed plutôt que grep pour ne garder que le nom : le reste de la ligne (message d'assertion, commentaire final) ne compte pas.
+# Crochets écrits }{ et non {} : GNU find refuse un second {} dans les arguments de -exec ... +.
 # LC_ALL=C : un octet hors UTF-8 dans un fichier de tests ferait échouer sed sous macOS ; les noms acceptent les lettres accentuées (Java, Kotlin, Python). Le préfixe test est retiré pour lire TestCa10 et testCa10.
 noms_de_tests() {
   local jvm='^[[:space:]]*((@[A-Za-z0-9_.]+(\([^)]*\))?|public|protected|internal|static|final|abstract|open|sealed|override|suspend|data|inner)[[:space:]]+)*'
@@ -44,8 +45,8 @@ noms_de_tests() {
   {
     find "$tests" -type f \( -name '*.java' -o -name '*.kt' \) -exec env LC_ALL=C sed -nE \
       -e h \
-      -e "s/${jvm}class[[:space:]]+([^[:space:](){}:<]+).*/\\4/p" -e g \
-      -e "s/${jvm}(void|fun)[[:space:]]+([^[:space:](){}.\`]+)[[:space:]]*\\(.*/\\5/p" -e g \
+      -e "s/${jvm}class[[:space:]]+([^[:space:]()}{:<]+).*/\\4/p" -e g \
+      -e "s/${jvm}(void|fun)[[:space:]]+([^[:space:]()}{.\`]+)[[:space:]]*\\(.*/\\5/p" -e g \
       -e "s/${jvm}fun[[:space:]]+\`([^\`]*)\`.*/\\4/p" -e g \
       -e "s/${jvm}@DisplayName\\(\"([^\"]*)\".*/\\4/p" {} +
     find "$tests" -type f -name '*.py' -exec env LC_ALL=C sed -nE \

@@ -14,7 +14,7 @@ Package racine : `<...>`.
 - `<commande de tests>` : tests
 - `<commande de vérification complète>` : tests (dont tests d'architecture) + analyse statique de sécurité ; c'est exactement ce que lance la CI
 - `scripts/verify-clean.sh` : la même vérification dans une copie propre du dépôt, hors IDE (à utiliser par les agents et chaque fois qu'un IDE est ouvert)
-- `scripts/criteres-sans-test.sh <issue>` : critères CA/CS d'une issue qu'aucun test ne mentionne
+- `scripts/criteres-sans-test.sh <issue>` : critères CA/CS d'une issue qu'aucune déclaration de test ne nomme (un commentaire ou une chaîne ne compte pas)
 - `scripts/couverture-prd.sh <prd>` : chaque critère du PRD est couvert par exactement une issue
 - `scripts/etat-issues.sh [--prochaine]` : état des issues (lu dans leurs en-têtes)
 - `scripts/dashboard.sh [--sortie <fichier>] [--attente <s>] [--boucle <s>]` : dashboard HTML statique (`dashboard.html`, non versionné) des besoins et des issues par statut ; sans modèle ni dépendance

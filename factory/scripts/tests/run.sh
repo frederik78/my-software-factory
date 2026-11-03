@@ -536,7 +536,7 @@ tail -1 AGENTS.md | grep -q MODIFIÉ && ok "AGENTS.md modifié est conservé" ||
 [ ! -e factory/prompts/orchestrator.md ] && [ ! -e .claude/agents/orchestrator.md ] && ok "pas de prompt ni d'agent orchestrateur (rôle de la session principale)" || ko "pas de prompt ni d'agent orchestrateur"
 [ -L scripts/dashboard.sh ] && [ "$(readlink scripts/dashboard.sh)" = "../factory/scripts/dashboard.sh" ] && [ -x scripts/dashboard.sh ] && ok "init : scripts/dashboard.sh lié (lien relatif vers factory/scripts/)" || ko "init : lien scripts/dashboard.sh" "$(ls -l scripts/ 2>&1 | tr '\n' '|')"
 grep -qx 'dashboard.html' .gitignore && ok "init : dashboard.html dans le .gitignore créé" || ko "init : dashboard.html dans le .gitignore" "$(grep -n html .gitignore)"
-[ -f .factory.conf ] && grep -qx 'MAX_ITERATIONS_REVUE=5' .factory.conf && grep -qx 'NOTIFICATION_COMMANDE=' .factory.conf && grep -qx 'NOTIFICATION_DESTINATAIRE=' .factory.conf && grep -qx 'NOTIFICATION_EXPEDITEUR=' .factory.conf && ok "init : .factory.conf créé (5 itérations, notification vide)" || ko "init : .factory.conf créé" "$(cat .factory.conf 2>&1 | grep -v '^#' | tr '\n' '|')"
+[ -f .factory.conf ] && grep -qx 'MAX_ITERATIONS_REVUE=3' .factory.conf && grep -qx 'NOTIFICATION_COMMANDE=' .factory.conf && grep -qx 'NOTIFICATION_DESTINATAIRE=' .factory.conf && grep -qx 'NOTIFICATION_EXPEDITEUR=' .factory.conf && ok "init : .factory.conf créé (5 itérations, notification vide)" || ko "init : .factory.conf créé" "$(cat .factory.conf 2>&1 | grep -v '^#' | tr '\n' '|')"
 grep -qx '.factory.local.conf' .gitignore && ok "init : .factory.local.conf dans le .gitignore créé" || ko "init : .factory.local.conf dans le .gitignore"
 rappel="Notifications : renseignez NOTIFICATION_COMMANDE et NOTIFICATION_DESTINATAIRE dans .factory.local.conf (non versionné) pour être prévenu d'une issue bloquée en revue."
 printf '%s\n' "$(./factory/init-projet.sh 2>&1)" | grep -qxF "$rappel" && ok "init : rappel de renseigner .factory.local.conf" || ko "init : rappel .factory.local.conf"
@@ -776,7 +776,7 @@ verifier "couverture-prd.sh et criteres-sans-test.sh lisent les issues avec _tem
 echo "config-factory.sh (configuration du projet : .factory.conf, .factory.local.conf, variables FACTORY_*)"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 invalide="MAX_ITERATIONS_REVUE invalide : entier >= 1 attendu (voir .factory.conf, .factory.local.conf, FACTORY_MAX_ITERATIONS_REVUE)."
-verifier_exact "sans aucune configuration : 5 itérations par défaut" 0 "5" scripts/config-factory.sh --max-iterations
+verifier_exact "sans aucune configuration : 3 itérations par défaut" 0 "3" scripts/config-factory.sh --max-iterations
 printf '# Commentaire\n\n  # commentaire indenté\nMAX_ITERATIONS_REVUE=7\nNOTIFICATION_COMMANDE=\n' > .factory.conf
 verifier_exact ".factory.conf lu (commentaires et lignes vides ignorés)" 0 "7" scripts/config-factory.sh --max-iterations
 printf 'MAX_ITERATIONS_REVUE=2\n' > .factory.local.conf

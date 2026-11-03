@@ -100,7 +100,7 @@ La session principale :
 2. lance le **developer** avec un brief complet (TDD, un test RED avant chaque code, tests nommés d'après les critères) ;
 3. **recoupe** son rapport : `git log`, arbre propre, `scripts/verify-clean.sh`, `scripts/criteres-sans-test.sh` ;
 4. lance le **code-reviewer** (build en copie propre, mutations des tests, OWASP), et archive son rapport dans `docs/reviews/<issue>.md` ;
-5. renvoie les points BLOQUANT et IMPORTANT au développeur (`MAX_ITERATIONS_REVUE` itérations au plus, 5 par défaut, voir `.factory.conf`) ; vous consulte pour les décisions de fond ; au-delà, s'arrête et vous remonte le blocage, avec un courriel par `scripts/notifier.sh` (si configuré) seulement s'il reste au moins un BLOQUANT ;
+5. renvoie les points BLOQUANT et IMPORTANT au développeur (`MAX_ITERATIONS_REVUE` itérations au plus, 3 par défaut, voir `.factory.conf`) ; vous consulte pour les décisions de fond ; au-delà, s'arrête et vous remonte le blocage, avec un courriel par `scripts/notifier.sh` (si configuré) seulement s'il reste au moins un BLOQUANT ;
 6. passe l'issue à `Fait` si la définition de fini est remplie, puis vous fait un compte rendu court (commits, résultats chiffrés, décisions en attente).
 
 Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas sont listées dans les Notes de l'issue : vous les tranchez, puis elles entrent dans le PRD.
@@ -178,7 +178,7 @@ Une clé présente avec une valeur **vide** l'emporte aussi sur les niveaux inf�
 |---|---|---|
 | `AGENT_MODELE` | `opus` | Modèle des agents `spec-writer`, `developer` et `code-reviewer` : alias ou identifiant complet. Vide : hérite de la session. L'en-tête d'un prompt l'emporte pour ce rôle. Relancer `./factory/sync.sh` après un changement |
 | `AGENT_EFFORT` | `low` | Effort de raisonnement de ces agents : `low`, `medium`, `high`, `xhigh` ou `max`. Vide : hérite de la session. Mêmes règles que `AGENT_MODELE` |
-| `MAX_ITERATIONS_REVUE` | 5 | Allers-retours développeur <-> relecteur pour une issue (`/deliver`, et corrections après `/code-review`) ; au-delà, arrêt, notification, blocage remonté |
+| `MAX_ITERATIONS_REVUE` | 3 | Allers-retours développeur <-> relecteur pour une issue (`/deliver`, et corrections après `/code-review`) ; au-delà, arrêt, notification, blocage remonté |
 | `NOTIFICATION_COMMANDE` | vide | Commande d'envoi (`msmtp -a <compte>`, `sendmail -oi`, ou le chemin d'un script qui appelle une API avec curl ; jamais l'option `-t` de sendmail ou de mail, qui selon l'implémentation ignore ou double le destinataire passé en argument) ; reçoit le message sur son entrée standard et le destinataire en dernier argument |
 | `NOTIFICATION_DESTINATAIRE` | vide | Votre adresse (dans `.factory.local.conf`) |
 | `NOTIFICATION_EXPEDITEUR` | vide | Facultatif : en-tête From |
@@ -335,7 +335,7 @@ Messages indicatifs à écrire dans Claude Code, dans l'ordre (adaptez les noms)
 | **Un besoin change ou s'ajoute** | Vous modifiez `backlog.md` et le PRD (ou demandez à `spec-writer`) ; les nouveaux critères prennent de **nouveaux numéros** ; créez ou modifiez des issues ; `scripts/couverture-prd.sh` doit répondre OK. |
 | **Il faut changer l'architecture ou la stack** | Nouvel ADR (l'ancien passe à `remplacé par NNNN`), issue de refactor, tests d'architecture mis à jour avant le code. Jamais en cours d'issue. |
 | **`/deliver` interrompu** | Relancez `/deliver <issue>` : l'issue est `En cours`, la branche existe, elle est reprise. |
-| **`MAX_ITERATIONS_REVUE` itérations de revue (5 par défaut) sans « APPROUVÉ »** | La session s'arrête et vous remonte le blocage ; s'il reste au moins un BLOQUANT, elle vous envoie aussi un courriel par `scripts/notifier.sh` (si `.factory.local.conf` le configure ; sinon elle vous le dit). S'il ne reste que des IMPORTANT, pas de courriel. Options : trancher le point, simplifier ou découper l'issue, ou assouplir le critère dans le PRD. |
+| **`MAX_ITERATIONS_REVUE` itérations de revue (3 par défaut) sans « APPROUVÉ »** | La session s'arrête et vous remonte le blocage ; s'il reste au moins un BLOQUANT, elle vous envoie aussi un courriel par `scripts/notifier.sh` (si `.factory.local.conf` le configure ; sinon elle vous le dit). S'il ne reste que des IMPORTANT, pas de courriel. Options : trancher le point, simplifier ou découper l'issue, ou assouplir le critère dans le PRD. |
 | **Décisions en attente** | Elles sont dans les Notes de l'issue (« Décisions en attente de l'utilisateur »). Vous tranchez ; vous modifiez le PRD (il est à vous) ; si le comportement change, ouvrez une issue de suivi. |
 | **Issue trop grosse** | La découper en plusieurs fichiers d'issue, répartir ses critères (un critère dans une seule issue), vérifier `couverture-prd.sh`. |
 | **Branches empilées** (issue qui dépend d'une branche non fusionnée) | La base est la pointe de la branche dont elle dépend ; fusionnez dans l'ordre des dépendances. |

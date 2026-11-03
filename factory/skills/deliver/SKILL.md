@@ -53,7 +53,7 @@ Lance le sous-agent `code-reviewer` avec le modèle `factory/prompts/briefs/revi
 confirmer, les points d'attention propres à l'issue, `scripts/verify-clean.sh` pour le build, **lecture seule**, et le format de rapport du reviewer.
 Écris son rapport tel quel dans `docs/reviews/<id-issue>.md` (une section datée « Itération n »).
 
-## 4. Corriger (`MAX_ITERATIONS_REVUE` itérations au plus, 5 par défaut, voir `.factory.conf`)
+## 4. Corriger (`MAX_ITERATIONS_REVUE` itérations au plus, 3 par défaut, voir `.factory.conf`)
 Lis la limite au début de la livraison : `scripts/config-factory.sh --max-iterations` (code 64 = valeur invalide : arrête-toi et dis-le à l'utilisateur). Une itération = une relecture
 du `code-reviewer` (étape 3) ; numérote-les dans `docs/reviews/<id-issue>.md`.
 Pour chaque constat, décide :

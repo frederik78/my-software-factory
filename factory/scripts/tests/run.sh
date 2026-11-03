@@ -389,7 +389,8 @@ rm -f dashboard.html; (umask 027 && scripts/dashboard.sh >/dev/null)
 # Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
 cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
 printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
-rm -f generation-en-cours; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+# Le cas --boucle plus haut est tué par SIGALRM, sans piège : il peut laisser son temporaire. À retirer ici, sinon ce cas échoue au hasard.
+rm -f generation-en-cours dashboard.html.*; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
 n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 restes="$(ls dashboard.html.* 2>/dev/null)"

@@ -82,8 +82,8 @@ Si le projet utilise un service de revue de PR (un agent tiers qui commente la P
 
 ## 5. Terminer : définition de fini
 L'issue passe `Fait` seulement si TOUT est vrai :
-- [ ] `scripts/verify-clean.sh` vert (tests et analyses configurées par le projet : tests d'architecture, analyse statique de sécurité), vérifié par toi après le dernier commit ;
-- [ ] `scripts/criteres-sans-test.sh <issue>` ne signale aucun critère ; RED constaté pour chacun, ou raison écrite ;
+- [ ] `scripts/fin-issue.sh <issue>` à `FIN-ISSUE OK`, lancé par toi après le dernier commit de code (build, analyses, critères, tests ignorés, arbre propre) ; sa dernière ligne est reprise dans les Notes de l'issue et dans la PR ; une exécution avant un commit de code ne vaut plus. Sans cette ligne, l'issue ne passe pas à `Fait` ;
+- [ ] RED constaté pour chaque critère, ou raison écrite ;
 - [ ] dernière revue `APPROUVÉ`, aucun BLOQUANT/IMPORTANT ouvert, rapport dans `docs/reviews/` ;
 - [ ] **preuve avant / après** présente pour chaque critère, relancée par toi ou par le relecteur (et reprise dans la description de la PR : `.github/pull_request_template.md`) ;
 - [ ] commits atomiques, messages conventionnels, rien de poussé ;

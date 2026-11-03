@@ -120,6 +120,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `/code-review` | Revue de la branche (standards et conformité à l'issue) |
 | `/tdd`, `/diagnosing-bugs`, `/research`, `/prototype` | À la demande |
 | `scripts/verify-clean.sh [--keep]` | Build complet dans une copie propre, hors IDE, limitée aux fichiers vus par Git |
+| `scripts/fin-issue.sh <issue> [-- <arguments>]` | Contrôle de fin d'issue, exigé avant `Fait` : une ligne `FIN-ISSUE OK` ou `FIN-ISSUE ECHEC` |
 | `scripts/criteres-sans-test.sh <issue>` | Critères d'une issue qu'aucune déclaration de test ne nomme (`--tous` : toutes les issues commencées) |
 | `scripts/couverture-prd.sh <prd>` | Chaque critère du PRD couvert par une seule issue |
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
@@ -148,6 +149,7 @@ Quatorze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une
 | Script | Question à laquelle il répond | Résultat |
 |---|---|---|
 | `scripts/verify-clean.sh` | « Le build est-il vert hors IDE ? » Copie le dépôt (fichiers vus par Git seulement), y lance la commande de vérification (`COMMANDE_VERIFY`, sinon `.factory-verify`, sinon `./mvnw` ou `./gradlew`), supprime la copie. `--keep` conserve la copie. | Tests lancés, analyse statique, `VERIFY OK` ou `VERIFY ECHEC` ; code de sortie = celui du build |
+| `scripts/fin-issue.sh <issue> [-- <arguments>]` | « Ce commit est-il vraiment fini ? » Arbre propre (un fichier non suivi non ignoré est un échec : `verify-clean.sh` le testerait sans qu'il soit dans le commit), build en copie propre, critères, tests ignorés (nombre lu pour Maven, pytest, unittest, suite de la factory ; illisible = échec) | `FIN-ISSUE OK <id> <commit> : n tests, 0 échec, 0 ignoré` (0), `FIN-ISSUE ECHEC : <raisons>` (1), erreur d'usage (64) |
 | `scripts/criteres-sans-test.sh <issue>` | « Chaque critère de l'issue a-t-il un test qui le nomme ? » (`--tous` : toutes les issues commencées). Seuls comptent le nom ou le titre d'une déclaration : classe, méthode, `@DisplayName` (Java, Kotlin), `def test_…`, `class Test…` (Python), `it(`, `test(`, `describe(` (Node) ; un commentaire, une chaîne ou un autre type de fichier ne compte pas | `OK` ou la liste des critères sans test ; une issue sans aucun critère est une erreur |
 | `scripts/couverture-prd.sh <prd>` | « Chaque critère du PRD est-il couvert par exactement une issue ? » | `OK`, ou critères sans issue, en double, ou inconnus du PRD |
 | `scripts/etat-issues.sh` | « Où en sont les issues ? » Lit leurs en-têtes ; `--statut S` filtre ; `--prochaine` donne la première issue prête (toutes ses dépendances sont `Fait`) | Tableau Markdown, ou un identifiant |
@@ -164,8 +166,8 @@ Quatorze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une
 | `scripts/lib-config.sh` | Bibliothèque partagée (à sourcer) : `config_valeur <clé> <défaut>` lit la configuration de la factory ligne à ligne, sans jamais sourcer ni évaluer les fichiers |
 | `factory/scripts/tests/run.sh` | Les vérifications des scripts ci-dessus, dans des dépôts jetables ; à relancer après toute modification d'un script |
 
-**Qui lance quoi** : vous, `init-projet.sh`, `sync.sh` et `nettoyer` après une fusion ; la session principale pendant `/deliver`, `etat-issues.sh`, `dashboard.sh`, `couverture-prd.sh`, `verify-clean.sh`, `criteres-sans-test.sh` et `worktree-issue.sh creer` ;
-les agents, `verify-clean.sh` (le développeur en fin de travail, le relecteur pour confirmer) et `criteres-sans-test.sh`.
+**Qui lance quoi** : vous, `init-projet.sh`, `sync.sh` et `nettoyer` après une fusion ; la session principale pendant `/deliver`, `etat-issues.sh`, `dashboard.sh`, `couverture-prd.sh`, `verify-clean.sh`, `criteres-sans-test.sh`, `fin-issue.sh` et `worktree-issue.sh creer` ;
+les agents, `fin-issue.sh` (le développeur avant son rapport), `verify-clean.sh` (le relecteur pour confirmer) et `criteres-sans-test.sh`.
 **Pourquoi des scripts** : ce qui se vérifie mécaniquement est confié à des scripts testés, pas au jugement d'un modèle ; la session ne croit jamais un rapport d'agent sans le recouper avec eux.
 
 ### Configuration du projet : limite des revues et notification
@@ -180,6 +182,8 @@ Une clé présente avec une valeur **vide** l'emporte aussi sur les niveaux inf�
 | `NOTIFICATION_COMMANDE` | vide | Commande d'envoi (`msmtp -a <compte>`, `sendmail -oi`, ou le chemin d'un script qui appelle une API avec curl ; jamais l'option `-t` de sendmail ou de mail, qui selon l'implémentation ignore ou double le destinataire passé en argument) ; reçoit le message sur son entrée standard et le destinataire en dernier argument |
 | `NOTIFICATION_DESTINATAIRE` | vide | Votre adresse (dans `.factory.local.conf`) |
 | `NOTIFICATION_EXPEDITEUR` | vide | Facultatif : en-tête From |
+| `FIN_ISSUE_ARGUMENTS` | vide | Arguments de build de `fin-issue.sh` propres au poste (dans `.factory.local.conf`), séparés par `\|`, espaces gardés : `-Dessai.chrome=/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` |
+| `FIN_ISSUE_IGNORES_AUTORISES` | vide | Nombre de tests ignorés admis, avec sa raison en commentaire ; `inconnu` admet un résumé sans nombre lisible (stack non reconnue). Vide : aucun |
 
 Les fichiers sont lus comme des lignes `CLÉ=valeur` (clés connues seulement, espaces tolérés autour de `=`), jamais exécutés. Les secrets (mot de passe SMTP, clé d'API) restent dans la configuration de l'outil d'envoi (`~/.msmtprc`, trousseau), jamais dans le dépôt.
 Vérifier : `scripts/config-factory.sh`, puis `scripts/notifier.sh --test`.
@@ -267,7 +271,7 @@ mon-projet/
 │   ├── reviews/   un rapport de revue par issue : NNN-NN.md
 │   ├── agents/    configuration lue par les skills (tracker d'issues, docs du domaine)
 │   └── lessons.md leçons du projet
-├── scripts/       liens vers factory/scripts/ (verify-clean, criteres-sans-test, couverture-prd, etat-issues, dashboard, config-factory, notifier)
+├── scripts/       liens vers factory/scripts/ (fin-issue, verify-clean, criteres-sans-test, couverture-prd, etat-issues, dashboard, config-factory, notifier)
 └── factory/       la factory (skills, prompts, scripts, modèles, stacks)
 ```
 

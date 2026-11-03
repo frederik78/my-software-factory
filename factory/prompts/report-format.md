@@ -17,7 +17,7 @@ Règles
 2 à 4 lignes : ce qui est livré et ce qui ne l'est pas.
 
 ## Vérification
-- Commande : scripts/verify-clean.sh
+- Commande : scripts/fin-issue.sh <issue> (dernière ligne recopiée)
 - Résultat : <tests lancés / échecs / erreurs / ignorés>, <analyse statique : nombre de défauts, si le projet en a une>, VERIFY OK|ECHEC
 - Tests avant -> après : <n> -> <n>
 

@@ -4,8 +4,10 @@
 - Correctif : `criteres-sans-test.sh` répondait `OK` pour n'importe quelle mention dans le dossier de tests. Une Javadoc citant un critère masquait le retrait de son seul test. Seuls comptent maintenant le nom ou le titre d'une déclaration de test en Java, Kotlin, Python ou Node ; les limites restantes sont dans l'en-tête du script.
 - **Changement de comportement** : un critère cité seulement dans un commentaire, une chaîne ou un fichier de données passe à `MANQUE`, et le script répond 1 ; une fonction Python sans préfixe `test` ou une méthode Java privée aussi. Un projet dans un autre langage voit tous ses critères à `MANQUE`.
 - `LESSONS.md` : leçon n° 29.
-- Tests : 340 vérifications (48 de plus).
-- Migration : remplacer `factory/`, lancer `scripts/criteres-sans-test.sh --tous`, renommer les tests signalés, puis reprendre la ligne `criteres-sans-test` dans `AGENTS.md`.
+- `scripts/fin-issue.sh <issue> [-- <arguments>]` : contrôle exécuté en fin d'issue, exigé par `/deliver` avant `Fait`, sur un arbre propre et le commit affiché. Un test ignoré sans décision, un nombre illisible ou un fichier non suivi non ignoré est un échec. Clés `FIN_ISSUE_ARGUMENTS` et `FIN_ISSUE_IGNORES_AUTORISES`.
+- `verify-clean.sh` : additionne les résumés Maven (plusieurs modules ou greffons, seul le dernier était lu) et ajoute le verdict de unittest au résumé.
+- `LESSONS.md` : leçon n° 30.
+- Migration : remplacer `factory/`, lancer `scripts/criteres-sans-test.sh --tous`, renommer les tests signalés, relancer `./factory/init-projet.sh` (lien `scripts/fin-issue.sh`), ajouter les clés `FIN_ISSUE_*` à `.factory.conf`, ignorer ou commiter les fichiers non suivis (`.vscode/` par exemple), puis reprendre les lignes `criteres-sans-test` et `fin-issue` dans `AGENTS.md`.
 
 ## 1.13.0
 - Règle « Langue du code » : les classes techniques sont impérativement en anglais. Dans `AGENTS.md`, `developer.md` et le guide java ; en revue, une classe technique dans une autre langue est un constat IMPORTANT.

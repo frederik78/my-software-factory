@@ -18,5 +18,5 @@ Corps : Objectif, Périmètre (dans / hors), Critères d'acceptation (renvoi au 
 
 ## État
 Pas d'index à tenir à la main (il dériverait) : l'état se lit dans les en-têtes avec `scripts/etat-issues.sh` (tableau Markdown ; `--statut "À faire"`
-pour filtrer ; `--prochaine` donne la première issue prête, dépendances `Fait`). `scripts/couverture-prd.sh <prd>` vérifie que chaque critère du PRD est
-couvert par exactement une issue ; `scripts/criteres-sans-test.sh <issue>` que chaque critère d'une issue a un test. `scripts/dashboard.sh` écrit une page HTML (`dashboard.html`, non versionnée) de l'état des besoins et des issues.
+pour filtrer ; `--prochaine` donne la première issue prête, dépendances `Fait`, pas déjà commencée sur sa branche). `scripts/couverture-prd.sh <prd>` vérifie que chaque critère du PRD est
+couvert par exactement une issue ; `scripts/criteres-sans-test.sh <issue>` que chaque critère d'une issue a un test. `scripts/dashboard.sh` écrit une page HTML (`dashboard.html`, non versionnée) de l'état des besoins et des issues ; le statut d'une issue y est le plus avancé entre le dossier courant et sa branche locale (champ `branche`), sans dire si un agent tourne encore ni voir le travail non commité.

@@ -397,6 +397,61 @@ restes="$(ls dashboard.html.* 2>/dev/null)"
 [ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
 cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours dashboard.html*
 
+echo "dashboard.sh : statut lu sur la branche de l'issue"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+git init -q -b develop .; printf 'dashboard.html\n' > .gitignore; rm -f docs/issues/[0-9]*.md
+gd_() { git -c user.name=t -c user.email=t@t "$@"; }
+issue_b() { # issue_b <id> <statut> <branche> [dépendances] : écrit l'issue
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\nbranche: %s\ndepend_de: [%s]\n---\n' "$1" "$1" "$2" "$3" "${4:-}" > "${DOSSIER_B:-docs/issues}/$1-x.md"
+}
+sur_branche() { # sur_branche <branche> <id> <statut> <branche de l'en-tête> : crée la branche avec ce statut d'issue
+  git branch "$1" >/dev/null || return 1
+  git worktree add -q "$racine_tmp/wt-$2" "$1" >/dev/null 2>&1
+  DOSSIER_B="$racine_tmp/wt-$2/docs/issues" issue_b "$2" "$3" "$4"
+  gd_ -C "$racine_tmp/wt-$2" add -A; gd_ -C "$racine_tmp/wt-$2" commit -qm "statut $2"
+  git worktree remove --force "$racine_tmp/wt-$2"
+}
+H1='feat/$(touch${IFS}pwn1)<script>alert(1)</script>'
+H2='a b $(touch pwn2) <script>alert(2)</script>'
+for ligne in "002-01|feat/a" "002-02|feat/absente" "002-03|feat/c" "002-04|feat/d" "002-05|feat/e" "002-06|$H1" "002-07|$H2" "002-08|--output=pwn3" "002-09|develop..feat/a" "002-10|feat/f" ; do
+  issue_b "${ligne%%|*}" "À faire" "${ligne#*|}"
+done
+issue_b 002-03 "En revue" feat/c
+issue_b 002-11 "À faire" "" 002-10
+gd_ add -A; gd_ commit -qm init
+sur_branche feat/a 002-01 "En cours" feat/a
+sur_branche feat/c 002-03 "À faire" feat/c
+git branch feat/d >/dev/null; git worktree add -q "$racine_tmp/wt-d" feat/d >/dev/null 2>&1; git -C "$racine_tmp/wt-d" rm -q docs/issues/002-04-x.md; gd_ -C "$racine_tmp/wt-d" commit -qm retire; git worktree remove --force "$racine_tmp/wt-d"
+sur_branche feat/e 002-05 '<b>Inventé</b>' feat/e
+sur_branche "$H1" 002-06 "En revue" "$H1"
+sur_branche feat/f 002-10 "Fait" feat/f
+colonne_de() { awk -v id="<strong>$1</strong>" '/<section id="issues"/ { s = 1 } s && /<h3/ { c = $0; sub(/<\/h3>.*/, "", c); sub(/.*>/, "", c); sub(/ \([0-9]+\)$/, "", c) } s && /class="carte/ && index($0, id) { print c; exit }' "$2"; }
+carte_de() { grep -F "<strong>$1</strong>" "$2" | grep -F 'class="carte'; }
+sortie_b="$racine_tmp/branche.html"
+verifier_exact "branche : aucune erreur, noms hostiles compris" 0 "$sortie_b" scripts/dashboard.sh --sortie "$sortie_b"
+[ "$(colonne_de 002-01 "$sortie_b")" = "En cours" ] && ok "branche : statut plus avancé sur la branche affiché" || ko "branche : statut plus avancé" "$(colonne_de 002-01 "$sortie_b")"
+grep -A3 '<section id="en-cours">' "$sortie_b" | grep -q '002-01' && ok "branche : l'encart En cours compte aussi ce statut" || ko "branche : encart En cours"
+attendu_a="$(git log -1 --format='%h' feat/a) du $(git log -1 --format='%cs' feat/a)"
+carte_de 002-01 "$sortie_b" | grep -qF "dernier commit : $attendu_a" && ok "branche : dernier commit (hash court et date) sur la carte" || ko "branche : dernier commit" "$(carte_de 002-01 "$sortie_b")"
+[ "$(colonne_de 002-02 "$sortie_b")" = "À faire" ] && ! carte_de 002-02 "$sortie_b" | grep -q 'dernier commit' && ok "branche absente : statut local, sans commit" || ko "branche absente"
+[ "$(colonne_de 002-03 "$sortie_b")" = "En revue" ] && ok "branche : statut local plus avancé conservé" || ko "statut local plus avancé" "$(colonne_de 002-03 "$sortie_b")"
+[ "$(colonne_de 002-04 "$sortie_b")" = "À faire" ] && carte_de 002-04 "$sortie_b" | grep -q 'dernier commit' && ok "fichier absent sur la branche : statut local, commit affiché" || ko "fichier absent sur la branche"
+[ "$(colonne_de 002-05 "$sortie_b")" = "À faire" ] && ! grep -q 'Inventé' "$sortie_b" && ok "statut inconnu sur la branche : statut local, valeur non écrite" || ko "statut inconnu sur la branche"
+[ "$(colonne_de 002-06 "$sortie_b")" = "En revue" ] && ok "branche au nom hostile mais valide : lue comme une donnée" || ko "branche hostile valide" "$(colonne_de 002-06 "$sortie_b")"
+[ "$(colonne_de 002-07 "$sortie_b")" = "À faire" ] && [ "$(colonne_de 002-08 "$sortie_b")" = "À faire" ] && [ "$(colonne_de 002-09 "$sortie_b")" = "À faire" ] && ! carte_de 002-09 "$sortie_b" | grep -q 'dernier commit' && ok "espaces, option ou intervalle dans le nom : statut local" || ko "noms invalides"
+[ ! -e pwn1 ] && [ ! -e pwn2 ] && [ ! -e pwn3 ] && [ ! -e '=pwn3' ] && ok "cs_ nom de branche hostile : rien n'est exécuté" || ko "cs_ exécution depuis un nom de branche"
+! grep -q 'alert' "$sortie_b" && ! grep -Eq '<script|<b>' "$sortie_b" && ok "cs_ nom de branche hostile : aucun HTML injecté" || ko "cs_ HTML injecté"
+carte_de 002-11 "$sortie_b" | grep -q 'marqueur-bloquee' && ok "dépendance Fait sur sa branche seule, pas fusionnée : reste bloquée" || ko "dépendance non fusionnée" "$(carte_de 002-11 "$sortie_b")"
+verifier_exact "etat-issues --prochaine : une issue En cours sur sa branche n'est pas prête" 0 "002-02" scripts/etat-issues.sh --prochaine
+git worktree add -q "$racine_tmp/wt-classique" -b wt-classique >/dev/null 2>&1
+"$racine_tmp/wt-classique/scripts/dashboard.sh" --sortie "$racine_tmp/wt.html" >/dev/null 2>&1
+[ "$(colonne_de 002-01 "$racine_tmp/wt.html")" = "En cours" ] && ok "worktree d'un dépôt classique : branche lue" || ko "worktree classique"
+git worktree remove --force "$racine_tmp/wt-classique"
+git clone -q --bare . "$racine_tmp/nu.git" >/dev/null 2>&1; git -C "$racine_tmp/nu.git" worktree add -q "$racine_tmp/wt-nu" develop >/dev/null 2>&1
+"$racine_tmp/wt-nu/scripts/dashboard.sh" --sortie "$racine_tmp/nu.html" >/dev/null 2>&1
+[ "$(colonne_de 002-01 "$racine_tmp/nu.html")" = "En cours" ] && [ -n "$(carte_de 002-01 "$racine_tmp/nu.html" | grep 'dernier commit')" ] && ok "worktree d'un clone bare : branche lue" || ko "worktree de clone bare"
+lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "ne dit pas si un agent tourne encore" && lire_depot "$depot" factory/README.md | grep -q "ne dit pas si un agent tourne encore" && ok "limite du statut écrite (en-tête et README)" || ko "limite du statut absente"
+
 echo "fin-issue.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 fin_projet() { # dépôt git propre ; .factory-verify = <commande> ; un test ca10 dans src/test

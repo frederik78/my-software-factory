@@ -11,7 +11,7 @@
 # Commande de build, dans cet ordre : variable COMMANDE_VERIFY ; première ligne du fichier `.factory-verify` à la racine du projet (écriture shell permise : `npm ci && npm test`) ;
 # à défaut, le wrapper du projet s'il existe (`./mvnw -B clean verify`, `./gradlew --no-daemon clean build`) ; sinon le script s'arrête (code 64) en demandant de créer `.factory-verify`.
 # Les arguments passés après `--` sont ajoutés à la commande (disponibles comme "$@").
-# Le résumé chiffré reconnaît la sortie de Maven (« Tests run: n, Failures: … »), celle de unittest/pytest (« Ran n tests ») et celle de la suite de la factory (« TESTS OK : n vérifications », « TESTS EN ECHEC : x sur n »).
+# Le résumé chiffré reconnaît la sortie de Maven (« Tests run: n, Failures: … »), celle de unittest/pytest (« Ran n tests »), de jest et de node:test et celle de la suite de la factory (« TESTS OK : n vérifications », « TESTS EN ECHEC : x sur n »).
 # Code de sortie : celui du build (0 = tout est vert). Dernière ligne : « VERIFY OK » ou « VERIFY ECHEC (code n) ».
 set -uo pipefail
 
@@ -71,13 +71,25 @@ code=$?
 # Maven : une ligne de total par module et par greffon (surefire, failsafe) ; on les additionne pour qu'aucun test ignoré ne se perde.
 tests="$(grep -E '^\[(INFO|ERROR|WARNING)\] Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$' "$journal" | sed -E 's/[^0-9]+/ /g' | awk 'NF { t += $1; f += $2; e += $3; s += $4; n = 1 } END { if (n) printf "Tests run: %d, Failures: %d, Errors: %d, Skipped: %d\n", t, f, e, s }')"
 if [ -z "$tests" ]; then
-  tests="$(grep -E '^Ran [0-9]+ tests? in ' "$journal" | tail -1)"
-  # unittest : la ligne suivante (« OK », « OK (skipped=2) », « FAILED (…) ») porte le nombre de tests ignorés.
-  if [ -n "$tests" ]; then
-    verdict="$(grep -E '^(OK|FAILED)( \(.*\))?$' "$journal" | tail -1)"
-    [ -z "$verdict" ] || tests="$tests ; $verdict"
-  fi
+  # unittest : une ligne « Ran n tests » et un verdict par suite ; tout est additionné pour ne perdre aucun ignoré. Verdicts manquants : nombre d'ignorés non annoncé.
+  tests="$(grep -E '^(Ran [0-9]+ tests? in |(OK|FAILED)( \(.*\))?$)' "$journal" | awk '
+    function nb(cle,   r) { r = $0; if (match(r, cle "=[0-9]+")) { r = substr(r, RSTART, RLENGTH); sub(/.*=/, "", r); return r + 0 } return 0 }
+    /^Ran / { t += $2; ran++; next }
+    { v++; if ($1 == "FAILED") { rouge = 1; if ($0 !~ /=/) e++ } f += nb("failures"); e += nb("errors"); s += nb("skipped") + nb("expected failures") }
+    END {
+      if (!ran) exit
+      l = "Ran " t " tests"
+      if (v == ran) {
+        if (rouge) l = l " ; FAILED (failures=" f ", errors=" e ", skipped=" s ")"
+        else if (s) l = l " ; OK (skipped=" s ")"
+        else l = l " ; OK"
+      }
+      print l
+    }')"
   [ -z "$tests" ] && tests="$(grep -E '^=+ .*(passed|failed).* =+$|^[0-9]+ (passed|failed)' "$journal" | tail -1)"
+  # jest : « Tests: 1 skipped, 5 passed, 6 total ». node:test : compteurs « tests 5 », « pass 4 »... précédés de ℹ ou #.
+  [ -z "$tests" ] && tests="$(grep -E '^Tests: +.*[0-9]+ total$' "$journal" | tail -1 | sed -E 's/^Tests: +/Tests: /')"
+  [ -z "$tests" ] && tests="$(grep -E '^(ℹ|#) (tests|pass|fail|cancelled|skipped|todo) [0-9]+$' "$journal" | tail -6 | awk '{ printf "%s%s %s", (NR > 1 ? ", " : "node:test "), $2, $3 } END { if (NR) print "" }')"
   [ -z "$tests" ] && tests="$(grep -E '^TESTS (OK : [0-9]+ vérifications|EN ECHEC : [0-9]+ sur [0-9]+)$' "$journal" | tail -1)"
 fi
 spotbugs="$(grep -E 'BugInstance size is [0-9]+' "$journal" | tail -1 | sed -E 's/.*(BugInstance size is [0-9]+).*/\1/')"

@@ -389,7 +389,7 @@ rm -f dashboard.html; (umask 027 && scripts/dashboard.sh >/dev/null)
 # Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
 cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
 printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
-# Le cas --boucle plus haut est tué par SIGALRM, sans piège : il peut laisser son temporaire. À retirer ici, sinon ce cas échoue au hasard.
+# Le cas --boucle plus haut est tué par SIGALRM : il a laissé son temporaire 2 fois sur 250 (mesure), par un mécanisme non identifié. À retirer ici, sinon ce cas échoue au hasard.
 rm -f generation-en-cours dashboard.html.*; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
 n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
@@ -452,6 +452,55 @@ verifier "fin-issue : arguments de la configuration" 0 "FIN-ISSUE OK" scripts/fi
 [ "$(cat args.txt)" = "[-Dx=/A B/C D]
 [-Pessai]
 [-Z]" ] && ok "fin-issue : configuration découpée sur |, espaces gardés, puis arguments de --" || ko "fin-issue : configuration découpée" "$(cat args.txt)"
+# Revue, itération 1
+: > .factory.local.conf; gc_() { git -c user.name=t -c user.email=t@t "$@"; }
+fin_projet "echo '[ERROR] Tests run: 5, Failures: 2, Errors: 1, Skipped: 0'"
+verifier "fin-issue : échecs Maven avec un build au code 0" 1 "FIN-ISSUE ECHEC : 3 test\(s\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 3 failed, 2 passed in 0.1s ='"
+verifier "fin-issue : échecs pytest avec un build au code 0" 1 "FIN-ISSUE ECHEC : 3 test\(s\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 1 error, 2 passed in 0.1s ='"
+verifier "fin-issue : erreur pytest" 1 "FIN-ISSUE ECHEC : 1 test\(s\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 5 passed, 2 deselected, 1 xfailed in 0.1s ='"
+verifier "fin-issue : pytest deselected et xfailed comptés comme ignorés" 1 "FIN-ISSUE ECHEC : 3 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Ran 4 tests in 0.1s'; echo 'OK (skipped=2)'; echo 'Ran 4 tests in 0.1s'; echo OK"
+verifier "verify-clean : suites unittest additionnées" 0 "Tests : Ran 8 tests ; OK \(skipped=2\)" scripts/verify-clean.sh
+verifier "fin-issue : ignorés de la première suite unittest vus" 1 "FIN-ISSUE ECHEC : 2 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Ran 4 tests in 0.1s'; echo 'FAILED (failures=1, errors=2)'"
+verifier "fin-issue : échecs unittest avec un build au code 0" 1 "FIN-ISSUE ECHEC : 3 test\(s\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Tests:       1 skipped, 2 failed, 5 passed, 8 total'"
+verifier "fin-issue : jest, échecs lus" 1 "FIN-ISSUE ECHEC : 2 test\(s\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Tests:       1 skipped, 5 passed, 6 total'"
+verifier "fin-issue : jest, ignorés lus" 1 "FIN-ISSUE ECHEC : 1 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Tests:       5 passed, 5 total'"
+verifier "fin-issue : jest, succès" 0 "FIN-ISSUE OK 001-01 .* : 5 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
+fin_projet "printf 'ℹ tests 5\nℹ pass 4\nℹ fail 0\nℹ cancelled 0\nℹ skipped 1\nℹ todo 0\n'"
+verifier "fin-issue : node:test, ignorés lus" 1 "FIN-ISSUE ECHEC : 1 test\(s\) ignoré" scripts/fin-issue.sh 001-01
+fin_projet "printf '# tests 5\n# pass 3\n# fail 1\n# cancelled 1\n# skipped 0\n# todo 0\n'"
+verifier "fin-issue : node:test en TAP, échecs lus" 1 "FIN-ISSUE ECHEC : 2 test\(s\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "printf '# tests 5\n# pass 5\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n'"
+verifier "fin-issue : node:test, succès" 0 "FIN-ISSUE OK 001-01 .* : 5 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'; true"
+verifier "fin-issue : arguments de ligne de commande signalés" 0 "FIN-ISSUE OK .* ; arguments : -Dtest=Seul \(ligne de commande\)" scripts/fin-issue.sh 001-01 -- -Dtest=Seul
+printf 'FIN_ISSUE_ARGUMENTS=-Pessai\n' > .factory.local.conf
+verifier "fin-issue : arguments de configuration signalés" 0 "FIN-ISSUE OK .* ; arguments : -Pessai \(configuration\)" scripts/fin-issue.sh 001-01
+: > .factory.local.conf
+fin_projet "echo '[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 1'"
+verifier "fin-issue : autorisation venue de l'environnement signalée" 0 "FIN-ISSUE OK .* ; autorisation d'ignorés venue de l'environnement" env FACTORY_FIN_ISSUE_IGNORES_AUTORISES=1 scripts/fin-issue.sh 001-01
+fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
+touch cache-invisible; git -c status.showUntrackedFiles=no status --porcelain >/dev/null; git config status.showUntrackedFiles no
+verifier "fin-issue : non suivi vu malgré status.showUntrackedFiles=no" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
+git config --unset status.showUntrackedFiles; : > .gitignore.tmp; /bin/rm -f cache-invisible .gitignore.tmp
+printf 'marque\n' > marque.txt; git add marque.txt; gc_ commit -qm marque; git update-index --skip-worktree marque.txt; printf 'x\n' >> marque.txt
+verifier "fin-issue : fichier skip-worktree refusé" 1 "FIN-ISSUE ECHEC : fichiers marqués" scripts/fin-issue.sh 001-01
+git update-index --no-skip-worktree marque.txt; git update-index --assume-unchanged marque.txt
+verifier "fin-issue : fichier assume-unchanged refusé" 1 "FIN-ISSUE ECHEC : fichiers marqués" scripts/fin-issue.sh 001-01
+git update-index --no-assume-unchanged marque.txt; git checkout -q -- marque.txt 2>/dev/null || printf 'marque\n' > marque.txt
+printf 'void ca77_x() {}\n' > src/test/Ignore.java; printf 'src/test/Ignore.java\n' >> .gitignore; git add .gitignore; gc_ commit -qm ignore
+issue_id "$p" 001-03 "En cours" docs/prd/001-m.md "[CA-77]" "[]"; git add -A; gc_ commit -qm i3
+verifier "fin-issue : test dans un fichier ignoré, critère manquant" 1 "FIN-ISSUE ECHEC : .*critère sans test" scripts/fin-issue.sh 001-03
+fin_projet "touch '$p/pendant.txt'; echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
+verifier "fin-issue : arbre modifié pendant la vérification" 1 "FIN-ISSUE ECHEC : arbre Git modifié pendant" scripts/fin-issue.sh 001-01
+/bin/rm -f pendant.txt
 touch nouveau.txt
 verifier "fin-issue : fichier non suivi = échec (il serait testé sans être dans le commit)" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
 : > nouveau.txt; git add nouveau.txt
@@ -465,8 +514,8 @@ echo "worktree-issue.sh : structure bare"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 reel="$(mktemp -d "$racine_tmp/reel.XXXXXX")/reel.git"
 gc() { git -c user.name=t -c user.email=t@t "$@"; }
-git init -q -b main .; printf '.env\n.factory.local.conf\nsync-lance\n.agents/\n' > .gitignore
-printf '#!/bin/sh\ntouch "$(dirname "$0")/../sync-lance"\n' > factory/sync.sh; chmod +x factory/sync.sh
+git init -q -b main .; printf '.env\n.factory.local.conf\n.agents/\n' > .gitignore
+printf '#!/bin/sh\nmkdir -p "$(dirname "$0")/../.agents"; touch "$(dirname "$0")/../.agents/sync-lance"\n' > factory/sync.sh; chmod +x factory/sync.sh
 issue_id "$p" 001-01 "À faire" docs/prd/1.md "[CA-1]" "[]"; issue_id "$p" 001-02 "À faire" docs/prd/1.md "[CA-2]" "[]"
 git add -A; gc commit -qm init; git branch develop; printf 'SECRET=x\n' > .env
 git clone -q --bare . "$reel"; git remote add origin "$reel"; git fetch -q origin
@@ -486,7 +535,7 @@ sortie_bare="$(scripts/worktree-issue.sh creer 001-01 2>&1)"; code=$?
 [ "$code" -eq 0 ] && [ -d "$c/feat-001-01-x" ] && printf '%s' "$sortie_bare" | grep -q "dossier : .*/feat-001-01-x" && ok "bare creer : dossier au même niveau que .git" || ko "bare creer : dossier au même niveau que .git" "$sortie_bare"
 printf '%s' "$sortie_bare" | grep -q "recommand" && ko "bare creer : pas d'avertissement" "$sortie_bare" || ok "bare creer : pas d'avertissement"
 [ "$(git -C "$c/feat-001-01-x" rev-parse HEAD)" = "$(git rev-parse develop)" ] && ok "bare creer : branche partie de la base" || ko "bare creer : branche partie de la base"
-[ -e "$c/feat-001-01-x/sync-lance" ] && ok "bare creer : sync.sh lancé dans le nouveau dossier" || ko "bare creer : sync.sh lancé dans le nouveau dossier"
+[ -e "$c/feat-001-01-x/.agents/sync-lance" ] && ok "bare creer : sync.sh lancé dans le nouveau dossier" || ko "bare creer : sync.sh lancé dans le nouveau dossier"
 cd "$c/feat-001-01-x" || exit 1
 verifier "bare creer depuis un worktree de branche : pas d'imbrication" 0 "dossier : .*/conteneur/feat-001-02-x" scripts/worktree-issue.sh creer 001-02
 [ -d "$c/feat-001-02-x" ] && [ ! -e "$c/feat-001-01-x/feat-001-02-x" ] && ok "bare : le dossier est dans le conteneur" || ko "bare : le dossier est dans le conteneur"
@@ -498,10 +547,43 @@ verifier "bare nettoyer : refusé si non fusionné" 1 "n'est pas fusionnée" scr
 gc merge -q --no-ff -m m feat/001-01-x
 verifier "bare nettoyer : accepté après fusion" 0 "supprimé" scripts/worktree-issue.sh nettoyer 001-01 --branche
 [ ! -e "$c/feat-001-01-x" ] && ok "bare nettoyer : dossier retiré" || ko "bare nettoyer : dossier retiré"
+# Revue, itération 1
+git --git-dir="$c/.git" config branch.develop.remote >/dev/null && [ "$(git --git-dir="$c/.git" config branch.develop.merge)" = refs/heads/develop ] && ok "initialiser : suivi amont des branches locales" || ko "initialiser : suivi amont des branches locales"
+cd "$c/develop" || exit 1
+issue_id "$c/develop" 001-04 "À faire" docs/prd/1.md "[CA-4]" "[]"; issue_id "$c/develop" 001-05 "À faire" docs/prd/1.md "[CA-5]" "[]"; issue_id "$c/develop" 001-06 "À faire" docs/prd/1.md "[CA-6]" "[]"; issue_id "$c/develop" 001-07 "À faire" docs/prd/1.md "[CA-7]" "[]"; git add -A; gc commit -qm issues
+verifier "creer : préfixe ambigu refusé" 64 "Issue introuvable" scripts/worktree-issue.sh creer 00
+scripts/worktree-issue.sh creer 001-04 >/dev/null 2>&1
+git -C "$c/feat-001-04-x" checkout -q --detach; gc -C "$c/feat-001-04-x" commit -q --allow-empty -m perdu; git merge-base --is-ancestor feat/001-04-x develop || gc merge -q feat/001-04-x
+verifier "nettoyer : HEAD détaché refusé" 1 "n'est pas sur la branche" scripts/worktree-issue.sh nettoyer 001-04
+git -C "$c/feat-001-04-x" checkout -q feat/001-04-x
+printf 'S=1\n' > "$c/feat-001-04-x/.env"; mkdir -p "$c/feat-001-04-x/.agents/cache"
+sortie_n="$(scripts/worktree-issue.sh nettoyer 001-04 2>&1)"; code=$?
+[ "$code" -eq 1 ] && printf '%s' "$sortie_n" | grep -q '\.env' && ! printf '%s' "$sortie_n" | grep -q 'S=1' && [ -f "$c/feat-001-04-x/.env" ] && ok "nettoyer : .env ignoré, refus et liste sans contenu" || ko "nettoyer : .env ignoré" "$sortie_n"
+/bin/rm -f "$c/feat-001-04-x/.env"
+verifier "nettoyer : artefacts connus admis" 0 "supprimé" scripts/worktree-issue.sh nettoyer 001-04
+scripts/worktree-issue.sh creer 001-05 >/dev/null 2>&1; printf 'S=1\n' > "$c/feat-001-05-x/.env"
+verifier "nettoyer --force passe outre les fichiers ignorés" 0 "supprimé" scripts/worktree-issue.sh nettoyer 001-05 --force
+git push -q origin develop
+scripts/worktree-issue.sh creer 001-06 >/dev/null 2>&1; gc -C "$c/feat-001-06-x" commit -q --allow-empty -m travail; git -C "$c/feat-001-06-x" push -q origin feat/001-06-x
+distant="$(mktemp -d "$racine_tmp/dist.XXXXXX")"; git clone -q "$reel" "$distant/w"; gc -C "$distant/w" checkout -q develop; gc -C "$distant/w" merge -q --no-ff -m m origin/feat/001-06-x; git -C "$distant/w" push -q origin develop
+verifier "nettoyer : fusion faite sur le distant reconnue" 0 "supprimé" scripts/worktree-issue.sh nettoyer 001-06
+verifier "creer : develop en retard averti" 0 "develop a .* commit.* de retard" scripts/worktree-issue.sh creer 001-07
+git -C "$c/feat-001-07-x" status >/dev/null
+git --git-dir="$c/.git" remote set-url origin "$racine_tmp/absent.git"
+issue_id "$c/develop" 001-08 "À faire" docs/prd/1.md "[CA-8]" "[]"; git add -A; gc commit -qm i8
+verifier "creer : hors réseau, averti sans bloquer" 0 "fetch impossible" scripts/worktree-issue.sh creer 001-08
+git --git-dir="$c/.git" remote set-url origin "$reel"
 cd "$p" || exit 1
+c2="$(dirname "$reel")/rel"; (cd "$(dirname "$reel")" && "$p/scripts/worktree-issue.sh" initialiser "$p" rel >/dev/null 2>&1); [ -d "$c2/.git" ] && ok "initialiser : chemin relatif résolu depuis le dossier d'appel" || ko "initialiser : chemin relatif résolu depuis le dossier d'appel"
+verifier "initialiser : conteneur dans la source refusé" 64 "dans la source" scripts/worktree-issue.sh initialiser "$p" "$p/dedans"
+git remote set-url origin "https://tok:SECRET@$(basename "$reel").invalid/x.git"
+out="$(scripts/worktree-issue.sh initialiser "$p" "$c-m" 2>&1)"; printf '%s' "$out" | grep -q SECRET && ko "initialiser : identifiants masqués" "$out" || ok "initialiser : identifiants masqués"
+git remote set-url origin "$reel"
+s2="$(mktemp -d "$racine_tmp/so.XXXXXX")"; git init -q "$s2"; gc -C "$s2" commit -q --allow-empty -m a
+verifier "initialiser : sans origin, avertissement" 0 "origin vise le chemin local" scripts/worktree-issue.sh initialiser "$s2" "$s2-c"
 sortie_cl="$(scripts/worktree-issue.sh creer 001-01 2>&1)"; code=$?
 nomp="$(basename "$p")"
-[ "$code" -eq 0 ] && [ -d "../$nomp-001-01" ] && [ ! -e "../$nomp-001-01/sync-lance" ] && printf '%s' "$sortie_cl" | grep -q "structure bare recommand" && ok "dépôt classique : emplacement inchangé, sans sync, avec avertissement" || ko "dépôt classique" "$sortie_cl"
+[ "$code" -eq 0 ] && [ -d "../$nomp-001-01" ] && [ ! -e "../$nomp-001-01/.agents/sync-lance" ] && printf '%s' "$sortie_cl" | grep -q "structure bare recommand" && ok "dépôt classique : emplacement inchangé, sans sync, avec avertissement" || ko "dépôt classique" "$sortie_cl"
 
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -578,7 +660,7 @@ tail -1 AGENTS.md | grep -q MODIFIÉ && ok "AGENTS.md modifié est conservé" ||
 [ ! -e factory/prompts/orchestrator.md ] && [ ! -e .claude/agents/orchestrator.md ] && ok "pas de prompt ni d'agent orchestrateur (rôle de la session principale)" || ko "pas de prompt ni d'agent orchestrateur"
 [ -L scripts/dashboard.sh ] && [ "$(readlink scripts/dashboard.sh)" = "../factory/scripts/dashboard.sh" ] && [ -x scripts/dashboard.sh ] && ok "init : scripts/dashboard.sh lié (lien relatif vers factory/scripts/)" || ko "init : lien scripts/dashboard.sh" "$(ls -l scripts/ 2>&1 | tr '\n' '|')"
 grep -qx 'dashboard.html' .gitignore && ok "init : dashboard.html dans le .gitignore créé" || ko "init : dashboard.html dans le .gitignore" "$(grep -n html .gitignore)"
-[ -f .factory.conf ] && grep -qx 'MAX_ITERATIONS_REVUE=3' .factory.conf && grep -qx 'NOTIFICATION_COMMANDE=' .factory.conf && grep -qx 'NOTIFICATION_DESTINATAIRE=' .factory.conf && grep -qx 'NOTIFICATION_EXPEDITEUR=' .factory.conf && ok "init : .factory.conf créé (5 itérations, notification vide)" || ko "init : .factory.conf créé" "$(cat .factory.conf 2>&1 | grep -v '^#' | tr '\n' '|')"
+[ -f .factory.conf ] && grep -qx 'MAX_ITERATIONS_REVUE=3' .factory.conf && grep -qx 'NOTIFICATION_COMMANDE=' .factory.conf && grep -qx 'NOTIFICATION_DESTINATAIRE=' .factory.conf && grep -qx 'NOTIFICATION_EXPEDITEUR=' .factory.conf && ok "init : .factory.conf créé (3 itérations, notification vide)" || ko "init : .factory.conf créé" "$(cat .factory.conf 2>&1 | grep -v '^#' | tr '\n' '|')"
 grep -qx '.factory.local.conf' .gitignore && ok "init : .factory.local.conf dans le .gitignore créé" || ko "init : .factory.local.conf dans le .gitignore"
 rappel="Notifications : renseignez NOTIFICATION_COMMANDE et NOTIFICATION_DESTINATAIRE dans .factory.local.conf (non versionné) pour être prévenu d'une issue bloquée en revue."
 printf '%s\n' "$(./factory/init-projet.sh 2>&1)" | grep -qxF "$rappel" && ok "init : rappel de renseigner .factory.local.conf" || ko "init : rappel .factory.local.conf"

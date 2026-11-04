@@ -75,6 +75,8 @@ Pour chaque constat, décide :
   3. remonte le blocage à l'utilisateur dans la conversation (constats restants, options : trancher, simplifier ou découper l'issue, assouplir le critère). Si `notifier.sh` rend 3
      (notification non configurée) ou 4 (échec de la commande d'envoi), dis-le aussi, avec son message : l'utilisateur n'a pas reçu de courriel.
 
+**Risque de sécurité reporté** (ou dit « non exploitable aujourd'hui », « provisoire ») : décision de l'utilisateur, jamais du relecteur. Elle est consignée au backlog, avec la dépendance qui empêche toute issue exposant ce risque de partir avant sa correction.
+
 ## 4 bis. Retour de revue externe (facultatif)
 Si le projet utilise un service de revue de PR (un agent tiers qui commente la PR et donne un score de confiance ; aucun fournisseur n'est imposé), il intervient APRÈS la définition de fini et après que l'utilisateur a poussé la branche et ouvert la PR
 (les agents ne poussent pas). L'utilisateur te transmet le retour (lien ou texte).

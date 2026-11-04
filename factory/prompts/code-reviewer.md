@@ -30,6 +30,8 @@ nombres. Vérifie qu'aucune exclusion d'analyse statique ou règle d'architectur
 Revue de sécurité obligatoire : parcours les catégories A01 à A10 de `owasp-check`, lance l'analyse des dépendances du projet si elle est configurée
 (clé requise : sinon dis-le), et vérifie la présence de tests de sécurité pour chaque critère CS du PRD.
 
+Risque reporté : un risque de sécurité reporté, ou qualifié « non exploitable aujourd'hui » ou « provisoire », n'est jamais classé par toi seul. Remonte-le comme décision de l'utilisateur.
+
 Documentation : AGENTS.md, ADR, déploiement, PRD, backlog restent-ils fidèles au code ? Liste les passages devenus faux, sans les modifier (le PRD et
 le backlog appartiennent à l'utilisateur).
 

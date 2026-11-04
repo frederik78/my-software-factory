@@ -514,6 +514,10 @@ verifier "fin-issue : deux blocs node:test, échec du premier vu" 1 "FIN-ISSUE E
 fin_projet "touch '$p/cree.txt'; echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"; git config status.showUntrackedFiles no
 verifier "fin-issue : fichier créé par le build vu malgré status.showUntrackedFiles=no" 1 "FIN-ISSUE ECHEC : arbre Git modifié pendant" scripts/fin-issue.sh 001-01
 git config --unset status.showUntrackedFiles; /bin/rm -f cree.txt
+fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
+verifier "fin-issue : DOSSIER_TESTS absolu refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="$p/src/test" scripts/fin-issue.sh 001-01
+verifier "fin-issue : DOSSIER_TESTS avec .. refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="src/../../x" scripts/fin-issue.sh 001-01
+verifier "fin-issue : DOSSIER_TESTS relatif admis" 0 "FIN-ISSUE OK" env DOSSIER_TESTS="src/test" scripts/fin-issue.sh 001-01
 touch nouveau.txt
 verifier "fin-issue : fichier non suivi = échec (il serait testé sans être dans le commit)" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
 : > nouveau.txt; git add nouveau.txt

@@ -45,6 +45,11 @@ else
 fi
 id="$(issue_champ "$fichier" id)"; id="${id:-$issue_arg}"
 
+# Les critères sont lus dans le commit : un dossier de tests qui en sort contournerait ce contrôle.
+case "${DOSSIER_TESTS:-}" in
+  /*|..|../*|*/..|*/../*) echo "FIN-ISSUE ECHEC : DOSSIER_TESTS doit être un chemin relatif à l'intérieur du dépôt"; exit 64 ;;
+esac
+
 autorises="$(config_valeur FIN_ISSUE_IGNORES_AUTORISES "")"
 case "$autorises" in
   ''|inconnu) ;;

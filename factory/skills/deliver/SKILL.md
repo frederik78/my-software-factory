@@ -84,6 +84,8 @@ Si le projet utilise un service de revue de PR (un agent tiers qui commente la P
 - Les remarques retenues repartent au developer (même boucle : brief complet, preuve avant / après, vérification), l'utilisateur repousse, nouveau retour.
 - Le seuil d'arrêt (par exemple le score maximal) est fixé par l'utilisateur ; `MAX_ITERATIONS_REVUE` itérations au plus, avec la même règle d'arrêt que la revue interne (notification puis blocage remonté). La fusion reste à l'utilisateur, même au score maximal.
 
+**Revue de branche finale** : le brief ne contient pas la liste des mineurs connus ; le relecteur ne garde que les décisions de l'utilisateur à respecter.
+
 ## 5. Terminer : définition de fini
 L'issue passe `Fait` seulement si TOUT est vrai :
 - [ ] `scripts/fin-issue.sh <issue>` à `FIN-ISSUE OK`, lancé par toi après le dernier commit de code (build, analyses, critères, tests ignorés, arbre propre) ; sa dernière ligne est reprise dans les Notes de l'issue et dans la PR ; une exécution avant un commit de code ne vaut plus. Sans cette ligne, l'issue ne passe pas à `Fait` ;

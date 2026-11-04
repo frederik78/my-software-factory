@@ -8,9 +8,10 @@
 #   FIN_ISSUE_ARGUMENTS           arguments de build propres au poste, séparés par « | », espaces gardés ; placés avant ceux de la ligne de commande
 #   FIN_ISSUE_IGNORES_AUTORISES   vide : aucun test ignoré admis ; n : au plus n ; inconnu : tolère un résumé sans nombre lisible
 # Arbre propre exigé, fichiers non suivis non ignorés compris : verify-clean.sh les copie, ils seraient testés sans être dans le commit annoncé.
-# Tests ignorés lus dans la ligne « Tests : … » de verify-clean.sh : Maven, pytest (deselected et xfailed comptés), unittest, jest, node:test, suite de la factory. Autre résumé : illisible, donc échec.
+# Tests ignorés lus dans la ligne « Tests : … » de verify-clean.sh : Maven, pytest (deselected et xfailed comptés), unittest, jest, node:test, suite de la factory. Autre résumé, ou plusieurs types de résumé dans le même journal (Maven puis jest) : illisible, donc échec.
 # Critères lus dans le commit (git archive), pas dans l'arbre : un test dans un fichier ignoré ne couvre rien. Fichiers marqués skip-worktree ou assume-unchanged : refusés.
 # La ligne OK signale les arguments de build et une autorisation venue de l'environnement : ils peuvent réduire ce qui a été vérifié.
+# Limite : DOSSIER_TESTS doit rester dans le dépôt, mais seul le chemin est contrôlé, et « lien/ » avec une barre finale passe par un lien versionné vers l'extérieur (OK) alors que « lien » donne ECHEC.
 # Limite : un préfixe d'identifiant qui ne vise qu'une issue, ou un chemin absolu, est accepté ; l'id affiché reste celui de l'issue.
 # Dernière ligne : « FIN-ISSUE OK <id> <commit> : … » ou « FIN-ISSUE ECHEC : <raisons> ».
 # Code de sortie : 0 succès, 1 échec, 64 erreur d'usage ou de configuration.

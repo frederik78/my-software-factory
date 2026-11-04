@@ -518,6 +518,29 @@ fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 verifier "fin-issue : DOSSIER_TESTS absolu refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="$p/src/test" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS avec .. refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="src/../../x" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS relatif admis" 0 "FIN-ISSUE OK" env DOSSIER_TESTS="src/test" scripts/fin-issue.sh 001-01
+# Plusieurs types de résumé : un seul serait lu, les ignorés ou échecs des autres se perdraient.
+MELANGE='FIN-ISSUE ECHEC : nombre de tests ignorés illisible dans le résumé \(« plusieurs types de résumé'
+M_OK="echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
+fin_projet "$M_OK && echo 'Tests: 4 skipped, 5 passed, 9 total'"
+verifier "fin-issue : Maven puis jest = résumé illisible" 1 "$MELANGE \(Maven, jest\)" scripts/fin-issue.sh 001-01
+verifier "verify-clean : Maven puis jest, code du build gardé" 0 "VERIFY OK" scripts/verify-clean.sh
+fin_projet "echo 'Ran 1 test in 0.001s'; echo OK; echo '2 passed, 4 skipped'"
+verifier "fin-issue : unittest puis pytest = résumé illisible" 1 "$MELANGE \(unittest, pytest\)" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 1 passed in 0.1s ='; echo 'Tests: 4 skipped, 1 passed, 5 total'"
+verifier "fin-issue : pytest puis jest = résumé illisible" 1 "$MELANGE \(pytest, jest\)" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Tests: 1 failed, 1 passed, 2 total'; echo '= 3 passed in 0.1s ='"
+verifier "fin-issue : échec jest avant pytest, enchaînés par ; = résumé illisible" 1 "$MELANGE \(pytest, jest\)" scripts/fin-issue.sh 001-01
+fin_projet "$M_OK; echo 'Tests: 4 skipped, 5 passed, 9 total'"
+verifier "fin-issue : FIN_ISSUE_IGNORES_AUTORISES=inconnu tolère aussi ce résumé, et le dit" 0 "FIN-ISSUE OK 001-01 .* : tests non comptés, ignorés inconnus \(autorisé\)" env FACTORY_FIN_ISSUE_IGNORES_AUTORISES=inconnu scripts/fin-issue.sh 001-01
+# Une ligne de journal qui ressemble à un résumé n'en est pas un.
+fin_projet "echo '=== build failed ==='; echo '3 passed checks'; echo 'Ran 3 tests in the previous phase'; echo 'Tests: compiled 3 total'; echo '# tests 5'; echo '2 failed logins'; $M_OK"
+verifier "fin-issue : Maven et lignes de journal ordinaires, pas de faux échec" 0 "FIN-ISSUE OK 001-01 .* : 1 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Ran 3 tests in the previous phase'; echo '= 2 passed in 0.1s ='"
+verifier "fin-issue : pytest et « Ran n tests in » de journal, pas de faux échec" 0 "FIN-ISSUE OK 001-01 .* : 2 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo '=== build failed ==='; echo 'Tests: 2 passed, 2 total'"
+verifier "fin-issue : jest et ligne « build failed », pas de faux échec" 0 "FIN-ISSUE OK 001-01 .* : 2 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 3 passed in 0.1s ='; echo '= 2 passed in 0.1s ='"
+verifier "fin-issue : un seul lanceur répété reste additionné" 0 "FIN-ISSUE OK 001-01 .* : 5 tests, 0 échec, 0 ignoré" scripts/fin-issue.sh 001-01
 fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 out="$(env TMPDIR="$p/absent" scripts/fin-issue.sh 001-01 2>&1)"; code=$?; [ "$code" -eq 1 ] && [ "$(printf '%s\n' "$out" | tail -1 | cut -c1-15)" = "FIN-ISSUE ECHEC" ] && ok "fin-issue : mktemp en échec, dernière ligne écrite" || ko "fin-issue : mktemp en échec, dernière ligne écrite" "$code $out"
 touch nouveau.txt
@@ -655,7 +678,7 @@ verifier "aucune commande ni wrapper = 64 avec message" 64 "créez .factory-veri
 printf '#!/bin/sh\necho "gradlew: $*"; echo "Ran 2 tests in 0.1s"\n' > gradlew; chmod +x gradlew
 verifier "wrapper ./gradlew détecté" 0 "Tests : Ran 2 tests" scripts/verify-clean.sh
 rm gradlew
-echo 'echo "$#" > args.txt && cat args.txt && echo "Ran 5 tests in 0s"' > .factory-verify
+echo 'echo "$#" > args.txt && cat args.txt && echo "Ran 5 tests in 0s" && : "$@"' > .factory-verify
 verifier "syntaxe shell (&&) acceptée, arguments transmis" 0 "Ran 5 tests" scripts/verify-clean.sh -- -a -b
 echo 'echo "  ok   un cas"; echo "TESTS OK : 142 vérifications"' > .factory-verify
 verifier "résumé de la suite de la factory reconnu (succès)" 0 "^Tests : TESTS OK : 142 vérifications$" scripts/verify-clean.sh

@@ -38,6 +38,11 @@ Règles
 - Écarts avec le PRD ou l'issue.
 - Dépendances ajoutées : nom, version, origine, licence (A06).
 
+## Entrées externes
+| Champ | Format et borne | Code de refus | Test avec une valeur hostile |
+|---|---|---|---|
+Une ligne par champ d'une entrée ajoutée ou modifiée. « Sans entrée externe » est une réponse valable.
+
 ## Code écrit à la place du framework
 | Classe | Ce que le framework ou la référence de l'ADR fournit | Raison de ne pas l'utiliser (critère du PRD ou mesure) |
 |---|---|---|

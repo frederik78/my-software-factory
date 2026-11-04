@@ -11,6 +11,7 @@
 # Tests ignorés lus dans la ligne « Tests : … » de verify-clean.sh : Maven, pytest (deselected et xfailed comptés), unittest, jest, node:test, suite de la factory. Autre résumé : illisible, donc échec.
 # Critères lus dans le commit (git archive), pas dans l'arbre : un test dans un fichier ignoré ne couvre rien. Fichiers marqués skip-worktree ou assume-unchanged : refusés.
 # La ligne OK signale les arguments de build et une autorisation venue de l'environnement : ils peuvent réduire ce qui a été vérifié.
+# Limite : un préfixe d'identifiant qui ne vise qu'une issue, ou un chemin absolu, est accepté ; l'id affiché reste celui de l'issue.
 # Dernière ligne : « FIN-ISSUE OK <id> <commit> : … » ou « FIN-ISSUE ECHEC : <raisons> ».
 # Code de sortie : 0 succès, 1 échec, 64 erreur d'usage ou de configuration.
 set -uo pipefail

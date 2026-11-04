@@ -76,7 +76,7 @@ Pour chaque constat, décide :
   3. remonte le blocage à l'utilisateur dans la conversation (constats restants, options : trancher, simplifier ou découper l'issue, assouplir le critère). Si `notifier.sh` rend 3
      (notification non configurée) ou 4 (échec de la commande d'envoi), dis-le aussi, avec son message : l'utilisateur n'a pas reçu de courriel.
 
-**Risque de sécurité reporté** (ou dit « non exploitable aujourd'hui », « provisoire ») : décision de l'utilisateur, jamais du relecteur. Elle est consignée au backlog, avec la dépendance qui empêche toute issue exposant ce risque de partir avant sa correction.
+**Risque de sécurité reporté** (ou dit « non exploitable aujourd'hui », « provisoire ») : décision de l'utilisateur, jamais du relecteur. La décision est consignée au backlog, et la dépendance dans `depend_de` de toute issue exposant ce risque, pour qu'elle ne parte pas avant sa correction.
 
 **Revue de branche finale** (`/code-review`) : le brief ne contient pas la liste des mineurs connus ; le relecteur ne garde que les décisions de l'utilisateur à respecter.
 

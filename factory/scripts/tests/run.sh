@@ -501,6 +501,8 @@ verifier "fin-issue : test dans un fichier ignoré, critère manquant" 1 "FIN-IS
 fin_projet "touch '$p/pendant.txt'; echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 verifier "fin-issue : arbre modifié pendant la vérification" 1 "FIN-ISSUE ECHEC : arbre Git modifié pendant" scripts/fin-issue.sh 001-01
 /bin/rm -f pendant.txt
+fin_projet "echo 'Ran 3 tests in 0.1s'; echo 'FAILED (unexpected successes=1)'"
+verifier "fin-issue : verdict FAILED sans échec compté" 1 "FIN-ISSUE ECHEC : .*verdict FAILED" scripts/fin-issue.sh 001-01
 touch nouveau.txt
 verifier "fin-issue : fichier non suivi = échec (il serait testé sans être dans le commit)" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
 : > nouveau.txt; git add nouveau.txt

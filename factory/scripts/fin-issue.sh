@@ -100,7 +100,7 @@ case "$resume" in
     case "$resume" in
       *"; FAILED"*)
         f="$(printf '%s\n' "$resume" | sed -E 's/.*failures=([0-9]+).*/\1/')"; e="$(printf '%s\n' "$resume" | sed -E 's/.*errors=([0-9]+).*/\1/')"
-        echecs=$((f + e)); ignores="$(printf '%s\n' "$resume" | sed -E 's/.*skipped=([0-9]+).*/\1/')" ;;
+        echecs=$((f + e)); [ "$echecs" -gt 0 ] || ajoute "verdict FAILED sans échec compté (succès inattendu ?)"; ignores="$(printf '%s\n' "$resume" | sed -E 's/.*skipped=([0-9]+).*/\1/')" ;;
       *"; OK (skipped="*) echecs=0; ignores="$(printf '%s\n' "$resume" | sed -E 's/.*skipped=([0-9]+).*/\1/')" ;;
       *"; OK") echecs=0; ignores=0 ;;
     esac ;;

@@ -511,6 +511,9 @@ fin_projet "echo '= 3 passed in 0.1s ='; echo '= 2 passed, 1 skipped in 0.1s ='"
 verifier "verify-clean : résumés pytest additionnés" 0 "Tests : 5 passed, 1 skipped" scripts/verify-clean.sh
 fin_projet "printf '# tests 2\\n# pass 1\\n# fail 1\\n# cancelled 0\\n# skipped 0\\n# todo 0\\n# tests 3\\n# pass 3\\n# fail 0\\n# cancelled 0\\n# skipped 0\\n# todo 0\\n'"
 verifier "fin-issue : deux blocs node:test, échec du premier vu" 1 "FIN-ISSUE ECHEC : 1 test\\(s\\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "touch '$p/cree.txt'; echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"; git config status.showUntrackedFiles no
+verifier "fin-issue : fichier créé par le build vu malgré status.showUntrackedFiles=no" 1 "FIN-ISSUE ECHEC : arbre Git modifié pendant" scripts/fin-issue.sh 001-01
+git config --unset status.showUntrackedFiles; /bin/rm -f cree.txt
 touch nouveau.txt
 verifier "fin-issue : fichier non suivi = échec (il serait testé sans être dans le commit)" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
 : > nouveau.txt; git add nouveau.txt

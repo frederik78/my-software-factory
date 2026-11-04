@@ -134,7 +134,7 @@ elif [ "$ignores" -gt 0 ]; then
 fi
 
 [ "$(git rev-parse HEAD)" = "$commit" ] || ajoute "HEAD a changé pendant la vérification"
-[ -z "$(git status --porcelain)" ] || ajoute "arbre Git modifié pendant la vérification"
+[ -z "$(git status --porcelain --untracked-files=normal)" ] || ajoute "arbre Git modifié pendant la vérification"
 [ -z "$raisons" ] || echec "$raisons"
 
 # Ce qui peut réduire la vérification se lit dans la ligne de résultat.

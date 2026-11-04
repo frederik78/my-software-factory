@@ -7,7 +7,7 @@ set -uo pipefail
 # hérités (par exemple quand cette suite est elle-même lancée par verify-clean.sh avec COMMANDE_VERIFY), ils fausseraient les cas.
 unset COMMANDE_VERIFY STUB_CODE
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MAX_ITERATIONS_REVUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -703,6 +703,51 @@ printf '# PRD sans critère\n' > docs/prd/002-v.md
 verifier "PRD sans critère défini = erreur" 1 "aucun critère défini" scripts/couverture-prd.sh docs/prd/002-v.md
 verifier "sans argument = usage (64)" 64 "Usage" scripts/couverture-prd.sh
 
+echo "couverture-prd.sh : taille maximale d'une issue"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+mkdir -p docs/prd
+for n in 1 2 3 4 5 6 7 8 9 10 11 12; do printf -- '- **CA-%s** Given x\n' "$n"; done > docs/prd/001-m.md
+grosse() { # grosse <n> : l'issue 001-01 porte CA-1..n, l'issue 001-02 le reste
+  local i liste1="" liste2=""
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12; do if [ "$i" -le "$1" ]; then liste1="$liste1, CA-$i"; else liste2="$liste2, CA-$i"; fi; done
+  issue_id "$p" 001-01 "À faire" docs/prd/001-m.md "[${liste1#, }]" "[]"
+  issue_id "$p" 001-02 "À faire" docs/prd/001-m.md "[${liste2#, }]" "[]"
+}
+justifie() { sed -i.bak "2a\\
+criteres_justification: $1
+" docs/issues/001-01-x.md; rm -f docs/issues/*.bak; }
+AVERT='ATTENTION  001-01 : 11 critères, limite 10'
+OK_12="OK  docs/prd/001-m.md : 12 critère(s), chacun couvert par une seule issue"
+grosse 10
+verifier_exact "taille : au seuil (10), aucun avertissement" 0 "$OK_12" scripts/couverture-prd.sh docs/prd/001-m.md
+grosse 11
+verifier "taille : au-dessus (11), avertissement visible" 0 "$AVERT" scripts/couverture-prd.sh docs/prd/001-m.md
+verifier "taille : au-dessus, couverture encore annoncée OK" 0 "OK  docs/prd/001-m.md : 12 critère" scripts/couverture-prd.sh docs/prd/001-m.md
+grosse 11; justifie "Un seul écran, indivisible"
+verifier_exact "taille : justification présente, aucun avertissement" 0 "$OK_12" scripts/couverture-prd.sh docs/prd/001-m.md
+grosse 11; justifie '""'
+verifier "taille : justification vide entre guillemets, avertissement" 0 "$AVERT" scripts/couverture-prd.sh docs/prd/001-m.md
+grosse 11; justifie ''
+verifier "taille : justification vide, avertissement" 0 "$AVERT" scripts/couverture-prd.sh docs/prd/001-m.md
+grosse 11
+verifier "taille : limite configurée par variable" 0 "ATTENTION  001-01 : 11 critères, limite 2" env FACTORY_MAX_CRITERES_ISSUE=2 scripts/couverture-prd.sh docs/prd/001-m.md
+verifier_exact "taille : limite relevée, aucun avertissement" 0 "$OK_12" env FACTORY_MAX_CRITERES_ISSUE=11 scripts/couverture-prd.sh docs/prd/001-m.md
+printf 'MAX_CRITERES_ISSUE=11\n' > .factory.conf
+verifier_exact "taille : limite lue dans .factory.conf" 0 "$OK_12" scripts/couverture-prd.sh docs/prd/001-m.md
+printf 'MAX_CRITERES_ISSUE=20\n' > .factory.local.conf; printf 'MAX_CRITERES_ISSUE=1\n' > .factory.conf
+verifier_exact "taille : .factory.local.conf l'emporte" 0 "$OK_12" scripts/couverture-prd.sh docs/prd/001-m.md
+rm -f .factory.local.conf .factory.conf
+invalide_c="MAX_CRITERES_ISSUE invalide : entier >= 1 attendu (voir .factory.conf, .factory.local.conf, FACTORY_MAX_CRITERES_ISSUE)."
+verifier_exact "taille : limite 0 refusée (64)" 64 "$invalide_c" env FACTORY_MAX_CRITERES_ISSUE=0 scripts/couverture-prd.sh docs/prd/001-m.md
+verifier_exact "taille : limite non numérique refusée (64)" 64 "$invalide_c" env FACTORY_MAX_CRITERES_ISSUE='$(touch pwn)' scripts/couverture-prd.sh docs/prd/001-m.md
+[ ! -e pwn ] && ok "cs_ limite hostile : rien n'est exécuté" || ko "cs_ limite exécutée"
+verifier_exact "config-factory --max-criteres : 10 par défaut" 0 "10" scripts/config-factory.sh --max-criteres
+verifier_exact "config-factory --max-criteres : invalide = 64" 64 "$invalide_c" env FACTORY_MAX_CRITERES_ISSUE=abc scripts/config-factory.sh --max-criteres
+verifier "config-factory : clé listée" 0 "MAX_CRITERES_ISSUE=10" scripts/config-factory.sh
+for f in factory/skills/to-tickets/SKILL.md factory/prompts/spec-writer.md factory/UPGRADE.md; do
+  lire_depot "$depot" "$f" | grep -q "environ 10 critères au plus par issue" && lire_depot "$depot" "$f" | grep -q "ordre de grandeur, pas une mesure" && ok "$f : taille d'une issue écrite" || ko "$f : taille d'une issue absente"
+done
+
 echo "verify-clean.sh"
 [ -z "${COMMANDE_VERIFY+x}" ] && [ -z "${STUB_CODE+x}" ] && ok "suite isolée de l'environnement appelant : ni COMMANDE_VERIFY ni STUB_CODE hérités" || ko "suite isolée de l'environnement appelant" "COMMANDE_VERIFY=${COMMANDE_VERIFY-<absent>} STUB_CODE=${STUB_CODE-<absent>}"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -1031,6 +1076,7 @@ printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRE
 verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "AGENT_MODELE=opus
 AGENT_EFFORT=low
 MAX_ITERATIONS_REVUE=6
+MAX_CRITERES_ISSUE=10
 NOTIFICATION_COMMANDE=
 NOTIFICATION_DESTINATAIRE=moi@example.com
 NOTIFICATION_EXPEDITEUR=

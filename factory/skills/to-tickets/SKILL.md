@@ -105,3 +105,7 @@ The end-to-end behaviour this ticket makes work, from the user's perspective, no
 </issue-template>
 
 In either form, avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
+
+## Taille d'une issue
+
+Environ 10 critères au plus par issue ; une issue plus grosse se découpe, ou justifie sa taille dans le découpage proposé à l'utilisateur et par le champ `criteres_justification:` de son en-tête. Ce chiffre est un ordre de grandeur, pas une mesure ; `scripts/couverture-prd.sh` avertit au-delà de `MAX_CRITERES_ISSUE`, sans échouer.

@@ -178,6 +178,7 @@ Une clé présente avec une valeur **vide** l'emporte aussi sur les niveaux inf�
 |---|---|---|
 | `AGENT_MODELE` | `opus` | Modèle des agents `spec-writer`, `developer` et `code-reviewer` : alias ou identifiant complet. Vide : hérite de la session. L'en-tête d'un prompt l'emporte pour ce rôle. Relancer `./factory/sync.sh` après un changement |
 | `AGENT_EFFORT` | `low` | Effort de raisonnement de ces agents : `low`, `medium`, `high`, `xhigh` ou `max`. Vide : hérite de la session. Mêmes règles que `AGENT_MODELE` |
+| `MAX_CRITERES_ISSUE` | 10 | Critères par issue au-delà desquels `couverture-prd.sh` avertit, sans échouer, sauf champ `criteres_justification:` non vide ; ordre de grandeur, pas une mesure |
 | `MAX_ITERATIONS_REVUE` | 3 | Allers-retours développeur <-> relecteur pour une issue (`/deliver`, et corrections après `/code-review`) ; au-delà, arrêt, notification, blocage remonté |
 | `NOTIFICATION_COMMANDE` | vide | Commande d'envoi (`msmtp -a <compte>`, `sendmail -oi`, ou le chemin d'un script qui appelle une API avec curl ; jamais l'option `-t` de sendmail ou de mail, qui selon l'implémentation ignore ou double le destinataire passé en argument) ; reçoit le message sur son entrée standard et le destinataire en dernier argument |
 | `NOTIFICATION_DESTINATAIRE` | vide | Votre adresse (dans `.factory.local.conf`) |

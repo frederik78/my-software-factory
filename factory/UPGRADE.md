@@ -13,5 +13,8 @@ quelle version il a été initialisé ; `factory/VERSION` donne celle du dossier
    reprendre à la main ce qui vous intéresse : `AGENTS.md`, `.claude/settings.json`, `docs/agents/*`, et pour la stack du projet `diff -r factory/stacks/<stack>/.github .github` (CI, Dependabot).
 5. Lancer `factory/scripts/tests/run.sh`, puis `scripts/verify-clean.sh`.
 
+## Taille d'une issue (1.14.0)
+Règle pour les prochains découpages : environ 10 critères au plus par issue ; une issue plus grosse se découpe, ou justifie sa taille dans le découpage proposé à l'utilisateur et par le champ `criteres_justification:` de son en-tête. Ce chiffre est un ordre de grandeur, pas une mesure ; `scripts/couverture-prd.sh` avertit au-delà de `MAX_CRITERES_ISSUE`, sans échouer. Les issues existantes d'un projet ne sont pas à modifier : le code de sortie ne change pas, l'avertissement reste une information. Ajouter `MAX_CRITERES_ISSUE=10` à `.factory.conf` est facultatif : c'est la valeur par défaut.
+
 ## Passer à la structure bare (1.14.0)
 `scripts/worktree-issue.sh initialiser <source> <conteneur>` crée le clone bare, règle `origin` et la refspec de suivi, puis fait un fetch, sans toucher à la source. Les fichiers non suivis (`.env`, `.factory.local.conf`) ne sont pas copiés : recréez-les vous-même. Ensuite, un worktree par issue, même seule.

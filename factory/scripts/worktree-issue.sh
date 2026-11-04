@@ -29,7 +29,7 @@ cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$(dirname "$0")/lib-issues.sh"
 
-usage() { sed -n 2,25p "$0" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n 2,23p "$0" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 if [ "${1:-}" = "initialiser" ]; then
   [ $# -eq 3 ] || usage
   absolu() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s/%s' "$dossier_appel" "$1" ;; esac; }

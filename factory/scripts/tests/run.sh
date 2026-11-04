@@ -599,6 +599,8 @@ git remote set-url origin "$reel"
 s2="$(mktemp -d "$racine_tmp/so.XXXXXX")"; git init -q "$s2"; gc -C "$s2" commit -q --allow-empty -m a
 verifier "initialiser : sans origin, avertissement" 0 "origin vise le chemin local" scripts/worktree-issue.sh initialiser "$s2" "$s2-c"
 verifier "initialiser : conteneur dans un parent absent de la source refusé" 64 "dans la source" scripts/worktree-issue.sh initialiser "$p" "$p/a/b"
+out="$(scripts/worktree-issue.sh danser 2>&1)"; printf '%s' "$out" | grep -q 'set -uo' && ko "usage : en-tête seul" "$out" || ok "usage : en-tête seul"
+printf '%s' "$out" | grep -q 'Code de sortie' && ok "usage : en-tête complet" || ko "usage : en-tête complet" "$out"
 sortie_cl="$(scripts/worktree-issue.sh creer 001-01 2>&1)"; code=$?
 nomp="$(basename "$p")"
 [ "$code" -eq 0 ] && [ -d "../$nomp-001-01" ] && [ ! -e "../$nomp-001-01/.agents/sync-lance" ] && printf '%s' "$sortie_cl" | grep -q "structure bare recommand" && ok "dépôt classique : emplacement inchangé, sans sync, avec avertissement" || ko "dépôt classique" "$sortie_cl"

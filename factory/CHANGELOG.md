@@ -8,8 +8,9 @@
 - `verify-clean.sh` : additionne les résumés Maven (plusieurs modules ou greffons, seul le dernier était lu) et ajoute le verdict de unittest au résumé.
 - `MAX_ITERATIONS_REVUE` passe de 5 à 3 par défaut, car 5 relectures prennent trop de temps. Un projet existant garde la valeur de son `.factory.conf` ; pour adopter 3, il la change lui-même.
 - Vitesse : le relecteur ne mute que les garde-fous nouveaux ou modifiés de la passe, 8 au plus, et liste les autres ; le développeur lance des tests ciblés avant chaque commit intermédiaire, et `fin-issue.sh` complet avant son rapport.
+- Un worktree par issue, même seule, de préférence sur un clone bare : `worktree-issue.sh initialiser <source> <conteneur>` (clone bare, `origin`, refspec, fetch ; conteneur existant refusé) ; `creer` place le dossier dans `<conteneur>/<branche avec / remplacé par ->` et lance `factory/sync.sh`. Dépôt classique : emplacement inchangé, avec un avertissement.
 - `LESSONS.md` : leçon n° 30.
-- Migration : remplacer `factory/`, lancer `scripts/criteres-sans-test.sh --tous`, renommer les tests signalés, relancer `./factory/init-projet.sh` (lien `scripts/fin-issue.sh`), ajouter les clés `FIN_ISSUE_*` à `.factory.conf`, ignorer ou commiter les fichiers non suivis (`.vscode/` par exemple), puis reprendre les lignes `criteres-sans-test` et `fin-issue` dans `AGENTS.md`.
+- Migration : remplacer `factory/`, lancer `scripts/criteres-sans-test.sh --tous`, renommer les tests signalés, relancer `./factory/init-projet.sh` (lien `scripts/fin-issue.sh`), ajouter les clés `FIN_ISSUE_*` à `.factory.conf`, ignorer ou commiter les fichiers non suivis (`.vscode/` par exemple), reprendre les lignes `criteres-sans-test`, `fin-issue` et `worktree-issue` dans `AGENTS.md`, puis, si vous adoptez la structure bare, lancer `initialiser` et recréer les fichiers non suivis dans chaque worktree.
 
 ## 1.13.0
 - Règle « Langue du code » : les classes techniques sont impérativement en anglais. Dans `AGENTS.md`, `developer.md` et le guide java ; en revue, une classe technique dans une autre langue est un constat IMPORTANT.

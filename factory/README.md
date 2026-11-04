@@ -30,7 +30,7 @@ Les quatre **phases** d'une issue, comme une chaîne de fabrication. Ce sont des
 
 | Phase | Ce qui se passe | Réalisée par | Nature | Où dans la factory |
 |---|---|---|---|---|
-| **Isoler** | L'issue a sa branche et, si d'autres agents travaillent en même temps, son propre dossier de travail ; rien n'est construit sur `main` ni sur `develop` | La session principale | Script et consigne de `/deliver` | `scripts/worktree-issue.sh`, `/deliver` étape 0 |
+| **Isoler** | L'issue a sa branche et son propre dossier de travail, même seule ; rien n'est construit sur `main` ni sur `develop` | La session principale | Script et consigne de `/deliver` | `scripts/worktree-issue.sh`, `/deliver` étape 0 |
 | **Construire** | Le développeur code en TDD, dans une structure lisible par quelqu'un sans contexte | Agent `developer` | Agent | `prompts/developer.md`, `AGENTS.md`, ADR |
 | **Prouver** | Preuve avant / après, tests de garde-fous prouvés par mutation, rapports recoupés avec le dépôt, relecture | `developer` (fournit la preuve), `code-reviewer` (la vérifie), la session (recoupe) | Agents, session et scripts | `report-format.md`, `scripts/*.sh` |
 | **Livrer** | Définition de fini, PR avec sa preuve, retour de revue externe facultatif, fusion | La session principale, puis vous (fusion) | Skill `/deliver` et décision humaine | `/deliver` étapes 4 bis et 5, `.github/pull_request_template.md` |
@@ -125,7 +125,7 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/couverture-prd.sh <prd>` | Chaque critère du PRD couvert par une seule issue |
 | `scripts/etat-issues.sh [--statut S] [--prochaine]` | État des issues lu dans leurs en-têtes ; prochaine issue prête |
 | `scripts/dashboard.sh [--sortie F] [--attente S] [--boucle S]` | Page HTML en Kanban des besoins du `backlog.md` et des issues (une colonne par statut, une carte par élément, encart « En cours », marqueurs « prochaine » et « bloquée ») ; `--boucle` la régénère en continu |
-| `scripts/worktree-issue.sh creer\|nettoyer\|lister <issue>` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
+| `scripts/worktree-issue.sh creer\|nettoyer\|lister\|initialiser` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
 | `scripts/config-factory.sh [--max-iterations]` | Configuration effective de la factory (`.factory.conf`, `.factory.local.conf`, variables `FACTORY_*`) ; `--max-iterations` : limite des revues |
 | `scripts/notifier.sh --sujet S [--corps-fichier F] \| --test` | Courriel par la commande configurée (issue bloquée après `MAX_ITERATIONS_REVUE` revues) ; `--test` : message d'essai |
 | `factory/scripts/tests/run.sh` | Tests des scripts de la factory (273 vérifications) |
@@ -197,7 +197,7 @@ Vérifier : `scripts/config-factory.sh`, puis `scripts/notifier.sh --test`.
 - **Pas d'abstraction « au cas où »** : une interface n'existe que pour une frontière externe à doubler ou avec deux implémentations réelles.
 - **Questions** : seule la session principale peut interroger l'utilisateur ; les agents posent leurs questions dans un bloc `## QUESTIONS`, d'où l'importance du cadrage (§ 4, étape 1).
 - **Documents** : `backlog.md` et le PRD sont à vous ; la session ne modifie que les statuts du backlog et liste les passages devenus faux.
-- **Parallélisme et isolation** : jamais de travail sur `main` ni sur `develop` ; un `git worktree` par agent (`scripts/worktree-issue.sh`) ; jamais deux agents dans le même dossier.
+- **Parallélisme et isolation** : jamais de travail sur `main` ni sur `develop` ; un `git worktree` par issue, même seule (`scripts/worktree-issue.sh`), de préférence en structure bare (`initialiser <source> <conteneur>` : `<conteneur>/.git` et les worktrees à côté) ; le dossier de l'utilisateur et de son IDE n'est jamais celui d'un agent.
 - **Preuve** : un agent prouve (avant / après : test qui échoue puis réussit, chiffres mesurés, captures), il n'affirme pas ; la PR reprend cette preuve (`.github/pull_request_template.md`).
 - **Lisibilité** : le code doit être compréhensible par un développeur ou un agent sans contexte (pas de duplication, pas de code mort) ; le relecteur le contrôle.
 

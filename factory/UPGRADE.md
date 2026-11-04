@@ -12,3 +12,6 @@ quelle version il a été initialisé ; `factory/VERSION` donne celle du dossier
 4. Comparer les fichiers du projet issus des modèles avec leur nouvelle version (`diff -r factory/templates/ .` en ignorant les fichiers propres au projet) pour
    reprendre à la main ce qui vous intéresse : `AGENTS.md`, `.claude/settings.json`, `docs/agents/*`, et pour la stack du projet `diff -r factory/stacks/<stack>/.github .github` (CI, Dependabot).
 5. Lancer `factory/scripts/tests/run.sh`, puis `scripts/verify-clean.sh`.
+
+## Passer à la structure bare (1.14.0)
+`scripts/worktree-issue.sh initialiser <source> <conteneur>` crée le clone bare, règle `origin` et la refspec de suivi, puis fait un fetch, sans toucher à la source. Les fichiers non suivis (`.env`, `.factory.local.conf`) ne sont pas copiés : recréez-les vous-même. Ensuite, un worktree par issue, même seule.

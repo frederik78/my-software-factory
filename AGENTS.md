@@ -19,7 +19,7 @@ Package racine : `<...>`.
 - `scripts/couverture-prd.sh <prd>` : chaque critère du PRD est couvert par exactement une issue
 - `scripts/etat-issues.sh [--prochaine]` : état des issues (lu dans leurs en-têtes)
 - `scripts/dashboard.sh [--sortie <fichier>] [--attente <s>] [--boucle <s>]` : dashboard HTML statique (`dashboard.html`, non versionné) des besoins et des issues par statut ; sans modèle ni dépendance
-- `scripts/worktree-issue.sh creer|nettoyer|lister` : une issue dans son propre dossier de travail (`git worktree`)
+- `scripts/worktree-issue.sh creer|nettoyer|lister|initialiser` : une issue dans son propre dossier de travail (`git worktree`) ; `initialiser <source> <conteneur>` crée la structure bare
 - `scripts/config-factory.sh [--max-iterations]` : configuration effective de la factory (`.factory.conf`, `.factory.local.conf` non versionné, variables `FACTORY_*`)
 - `scripts/notifier.sh --sujet <s> [--corps-fichier <f>] | --test` : courriel par la commande configurée (issue bloquée en revue)
 - `factory/scripts/tests/run.sh` : tests des scripts de la factory
@@ -66,7 +66,7 @@ ils posent leurs questions dans un bloc `## QUESTIONS` de leur rapport, qu'elle 
 - L'architecture se décide avant le code, dans un ADR validé, et s'applique par des tests d'architecture ; elle ne change pas sans nouvel ADR.
 - Le PRD décrit le comportement, jamais la structure du code (aucun nom de package, de classe ni de couche).
 - Une branche et une PR par issue (base = `develop`) ; l'agent ne pousse ni ne fusionne, l'utilisateur fusionne avec `git merge --no-ff`.
-- Jamais de travail sur `main` ni sur `develop` (voir « Modèle de branches »). Pas de deux agents qui écrivent dans le même dossier : un `git worktree` par agent pour des issues parallèles (`scripts/worktree-issue.sh`).
+- Jamais de travail sur `main` ni sur `develop` (voir « Modèle de branches »). Chaque issue se réalise dans son propre `git worktree`, même seule (`scripts/worktree-issue.sh`) ; le dossier de l'utilisateur et de son IDE n'est jamais celui d'un agent.
 - Un agent prouve son travail, il ne l'affirme pas : état avant / après (test qui échoue puis réussit, chiffres mesurés, captures) dans son rapport et dans la PR ; l'utilisateur relit la preuve plus que le code.
 - Les écarts de contrat externe, de licence, de dépendance ou de PRD se décident avec l'utilisateur, pas seul.
 

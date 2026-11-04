@@ -58,3 +58,6 @@ Ces éléments appartiennent à une première issue « socle » (`000-01`). Ils 
 - Relire `docs/lessons.md` et `factory/LESSONS.md` ; ajuster les prompts ou skills si une leçon le justifie (les écarts aux skills copiés de Matt Pocock
   sont notés dans `factory/skills/SOURCES.md`).
 - `./factory/sync.sh` après toute modification d'un en-tête de prompt.
+
+## Dossiers de travail
+Chaque issue se réalise dans son propre worktree, même seule ; le dossier de l'utilisateur et de son IDE n'est jamais celui d'un agent. Structure recommandée : `scripts/worktree-issue.sh initialiser <source> <conteneur>`, puis `scripts/worktree-issue.sh creer <issue>` depuis un worktree (les worktrees sont à côté de `<conteneur>/.git`).

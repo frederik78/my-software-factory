@@ -16,7 +16,7 @@ la boucle ci-dessous est autorisée par la demande de livrer l'issue.
 3. Une branche et une PR par issue : `feat/<prd>-<nn>-<slug>`, créée depuis `develop` à jour (ou depuis la branche de l'issue dont
    celle-ci dépend si elle n'est pas encore fusionnée). Si la branche existe déjà, reprends-la. Si l'utilisateur est sur une autre branche de
    travail non terminée, ne la quitte pas sans lui demander. `git status` doit être propre ; sinon signale les fichiers et demande quoi en faire.
-   **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Dès qu'un autre agent peut travailler en même temps, isole l'issue dans son propre dossier : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
+   **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Chaque issue se réalise dans son propre worktree, même seule ; le dossier de l'utilisateur et de son IDE n'est jamais celui d'un agent : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
    crée `../<dépôt>-<id>` sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
    `scripts/worktree-issue.sh nettoyer <issue> --branche`.
    **Correctif urgent sur une release** (bug en production que l'utilisateur demande de corriger sans attendre la prochaine release) : branche `hotfix/<slug>` créée depuis `main` à jour

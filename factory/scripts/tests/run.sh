@@ -461,6 +461,48 @@ git -c user.name=t -c user.email=t@t commit -qm n
 fin_projet "git -C '$p' -c user.name=t -c user.email=t@t commit -q --allow-empty -m pendant; $(maven 1 0)"
 verifier "fin-issue : commit pendant la vérification = échec" 1 "FIN-ISSUE ECHEC : HEAD a changé" scripts/fin-issue.sh 001-01
 
+echo "worktree-issue.sh : structure bare"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+reel="$(mktemp -d "$racine_tmp/reel.XXXXXX")/reel.git"
+gc() { git -c user.name=t -c user.email=t@t "$@"; }
+git init -q -b main .; printf '.env\n.factory.local.conf\nsync-lance\n.agents/\n' > .gitignore
+printf '#!/bin/sh\ntouch "$(dirname "$0")/../sync-lance"\n' > factory/sync.sh; chmod +x factory/sync.sh
+issue_id "$p" 001-01 "À faire" docs/prd/1.md "[CA-1]" "[]"; issue_id "$p" 001-02 "À faire" docs/prd/1.md "[CA-2]" "[]"
+git add -A; gc commit -qm init; git branch develop; printf 'SECRET=x\n' > .env
+git clone -q --bare . "$reel"; git remote add origin "$reel"; git fetch -q origin
+c="$(dirname "$reel")/conteneur"
+avant="$(git rev-parse HEAD) $(git remote get-url origin) $(git status --porcelain | tr -d '\n')"
+verifier "initialiser : conversion, fichiers non suivis rappelés" 0 "non suivis .*\.env" scripts/worktree-issue.sh initialiser "$p" "$c"
+[ "$(git --git-dir="$c/.git" remote get-url origin)" = "$reel" ] && ok "initialiser : origin vise l'URL réelle" || ko "initialiser : origin vise l'URL réelle" "$(git --git-dir="$c/.git" remote get-url origin)"
+[ "$(git --git-dir="$c/.git" config remote.origin.fetch)" = "+refs/heads/*:refs/remotes/origin/*" ] && git --git-dir="$c/.git" show-ref --verify --quiet refs/remotes/origin/develop && ok "initialiser : refspec de suivi et fetch faits" || ko "initialiser : refspec de suivi et fetch faits"
+[ "$(git --git-dir="$c/.git" config --bool core.bare)" = true ] && [ ! -e "$c/.env" ] && [ -z "$(git --git-dir="$c/.git" grep -l SECRET HEAD 2>/dev/null)" ] && ok "initialiser : clone bare, .env non copié" || ko "initialiser : clone bare, .env non copié"
+[ "$(git rev-parse HEAD) $(git remote get-url origin) $(git status --porcelain | tr -d '\n')" = "$avant" ] && ok "initialiser : source inchangée" || ko "initialiser : source inchangée"
+verifier "initialiser : conteneur existant refusé" 1 "existe déjà" scripts/worktree-issue.sh initialiser "$p" "$c"
+verifier "initialiser : source qui n'est pas un dépôt = 64" 64 "Pas un dépôt" scripts/worktree-issue.sh initialiser "$racine_tmp" "$c-2"
+verifier "initialiser : arguments manquants = 64" 64 "" scripts/worktree-issue.sh initialiser "$p"
+git --git-dir="$c/.git" worktree add -q "$c/develop" develop; cd "$c/develop" || exit 1
+d1="$(cd "$c" && pwd -P)/feat-001-01-x"; d2="$(cd "$c" && pwd -P)/feat-001-02-x"
+sortie_bare="$(scripts/worktree-issue.sh creer 001-01 2>&1)"; code=$?
+[ "$code" -eq 0 ] && [ -d "$c/feat-001-01-x" ] && printf '%s' "$sortie_bare" | grep -q "dossier : .*/feat-001-01-x" && ok "bare creer : dossier au même niveau que .git" || ko "bare creer : dossier au même niveau que .git" "$sortie_bare"
+printf '%s' "$sortie_bare" | grep -q "recommand" && ko "bare creer : pas d'avertissement" "$sortie_bare" || ok "bare creer : pas d'avertissement"
+[ "$(git -C "$c/feat-001-01-x" rev-parse HEAD)" = "$(git rev-parse develop)" ] && ok "bare creer : branche partie de la base" || ko "bare creer : branche partie de la base"
+[ -e "$c/feat-001-01-x/sync-lance" ] && ok "bare creer : sync.sh lancé dans le nouveau dossier" || ko "bare creer : sync.sh lancé dans le nouveau dossier"
+cd "$c/feat-001-01-x" || exit 1
+verifier "bare creer depuis un worktree de branche : pas d'imbrication" 0 "dossier : .*/conteneur/feat-001-02-x" scripts/worktree-issue.sh creer 001-02
+[ -d "$c/feat-001-02-x" ] && [ ! -e "$c/feat-001-01-x/feat-001-02-x" ] && ok "bare : le dossier est dans le conteneur" || ko "bare : le dossier est dans le conteneur"
+verifier "bare lister : worktrees du conteneur" 0 "feat-001-02-x" scripts/worktree-issue.sh lister
+cd "$c/develop" || exit 1
+gc -C "$c/feat-001-01-x" commit -q --allow-empty -m travail
+verifier "bare nettoyer : refusé si non fusionné" 1 "n'est pas fusionnée" scripts/worktree-issue.sh nettoyer 001-01
+[ -d "$c/feat-001-01-x" ] && ok "bare nettoyer refusé : dossier conservé" || ko "bare nettoyer refusé : dossier conservé"
+gc merge -q --no-ff -m m feat/001-01-x
+verifier "bare nettoyer : accepté après fusion" 0 "supprimé" scripts/worktree-issue.sh nettoyer 001-01 --branche
+[ ! -e "$c/feat-001-01-x" ] && ok "bare nettoyer : dossier retiré" || ko "bare nettoyer : dossier retiré"
+cd "$p" || exit 1
+sortie_cl="$(scripts/worktree-issue.sh creer 001-01 2>&1)"; code=$?
+nomp="$(basename "$p")"
+[ "$code" -eq 0 ] && [ -d "../$nomp-001-01" ] && [ ! -e "../$nomp-001-01/sync-lance" ] && printf '%s' "$sortie_cl" | grep -q "structure bare recommand" && ok "dépôt classique : emplacement inchangé, sans sync, avec avertissement" || ko "dépôt classique" "$sortie_cl"
+
 echo "couverture-prd.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 mkdir -p docs/prd

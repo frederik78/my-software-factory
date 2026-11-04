@@ -18,6 +18,8 @@
 #   lister    liste les worktrees du dépôt.
 #   creer fait un fetch si possible et avertit si la base locale est en retard ; nettoyer reconnaît une fusion faite sur origin.
 #   nettoyer refuse, sauf --force, un dossier sorti de sa branche ou contenant des fichiers ignorés hors artefacts connus (liste affichée, contenu jamais lu).
+# Limite : `nettoyer --branche` lancé depuis le worktree de l'issue, ou depuis un HEAD qui ne contient pas la branche, supprime le dossier, puis échoue (code 1) et laisse la branche.
+#   L'échec est sûr, mais partiel : lancez-le depuis un autre dossier, sur la branche où la fusion a eu lieu.
 # Code de sortie : 0 ; 1 si l'opération est refusée ; 64 en cas d'erreur d'usage.
 set -uo pipefail
 
@@ -27,7 +29,7 @@ cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$(dirname "$0")/lib-issues.sh"
 
-usage() { sed -n 2,23p "$0" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n 2,25p "$0" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 if [ "${1:-}" = "initialiser" ]; then
   [ $# -eq 3 ] || usage
   absolu() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s/%s' "$dossier_appel" "$1" ;; esac; }

@@ -10,6 +10,7 @@
 #                      it(, test(, describe( et leurs formes .each, .only, .concurrent, avec leur titre entre ' " ou `
 # Rien d'autre ne compte : commentaire, docstring, message d'assertion, chaîne quelconque, autre type de fichier.
 # Limites assumées : préférer un faux MANQUE (visible, corrigé en renommant le test) à un faux OK (silencieux).
+#   Le corps n'est pas lu : `describe('CA-10', () => {})` vide répond OK.
 #   Faux MANQUE : titre sur la ligne suivante, autre langage. Faux OK : déclaration recopiée dans un bloc de commentaire ou une
 #   docstring, sans « * » en tête de ligne ; classe auxiliaire ou méthode Java non privée qui porte l'identifiant sans être un test ; test désactivé.
 #

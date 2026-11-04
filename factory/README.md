@@ -128,13 +128,13 @@ Détail : `skills/deliver/SKILL.md`. Les décisions que le PRD ne fixait pas son
 | `scripts/worktree-issue.sh creer\|nettoyer\|lister\|initialiser` | Une issue dans son propre dossier de travail (`git worktree`), sur sa branche ; `nettoyer` après la fusion |
 | `scripts/config-factory.sh [--max-iterations]` | Configuration effective de la factory (`.factory.conf`, `.factory.local.conf`, variables `FACTORY_*`) ; `--max-iterations` : limite des revues |
 | `scripts/notifier.sh --sujet S [--corps-fichier F] \| --test` | Courriel par la commande configurée (issue bloquée après `MAX_ITERATIONS_REVUE` revues) ; `--test` : message d'essai |
-| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (273 vérifications) |
+| `factory/scripts/tests/run.sh` | Tests des scripts de la factory (lancer pour le nombre courant) |
 | `./factory/sync.sh [--claude\|--sans-claude]` | Recrée le lien `.agents/skills` (neutre) puis, si le projet a un `CLAUDE.md` (le seul dossier `.claude/` ne suffit pas), appelle `sync-claude.sh` |
 | `./factory/sync-claude.sh` | Propre à Claude Code : lien `.claude/skills` et agents générés depuis les en-têtes de `factory/prompts/` |
 | `./factory/init-projet.sh [--sans-claude]` | Initialise un projet (sans rien écraser) ; `--sans-claude` : ni `CLAUDE.md` ni `.claude/` |
 
 ### Détail des scripts
-Quatorze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une livraison (8), outils internes (3). Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
+Quinze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une livraison (9), outils internes (3). Les `scripts/*.sh` à la racine d'un projet sont des liens vers `factory/scripts/` : la source est unique.
 
 **Mise en place (vous les lancez)**
 
@@ -154,7 +154,7 @@ Quatorze scripts, en trois groupes : mise en place (3), contrôle et suivi d'une
 | `scripts/couverture-prd.sh <prd>` | « Chaque critère du PRD est-il couvert par exactement une issue ? » | `OK`, ou critères sans issue, en double, ou inconnus du PRD |
 | `scripts/etat-issues.sh` | « Où en sont les issues ? » Lit leurs en-têtes ; `--statut S` filtre ; `--prochaine` donne la première issue prête (toutes ses dépendances sont `Fait`) | Tableau Markdown, ou un identifiant |
 | `scripts/dashboard.sh` | « Où en est le projet, d'un coup d'œil ? » Écrit `dashboard.html` (à ouvrir dans un navigateur, rafraîchi toutes les 30 s ; `--attente S` change le délai) en Kanban : un encart « En cours » en haut (issues `En cours` et `En revue`, référence et titre), puis les besoins et les issues en colonnes, une par statut du cycle dans l'ordre (en-tête coloré « Statut (n) », « — » si la colonne est vide, colonne « (autre) » seulement pour un statut hors cycle) ; une carte d'issue montre la référence, le titre, le besoin `F-xx`, les dépendances et les marqueurs « prochaine » (issue de `etat-issues.sh --prochaine`) et « bloquée » (`À faire` avec une dépendance pas `Fait`) ; une carte de besoin, l'ID, le libellé, la priorité et le PRD. Mise en page CSS seule (colonnes de largeur égale, défilement horizontal sur écran étroit, impression lisible) ; `--sortie F` change le fichier (son dossier doit exister, sinon code 64) ; `--boucle S` régénère toutes les S secondes jusqu'à Ctrl-C. Aucun modèle, aucun JavaScript, tout texte lu est échappé HTML | Fichier HTML (non versionné) |
-| `scripts/worktree-issue.sh creer\|nettoyer\|lister` | « Comment isoler une issue ? » `creer` fait un `git worktree` sur la branche de l'issue (option `--base` pour des branches empilées) ; `nettoyer` le supprime une fois la branche fusionnée (option `--branche`) | Dossier, branche et base |
+| `scripts/worktree-issue.sh creer\|nettoyer\|lister\|initialiser` | « Comment isoler une issue ? » `initialiser <source> <conteneur>` crée la structure bare ; `creer` fait un `git worktree` sur la branche de l'issue (option `--base` pour des branches empilées), après un fetch si possible, et avertit d'une base en retard ; `nettoyer` le supprime une fois la branche fusionnée, y compris sur `origin` (option `--branche`), et refuse sauf `--force` un dossier sorti de sa branche ou contenant des fichiers ignorés hors artefacts connus. Mise à jour : `git pull` dans le worktree `develop` | Dossier, branche et base |
 | `scripts/config-factory.sh` | « Quelle configuration s'applique ? » Sans option : `CLÉ=valeur` pour chaque clé connue (rien d'autre) ; `--max-iterations` : la limite des revues (`/deliver` la lit au départ) | Valeurs ; code 64 si `MAX_ITERATIONS_REVUE` n'est pas un entier >= 1 |
 | `scripts/notifier.sh` | « Comment prévenir l'utilisateur d'une issue bloquée ? » Construit le message (From si renseigné, To, Subject encodé RFC 2047 s'il n'est pas ASCII, corps) et le passe sur l'entrée standard de `NOTIFICATION_COMMANDE`, destinataire en dernier argument ; `--test` envoie un essai | Code 0 envoyé, 3 non configuré, 4 échec de la commande, 64 usage |
 
@@ -219,7 +219,7 @@ Les skills `to-spec`, `implement` et `setup-matt-pocock-skills` de l'amont ont �
 ## 8. Choisir ou adapter la stack
 - `--stack` copie les fichiers de `factory/stacks/<stack>/` : CI épinglée, Dependabot, `.factory-verify` (la commande de vérification), lignes du `.gitignore`.
 - Autre stack : `--stack aucune`, puis créez `.factory-verify` (une ligne, syntaxe shell permise, ex. `python3 -m unittest discover -s tests -t .` ou `npm ci && npm test`) et ajoutez l'installation de l'outil de build au job `verify` de `.github/workflows/ci.yml`. Vous pouvez créer votre propre dossier `factory/stacks/<stack>/` sur le modèle des autres.
-- `verify-clean.sh` cherche la commande dans `COMMANDE_VERIFY`, puis `.factory-verify`, puis un wrapper `./mvnw` ou `./gradlew`, sinon il s'arrête en demandant de la créer. Il reconnaît la sortie de Maven, d'unittest et de pytest pour le résumé chiffré.
+- `verify-clean.sh` cherche la commande dans `COMMANDE_VERIFY`, puis `.factory-verify`, puis un wrapper `./mvnw` ou `./gradlew`, sinon il s'arrête en demandant de la créer. Il reconnaît la sortie de Maven, d'unittest, de pytest, de jest et de node:test pour le résumé (`fin-issue.sh` y compte comme ignorés `skipped`, `deselected`, `xfailed` et `todo`) chiffré.
 - `owasp-check` est indépendant de la stack ; l'annexe `JAVA.md` complète pour Java/Spring Boot. Ajoutez une annexe `<STACK>.md` pour une autre technologie.
 - Dossier de tests : `scripts/criteres-sans-test.sh` détecte `src/test`, `tests` ou `test` (sinon variable `DOSSIER_TESTS`).
 

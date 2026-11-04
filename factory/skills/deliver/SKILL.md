@@ -17,10 +17,10 @@ la boucle ci-dessous est autorisée par la demande de livrer l'issue.
    celle-ci dépend si elle n'est pas encore fusionnée). Si la branche existe déjà, reprends-la. Si l'utilisateur est sur une autre branche de
    travail non terminée, ne la quitte pas sans lui demander. `git status` doit être propre ; sinon signale les fichiers et demande quoi en faire.
    **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Chaque issue se réalise dans son propre worktree, même seule ; le dossier de l'utilisateur et de son IDE n'est jamais celui d'un agent : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
-   crée `../<dépôt>-<id>` sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
+   crée le dossier (structure bare : `<conteneur>/<branche avec / remplacé par ->` ; dépôt classique : `../<dépôt>-<id>`) sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
    `scripts/worktree-issue.sh nettoyer <issue> --branche`.
    **Correctif urgent sur une release** (bug en production que l'utilisateur demande de corriger sans attendre la prochaine release) : branche `hotfix/<slug>` créée depuis `main` à jour
-   (en dossier isolé : `git worktree add -b hotfix/<slug> ../<dépôt>-hotfix-<slug> main`), PR vers `main` ; après sa fusion dans `main`, l'utilisateur fusionne aussi `main` (ou la branche
+   (en dossier isolé : `git worktree add -b hotfix/<slug> <conteneur>/hotfix-<slug> main` en structure bare, `../<dépôt>-hotfix-<slug>` sinon), PR vers `main` ; après sa fusion dans `main`, l'utilisateur fusionne aussi `main` (ou la branche
    `hotfix/<slug>`) dans `develop`. L'agent travaille sur la branche `hotfix/<slug>`, jamais sur `main` ni sur `develop`, et ne fusionne rien.
 4. Fixe la **base** (borne de `git log <base>..HEAD` pour toute la livraison). Si la branche est créée depuis `develop` : `<base>` = `git merge-base HEAD develop`
    (à défaut de `develop` : `origin/develop`, `origin/HEAD`, `main`, `master`). Si elle est créée depuis la branche d'une issue dont elle dépend et qui n'est pas fusionnée (branches empilées) : `<base>` = la pointe de cette
@@ -35,7 +35,7 @@ et remplis chaque champ à partir de l'issue (ne le résume pas de mémoire). Il
 - l'issue (objectif, périmètre, critères) et les chemins à lire : `AGENTS.md`, le PRD, l'ADR concernés, le code existant ;
 - TDD strict, RED constaté avant chaque GREEN, `owasp-check`, architecture et règles d'`AGENTS.md` ;
 - la **preuve avant / après** attendue (section « Preuve attendue » de l'issue : test qui échoue puis réussit, chiffres mesurés, captures) ;
-- vérification avec `scripts/verify-clean.sh` (jamais le build directement dans le dépôt quand un IDE est ouvert : il peut recompiler des classes générées et le casser) ;
+- vérification finale avec `scripts/fin-issue.sh <issue>`, tests ciblés avant (jamais le build directement dans le dépôt quand un IDE est ouvert : il peut recompiler des classes générées et le casser) ;
 - commits atomiques au format conventionnel, avec la ligne `Co-Authored-By` demandée par le harnais ; **pas de push** ;
 - le format de rapport de `factory/prompts/report-format.md` (inclus par référence), rapport complet, jamais vide.
 

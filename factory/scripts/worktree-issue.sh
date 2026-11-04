@@ -38,10 +38,9 @@ if [ "${1:-}" = "initialiser" ]; then
   [ ! -e "$conteneur" ] || { echo "Le conteneur existe déjà : $conteneur" >&2; exit 1; }
   source_abs="$(cd "$source_depot" && pwd -P)"
   parent="$(dirname "$conteneur")"
-  if [ -d "$parent" ]; then
-    parent_abs="$(cd "$parent" && pwd -P)"
-    case "$parent_abs/" in "$source_abs"/*) echo "Le conteneur ne peut pas être dans la source : $conteneur" >&2; exit 64 ;; esac
-  fi
+  while [ ! -d "$parent" ]; do parent="$(dirname "$parent")"; done
+  parent_abs="$(cd "$parent" && pwd -P)"
+  case "$parent_abs/" in "$source_abs"/*) echo "Le conteneur ne peut pas être dans la source : $conteneur" >&2; exit 64 ;; esac
   if url="$(git -C "$source_abs" remote get-url origin 2>/dev/null)"; then sans_origin=0; else url="$source_abs"; sans_origin=1; fi
   git clone -q --bare "$source_abs" "$conteneur/.git" || exit 1
   git --git-dir="$conteneur/.git" remote set-url origin "$url" || exit 1

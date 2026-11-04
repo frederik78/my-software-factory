@@ -35,7 +35,7 @@ Break the work into **tracer bullet** tickets.
 
 </vertical-slice-rules>
 
-**An external input is born with all its controls.** A route, received file, callback or third-party response gets its security criteria in the FIRST ticket that opens it, even when those criteria also cite another route. Never open an input in one ticket and protect it in the next.
+**An external input is born with all its controls.** A route, received file, callback or third-party response gets its security criteria in the FIRST ticket that opens it, even when those criteria also cite another route. The criterion applies to the input being opened: a route not yet open cannot be tested in this ticket, so its part of the criterion is written for the ticket that opens it. Never open an input in one ticket and protect it in the next.
 
 Give each ticket its **blocking edges**: the other tickets that must complete before it can start. A ticket with no blockers can start immediately.
 

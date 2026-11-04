@@ -32,7 +32,7 @@ Revue de sécurité obligatoire : parcours les catégories A01 à A10 de `owasp-
 
 Entrées externes : le tableau du rapport du développeur (champ, format et borne, code de refus, test hostile) est présent, chaque test existe et chaque entrée ajoutée ou modifiée y figure ; sinon constat IMPORTANT.
 
-Risque reporté : un risque de sécurité reporté, ou qualifié « non exploitable aujourd'hui » ou « provisoire », n'est jamais classé par toi seul. Remonte-le comme décision de l'utilisateur.
+Risque reporté : un risque de sécurité reporté, ou qualifié « non exploitable aujourd'hui » ou « provisoire », n'est jamais classé par toi seul. Une vulnérabilité avérée reste BLOQUANTE : seul son report se décide avec l'utilisateur. Remonte-le dans `## Constats`, marqué « décision de l'utilisateur », et dans la section de décisions de ton rapport.
 
 Documentation : AGENTS.md, ADR, déploiement, PRD, backlog restent-ils fidèles au code ? Liste les passages devenus faux, sans les modifier (le PRD et
 le backlog appartiennent à l'utilisateur).

@@ -68,6 +68,23 @@ case "$commande" in *'"$@"'*|*'$@'*) ;; *) commande="$commande \"\$@\"" ;; esac
 bash -c "$commande" verify-clean ${mvn_args[@]+"${mvn_args[@]}"} >"$journal" 2>&1
 code=$?
 
+# Plusieurs lanceurs enchaînés (pytest unit && pytest integ) : chaque résumé compte. Un seul : recopié tel quel.
+additionner() { # additionner <préfixe> : somme les « n mot » de l'entrée standard
+  awk -v pre="$1" '
+    { une = $0; nb++
+      for (i = 1; i < NF; i++) if ($i ~ /^[0-9]+$/) {
+        m = $(i + 1); gsub(/[^a-z]/, "", m); if (m == "error") m = "errors"
+        if (!(m in n)) ordre[++k] = m
+        n[m] += $i
+      } }
+    END {
+      if (!nb) exit
+      if (nb == 1) { print une; exit }
+      l = pre; for (j = 1; j <= k; j++) l = l (j > 1 ? ", " : "") n[ordre[j]] " " ordre[j]
+      print l
+    }'
+}
+
 # Maven : une ligne de total par module et par greffon (surefire, failsafe) ; on les additionne pour qu'aucun test ignoré ne se perde.
 tests="$(grep -E '^\[(INFO|ERROR|WARNING)\] Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$' "$journal" | sed -E 's/[^0-9]+/ /g' | awk 'NF { t += $1; f += $2; e += $3; s += $4; n = 1 } END { if (n) printf "Tests run: %d, Failures: %d, Errors: %d, Skipped: %d\n", t, f, e, s }')"
 if [ -z "$tests" ]; then
@@ -86,10 +103,10 @@ if [ -z "$tests" ]; then
       }
       print l
     }')"
-  [ -z "$tests" ] && tests="$(grep -E '^=+ .*(passed|failed).* =+$|^[0-9]+ (passed|failed)' "$journal" | tail -1)"
+  [ -z "$tests" ] && tests="$(grep -E '^=+ .*(passed|failed).* =+$|^[0-9]+ (passed|failed)' "$journal" | additionner "")"
   # jest : « Tests: 1 skipped, 5 passed, 6 total ». node:test : compteurs « tests 5 », « pass 4 »... précédés de ℹ ou #.
-  [ -z "$tests" ] && tests="$(grep -E '^Tests: +.*[0-9]+ total$' "$journal" | tail -1 | sed -E 's/^Tests: +/Tests: /')"
-  [ -z "$tests" ] && tests="$(grep -E '^(ℹ|#) (tests|pass|fail|cancelled|skipped|todo) [0-9]+$' "$journal" | tail -6 | awk '{ printf "%s%s %s", (NR > 1 ? ", " : "node:test "), $2, $3 } END { if (NR) print "" }')"
+  [ -z "$tests" ] && tests="$(grep -E '^Tests: +.*[0-9]+ total$' "$journal" | sed -E 's/^Tests: +/Tests: /' | additionner "Tests: ")"
+  [ -z "$tests" ] && tests="$(grep -E '^(ℹ|#) (tests|pass|fail|cancelled|skipped|todo) [0-9]+$' "$journal" | awk '{ n[$2] += $3 } END { if (length(n)) printf "node:test tests %d, pass %d, fail %d, cancelled %d, skipped %d, todo %d\n", n["tests"], n["pass"], n["fail"], n["cancelled"], n["skipped"], n["todo"] }')"
   [ -z "$tests" ] && tests="$(grep -E '^TESTS (OK : [0-9]+ vérifications|EN ECHEC : [0-9]+ sur [0-9]+)$' "$journal" | tail -1)"
 fi
 spotbugs="$(grep -E 'BugInstance size is [0-9]+' "$journal" | tail -1 | sed -E 's/.*(BugInstance size is [0-9]+).*/\1/')"

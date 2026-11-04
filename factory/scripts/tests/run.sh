@@ -503,6 +503,14 @@ verifier "fin-issue : arbre modifié pendant la vérification" 1 "FIN-ISSUE ECHE
 /bin/rm -f pendant.txt
 fin_projet "echo 'Ran 3 tests in 0.1s'; echo 'FAILED (unexpected successes=1)'"
 verifier "fin-issue : verdict FAILED sans échec compté" 1 "FIN-ISSUE ECHEC : .*verdict FAILED" scripts/fin-issue.sh 001-01
+fin_projet "echo 'Tests:       1 skipped, 5 passed, 6 total'; echo 'Tests:       2 passed, 2 total'"
+verifier "fin-issue : jest, ignorés du premier résumé vus" 1 "FIN-ISSUE ECHEC : 1 test\\(s\\) ignoré" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 1 failed, 1 passed in 0.1s ='; echo '= 2 passed in 0.1s ='"
+verifier "fin-issue : pytest unit puis integ, échec du premier vu" 1 "FIN-ISSUE ECHEC : 1 test\\(s\\) en échec" scripts/fin-issue.sh 001-01
+fin_projet "echo '= 3 passed in 0.1s ='; echo '= 2 passed, 1 skipped in 0.1s ='"
+verifier "verify-clean : résumés pytest additionnés" 0 "Tests : 5 passed, 1 skipped" scripts/verify-clean.sh
+fin_projet "printf '# tests 2\\n# pass 1\\n# fail 1\\n# cancelled 0\\n# skipped 0\\n# todo 0\\n# tests 3\\n# pass 3\\n# fail 0\\n# cancelled 0\\n# skipped 0\\n# todo 0\\n'"
+verifier "fin-issue : deux blocs node:test, échec du premier vu" 1 "FIN-ISSUE ECHEC : 1 test\\(s\\) en échec" scripts/fin-issue.sh 001-01
 touch nouveau.txt
 verifier "fin-issue : fichier non suivi = échec (il serait testé sans être dans le commit)" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
 : > nouveau.txt; git add nouveau.txt

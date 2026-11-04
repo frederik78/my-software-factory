@@ -518,6 +518,8 @@ fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 verifier "fin-issue : DOSSIER_TESTS absolu refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="$p/src/test" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS avec .. refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="src/../../x" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS relatif admis" 0 "FIN-ISSUE OK" env DOSSIER_TESTS="src/test" scripts/fin-issue.sh 001-01
+fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
+out="$(env TMPDIR="$p/absent" scripts/fin-issue.sh 001-01 2>&1)"; code=$?; [ "$code" -eq 1 ] && [ "$(printf '%s\n' "$out" | tail -1 | cut -c1-15)" = "FIN-ISSUE ECHEC" ] && ok "fin-issue : mktemp en échec, dernière ligne écrite" || ko "fin-issue : mktemp en échec, dernière ligne écrite" "$code $out"
 touch nouveau.txt
 verifier "fin-issue : fichier non suivi = échec (il serait testé sans être dans le commit)" 1 "FIN-ISSUE ECHEC : arbre Git non propre" scripts/fin-issue.sh 001-01
 : > nouveau.txt; git add nouveau.txt

@@ -79,7 +79,7 @@ printf '%s\n' "$sortie"
 [ "$code" -ne 64 ] || { echo "FIN-ISSUE ECHEC : vérification impossible à lancer"; exit 64; }
 
 # Critères lus dans le commit : le script travaille dans une extraction de HEAD, supprimée à la sortie.
-extrait="$(mktemp -d "${TMPDIR:-/tmp}/fin-issue.XXXXXX")" || exit 1
+extrait="$(mktemp -d "${TMPDIR:-/tmp}/fin-issue.XXXXXX")" || echec "extraction du commit impossible (mktemp)"
 trap 'rm -rf "$extrait"' EXIT
 git archive HEAD | tar -x -C "$extrait" || echec "extraction du commit impossible"
 mkdir -p "$extrait/.fin-issue"; cp "$dossier_scripts/criteres-sans-test.sh" "$dossier_scripts/lib-issues.sh" "$extrait/.fin-issue/"

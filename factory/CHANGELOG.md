@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 1.15.1
+- Correctif : `/deliver` ne prévoyait aucune étape pour le statut `En revue`, qui existait pourtant (cycle des issues, colonne du dashboard). L'orchestrateur passe maintenant l'issue à `En revue` (commit `docs: issue <id> en revue`) avant la première relecture, la remet `En cours` quand les corrections repartent au développeur (revue interne ou retour de revue externe), puis `En revue` avant la relecture suivante ; après la règle d'arrêt, l'issue reste `En revue`. Aucun script ne change.
+- Migration : remplacer `factory/` ; une issue en cours de livraison reprend le cycle à sa prochaine relecture.
+
 ## 1.15.0
 - `dashboard.sh` montre ce qui se passe en ce moment, sans modèle ni dépendance. Bandeau « Agents actifs » en haut de page : chaque sous-agent commencé et non terminé, avec son rôle, sa description et `depuis 12 min`, ou `sans nouvelles depuis 45 min` au-delà de `AGENTS_SILENCE_MINUTES` (5) sans preuve d'activité ; retiré au-delà de `AGENTS_RETRAIT_MINUTES` (60). Sur chaque issue qui a un worktree : `3 fichiers non commités · activité il y a 2 min` (`git status` sans verrou optionnel : jamais l'`index.lock` d'un agent).
 - **Changement de comportement** : `sync-claude.sh` installe les hooks `SubagentStart` et `SubagentStop` (`factory/hook-agents-claude.sh`) dans `.claude/settings.local.json`, jamais dans `settings.json` versionné. Fusion prudente : une clé `hooks` déjà présente ou un fichier inexploitable n'est pas modifié, un avertissement donne le bloc à ajouter à la main. Sa dernière ligne annonce `agents actifs : oui|non`.

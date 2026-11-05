@@ -517,6 +517,38 @@ config_liste="$(scripts/config-factory.sh)"
 printf '%s\n' "$config_liste" | grep -qx 'AGENTS_SILENCE_MINUTES=5' && printf '%s\n' "$config_liste" | grep -qx 'AGENTS_RETRAIT_MINUTES=60' && ok "config-factory.sh : AGENTS_SILENCE_MINUTES=5 et AGENTS_RETRAIT_MINUTES=60 par défaut" || ko "défauts AGENTS_*" "$config_liste"
 grep -qx 'AGENTS_SILENCE_MINUTES=5' "$factory/templates/.factory.conf" && grep -qx 'AGENTS_RETRAIT_MINUTES=60' "$factory/templates/.factory.conf" && ok "modèle .factory.conf : clés AGENTS_*" || ko "modèle .factory.conf sans AGENTS_*"
 
+echo "dashboard.sh : signaux Git des worktrees"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+git init -q -b develop .; printf 'dashboard.html\n' > .gitignore; rm -f docs/issues/[0-9]*.md
+issue_s() { printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\nbranche: %s\ndepend_de: []\n---\n' "$1" "$1" "$2" "$3" > "docs/issues/$1-x.md"; }
+issue_s 003-01 "En cours" feat/s1; issue_s 003-02 "À faire" feat/s2; issue_s 003-03 "À faire" feat/s3; issue_s 003-04 "À faire" feat/s4; issue_s 003-05 "À faire" feat/s5
+printf 'a\n' > f1.txt; printf 'b\n' > old.txt
+gd_ add -A; gd_ commit -qm init
+maintenant=$(date +%s)
+for b in s1 s2 s3 s5; do git worktree add -q "$racine_tmp/wt-$b" -b "feat/$b" >/dev/null 2>&1; done
+git branch feat/s4
+w1="$racine_tmp/wt-s1"
+printf 'modifié\n' >> "$w1/f1.txt"; git -C "$w1" mv old.txt new.txt; printf 'x\n' > "$w1/a b.txt"
+printf 'c\n' > "$racine_tmp/wt-s2/c2.txt"; gd_ -C "$racine_tmp/wt-s2" add c2.txt
+GIT_COMMITTER_DATE="@$((maintenant - 3600)) +0000" gd_ -C "$racine_tmp/wt-s2" commit -qm s2
+printf 'u\n' > "$racine_tmp/wt-s2/u.txt"; touch -t "$(date_t $((maintenant - 600)))" "$racine_tmp/wt-s2/u.txt"
+printf 'd\n' > "$racine_tmp/wt-s3/d.txt"; gd_ -C "$racine_tmp/wt-s3" add d.txt
+GIT_COMMITTER_DATE="@$((maintenant - 7500)) +0000" gd_ -C "$racine_tmp/wt-s3" commit -qm s3
+mv "$racine_tmp/wt-s5" "$racine_tmp/wt-s5-parti"
+# Index périmé (fichier suivi touché, contenu identique) : un git status ordinaire réécrirait l'index en prenant index.lock.
+index_w3="$(git -C "$racine_tmp/wt-s3" rev-parse --path-format=absolute --git-path index 2>/dev/null || echo "$p/.git/worktrees/wt-s3/index")"
+touch -t "$(date_t $((maintenant + 5)))" "$racine_tmp/wt-s3/d.txt"; avant_index="$(cksum < "$index_w3")"
+verifier_exact "signaux Git : aucune erreur (worktree disparu compris)" 0 "$p/x.html" scripts/dashboard.sh --sortie "$p/x.html"
+mv "$p/x.html" dashboard.html
+carte_s() { grep -F "<strong>$1</strong>" dashboard.html | grep -F 'class="carte'; }
+carte_s 003-01 | grep -qF '<span class="detail signal">3 fichiers non commités · activité il y a moins d'"'"'1 min</span>' && ok "compte des fichiers non commités : modifié, renommé (une entrée), nom avec espace" || ko "compte" "$(carte_s 003-01)"
+carte_s 003-02 | grep -qF '<span class="detail signal">1 fichier non commité · activité il y a 10 min</span>' && ok "singulier ; activité = fichier modifié plus récent que le dernier commit" || ko "singulier" "$(carte_s 003-02)"
+carte_s 003-03 | grep -qF '<span class="detail signal">aucun fichier non commité · activité il y a 2 h 05</span>' && ok "aucun fichier : « aucun fichier non commité », activité = dernier commit" || ko "zéro" "$(carte_s 003-03)"
+! carte_s 003-04 | grep -q 'signal' && ! carte_s 003-05 | grep -q 'signal' && ok "issue sans worktree, ou worktree disparu : aucun signal" || ko "sans worktree" "$(carte_s 003-04; carte_s 003-05)"
+awk '/<section id="en-cours">/ { s = 1 } s && /003-01/ { print; exit }' dashboard.html | grep -qF '<span class="signal">3 fichiers non commités · activité il y a moins d'"'"'1 min</span></li>' && ok "encart En cours : signal sur la ligne de l'issue" || ko "encart" "$(grep -A4 'id="en-cours"' dashboard.html)"
+[ "$(cksum < "$index_w3")" = "$avant_index" ] && [ ! -e "${index_w3}.lock" ] && ok "git status sans verrou optionnel : index d'un agent jamais réécrit" || ko "index réécrit par le dashboard"
+git -C "$racine_tmp/wt-s3" status --porcelain >/dev/null; [ "$(cksum < "$index_w3")" != "$avant_index" ] && ok "témoin : un git status ordinaire, lui, réécrit cet index" || ko "témoin de l'index (le cas ne prouve rien)"
+
 echo "hook-agents-claude.sh (journal des agents, propre à Claude Code)"
 h="$(mktemp -d "$racine_tmp/h.XXXXXX")" || { ko "mktemp du dépôt du hook"; h=/inexistant; }
 mkdir -p "$h/depot/factory" "$h/sessions/s1/subagents" && cp "$factory/hook-agents-claude.sh" "$h/depot/factory/" && git -C "$h/depot" init -q .

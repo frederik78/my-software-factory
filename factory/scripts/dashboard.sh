@@ -89,11 +89,11 @@ besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd �
   ' backlog.md
 }
 
-issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local », dans l'ordre des fichiers
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche », dans l'ordre des fichiers
   local f deps
   while IFS= read -r f; do
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)"
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)"
   done < <(issue_fichiers)
 }
 
@@ -124,8 +124,8 @@ bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est �
   return 1
 }
 carte_issue() { # carte_issue <ligne de issues_dossier>
-  local id titre statut deps besoin commit marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin commit _ <<< "$1"
+  local id titre statut deps besoin commit branche signal marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin commit _ branche <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
@@ -136,6 +136,8 @@ carte_issue() { # carte_issue <ligne de issues_dossier>
   [ -z "$besoin" ] || printf '<span class="detail">%s</span>' "$(echappe "$besoin")"
   [ -z "$deps" ] || printf '<span class="detail">dépend de : %s</span>' "$(echappe "$deps")"
   [ -z "$commit" ] || printf '<span class="detail">dernier commit : %s</span>' "$(echappe "$commit")"
+  signal="$(signal_branche "$branche")"
+  [ -z "$signal" ] || printf '<span class="detail signal">%s</span>' "$signal"
   printf '</div>\n'
 }
 
@@ -147,6 +149,48 @@ duree() { # duree <secondes> : « moins d'1 min », « 12 min » ou « 2 h 05 »
 }
 mtime() { # mtime <fichier> : date de modification (epoch), GNU puis BSD ; rien si absent
   stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null
+}
+
+# Signaux Git, calculés une fois par génération (signaux_worktrees) puis cherchés par branche ; tableaux indexés (bash 3.2, pas d'associatif).
+wt_branches=(); wt_signaux=()
+signaux_worktrees() { # signaux_worktrees <maintenant> : pour chaque worktree accessible sur une branche, « n fichiers non commités · activité il y a … »
+  local ligne dossier="" branche="" entree n chemins activite c m
+  wt_branches=(); wt_signaux=()
+  [ -n "$git_commun" ] || return 0
+  while IFS= read -r ligne; do
+    case "$ligne" in
+      "worktree "*) dossier="${ligne#worktree }"; branche="" ;;
+      "branch refs/heads/"*) branche="${ligne#branch refs/heads/}" ;;
+      "")
+        if [ -n "$branche" ] && [ -d "$dossier" ]; then
+          # --no-optional-locks : jamais de réécriture de l'index, donc jamais l'index.lock d'un agent au travail. Aucun contenu lu.
+          n=0; chemins=()
+          while IFS= read -r -d '' entree; do
+            n=$((n + 1))
+            [ "${#chemins[@]}" -ge 200 ] || chemins+=("${entree:3}")
+            case "$entree" in R*|C*) IFS= read -r -d '' _ ;; esac # renommage ou copie : le chemin d'origine suit dans une entrée de plus
+          done < <(git --no-optional-locks -C "$dossier" status --porcelain -z 2>/dev/null)
+          activite="$(git --no-optional-locks -C "$dossier" log -1 --format=%ct 2>/dev/null)"; activite="${activite:-0}"
+          if [ "${#chemins[@]}" -gt 0 ]; then # au plus 200 fichiers, en un seul appel de stat (GNU puis BSD)
+            for m in $(cd "$dossier" && { stat -c %Y -- "${chemins[@]}" 2>/dev/null || stat -f %m -- "${chemins[@]}" 2>/dev/null; }); do
+              case "$m" in ''|*[!0-9]*) continue ;; esac
+              [ "$m" -le "$activite" ] || activite="$m"
+            done
+          fi
+          case "$n" in 0) c="aucun fichier non commité" ;; 1) c="1 fichier non commité" ;; *) c="$n fichiers non commités" ;; esac
+          wt_branches+=("$branche"); wt_signaux+=("$c · activité il y a $(duree $(( $1 - activite )))")
+        fi
+        dossier=""; branche="" ;;
+    esac
+  done < <(git --no-optional-locks worktree list --porcelain 2>/dev/null; echo)
+}
+signal_branche() { # signal_branche <branche> : signal du worktree de cette branche, vide sans worktree
+  local i=0
+  [ -n "$1" ] || return 0
+  while [ "$i" -lt "${#wt_branches[@]}" ]; do
+    [ "${wt_branches[$i]}" = "$1" ] && { printf '%s' "${wt_signaux[$i]}"; return; }
+    i=$((i + 1))
+  done
 }
 
 agents_actifs() { # agents_actifs <maintenant> : section du bandeau, lue dans le journal des hooks
@@ -209,13 +253,14 @@ kanban() { # kanban <lignes> <rang du statut> <fonction de carte> <statuts du cy
 }
 
 encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cours et En revue, ou « Aucune issue en cours. »
-  local id titre statut deps besoin n=0
+  local id titre statut branche signal n=0
   printf '<section id="en-cours">\n<h2>En cours</h2>\n'
-  while IFS="$sep" read -r id titre statut _; do
+  while IFS="$sep" read -r id titre statut _ _ _ _ branche; do
     parmi "$statut" "En cours" "En revue" || continue
     [ "$n" -gt 0 ] || printf '<ul>\n'
     n=$((n + 1))
-    printf '<li><strong>%s</strong> %s <span class="etiquette statut-%s">%s</span></li>\n' "$(echappe "$id")" "$(echappe "$titre")" "$(classe "$statut")" "$(echappe "$statut")"
+    signal="$(signal_branche "$branche")"
+    printf '<li><strong>%s</strong> %s <span class="etiquette statut-%s">%s</span>%s</li>\n' "$(echappe "$id")" "$(echappe "$titre")" "$(classe "$statut")" "$(echappe "$statut")" "${signal:+ <span class=\"signal\">$signal</span>}"
   done <<< "$1"
   if [ "$n" -gt 0 ]; then printf '</ul>\n'; else printf '<p>Aucune issue en cours.</p>\n'; fi
   printf '</section>\n'
@@ -227,7 +272,8 @@ generer() { # page complète sur la sortie standard
   b="$(besoins_backlog)"; i="$(issues_dossier)"
   prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
   ids_issues=(); statuts_lus=()
-  while IFS="$sep" read -r id _ _ _ _ _ statut_local; do
+  signaux_worktrees "$maintenant"
+  while IFS="$sep" read -r id _ _ _ _ _ statut_local _; do
     [ -n "$id" ] || continue
     ids_issues+=("$id"); statuts_lus+=("$statut_local")
   done <<< "$i"

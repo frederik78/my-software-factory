@@ -28,7 +28,10 @@ while [ $# -gt 0 ]; do
 done
 
 depot="$(cd "$(dirname "$0")/.." && pwd)"
-copie="$(mktemp -d "${TMPDIR:-/tmp}/verify-clean.XXXXXX")"
+# Sans copie, « $copie/src » vaudrait « /src » : sous root, le build tournerait dans un dossier étranger (en boucle si c'est un dépôt avec sa propre vérification).
+copie="$(mktemp -d "${TMPDIR:-/tmp}/verify-clean.XXXXXX" 2>/dev/null)" && [ -n "$copie" ] && [ -d "$copie" ] || {
+  echo "Copie temporaire impossible : dossier temporaire inutilisable (${TMPDIR:-/tmp})" >&2; exit 1
+}
 journal="$copie/verify.log"
 
 nettoyer() {

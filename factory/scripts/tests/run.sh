@@ -6,6 +6,11 @@ set -uo pipefail
 # Isolement de l'environnement appelant : verify-clean.sh donne la priorité à COMMANDE_VERIFY, et les bouchons lisent STUB_CODE ;
 # hérités (par exemple quand cette suite est elle-même lancée par verify-clean.sh avec COMMANDE_VERIFY), ils fausseraient les cas.
 unset COMMANDE_VERIFY STUB_CODE
+# Garde-fou : une commande de build qui relancerait cette suite (COMMANDE_VERIFY ou .factory-verify mal résolus) bouclerait sans fin.
+if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
+  echo "run.sh : déjà en cours dans ce processus ou un ancêtre (relance récursive refusée, voir COMMANDE_VERIFY et .factory-verify)"; exit 1
+fi
+export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
 unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
@@ -747,6 +752,13 @@ verifier "config-factory : clé listée" 0 "MAX_CRITERES_ISSUE=10" scripts/confi
 for f in factory/skills/to-tickets/SKILL.md factory/prompts/spec-writer.md factory/UPGRADE.md; do
   lire_depot "$depot" "$f" | grep -q "environ 10 critères au plus par issue" && lire_depot "$depot" "$f" | grep -q "ordre de grandeur, pas une mesure" && ok "$f : taille d'une issue écrite" || ko "$f : taille d'une issue absente"
 done
+
+echo "verify-clean.sh : copie temporaire impossible"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+git init -q .; printf 'echo "[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0"\n' > .factory-verify; git add -A >/dev/null
+verifier_exact "verify-clean : dossier temporaire absent, échec net (1) sans rien lancer" 1 "Copie temporaire impossible : dossier temporaire inutilisable ($p/absent)" env TMPDIR="$p/absent" scripts/verify-clean.sh
+verifier "verify-clean : sans dossier temporaire, aucun résumé ni VERIFY OK" 1 "^Copie temporaire impossible" env TMPDIR="$p/absent" scripts/verify-clean.sh
+verifier_exact "run.sh : relancé depuis lui-même, échec immédiat et clair" 1 "run.sh : déjà en cours dans ce processus ou un ancêtre (relance récursive refusée, voir COMMANDE_VERIFY et .factory-verify)" env FACTORY_TESTS_EN_COURS=1 "$ici/run.sh"
 
 echo "verify-clean.sh"
 [ -z "${COMMANDE_VERIFY+x}" ] && [ -z "${STUB_CODE+x}" ] && ok "suite isolée de l'environnement appelant : ni COMMANDE_VERIFY ni STUB_CODE hérités" || ko "suite isolée de l'environnement appelant" "COMMANDE_VERIFY=${COMMANDE_VERIFY-<absent>} STUB_CODE=${STUB_CODE-<absent>}"

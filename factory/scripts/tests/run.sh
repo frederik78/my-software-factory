@@ -457,6 +457,79 @@ git clone -q --bare . "$racine_tmp/nu.git" >/dev/null 2>&1; git -C "$racine_tmp/
 [ "$(colonne_de 002-01 "$racine_tmp/nu.html")" = "En cours" ] && [ -n "$(carte_de 002-01 "$racine_tmp/nu.html" | grep 'dernier commit')" ] && ok "worktree d'un clone bare : branche lue" || ko "worktree de clone bare"
 lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "ne dit pas si un agent tourne encore" && lire_depot "$depot" factory/README.md | grep -q "ne dit pas si un agent tourne encore" && ok "limite du statut écrite (en-tête et README)" || ko "limite du statut absente"
 
+echo "hook-agents-claude.sh (journal des agents, propre à Claude Code)"
+h="$(mktemp -d "$racine_tmp/h.XXXXXX")" || { ko "mktemp du dépôt du hook"; h=/inexistant; }
+mkdir -p "$h/depot/factory" "$h/sessions/s1/subagents" && cp "$factory/hook-agents-claude.sh" "$h/depot/factory/" && git -C "$h/depot" init -q .
+hook="$h/depot/factory/hook-agents-claude.sh"; journal_h="$h/depot/.git/factory-agents.log"; trans="$h/sessions/s1.jsonl"; sous="$h/sessions/s1/subagents"
+json_debut() { # json_debut <agent_id (JSON brut)> <type (JSON brut)> [transcript] : entrée de SubagentStart
+  printf '{"session_id":"s1","transcript_path":"%s","cwd":"/x","agent_id":"%s","agent_type":"%s","hook_event_name":"SubagentStart"}' "${3:-$trans}" "$1" "$2"
+}
+hook_muet() { # hook_muet <description> <entrée> <arguments...> : code 0 et aucune sortie
+  local desc="$1" entree="$2" sortie code; shift 2
+  sortie="$(printf '%s' "$entree" | "$@" 2>&1)"; code=$?
+  [ "$code" -eq 0 ] && [ -z "$sortie" ] && ok "$desc" || ko "$desc" "code $code ; sortie : $sortie"
+}
+lignes_h() { [ -f "$journal_h" ] && wc -l < "$journal_h" | tr -d ' ' || echo 0; }
+hook_muet "hook debut : code 0, aucune sortie" "$(json_debut a1 developer)" "$hook" debut
+avant=$(date +%s)
+derniere="$(tail -n 1 "$journal_h" 2>/dev/null)"
+printf '%s\n' "$derniere" | awk -F'\t' -v t="$avant" -v c="$sous/agent-a1.jsonl" 'NF == 5 && $1 == "debut" && $2 ~ /^[0-9]+$/ && $2 <= t && $2 > t - 60 && $3 == "a1" && $4 == "developer" && $5 == c { ok = 1 } END { exit !ok }' && ok "hook debut : « debut, epoch, agent_id, rôle, journal de l'agent » séparés par des tabulations" || ko "format debut" "$derniere"
+hook_muet "hook fin : code 0, aucune sortie" '{"session_id":"s1","agent_id":"a1","agent_type":"developer","last_assistant_message":"faux \"agent_id\":\"zz\"","agent_transcript_path":"/x"}' "$hook" fin
+derniere="$(tail -n 1 "$journal_h" 2>/dev/null)"
+printf '%s\n' "$derniere" | awk -F'\t' 'NF == 3 && $1 == "fin" && $2 ~ /^[0-9]+$/ && $3 == "a1" { ok = 1 } END { exit !ok }' && ok "hook fin : « fin, epoch, agent_id » ; un agent_id cité dans un message n'est pas pris" || ko "format fin" "$derniere"
+n=$(lignes_h)
+hook_muet "hook : JSON invalide, code 0 et muet" 'pas du json' "$hook" debut
+hook_muet "hook : argument inconnu, code 0 et muet" "$(json_debut a9 developer)" "$hook" autre
+hook_muet "hook : sans argument, code 0 et muet" "$(json_debut a9 developer)" "$hook"
+hook_muet "cs_hook : agent_id avec tabulation, code 0 et muet" "$(json_debut 'a\tb' developer)" "$hook" debut
+hook_muet "cs_hook : agent_id hors [A-Za-z0-9_-], code 0 et muet" "$(json_debut '../x$(touch pwn)' developer)" "$hook" debut
+[ "$(lignes_h)" = "$n" ] && [ ! -e "$h/depot/pwn" ] && ok "cs_hook : entrée invalide ou agent_id hostile : rien n'est écrit" || ko "entrée invalide écrite" "$(tail -n 3 "$journal_h")"
+hook_muet "cs_hook : rôle avec tabulation et retour à la ligne" "$(json_debut a7 'dev\teloper\nx')" "$hook" debut
+tail -n 1 "$journal_h" | awk -F'\t' 'NF == 5 && $3 == "a7" && $4 == "dev eloper x" { ok = 1 } END { exit !ok }' && ok "cs_hook : tabulation et retour à la ligne du rôle remplacés par une espace" || ko "rôle assaini" "$(tail -n 1 "$journal_h")"
+# Hors dépôt git, et journal non inscriptible : toujours muet, code 0.
+mkdir -p "$h/hors/factory" && cp "$factory/hook-agents-claude.sh" "$h/hors/factory/"
+GIT_CEILING_DIRECTORIES="$h" hook_muet "hook hors dépôt git : code 0 et muet" "$(json_debut a1 developer)" "$h/hors/factory/hook-agents-claude.sh" debut
+if [ "$(id -u)" -eq 0 ]; then ok "journal non inscriptible : sauté sous root (les droits ne s'appliquent pas)"; else
+  mkdir -p "$h/ro/factory" && cp "$factory/hook-agents-claude.sh" "$h/ro/factory/" && git -C "$h/ro" init -q . && chmod a-w "$h/ro/.git"
+  hook_muet "hook : journal non inscriptible, code 0 et muet" "$(json_debut a1 developer)" "$h/ro/factory/hook-agents-claude.sh" debut
+  chmod u+w "$h/ro/.git"
+fi
+# Description : meta.json apparaît APRÈS SubagentStart ; le hook l'attend en arrière-plan, détaché.
+attendre_ligne() { # attendre_ligne <motif awk> : vrai dès qu'une ligne du journal y répond (5 s au plus)
+  local n=0
+  while [ "$n" -lt 50 ]; do awk -F'\t' "$1 { t = 1 } END { exit !t }" "$journal_h" 2>/dev/null && return 0; sleep 0.1; n=$((n + 1)); done
+  return 1
+}
+debut_h=$(date +%s)
+# Sortie capturée : si le sous-processus gardait la sortie du hook ouverte, la capture attendrait sa fin (15 s).
+sortie_h="$(for a in a2 a3 a4 a5; do printf '%s' "$(json_debut "$a" developer)" | "$hook" debut; done 2>&1)"
+duree_h=$(( $(date +%s) - debut_h ))
+[ "$duree_h" -le 2 ] && [ -z "$sortie_h" ] && ok "hook debut rend la main sans attendre meta.json (${duree_h} s pour 4 appels)" || ko "hook debut bloquant" "${duree_h} s"
+printf '{"agentType":"developer","description":"Essai A \\"guillemets\\" \\\\ et\\ttab\\nligne"}' > "$sous/agent-a2.meta.json"
+e_long="$(printf 'é%.0s' $(seq 1 130))"
+printf '{"agentType":"developer","description":"a%s"}' "$e_long" > "$sous/agent-a3.meta.json"
+printf '{"agentType":"developer","autre":"rien"}' > "$sous/agent-a5.meta.json"
+attendu_a2='Essai A "guillemets" \ et tab ligne'
+attendre_ligne "\$1 == \"description\" && \$3 == \"a2\"" && D="$attendu_a2" awk -F'\t' '$1 == "description" && $3 == "a2" && NF == 4 && $2 ~ /^[0-9]+$/ && $4 == ENVIRON["D"] { t = 1 } END { exit !t }' "$journal_h" && ok "hook : description de meta.json inscrite (guillemets et barre oblique décodés, sans tabulation ni retour à la ligne)" || ko "description extraite" "$(grep 'a2' "$journal_h")"
+attendu_a3="a$(printf 'é%.0s' $(seq 1 119))"
+attendre_ligne "\$1 == \"description\" && \$3 == \"a3\"" && [ "$(awk -F'\t' '$1 == "description" && $3 == "a3" { print $4 }' "$journal_h")" = "$attendu_a3" ] && ok "hook : description tronquée à 120 caractères, sans couper un caractère multioctet" || ko "troncature" "$(awk -F'\t' '$3 == "a3" { print $4 }' "$journal_h" | wc -c)"
+sleep 1
+! grep -q "^description	[0-9]*	a4	" "$journal_h" && ! grep -q "^description	[0-9]*	a5	" "$journal_h" && ok "hook : sans meta.json, ou sans description, aucune ligne description" || ko "description inventée" "$(grep -E 'a4|a5' "$journal_h")"
+# Rotation : au-delà de 2000 lignes, seules les 1000 dernières restent.
+awk 'BEGIN { for (i = 1; i <= 2000; i++) print "fin\t1\tr" i }' > "$journal_h"
+printf '%s' "$(json_debut a8 developer)" | "$hook" debut
+[ "$(lignes_h)" = 2001 ] && ok "rotation : 2000 lignes, rien n'est retiré" || ko "rotation à 2000" "$(lignes_h)"
+printf '%s' "$(json_debut a9 developer)" | "$hook" debut
+[ "$(lignes_h)" = 1001 ] && [ "$(head -n 1 "$journal_h" | cut -f3)" = r1002 ] && [ "$(tail -n 1 "$journal_h" | cut -f3)" = a9 ] && [ -z "$(ls "$h/depot/.git" | grep 'factory-agents.log.')" ] && ok "rotation : au-delà de 2000 lignes, les 1000 dernières puis la nouvelle, sans temporaire" || ko "rotation" "$(lignes_h) lignes ; $(head -n 1 "$journal_h")"
+# Journal commun à tous les worktrees, clone bare compris.
+git -C "$h/depot" add -A && git -C "$h/depot" -c user.name=t -c user.email=t@t commit -qm hook
+git -C "$h/depot" worktree add -q "$h/wt2" -b b2 >/dev/null 2>&1
+printf '%s' "$(json_debut w2 developer)" | "$h/wt2/factory/hook-agents-claude.sh" debut
+[ "$(tail -n 1 "$journal_h" | cut -f3)" = w2 ] && [ ! -e "$h/wt2/.git/factory-agents.log" ] && ok "worktree secondaire : même journal que le dépôt principal" || ko "journal du worktree secondaire" "$(tail -n 1 "$journal_h")"
+git clone -q --bare "$h/depot" "$h/nu.git" && git -C "$h/nu.git" worktree add -q "$h/wt-nu" "$(git -C "$h/depot" symbolic-ref --short HEAD)" >/dev/null 2>&1
+printf '%s' "$(json_debut b1 developer)" | "$h/wt-nu/factory/hook-agents-claude.sh" debut
+[ "$(cut -f3 "$h/nu.git/factory-agents.log" 2>/dev/null)" = b1 ] && ok "clone bare : journal dans le dépôt bare commun" || ko "journal du clone bare" "$(ls "$h/nu.git")"
+
 echo "fin-issue.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 fin_projet() { # dépôt git propre ; .factory-verify = <commande> ; un test ca10 dans src/test

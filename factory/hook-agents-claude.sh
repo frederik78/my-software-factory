@@ -14,6 +14,8 @@
 #   description<TAB>epoch<TAB>agent_id<TAB>texte (120 caractères au plus)
 #   fin<TAB>epoch<TAB>agent_id
 # agent_id : [A-Za-z0-9_-] seulement, sinon rien n'est écrit. Au début, un journal de plus de 2000 lignes est réduit aux 1000 dernières.
+# Limite connue : une ligne `fin` écrite pendant la rotation peut être perdue (lecture puis remplacement du journal) ; l'agent concerné
+# reste alors affiché « sans nouvelles » jusqu'au retrait (AGENTS_RETRAIT_MINUTES, 60 min par défaut), puis disparaît.
 #
 # Description : Claude Code ne la passe pas au hook. Elle est lue dans <transcript_path sans .jsonl>/subagents/agent-<agent_id>.meta.json,
 # fichier NON DOCUMENTÉ par Anthropic qui n'existe pas encore au début : un sous-processus détaché l'attend (15 s au plus).
@@ -27,18 +29,21 @@ trap 'exit 0' EXIT
 mode="${1:-}"
 case "$mode" in debut|fin) ;; *) exit 0 ;; esac
 
-entree="$(head -c 65536)"
+entree="$(head -c 1048576)" # borne de lecture : 1 Mio (un gros champ avant agent_id ne doit pas faire perdre l'écriture)
 dossier="$(cd "$(dirname "$0")" && pwd)" || exit 0
 commun="$(cd "$dossier" && git rev-parse --git-common-dir)" && [ -n "$commun" ] || exit 0
 commun="$(cd "$dossier" && cd "$commun" && pwd)" || exit 0
 journal="$commun/factory-agents.log"
 
-# json_champ <clé> <json> : valeur texte de la clé, décodée et assainie (une ligne, sans tabulation ni caractère de contrôle).
-# Une clé citée dans une autre valeur y est échappée (\"clé\") : elle ne répond pas au motif.
+# json_champ <clé> <json> : valeur texte de la PREMIÈRE occurrence de la clé, décodée et assainie (une ligne, sans tabulation ni caractère de contrôle).
+# Une clé citée dans une autre valeur y est échappée (\"clé\") : elle ne répond pas au motif. En deux temps : la première occurrence est
+# repérée par une marque, puis la valeur est lue jusqu'à son guillemet fermant (une regex gloutonne prendrait la dernière occurrence).
 marque=$'\001' # remplace provisoirement « \\\\ » pendant le décodage
+debut_valeur=$'\002' # marque la première occurrence de la clé
 json_champ() {
   printf '%s' "$2" | LC_ALL=C tr '\n\r' '  ' \
-    | LC_ALL=C sed -nE 's/^.*"'"$1"'"[[:space:]]*:[[:space:]]*"((\\.|[^"\\])*)".*$/\1/p' \
+    | LC_ALL=C sed -E 's/"'"$1"'"[[:space:]]*:[[:space:]]*"/'"$debut_valeur"'/' \
+    | LC_ALL=C sed -nE 's/^[^'"$debut_valeur"']*'"$debut_valeur"'((\\.|[^"\\])*)".*$/\1/p' \
     | LC_ALL=C sed -e 's/\\\\/'"$marque"'/g' -e 's/\\"/"/g' -e 's/\\[nrtbf]/ /g' -e 's/\\\//\//g' -e 's/'"$marque"'/\\/g' \
     | LC_ALL=C tr '\000-\037\177' ' '
 }

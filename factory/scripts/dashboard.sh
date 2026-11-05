@@ -10,7 +10,9 @@
 # Un agent avec debut sans fin est affiché ; dernière preuve = le plus récent du début et de la date de modification de son journal.
 # Au-delà de AGENTS_SILENCE_MINUTES sans preuve : « sans nouvelles » ; au-delà de AGENTS_RETRAIT_MINUTES : retiré (configuration, voir lib-config.sh).
 # Signaux Git de chaque worktree, sur l'issue de même branche : fichiers non commités et dernière activité (commit ou fichier modifié).
-# Limite : une preuve d'activité, pas un état ; un agent arrêté sans hook de fin reste affiché « sans nouvelles » jusqu'au retrait.
+# Limites : une preuve d'activité, pas un état ; un agent arrêté sans hook de fin reste affiché « sans nouvelles » jusqu'au retrait.
+# L'âge d'activité d'un worktree ne voit pas la modification d'un fichier existant dans un dossier entièrement non suivi : git status ne le
+# montre que comme « dir/ » (-uall le détaillerait, au prix d'un parcours complet). Git en échec ou sans date de commit : « état Git illisible ».
 #
 # Usage : scripts/dashboard.sh [--sortie <fichier>] [--attente <secondes>] [--boucle <secondes>]
 #   --sortie   fichier généré (défaut : dashboard.html à la racine du projet)
@@ -154,7 +156,7 @@ mtime() { # mtime <fichier> : date de modification (epoch), GNU puis BSD ; rien 
 # Signaux Git, calculés une fois par génération (signaux_worktrees) puis cherchés par branche ; tableaux indexés (bash 3.2, pas d'associatif).
 wt_branches=(); wt_signaux=()
 signaux_worktrees() { # signaux_worktrees <maintenant> : pour chaque worktree accessible sur une branche, « n fichiers non commités · activité il y a … »
-  local ligne dossier="" branche="" entree n chemins activite c m
+  local ligne dossier="" branche="" entree n chemins activite c m rc
   wt_branches=(); wt_signaux=()
   [ -n "$git_commun" ] || return 0
   while IFS= read -r ligne; do
@@ -164,13 +166,20 @@ signaux_worktrees() { # signaux_worktrees <maintenant> : pour chaque worktree ac
       "")
         if [ -n "$branche" ] && [ -d "$dossier" ]; then
           # --no-optional-locks : jamais de réécriture de l'index, donc jamais l'index.lock d'un agent au travail. Aucun contenu lu.
-          n=0; chemins=()
+          # Le code de sortie de git suit la liste (entrée « rc:<code> », jamais confondue avec un chemin : ceux-ci commencent par « XY »).
+          n=0; chemins=(); rc=1
           while IFS= read -r -d '' entree; do
+            case "$entree" in "rc:"*) rc="${entree#rc:}"; continue ;; esac
             n=$((n + 1))
             [ "${#chemins[@]}" -ge 200 ] || chemins+=("${entree:3}")
             case "$entree" in R*|C*) IFS= read -r -d '' _ ;; esac # renommage ou copie : le chemin d'origine suit dans une entrée de plus
-          done < <(git --no-optional-locks -C "$dossier" status --porcelain -z 2>/dev/null)
-          activite="$(git --no-optional-locks -C "$dossier" log -1 --format=%ct 2>/dev/null)"; activite="${activite:-0}"
+          done < <(git --no-optional-locks -C "$dossier" status --porcelain -z 2>/dev/null; printf 'rc:%d\0' "$?")
+          activite="$(git --no-optional-locks -C "$dossier" log -1 --format=%ct 2>/dev/null)" || activite=0
+          case "$activite" in ''|*[!0-9]*) activite=0 ;; esac
+          if [ "$rc" != 0 ] || [ "$activite" -eq 0 ]; then # git en échec ou activité inconnue : ne rien affirmer, ni compte ni durée
+            wt_branches+=("$branche"); wt_signaux+=("état Git illisible")
+            dossier=""; branche=""; continue
+          fi
           if [ "${#chemins[@]}" -gt 0 ]; then # au plus 200 fichiers, en un seul appel de stat (GNU puis BSD)
             for m in $(cd "$dossier" && { stat -c %Y -- "${chemins[@]}" 2>/dev/null || stat -f %m -- "${chemins[@]}" 2>/dev/null; }); do
               case "$m" in ''|*[!0-9]*) continue ;; esac
@@ -197,7 +206,7 @@ agents_actifs() { # agents_actifs <maintenant> : section du bandeau, lue dans le
   local journal="$git_commun/factory-agents.log" id debut role chemin desc preuve m age n=0
   printf '<section id="agents-actifs">\n<h2>Agents actifs</h2>\n'
   if [ -z "$git_commun" ] || [ ! -f "$journal" ]; then
-    printf '<p>Aucun agent signalé (journal absent : hooks non installés, voir factory/sync-claude.sh).</p>\n</section>\n'; return
+    printf '<p>Aucun agent signalé (journal absent : hooks non installés, ou aucun sous-agent lancé depuis l'"'"'installation ; voir factory/sync-claude.sh).</p>\n</section>\n'; return
   fi
   # Une passe : candidats = debut sans fin ultérieure, dans l'ordre des débuts, avec leur dernière description. Ligne malformée ignorée.
   while IFS="$sep" read -r id debut role chemin desc; do

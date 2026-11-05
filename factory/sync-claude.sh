@@ -102,10 +102,12 @@ avertir_hooks() { # avertir_hooks <raison>
     printf '  "hooks": %s\n' "$(bloc_hooks)"; } >&2
 }
 agents_actifs=non
-if [ ! -e "$reglages" ]; then
+if [ ! -e "$reglages" ] && [ ! -L "$reglages" ]; then
   printf '{\n  "hooks": %s\n}\n' "$(bloc_hooks)" > "$reglages" && agents_actifs=oui
-elif grep -q 'hook-agents-claude.sh' "$reglages"; then
-  agents_actifs=oui
+elif grep -q 'SubagentStart' "$reglages" 2>/dev/null && grep -q 'hook-agents-claude.sh' "$reglages" 2>/dev/null; then
+  agents_actifs=oui # installés : le nom du script seul (une permission, par exemple) ne le prouve pas
+elif [ -L "$reglages" ]; then
+  avertir_hooks "est un lien symbolique (non remplacé par un fichier)"
 elif grep -Eq '"hooks"[[:space:]]*:' "$reglages"; then
   avertir_hooks "a déjà une clé \"hooks\""
 else
@@ -116,6 +118,9 @@ else
         print (c == "}" ? "vide" : "objet"); exit } }' "$reglages")"
   case "$forme" in
     vide|objet)
+      # Mode d'origine conservé (stat GNU puis BSD), jamais plus large : à défaut de le lire, 0600.
+      mode_reglages="$(stat -c %a "$reglages" 2>/dev/null || stat -f %Lp "$reglages" 2>/dev/null)"
+      case "$mode_reglages" in ''|*[!0-7]*) mode_reglages=600 ;; esac
       tmp_reglages="$(mktemp "$reglages.XXXXXX")" && [ -f "$tmp_reglages" ] || { echo "Erreur : fichier temporaire impossible à côté de $reglages" >&2; exit 1; }
       # Valeurs passées par l'environnement : awk -v interpréterait les barres obliques inverses du JSON.
       if BLOC="$(bloc_hooks)" SUITE="$([ "$forme" = vide ] || echo ",")" awk '
@@ -124,7 +129,7 @@ else
             reste = substr($0, RSTART + 1)
             if (ENVIRON["SUITE"] == "") { sub(/^[[:space:]]*/, "", reste); if (reste != "") reste = "\n" reste }
             print reste; next }
-          { print }' "$reglages" > "$tmp_reglages" && chmod "$(printf '%o' $(( 0666 & ~0$(umask) )))" "$tmp_reglages" && mv "$tmp_reglages" "$reglages"; then
+          { print }' "$reglages" > "$tmp_reglages" && chmod "$mode_reglages" "$tmp_reglages" && mv "$tmp_reglages" "$reglages"; then
         agents_actifs=oui
       else
         rm -f "$tmp_reglages"; avertir_hooks "n'a pas pu être réécrit"

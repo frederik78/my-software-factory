@@ -21,6 +21,8 @@ defaut() { # defaut <clé> : valeur par défaut d'une clé connue
     MAX_CRITERES_ISSUE) echo "$MAX_CRITERES_DEFAUT" ;;
     AGENT_MODELE) echo "$AGENT_MODELE_DEFAUT" ;;
     AGENT_EFFORT) echo "$AGENT_EFFORT_DEFAUT" ;;
+    AGENTS_SILENCE_MINUTES) echo "$AGENTS_SILENCE_MINUTES_DEFAUT" ;;
+    AGENTS_RETRAIT_MINUTES) echo "$AGENTS_RETRAIT_MINUTES_DEFAUT" ;;
     *) echo "" ;;
   esac
 }

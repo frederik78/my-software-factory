@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -455,7 +455,198 @@ git worktree remove --force "$racine_tmp/wt-classique"
 git clone -q --bare . "$racine_tmp/nu.git" >/dev/null 2>&1; git -C "$racine_tmp/nu.git" worktree add -q "$racine_tmp/wt-nu" develop >/dev/null 2>&1
 "$racine_tmp/wt-nu/scripts/dashboard.sh" --sortie "$racine_tmp/nu.html" >/dev/null 2>&1
 [ "$(colonne_de 002-01 "$racine_tmp/nu.html")" = "En cours" ] && [ -n "$(carte_de 002-01 "$racine_tmp/nu.html" | grep 'dernier commit')" ] && ok "worktree d'un clone bare : branche lue" || ko "worktree de clone bare"
-lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "ne dit pas si un agent tourne encore" && lire_depot "$depot" factory/README.md | grep -q "ne dit pas si un agent tourne encore" && ok "limite du statut écrite (en-tête et README)" || ko "limite du statut absente"
+lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "Limites : une preuve d'activité, pas un état" && ! lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "agent tourne encore" && lire_depot "$depot" factory/README.md | grep -q "limites : une preuve d'activité, pas un état" && ! lire_depot "$depot" factory/README.md | grep -q "agent tourne encore" && ok "limite du bandeau écrite (en-tête et README ; l'ancienne, devenue fausse, retirée)" || ko "limite du bandeau absente"
+for f in factory/scripts/dashboard.sh factory/README.md factory/CHANGELOG.md; do
+  lire_depot "$depot" "$f" | grep -q "dossier entièrement non suivi" && ok "$f : limite des dossiers non suivis écrite" || ko "$f : limite des dossiers non suivis absente"
+done
+
+echo "dashboard.sh : agents actifs (journal des hooks)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+git init -q -b develop .
+date_t() { date -r "$1" +%Y%m%d%H%M.%S 2>/dev/null || date -d "@$1" +%Y%m%d%H%M.%S; } # date_t <epoch> : format de touch -t (BSD puis GNU)
+bandeau() { awk '/<section id="agents-actifs">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "${1:-dashboard.html}"; }
+scripts/dashboard.sh >/dev/null
+[ "$(bandeau | sed -n 3p)" = "<p>Aucun agent signalé (journal absent : hooks non installés, ou aucun sous-agent lancé depuis l'installation ; voir factory/sync-claude.sh).</p>" ] && ok "journal absent : « Aucun agent signalé (journal absent…) »" || ko "journal absent" "$(bandeau)"
+[ "$(sed -n 2p <(bandeau))" = "<h2>Agents actifs</h2>" ] && [ "$(grep -n '<section id="agents-actifs">' dashboard.html | cut -d: -f1)" -lt "$(grep -n '<section id="en-cours">' dashboard.html | cut -d: -f1)" ] && ok "bandeau « Agents actifs » en haut, avant l'encart En cours" || ko "position du bandeau" "$(grep -n '<section' dashboard.html)"
+maintenant=$(date +%s); jr=.git/factory-agents.log; T=$'\t'
+printf 'debut%s%s%sF1%sdeveloper%s\nfin%s%s%sF1\n' "$T" "$((maintenant - 60))" "$T" "$T" "$T" "$T" "$((maintenant - 30))" "$T" > "$jr"
+scripts/dashboard.sh >/dev/null
+[ "$(bandeau | sed -n 3p)" = "<p>Aucun agent signalé.</p>" ] && ok "agent terminé (fin inscrite) : « Aucun agent signalé. »" || ko "fin inscrite" "$(bandeau)"
+touch "$p/j-a1.jsonl" "$p/j-h1.jsonl"; touch -t "$(date_t $((maintenant - 2700)))" "$p/j-s1.jsonl"
+{
+  printf 'debut\t%s\tA1\tdeveloper\t%s\n' "$((maintenant - 720))" "$p/j-a1.jsonl"
+  printf 'debut\t%s\tA2\tdeveloper\t%s\n' "$((maintenant - 180))" "$p/absent.jsonl"
+  printf 'description\t%s\tA1\tancienne\n' "$maintenant"
+  printf 'description\t%s\tA2\tEssai deux\n' "$maintenant"
+  printf 'description\t%s\tA1\tEssai un\n' "$maintenant"
+  printf 'debut\t%s\tS1\tcode-reviewer\t%s\n' "$((maintenant - 3000))" "$p/j-s1.jsonl"
+  printf 'description\t%s\tS1\tRelecture\n' "$maintenant"
+  printf 'debut\t%s\tR1\tdeveloper\t\n' "$((maintenant - 7200))"
+  printf 'debut\t%s\tZ1\tspec-writer\t\n' "$((maintenant + 600))"
+  printf 'debut\t%s\tH1\tdeveloper\t%s\n' "$((maintenant - 7500))" "$p/j-h1.jsonl"
+  printf 'debut\t%s\tX1\t<script>alert(1)</script>\t\n' "$maintenant"
+  printf 'description\t%s\tX1\t<img src=x onerror=1> & "q"\n' "$maintenant"
+  printf 'debut\tabc\tM1\tdeveloper\t\nnimporte quoi\ndebut\t1\ndescription\t1\tA1\nfin\t1\tA1\textra\ndebut\t%s\t../M2\tdeveloper\t\n\n' "$maintenant"
+} >> "$jr"
+verifier_exact "journal malformé : aucune erreur" 0 "$p/x.html" scripts/dashboard.sh --sortie "$p/x.html"; rm -f "$p/x.html"; scripts/dashboard.sh >/dev/null
+attendu_bandeau='<section id="agents-actifs">
+<h2>Agents actifs</h2>
+<ul>
+<li class="agent-actif"><strong>developer</strong> Essai un depuis 12 min</li>
+<li class="agent-actif"><strong>developer</strong> Essai deux depuis 3 min</li>
+<li class="agent-sans-nouvelles"><strong>code-reviewer</strong> Relecture sans nouvelles depuis 45 min</li>
+<li class="agent-actif"><strong>spec-writer</strong> depuis moins d'"'"'1 min</li>
+<li class="agent-actif"><strong>developer</strong> depuis 2 h 05</li>
+<li class="agent-actif"><strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong> &lt;img src=x onerror=1&gt; &amp; &quot;q&quot; depuis moins d'"'"'1 min</li>
+</ul>
+</section>'
+[ "$(bandeau)" = "$attendu_bandeau" ] && ok "bandeau : actif, sans nouvelles, retiré, fin, description la plus récente, deux agents de même rôle, horloge en avance, durées" || ko "bandeau" "$(diff <(printf '%s\n' "$attendu_bandeau") <(bandeau) | tr '\n' '|')"
+! grep -q '<script\|<img' dashboard.html && ok "cs_agents rôle et description échappés : aucune balise injectée" || ko "cs_agents injection" "$(grep -n 'script\|img' dashboard.html | head -3)"
+! grep -qi 'tourne' dashboard.html && ok "le bandeau affirme une preuve, jamais un état (« tourne » absent)" || ko "« tourne » dans la page"
+FACTORY_AGENTS_SILENCE_MINUTES=1 FACTORY_AGENTS_RETRAIT_MINUTES=180 scripts/dashboard.sh >/dev/null
+bandeau | grep -qxF '<li class="agent-sans-nouvelles"><strong>developer</strong> Essai deux sans nouvelles depuis 3 min</li>' && bandeau | grep -qxF '<li class="agent-sans-nouvelles"><strong>developer</strong> sans nouvelles depuis 2 h 00</li>' && ok "FACTORY_AGENTS_SILENCE_MINUTES et FACTORY_AGENTS_RETRAIT_MINUTES respectées" || ko "FACTORY_AGENTS_*" "$(bandeau)"
+printf 'AGENTS_SILENCE_MINUTES=60\nAGENTS_RETRAIT_MINUTES=30\n' > .factory.conf; scripts/dashboard.sh >/dev/null
+! bandeau | grep -q 'sans nouvelles' && bandeau | grep -qF 'Essai un depuis 12 min' && ok "silence >= retrait (.factory.conf) : pas d'état « sans nouvelles », permis" || ko "silence >= retrait" "$(bandeau)"
+rm -f .factory.conf dashboard.html
+for cle in AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES; do
+  for v in 0 abc 01 -3 '' '5<script>' 9999999999; do
+    printf '%s=%s\n' "$cle" "$v" > .factory.conf
+    verifier_exact "$cle=« $v » refusée : code 64, message sans la valeur, rien d'écrit" 64 "$cle invalide : entier entre 1 et 999999 attendu (voir .factory.conf, .factory.local.conf, FACTORY_$cle)." scripts/dashboard.sh
+    [ ! -e dashboard.html ] || { ko "$cle=$v : page écrite malgré une valeur invalide"; rm -f dashboard.html; }
+  done
+done
+rm -f .factory.conf
+config_liste="$(scripts/config-factory.sh)"
+printf '%s\n' "$config_liste" | grep -qx 'AGENTS_SILENCE_MINUTES=5' && printf '%s\n' "$config_liste" | grep -qx 'AGENTS_RETRAIT_MINUTES=60' && ok "config-factory.sh : AGENTS_SILENCE_MINUTES=5 et AGENTS_RETRAIT_MINUTES=60 par défaut" || ko "défauts AGENTS_*" "$config_liste"
+grep -qx 'AGENTS_SILENCE_MINUTES=5' "$factory/templates/.factory.conf" && grep -qx 'AGENTS_RETRAIT_MINUTES=60' "$factory/templates/.factory.conf" && ok "modèle .factory.conf : clés AGENTS_*" || ko "modèle .factory.conf sans AGENTS_*"
+
+echo "dashboard.sh : signaux Git des worktrees"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+git init -q -b develop .; printf 'dashboard.html\n' > .gitignore; rm -f docs/issues/[0-9]*.md
+issue_s() { printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\nbranche: %s\ndepend_de: []\n---\n' "$1" "$1" "$2" "$3" > "docs/issues/$1-x.md"; }
+issue_s 003-01 "En cours" feat/s1; issue_s 003-02 "À faire" feat/s2; issue_s 003-03 "À faire" feat/s3; issue_s 003-04 "À faire" feat/s4; issue_s 003-05 "À faire" feat/s5
+printf 'a\n' > f1.txt; printf 'b\n' > old.txt
+gd_ add -A; gd_ commit -qm init
+maintenant=$(date +%s)
+for b in s1 s2 s3 s5; do git worktree add -q "$racine_tmp/wt-$b" -b "feat/$b" >/dev/null 2>&1; done
+git branch feat/s4
+w1="$racine_tmp/wt-s1"
+printf 'modifié\n' >> "$w1/f1.txt"; git -C "$w1" mv old.txt new.txt; printf 'x\n' > "$w1/a b.txt"
+printf 'c\n' > "$racine_tmp/wt-s2/c2.txt"; gd_ -C "$racine_tmp/wt-s2" add c2.txt
+GIT_COMMITTER_DATE="@$((maintenant - 3600)) +0000" gd_ -C "$racine_tmp/wt-s2" commit -qm s2
+printf 'u\n' > "$racine_tmp/wt-s2/u.txt"; touch -t "$(date_t $((maintenant - 600)))" "$racine_tmp/wt-s2/u.txt"
+printf 'd\n' > "$racine_tmp/wt-s3/d.txt"; gd_ -C "$racine_tmp/wt-s3" add d.txt
+GIT_COMMITTER_DATE="@$((maintenant - 7500)) +0000" gd_ -C "$racine_tmp/wt-s3" commit -qm s3
+mv "$racine_tmp/wt-s5" "$racine_tmp/wt-s5-parti"
+# Index périmé (fichier suivi touché, contenu identique) : un git status ordinaire réécrirait l'index en prenant index.lock.
+index_w3="$(git -C "$racine_tmp/wt-s3" rev-parse --path-format=absolute --git-path index 2>/dev/null || echo "$p/.git/worktrees/wt-s3/index")"
+touch -t "$(date_t $((maintenant + 5)))" "$racine_tmp/wt-s3/d.txt"; avant_index="$(cksum < "$index_w3")"
+verifier_exact "signaux Git : aucune erreur (worktree disparu compris)" 0 "$p/x.html" scripts/dashboard.sh --sortie "$p/x.html"
+mv "$p/x.html" dashboard.html
+carte_s() { grep -F "<strong>$1</strong>" dashboard.html | grep -F 'class="carte'; }
+carte_s 003-01 | grep -qF '<span class="detail signal">3 fichiers non commités · activité il y a moins d'"'"'1 min</span>' && ok "compte des fichiers non commités : modifié, renommé (une entrée), nom avec espace" || ko "compte" "$(carte_s 003-01)"
+carte_s 003-02 | grep -qF '<span class="detail signal">1 fichier non commité · activité il y a 10 min</span>' && ok "singulier ; activité = fichier modifié plus récent que le dernier commit" || ko "singulier" "$(carte_s 003-02)"
+carte_s 003-03 | grep -qF '<span class="detail signal">aucun fichier non commité · activité il y a 2 h 05</span>' && ok "aucun fichier : « aucun fichier non commité », activité = dernier commit" || ko "zéro" "$(carte_s 003-03)"
+! carte_s 003-04 | grep -q 'signal' && ! carte_s 003-05 | grep -q 'signal' && ok "issue sans worktree, ou worktree disparu : aucun signal" || ko "sans worktree" "$(carte_s 003-04; carte_s 003-05)"
+awk '/<section id="en-cours">/ { s = 1 } s && /003-01/ { print; exit }' dashboard.html | grep -qF '<span class="signal">3 fichiers non commités · activité il y a moins d'"'"'1 min</span></li>' && ok "encart En cours : signal sur la ligne de l'issue" || ko "encart" "$(grep -A4 'id="en-cours"' dashboard.html)"
+[ "$(cksum < "$index_w3")" = "$avant_index" ] && [ ! -e "${index_w3}.lock" ] && ok "git status sans verrou optionnel : index d'un agent jamais réécrit" || ko "index réécrit par le dashboard"
+git -C "$racine_tmp/wt-s3" status --porcelain >/dev/null; [ "$(cksum < "$index_w3")" != "$avant_index" ] && ok "témoin : un git status ordinaire, lui, réécrit cet index" || ko "témoin de l'index (le cas ne prouve rien)"
+# Git en échec ou activité illisible : « état Git illisible », jamais « aucun fichier » ni une durée absurde.
+issue_s 003-06 "À faire" feat/s6; issue_s 003-07 "À faire" feat/s7; issue_s 003-08 "À faire" feat/s8
+for b in s6 s7 s8; do git worktree add -q "$racine_tmp/wt-$b" -b "feat/$b" >/dev/null 2>&1; done
+printf 'c\n' > "$racine_tmp/wt-s6/c6.txt"; gd_ -C "$racine_tmp/wt-s6" add c6.txt
+GIT_COMMITTER_DATE="@$((maintenant - 7500)) +0000" gd_ -C "$racine_tmp/wt-s6" commit -qm s6
+mkdir "$racine_tmp/wt-s6/inconnu"; printf 'a\n' > "$racine_tmp/wt-s6/inconnu/f.txt"; printf 'b\n' >> "$racine_tmp/wt-s6/inconnu/f.txt"
+touch -t "$(date_t $((maintenant - 9000)))" "$racine_tmp/wt-s6/inconnu"
+printf 'gitdir: /inexistant\n' > "$racine_tmp/wt-s7/.git"
+scripts/dashboard.sh >/dev/null
+carte_s 003-07 | grep -qF '<span class="detail signal">état Git illisible</span>' && ok "git status en échec (.git corrompu) : « état Git illisible », sans durée" || ko "git status en échec" "$(carte_s 003-07)"
+carte_s 003-06 | grep -qF '<span class="detail signal">1 fichier non commité · activité il y a 2 h 05</span>' && ok "limite figée : modifier un fichier existant d'un dossier non suivi ne bouge pas l'âge (entrée « dir/ »)" || ko "dossier non suivi" "$(carte_s 003-06)"
+real_git="$(command -v git)"; mkdir -p "$p/stub"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *%%ct*) exit 1 ;; esac; done\nexec "%s" "$@"\n' "$real_git" > "$p/stub/git"; chmod +x "$p/stub/git"
+PATH="$p/stub:$PATH" scripts/dashboard.sh --sortie "$p/stub.html" >/dev/null 2>&1
+grep -F '<strong>003-08</strong>' "$p/stub.html" | grep -qF '<span class="detail signal">état Git illisible</span>' && ! grep -Eq 'il y a [0-9]{4,} h' "$p/stub.html" && ok "activité illisible (git log en échec) : « état Git illisible », pas d'âge absurde" || ko "git log en échec" "$(grep -F '<strong>003-08</strong>' "$p/stub.html")"
+
+echo "hook-agents-claude.sh (journal des agents, propre à Claude Code)"
+h="$(mktemp -d "$racine_tmp/h.XXXXXX")" || { ko "mktemp du dépôt du hook"; h=/inexistant; }
+mkdir -p "$h/depot/factory" "$h/sessions/s1/subagents" && cp "$factory/hook-agents-claude.sh" "$h/depot/factory/" && git -C "$h/depot" init -q .
+hook="$h/depot/factory/hook-agents-claude.sh"; journal_h="$h/depot/.git/factory-agents.log"; trans="$h/sessions/s1.jsonl"; sous="$h/sessions/s1/subagents"
+json_debut() { # json_debut <agent_id (JSON brut)> <type (JSON brut)> [transcript] : entrée de SubagentStart
+  printf '{"session_id":"s1","transcript_path":"%s","cwd":"/x","agent_id":"%s","agent_type":"%s","hook_event_name":"SubagentStart"}' "${3:-$trans}" "$1" "$2"
+}
+hook_muet() { # hook_muet <description> <entrée> <arguments...> : code 0 et aucune sortie
+  local desc="$1" entree="$2" sortie code; shift 2
+  sortie="$(printf '%s' "$entree" | "$@" 2>&1)"; code=$?
+  [ "$code" -eq 0 ] && [ -z "$sortie" ] && ok "$desc" || ko "$desc" "code $code ; sortie : $sortie"
+}
+lignes_h() { [ -f "$journal_h" ] && wc -l < "$journal_h" | tr -d ' ' || echo 0; }
+hook_muet "hook debut : code 0, aucune sortie" "$(json_debut a1 developer)" "$hook" debut
+avant=$(date +%s)
+derniere="$(tail -n 1 "$journal_h" 2>/dev/null)"
+printf '%s\n' "$derniere" | awk -F'\t' -v t="$avant" -v c="$sous/agent-a1.jsonl" 'NF == 5 && $1 == "debut" && $2 ~ /^[0-9]+$/ && $2 <= t && $2 > t - 60 && $3 == "a1" && $4 == "developer" && $5 == c { ok = 1 } END { exit !ok }' && ok "hook debut : « debut, epoch, agent_id, rôle, journal de l'agent » séparés par des tabulations" || ko "format debut" "$derniere"
+hook_muet "hook fin : code 0, aucune sortie" '{"session_id":"s1","agent_id":"a1","agent_type":"developer","last_assistant_message":"faux \"agent_id\":\"zz\"","agent_transcript_path":"/x"}' "$hook" fin
+derniere="$(tail -n 1 "$journal_h" 2>/dev/null)"
+printf '%s\n' "$derniere" | awk -F'\t' 'NF == 3 && $1 == "fin" && $2 ~ /^[0-9]+$/ && $3 == "a1" { ok = 1 } END { exit !ok }' && ok "hook fin : « fin, epoch, agent_id » ; un agent_id cité dans un message n'est pas pris" || ko "format fin" "$derniere"
+n=$(lignes_h)
+hook_muet "hook : JSON invalide, code 0 et muet" 'pas du json' "$hook" debut
+hook_muet "hook : argument inconnu, code 0 et muet" "$(json_debut a9 developer)" "$hook" autre
+hook_muet "hook : sans argument, code 0 et muet" "$(json_debut a9 developer)" "$hook"
+hook_muet "cs_hook : agent_id avec tabulation, code 0 et muet" "$(json_debut 'a\tb' developer)" "$hook" debut
+hook_muet "cs_hook : agent_id hors [A-Za-z0-9_-], code 0 et muet" "$(json_debut '../x$(touch pwn)' developer)" "$hook" debut
+[ "$(lignes_h)" = "$n" ] && [ ! -e "$h/depot/pwn" ] && ok "cs_hook : entrée invalide ou agent_id hostile : rien n'est écrit" || ko "entrée invalide écrite" "$(tail -n 3 "$journal_h")"
+hook_muet "cs_hook : rôle avec tabulation et retour à la ligne" "$(json_debut a7 'dev\teloper\nx')" "$hook" debut
+tail -n 1 "$journal_h" | awk -F'\t' 'NF == 5 && $3 == "a7" && $4 == "dev eloper x" { ok = 1 } END { exit !ok }' && ok "cs_hook : tabulation et retour à la ligne du rôle remplacés par une espace" || ko "rôle assaini" "$(tail -n 1 "$journal_h")"
+# Hors dépôt git, et journal non inscriptible : toujours muet, code 0.
+mkdir -p "$h/hors/factory" && cp "$factory/hook-agents-claude.sh" "$h/hors/factory/"
+GIT_CEILING_DIRECTORIES="$h" hook_muet "hook hors dépôt git : code 0 et muet" "$(json_debut a1 developer)" "$h/hors/factory/hook-agents-claude.sh" debut
+if [ "$(id -u)" -eq 0 ]; then ok "journal non inscriptible : sauté sous root (les droits ne s'appliquent pas)"; else
+  mkdir -p "$h/ro/factory" && cp "$factory/hook-agents-claude.sh" "$h/ro/factory/" && git -C "$h/ro" init -q . && chmod a-w "$h/ro/.git"
+  hook_muet "hook : journal non inscriptible, code 0 et muet" "$(json_debut a1 developer)" "$h/ro/factory/hook-agents-claude.sh" debut
+  chmod u+w "$h/ro/.git"
+fi
+# Description : meta.json apparaît APRÈS SubagentStart ; le hook l'attend en arrière-plan, détaché.
+attendre_ligne() { # attendre_ligne <motif awk> : vrai dès qu'une ligne du journal y répond (5 s au plus)
+  local n=0
+  while [ "$n" -lt 50 ]; do awk -F'\t' "$1 { t = 1 } END { exit !t }" "$journal_h" 2>/dev/null && return 0; sleep 0.1; n=$((n + 1)); done
+  return 1
+}
+debut_h=$(date +%s)
+# Sortie capturée : si le sous-processus gardait la sortie du hook ouverte, la capture attendrait sa fin (15 s).
+sortie_h="$(for a in a2 a3 a4 a5; do printf '%s' "$(json_debut "$a" developer)" | "$hook" debut; done 2>&1)"
+duree_h=$(( $(date +%s) - debut_h ))
+[ "$duree_h" -le 2 ] && [ -z "$sortie_h" ] && ok "hook debut rend la main sans attendre meta.json (${duree_h} s pour 4 appels)" || ko "hook debut bloquant" "${duree_h} s"
+printf '{"agentType":"developer","description":"Essai A \\"guillemets\\" \\\\ et\\ttab\\nligne"}' > "$sous/agent-a2.meta.json"
+e_long="$(printf 'é%.0s' $(seq 1 130))"
+printf '{"agentType":"developer","description":"a%s"}' "$e_long" > "$sous/agent-a3.meta.json"
+printf '{"agentType":"developer","autre":"rien"}' > "$sous/agent-a5.meta.json"
+attendu_a2='Essai A "guillemets" \ et tab ligne'
+attendre_ligne "\$1 == \"description\" && \$3 == \"a2\"" && D="$attendu_a2" awk -F'\t' '$1 == "description" && $3 == "a2" && NF == 4 && $2 ~ /^[0-9]+$/ && $4 == ENVIRON["D"] { t = 1 } END { exit !t }' "$journal_h" && ok "hook : description de meta.json inscrite (guillemets et barre oblique décodés, sans tabulation ni retour à la ligne)" || ko "description extraite" "$(grep 'a2' "$journal_h")"
+attendu_a3="a$(printf 'é%.0s' $(seq 1 119))"
+attendre_ligne "\$1 == \"description\" && \$3 == \"a3\"" && [ "$(awk -F'\t' '$1 == "description" && $3 == "a3" { print $4 }' "$journal_h")" = "$attendu_a3" ] && ok "hook : description tronquée à 120 caractères, sans couper un caractère multioctet" || ko "troncature" "$(awk -F'\t' '$3 == "a3" { print $4 }' "$journal_h" | wc -c)"
+sleep 1
+! grep -q "^description	[0-9]*	a4	" "$journal_h" && ! grep -q "^description	[0-9]*	a5	" "$journal_h" && ok "hook : sans meta.json, ou sans description, aucune ligne description" || ko "description inventée" "$(grep -E 'a4|a5' "$journal_h")"
+# Entrée volumineuse : un gros champ AVANT agent_id ne fait pas perdre l'écriture (borne de lecture : 1 Mio).
+gros="$(head -c 70000 /dev/zero | tr '\0' 'x')"
+printf '{"session_id":"s1","last_assistant_message":"%s","agent_id":"big1","agent_type":"developer","transcript_path":"%s"}' "$gros" "$trans" | "$hook" debut
+grep -q "^debut	[0-9]*	big1	developer	" "$journal_h" && ok "hook : entrée de 70 Kio, gros champ avant agent_id : début inscrit" || ko "entrée volumineuse" "$(tail -n 2 "$journal_h" | cut -c1-80)"
+# Clé répétée : la première occurrence gagne (pas celle d'un objet imbriqué plus loin).
+printf '%s' "$(json_debut a6 developer)" | "$hook" debut
+printf '{"description":"vraie","tools":[{"description":"outil"}]}' > "$sous/agent-a6.meta.json"
+attendre_ligne "\$1 == \"description\" && \$3 == \"a6\"" && [ "$(awk -F'\t' '$1 == "description" && $3 == "a6" { print $4 }' "$journal_h")" = vraie ] && ok "hook : clé répétée dans meta.json, la première occurrence est prise" || ko "première occurrence" "$(grep 'a6' "$journal_h")"
+# Rotation : au-delà de 2000 lignes, seules les 1000 dernières restent.
+awk 'BEGIN { for (i = 1; i <= 2000; i++) print "fin\t1\tr" i }' > "$journal_h"
+printf '%s' "$(json_debut a8 developer)" | "$hook" debut
+[ "$(lignes_h)" = 2001 ] && ok "rotation : 2000 lignes, rien n'est retiré" || ko "rotation à 2000" "$(lignes_h)"
+printf '%s' "$(json_debut a9 developer)" | "$hook" debut
+[ "$(lignes_h)" = 1001 ] && [ "$(head -n 1 "$journal_h" | cut -f3)" = r1002 ] && [ "$(tail -n 1 "$journal_h" | cut -f3)" = a9 ] && [ -z "$(ls "$h/depot/.git" | grep 'factory-agents.log.')" ] && ok "rotation : au-delà de 2000 lignes, les 1000 dernières puis la nouvelle, sans temporaire" || ko "rotation" "$(lignes_h) lignes ; $(head -n 1 "$journal_h")"
+# Journal commun à tous les worktrees, clone bare compris.
+git -C "$h/depot" add -A && git -C "$h/depot" -c user.name=t -c user.email=t@t commit -qm hook
+git -C "$h/depot" worktree add -q "$h/wt2" -b b2 >/dev/null 2>&1
+printf '%s' "$(json_debut w2 developer)" | "$h/wt2/factory/hook-agents-claude.sh" debut
+[ "$(tail -n 1 "$journal_h" | cut -f3)" = w2 ] && [ ! -e "$h/wt2/.git/factory-agents.log" ] && ok "worktree secondaire : même journal que le dépôt principal" || ko "journal du worktree secondaire" "$(tail -n 1 "$journal_h")"
+git clone -q --bare "$h/depot" "$h/nu.git" && git -C "$h/nu.git" worktree add -q "$h/wt-nu" "$(git -C "$h/depot" symbolic-ref --short HEAD)" >/dev/null 2>&1
+printf '%s' "$(json_debut b1 developer)" | "$h/wt-nu/factory/hook-agents-claude.sh" debut
+[ "$(cut -f3 "$h/nu.git/factory-agents.log" 2>/dev/null)" = b1 ] && ok "clone bare : journal dans le dépôt bare commun" || ko "journal du clone bare" "$(ls "$h/nu.git")"
 
 echo "fin-issue.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -895,6 +1086,60 @@ a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ 
 config_liste="$(bash factory/scripts/config-factory.sh 2>/dev/null)"
 printf '%s\n' "$config_liste" | grep -qx 'AGENT_MODELE=sonnet' && printf '%s\n' "$config_liste" | grep -qx 'AGENT_EFFORT=medium' && ok "config-factory.sh affiche les valeurs par défaut du modèle et de l'effort" || ko "config-factory.sh modèle et effort" "$config_liste"
 
+echo "sync-claude.sh : hooks des agents actifs (.claude/settings.local.json)"
+p="$(mktemp -d "$racine_tmp/k.XXXXXX")" || { ko "mktemp des cas de hooks"; exit 1; }; reglages=.claude/settings.local.json
+cmd_debut='"$CLAUDE_PROJECT_DIR"/factory/hook-agents-claude.sh debut 2>/dev/null || true'
+json_valide() { # json_valide <fichier> : 0 valide, 1 invalide, 2 aucun validateur (python3 ou jq)
+  if command -v python3 >/dev/null 2>&1; then python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$1" 2>/dev/null
+  elif command -v jq >/dev/null 2>&1; then jq empty "$1" >/dev/null 2>&1
+  else return 2; fi
+}
+verifier_json() { # verifier_json <description> <fichier>
+  json_valide "$2"; case $? in 0) ok "$1" ;; 2) echo "  saute $1 (ni python3 ni jq : validation du JSON impossible)" ;; *) ko "$1" "$(cat "$2")" ;; esac
+}
+d="$(depot_sync k-cree)"; cd "$d" || exit 1
+sortie="$(./factory/sync-claude.sh 2>"$p/k-err")"; code=$?
+[ "$code" -eq 0 ] && printf '%s' "$sortie" | grep -q 'agents actifs : oui$' && grep -qF "\"command\": \"\\\"\$CLAUDE_PROJECT_DIR\\\"/factory/hook-agents-claude.sh debut 2>/dev/null || true\"" "$reglages" && grep -qF 'hook-agents-claude.sh fin 2>/dev/null || true' "$reglages" && grep -q '"SubagentStart"' "$reglages" && grep -q '"SubagentStop"' "$reglages" && ok "fichier absent : créé avec les hooks debut et fin, « agents actifs : oui »" || ko "création des hooks" "$sortie ; $(cat "$reglages" 2>&1)"
+verifier_json "fichier créé : JSON valide" "$reglages"
+command -v python3 >/dev/null 2>&1 && { [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["hooks"]["SubagentStart"][0]["hooks"][0]["command"])' "$reglages")" = "$cmd_debut" ] && ok "commande du hook décodée telle quelle" || ko "commande du hook" "$(cat "$reglages")"; }
+[ ! -e settings.json ] && [ ! -e .claude/settings.json ] && ok "settings.json versionné non créé (un worktree resterait propre)" || ko "settings.json créé"
+grep -q "settings.local.json.*n'est pas ignoré par git" "$p/k-err" && ok "fichier non ignoré par git : avertissement" || ko "avertissement non ignoré" "$(cat "$p/k-err")"
+cp "$reglages" "$p/k-1"; ./factory/sync-claude.sh >/dev/null 2>&1
+cmp -s "$reglages" "$p/k-1" && ok "deuxième passage : fichier identique (idempotent)" || ko "idempotence" "$(diff "$p/k-1" "$reglages")"
+printf '.claude/settings.local.json\n' > .gitignore
+! ./factory/sync-claude.sh 2>&1 >/dev/null | grep -q "n'est pas ignoré" && ok "fichier ignoré par git : pas d'avertissement" || ko "avertissement à tort"
+printf '{\n  "permissions": {\n    "allow": ["Bash(ls)"],\n    "deny": []\n  }\n}\n' > "$reglages"; cp "$reglages" "$p/k-perm"
+./factory/sync-claude.sh >/dev/null 2>&1
+[ "$(sed -n 2p "$reglages")" = '  "hooks": {' ] && [ "$(sed -n 5p "$reglages")" = '  },' ] && [ "$(sed -n 1p "$reglages")" = '{' ] && tail -n +6 "$reglages" | cmp -s - <(tail -n +2 "$p/k-perm") && ok "fusion : permissions existantes conservées à l'identique, hooks ajoutés" || ko "fusion" "$(cat "$reglages")"
+verifier_json "fusion : JSON valide" "$reglages"
+for vide in '{}' '  {  }' $'\n{\n}\n'; do
+  printf '%s' "$vide" > "$reglages"; ./factory/sync-claude.sh >/dev/null 2>&1
+  grep -qF 'hook-agents-claude.sh fin' "$reglages" || ko "objet vide « $vide » : hooks absents" "$(cat "$reglages")"
+  verifier_json "objet vide « $(printf '%s' "$vide" | tr '\n' ' ') » : hooks insérés, JSON valide (sans virgule en trop)" "$reglages"
+done
+for autre in '{"hooks": {"PreToolUse": []}, "x": 1}' '[1, 2]' 'pas du json'; do
+  printf '%s\n' "$autre" > "$reglages"; cp "$reglages" "$p/k-av"
+  sortie="$(./factory/sync-claude.sh 2>"$p/k-err")"; code=$?
+  [ "$code" -eq 0 ] && cmp -s "$reglages" "$p/k-av" && grep -q 'à ajouter à la main' "$p/k-err" && grep -qF 'hook-agents-claude.sh debut' "$p/k-err" && printf '%s' "$sortie" | grep -q 'agents actifs : non$' && ok "« $autre » : fichier non modifié, avertissement avec le bloc à ajouter, code 0, « agents actifs : non »" || ko "« $autre » non modifié" "code $code ; $(cat "$p/k-err") ; $(cat "$reglages")"
+done
+# Mode du fichier conservé, lien symbolique jamais remplacé, détection d'installation précise.
+mode_de() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1" 2>/dev/null; }
+rm -f "$reglages"; printf '{"permissions": {}}\n' > "$reglages"; chmod 600 "$reglages"
+(umask 022; ./factory/sync-claude.sh >/dev/null 2>&1)
+[ "$(mode_de "$reglages")" = 600 ] && grep -q 'SubagentStart' "$reglages" && ok "fusion : le mode 0600 du fichier est conservé (jamais élargi)" || ko "mode conservé" "$(mode_de "$reglages")"
+rm -f "$reglages"; printf '{"permissions": {}}\n' > "$p/cible.json"; ln -s "$p/cible.json" "$reglages"; cp "$p/cible.json" "$p/k-av"
+sortie="$(./factory/sync-claude.sh 2>"$p/k-err")"; code=$?
+[ "$code" -eq 0 ] && [ -L "$reglages" ] && cmp -s "$p/cible.json" "$p/k-av" && grep -q 'lien symbolique' "$p/k-err" && grep -qF 'hook-agents-claude.sh debut' "$p/k-err" && printf '%s' "$sortie" | grep -q 'agents actifs : non$' && ok "lien symbolique : ni remplacé ni modifié, avertissement avec le bloc à ajouter, code 0" || ko "lien symbolique" "code $code ; $(cat "$p/k-err") ; $(ls -l "$reglages")"
+rm -f "$reglages"; printf '{"permissions": {"allow": ["Bash(factory/hook-agents-claude.sh debut)"]}}\n' > "$reglages"
+./factory/sync-claude.sh >/dev/null 2>&1
+grep -q 'SubagentStart' "$reglages" && ok "le seul nom du script dans le fichier ne vaut pas installation" || ko "détection trop large" "$(cat "$reglages")"
+printf '{\r\n  "permissions": {}\r\n}\r\n' > "$reglages"; ./factory/sync-claude.sh >/dev/null 2>&1
+grep -q 'SubagentStart' "$reglages" && verifier_json "fin de ligne CRLF : hooks insérés, JSON valide" "$reglages" || ko "CRLF" "$(cat "$reglages")"
+printf '{"note": "}{ accolades \\" et { dans une chaîne", "n": 1}\n' > "$reglages"; ./factory/sync-claude.sh >/dev/null 2>&1
+grep -q 'SubagentStart' "$reglages" && grep -q '"n": 1}' "$reglages" && verifier_json "accolades dans une chaîne : hooks insérés, JSON valide" "$reglages" || ko "accolades dans une chaîne" "$(cat "$reglages")"
+printf '{"note": "voir \\"hooks\\": ici"}\n' > "$reglages"; ./factory/sync-claude.sh >/dev/null 2>&1
+grep -q 'SubagentStart' "$reglages" && verifier_json "\"hooks\": cité dans une chaîne : n'est pas la clé, hooks insérés, JSON valide" "$reglages" || ko "hooks dans une chaîne" "$(cat "$reglages")"
+
 echo "init-projet.sh --sans-claude"
 d="$(depot_sync i-sans)"; cd "$d" || exit 1
 verifier "init --sans-claude : réussit" 0 "créé +AGENTS.md" ./factory/init-projet.sh --sans-claude
@@ -1093,7 +1338,9 @@ NOTIFICATION_COMMANDE=
 NOTIFICATION_DESTINATAIRE=moi@example.com
 NOTIFICATION_EXPEDITEUR=
 FIN_ISSUE_ARGUMENTS=
-FIN_ISSUE_IGNORES_AUTORISES=" scripts/config-factory.sh
+FIN_ISSUE_IGNORES_AUTORISES=
+AGENTS_SILENCE_MINUTES=5
+AGENTS_RETRAIT_MINUTES=60" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
 printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
 out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"

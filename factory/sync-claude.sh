@@ -6,6 +6,7 @@
 #             d'enveloppe (l'orchestrateur n'a pas de prompt : c'est la session principale, décrite dans AGENTS.md).
 #             Modèle et effort : en-tête du prompt, sinon AGENT_MODELE et AGENT_EFFORT (voir lib-config.sh) ; valeur vide = champ absent, l'agent hérite de la session.
 #  - suivi de progression : si le plugin savvy-progress est installé, son outil est ajouté aux agents et leur consigne l'utilise.
+#  - agents actifs : hooks SubagentStart / SubagentStop (factory/hook-agents-claude.sh) dans .claude/settings.local.json, lus par scripts/dashboard.sh.
 #
 # Noms d'outils : le champ `tools:` d'un prompt est recopié tel quel dans l'enveloppe ; ses valeurs (Read, Write, Edit, Glob, Grep, Bash,
 # mcp__savvy-progress__step...) sont donc des NOMS D'OUTILS DE CLAUDE CODE. Pour un autre outil, ce champ est ignoré (le texte du prompt
@@ -85,4 +86,54 @@ for prompt in factory/prompts/*.md; do
   generes+=("$nom")
 done
 
-echo "Alias créés : .claude/skills ; agents : ${generes[*]:-aucun} ; suivi de progression : $([ "$progression" -eq 1 ] && echo oui || echo non)"
+# Hooks des agents actifs, dans .claude/settings.local.json et PAS dans settings.json : worktree-issue.sh creer lance sync.sh dans chaque
+# worktree, et modifier un fichier versionné y salirait l'arbre, ce qui ferait échouer fin-issue.sh.
+# Sans jq : fusion prudente et idempotente. Fichier absent : créé. Hooks déjà là : rien. Objet JSON sans clé "hooks" : clé insérée juste après
+# la première accolade, le reste à l'identique. Autre cas (clé "hooks" déjà présente, fichier inexploitable) : rien n'est modifié, avertissement.
+reglages=.claude/settings.local.json
+commande_hook() { # commande_hook <debut|fin> : commande du hook, échappée pour une chaîne JSON
+  printf '\\"$CLAUDE_PROJECT_DIR\\"/factory/hook-agents-claude.sh %s 2>/dev/null || true' "$1"
+}
+bloc_hooks() { # bloc_hooks : valeur de la clé "hooks", indentée sous un objet de premier niveau
+  printf '{\n    "SubagentStart": [{"hooks": [{"type": "command", "command": "%s"}]}],\n    "SubagentStop": [{"hooks": [{"type": "command", "command": "%s"}]}]\n  }' "$(commande_hook debut)" "$(commande_hook fin)"
+}
+avertir_hooks() { # avertir_hooks <raison>
+  { echo "Avertissement : $reglages $1 : hooks des agents actifs non installés, à ajouter à la main dans l'objet de premier niveau :"
+    printf '  "hooks": %s\n' "$(bloc_hooks)"; } >&2
+}
+agents_actifs=non
+if [ ! -e "$reglages" ]; then
+  printf '{\n  "hooks": %s\n}\n' "$(bloc_hooks)" > "$reglages" && agents_actifs=oui
+elif grep -q 'hook-agents-claude.sh' "$reglages"; then
+  agents_actifs=oui
+elif grep -Eq '"hooks"[[:space:]]*:' "$reglages"; then
+  avertir_hooks "a déjà une clé \"hooks\""
+else
+  # Première passe : le premier caractère non blanc est-il « { », et l'objet est-il vide ? Seconde passe : insertion après cette accolade.
+  forme="$(awk '
+    { for (i = 1; i <= length($0); i++) { c = substr($0, i, 1); if (c ~ /[[:space:]]/) continue
+        if (!vu) { vu = 1; if (c != "{") { print "autre"; exit } continue }
+        print (c == "}" ? "vide" : "objet"); exit } }' "$reglages")"
+  case "$forme" in
+    vide|objet)
+      tmp_reglages="$(mktemp "$reglages.XXXXXX")" && [ -f "$tmp_reglages" ] || { echo "Erreur : fichier temporaire impossible à côté de $reglages" >&2; exit 1; }
+      # Valeurs passées par l'environnement : awk -v interpréterait les barres obliques inverses du JSON.
+      if BLOC="$(bloc_hooks)" SUITE="$([ "$forme" = vide ] || echo ",")" awk '
+          !fait && match($0, /[^[:space:]]/) { fait = 1
+            printf "%s{\n  \"hooks\": %s%s", substr($0, 1, RSTART - 1), ENVIRON["BLOC"], ENVIRON["SUITE"]
+            reste = substr($0, RSTART + 1)
+            if (ENVIRON["SUITE"] == "") { sub(/^[[:space:]]*/, "", reste); if (reste != "") reste = "\n" reste }
+            print reste; next }
+          { print }' "$reglages" > "$tmp_reglages" && chmod "$(printf '%o' $(( 0666 & ~0$(umask) )))" "$tmp_reglages" && mv "$tmp_reglages" "$reglages"; then
+        agents_actifs=oui
+      else
+        rm -f "$tmp_reglages"; avertir_hooks "n'a pas pu être réécrit"
+      fi ;;
+    *) avertir_hooks "n'est pas un objet JSON exploitable" ;;
+  esac
+fi
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && ! git check-ignore -q "$reglages"; then
+  echo "Avertissement : $reglages n'est pas ignoré par git : ajoutez la ligne .claude/settings.local.json au .gitignore (réglages propres au poste)." >&2
+fi
+
+echo "Alias créés : .claude/skills ; agents : ${generes[*]:-aucun} ; suivi de progression : $([ "$progression" -eq 1 ] && echo oui || echo non) ; agents actifs : $agents_actifs"

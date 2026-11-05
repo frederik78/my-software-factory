@@ -968,6 +968,43 @@ a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ 
 config_liste="$(bash factory/scripts/config-factory.sh 2>/dev/null)"
 printf '%s\n' "$config_liste" | grep -qx 'AGENT_MODELE=sonnet' && printf '%s\n' "$config_liste" | grep -qx 'AGENT_EFFORT=medium' && ok "config-factory.sh affiche les valeurs par défaut du modèle et de l'effort" || ko "config-factory.sh modèle et effort" "$config_liste"
 
+echo "sync-claude.sh : hooks des agents actifs (.claude/settings.local.json)"
+p="$(mktemp -d "$racine_tmp/k.XXXXXX")" || { ko "mktemp des cas de hooks"; exit 1; }; reglages=.claude/settings.local.json
+cmd_debut='"$CLAUDE_PROJECT_DIR"/factory/hook-agents-claude.sh debut 2>/dev/null || true'
+json_valide() { # json_valide <fichier> : 0 valide, 1 invalide, 2 aucun validateur (python3 ou jq)
+  if command -v python3 >/dev/null 2>&1; then python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$1" 2>/dev/null
+  elif command -v jq >/dev/null 2>&1; then jq empty "$1" >/dev/null 2>&1
+  else return 2; fi
+}
+verifier_json() { # verifier_json <description> <fichier>
+  json_valide "$2"; case $? in 0) ok "$1" ;; 2) ok "$1 (sauté : ni python3 ni jq)" ;; *) ko "$1" "$(cat "$2")" ;; esac
+}
+d="$(depot_sync k-cree)"; cd "$d" || exit 1
+sortie="$(./factory/sync-claude.sh 2>"$p/k-err")"; code=$?
+[ "$code" -eq 0 ] && printf '%s' "$sortie" | grep -q 'agents actifs : oui$' && grep -qF "\"command\": \"\\\"\$CLAUDE_PROJECT_DIR\\\"/factory/hook-agents-claude.sh debut 2>/dev/null || true\"" "$reglages" && grep -qF 'hook-agents-claude.sh fin 2>/dev/null || true' "$reglages" && grep -q '"SubagentStart"' "$reglages" && grep -q '"SubagentStop"' "$reglages" && ok "fichier absent : créé avec les hooks debut et fin, « agents actifs : oui »" || ko "création des hooks" "$sortie ; $(cat "$reglages" 2>&1)"
+verifier_json "fichier créé : JSON valide" "$reglages"
+command -v python3 >/dev/null 2>&1 && { [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["hooks"]["SubagentStart"][0]["hooks"][0]["command"])' "$reglages")" = "$cmd_debut" ] && ok "commande du hook décodée telle quelle" || ko "commande du hook" "$(cat "$reglages")"; }
+[ ! -e settings.json ] && [ ! -e .claude/settings.json ] && ok "settings.json versionné non créé (un worktree resterait propre)" || ko "settings.json créé"
+grep -q "settings.local.json.*n'est pas ignoré par git" "$p/k-err" && ok "fichier non ignoré par git : avertissement" || ko "avertissement non ignoré" "$(cat "$p/k-err")"
+cp "$reglages" "$p/k-1"; ./factory/sync-claude.sh >/dev/null 2>&1
+cmp -s "$reglages" "$p/k-1" && ok "deuxième passage : fichier identique (idempotent)" || ko "idempotence" "$(diff "$p/k-1" "$reglages")"
+printf '.claude/settings.local.json\n' > .gitignore
+! ./factory/sync-claude.sh 2>&1 >/dev/null | grep -q "n'est pas ignoré" && ok "fichier ignoré par git : pas d'avertissement" || ko "avertissement à tort"
+printf '{\n  "permissions": {\n    "allow": ["Bash(ls)"],\n    "deny": []\n  }\n}\n' > "$reglages"; cp "$reglages" "$p/k-perm"
+./factory/sync-claude.sh >/dev/null 2>&1
+[ "$(sed -n 2p "$reglages")" = '  "hooks": {' ] && [ "$(sed -n 5p "$reglages")" = '  },' ] && [ "$(sed -n 1p "$reglages")" = '{' ] && tail -n +6 "$reglages" | cmp -s - <(tail -n +2 "$p/k-perm") && ok "fusion : permissions existantes conservées à l'identique, hooks ajoutés" || ko "fusion" "$(cat "$reglages")"
+verifier_json "fusion : JSON valide" "$reglages"
+for vide in '{}' '  {  }' $'\n{\n}\n'; do
+  printf '%s' "$vide" > "$reglages"; ./factory/sync-claude.sh >/dev/null 2>&1
+  grep -qF 'hook-agents-claude.sh fin' "$reglages" || ko "objet vide « $vide » : hooks absents" "$(cat "$reglages")"
+  verifier_json "objet vide « $(printf '%s' "$vide" | tr '\n' ' ') » : hooks insérés, JSON valide (sans virgule en trop)" "$reglages"
+done
+for autre in '{"hooks": {"PreToolUse": []}, "x": 1}' '[1, 2]' 'pas du json'; do
+  printf '%s\n' "$autre" > "$reglages"; cp "$reglages" "$p/k-av"
+  sortie="$(./factory/sync-claude.sh 2>"$p/k-err")"; code=$?
+  [ "$code" -eq 0 ] && cmp -s "$reglages" "$p/k-av" && grep -q 'à ajouter à la main' "$p/k-err" && grep -qF 'hook-agents-claude.sh debut' "$p/k-err" && printf '%s' "$sortie" | grep -q 'agents actifs : non$' && ok "« $autre » : fichier non modifié, avertissement avec le bloc à ajouter, code 0, « agents actifs : non »" || ko "« $autre » non modifié" "code $code ; $(cat "$p/k-err") ; $(cat "$reglages")"
+done
+
 echo "init-projet.sh --sans-claude"
 d="$(depot_sync i-sans)"; cd "$d" || exit 1
 verifier "init --sans-claude : réussit" 0 "créé +AGENTS.md" ./factory/init-projet.sh --sans-claude

@@ -10,6 +10,8 @@
 # Un agent avec debut sans fin est affiché ; dernière preuve = le plus récent du début et de la date de modification de son journal.
 # Au-delà de AGENTS_SILENCE_MINUTES sans preuve : « sans nouvelles » ; au-delà de AGENTS_RETRAIT_MINUTES : retiré (configuration, voir lib-config.sh).
 # Signaux Git de chaque worktree, sur l'issue de même branche : fichiers non commités et dernière activité (commit ou fichier modifié).
+# Encart « Autres travaux » (après les issues) : une ligne par worktree dont la branche n'est le champ « branche » d'aucune issue, hors develop, main et HEAD détaché,
+# dans l'ordre de git worktree list : branche, puis le même signal (mêmes appels git, aucun de plus) ; « Aucun autre travail. » sinon.
 # Limites : une preuve d'activité, pas un état ; un agent arrêté sans hook de fin reste affiché « sans nouvelles » jusqu'au retrait.
 # L'âge d'activité d'un worktree ne voit pas la modification d'un fichier existant dans un dossier entièrement non suivi : git status ne le
 # montre que comme « dir/ » (-uall le détaillerait, au prix d'un parcours complet). Git en échec ou sans date de commit : « état Git illisible ».

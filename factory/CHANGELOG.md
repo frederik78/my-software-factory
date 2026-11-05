@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 1.15.0
+- `dashboard.sh` montre ce qui se passe en ce moment, sans modèle ni dépendance. Bandeau « Agents actifs » en haut de page : chaque sous-agent commencé et non terminé, avec son rôle, sa description et `depuis 12 min`, ou `sans nouvelles depuis 45 min` au-delà de `AGENTS_SILENCE_MINUTES` (5) sans preuve d'activité ; retiré au-delà de `AGENTS_RETRAIT_MINUTES` (60). Sur chaque issue qui a un worktree : `3 fichiers non commités · activité il y a 2 min` (`git status` sans verrou optionnel : jamais l'`index.lock` d'un agent).
+- **Changement de comportement** : `sync-claude.sh` installe les hooks `SubagentStart` et `SubagentStop` (`factory/hook-agents-claude.sh`) dans `.claude/settings.local.json`, jamais dans `settings.json` versionné. Fusion prudente : une clé `hooks` déjà présente ou un fichier inexploitable n'est pas modifié, un avertissement donne le bloc à ajouter à la main. Sa dernière ligne annonce `agents actifs : oui|non`.
+- Journal : `<git-common-dir>/factory-agents.log`, non versionné et commun à tous les worktrees ; format documenté en tête du hook et de `dashboard.sh`. La description vient de `subagents/agent-<id>.meta.json`, fichier non documenté par Anthropic : s'il manque ou change de forme, le bandeau affiche le rôle seul.
+- Une valeur invalide de `AGENTS_SILENCE_MINUTES` ou `AGENTS_RETRAIT_MINUTES` (entier entre 1 et 999999) arrête `dashboard.sh` en code 64.
+- Migration : remplacer `factory/`, relancer `./factory/init-projet.sh` si besoin, lancer `./factory/sync.sh`, ajouter `AGENTS_SILENCE_MINUTES=5` et `AGENTS_RETRAIT_MINUTES=60` à `.factory.conf` (facultatif : ce sont les défauts), vérifier que `.claude/settings.local.json` est ignoré par git, puis relancer la session Claude Code pour qu'elle lise les hooks.
+
 ## 1.14.0
 - Correctif : `criteres-sans-test.sh` répondait `OK` pour n'importe quelle mention dans le dossier de tests. Une Javadoc citant un critère masquait le retrait de son seul test. Seuls comptent maintenant le nom ou le titre d'une déclaration de test en Java, Kotlin, Python ou Node ; les limites restantes sont dans l'en-tête du script.
 - **Changement de comportement** : un critère cité seulement dans un commentaire, une chaîne ou un fichier de données passe à `MANQUE`, et le script répond 1 ; une fonction Python sans préfixe `test` ou une méthode Java privée aussi. Un projet dans un autre langage voit tous ses critères à `MANQUE`.

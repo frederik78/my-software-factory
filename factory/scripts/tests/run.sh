@@ -455,7 +455,7 @@ git worktree remove --force "$racine_tmp/wt-classique"
 git clone -q --bare . "$racine_tmp/nu.git" >/dev/null 2>&1; git -C "$racine_tmp/nu.git" worktree add -q "$racine_tmp/wt-nu" develop >/dev/null 2>&1
 "$racine_tmp/wt-nu/scripts/dashboard.sh" --sortie "$racine_tmp/nu.html" >/dev/null 2>&1
 [ "$(colonne_de 002-01 "$racine_tmp/nu.html")" = "En cours" ] && [ -n "$(carte_de 002-01 "$racine_tmp/nu.html" | grep 'dernier commit')" ] && ok "worktree d'un clone bare : branche lue" || ko "worktree de clone bare"
-lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "Limite : une preuve d'activité, pas un état" && ! lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "agent tourne encore" && lire_depot "$depot" factory/README.md | grep -q "limite : une preuve d'activité, pas un état" && ! lire_depot "$depot" factory/README.md | grep -q "agent tourne encore" && ok "limite du bandeau écrite (en-tête et README ; l'ancienne, devenue fausse, retirée)" || ko "limite du bandeau absente"
+lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "Limites : une preuve d'activité, pas un état" && ! lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "agent tourne encore" && lire_depot "$depot" factory/README.md | grep -q "limites : une preuve d'activité, pas un état" && ! lire_depot "$depot" factory/README.md | grep -q "agent tourne encore" && ok "limite du bandeau écrite (en-tête et README ; l'ancienne, devenue fausse, retirée)" || ko "limite du bandeau absente"
 for f in factory/scripts/dashboard.sh factory/README.md factory/CHANGELOG.md; do
   lire_depot "$depot" "$f" | grep -q "dossier entièrement non suivi" && ok "$f : limite des dossiers non suivis écrite" || ko "$f : limite des dossiers non suivis absente"
 done

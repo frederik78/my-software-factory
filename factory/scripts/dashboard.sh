@@ -10,6 +10,8 @@
 # Un agent avec debut sans fin est affiché ; dernière preuve = le plus récent du début et de la date de modification de son journal.
 # Au-delà de AGENTS_SILENCE_MINUTES sans preuve : « sans nouvelles » ; au-delà de AGENTS_RETRAIT_MINUTES : retiré (configuration, voir lib-config.sh).
 # Signaux Git de chaque worktree, sur l'issue de même branche : fichiers non commités et dernière activité (commit ou fichier modifié).
+# Encart « Autres travaux » (après les issues) : une ligne par worktree dont la branche n'est le champ « branche » d'aucune issue, hors develop, main et HEAD détaché,
+# dans l'ordre de git worktree list : branche, puis le même signal (mêmes appels git, aucun de plus) ; « Aucun autre travail. » sinon.
 # Limites : une preuve d'activité, pas un état ; un agent arrêté sans hook de fin reste affiché « sans nouvelles » jusqu'au retrait.
 # L'âge d'activité d'un worktree ne voit pas la modification d'un fichier existant dans un dossier entièrement non suivi : git status ne le
 # montre que comme « dir/ » (-uall le détaillerait, au prix d'un parcours complet). Git en échec ou sans date de commit : « état Git illisible ».
@@ -275,6 +277,28 @@ encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cou
   printf '</section>\n'
 }
 
+encart_autres_travaux() { # encart_autres_travaux <lignes de issues_dossier> : worktrees dont la branche n'est celle d'aucune issue (ni develop ni main), ou « Aucun autre travail. »
+  local ligne branche i=0 n=0 b
+  local -a branches_issues=()
+  while IFS= read -r ligne; do
+    [ -n "$ligne" ] || continue
+    IFS="$sep" read -r _ _ _ _ _ _ _ branche <<< "$ligne"
+    [ -z "$branche" ] || branches_issues+=("$branche")
+  done <<< "$1"
+  printf '<section id="autres-travaux">\n<h2>Autres travaux</h2>\n'
+  while [ "$i" -lt "${#wt_branches[@]}" ]; do # ordre de git worktree list, signaux déjà calculés par signaux_worktrees
+    b="${wt_branches[$i]}"
+    if [ "$b" != develop ] && [ "$b" != main ] && ! parmi "$b" ${branches_issues[@]+"${branches_issues[@]}"}; then
+      [ "$n" -gt 0 ] || printf '<ul>\n'
+      n=$((n + 1))
+      printf '<li><strong>%s</strong> <span class="signal">%s</span></li>\n' "$(echappe "$b")" "${wt_signaux[$i]}"
+    fi
+    i=$((i + 1))
+  done
+  if [ "$n" -gt 0 ]; then printf '</ul>\n'; else printf '<p>Aucun autre travail.</p>\n'; fi
+  printf '</section>\n'
+}
+
 generer() { # page complète sur la sortie standard
   local b i id statut_local maintenant
   maintenant="$(date +%s)"
@@ -330,6 +354,7 @@ $(kanban "$b" "$RANG_STATUT_BESOIN" carte_besoin "${statuts_besoins[@]}")
 <p>$(if [ -n "$prochaine" ]; then printf 'Prochaine issue prête : <strong>%s</strong>' "$(echappe "$prochaine")"; else printf 'Aucune issue prête.'; fi)</p>
 $(kanban "$i" "$RANG_STATUT_ISSUE" carte_issue "${statuts_issues[@]}")
 </section>
+$(encart_autres_travaux "$i")
 </body>
 </html>
 HTML

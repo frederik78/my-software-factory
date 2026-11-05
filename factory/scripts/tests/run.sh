@@ -860,8 +860,8 @@ d="$(depot_sync s-modele)"; cd "$d" || exit 1
 entete_agent() { sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md"; }
 a_champ() { entete_agent "$1" | grep -qx "$2"; }
 ./factory/sync-claude.sh >/dev/null 2>&1
-a_champ developer 'model: opus' && a_champ code-reviewer 'model: opus' && a_champ spec-writer 'model: opus' && ok "sans configuration : modèle opus pour chaque agent" || ko "modèle par défaut"
-a_champ developer 'effort: low' && a_champ code-reviewer 'effort: low' && a_champ spec-writer 'effort: low' && ok "sans configuration : effort low pour chaque agent" || ko "effort par défaut"
+a_champ developer 'model: sonnet' && a_champ code-reviewer 'model: sonnet' && a_champ spec-writer 'model: sonnet' && ok "sans configuration : modèle sonnet pour chaque agent" || ko "modèle par défaut"
+a_champ developer 'effort: medium' && a_champ code-reviewer 'effort: medium' && a_champ spec-writer 'effort: medium' && ok "sans configuration : effort medium pour chaque agent" || ko "effort par défaut"
 printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=high\n' > .factory.conf; ./factory/sync-claude.sh >/dev/null 2>&1
 a_champ developer 'model: sonnet' && a_champ developer 'effort: high' && ok ".factory.conf choisit le modèle et l'effort" || ko ".factory.conf modèle et effort"
 printf 'AGENT_EFFORT=medium\n' > .factory.local.conf; ./factory/sync-claude.sh >/dev/null 2>&1
@@ -881,7 +881,7 @@ awk 'NR==2{print; print "model: haiku"; print "effort: high"; next}1' factory/pr
 ./factory/sync-claude.sh >/dev/null 2>&1
 a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ code-reviewer 'model: opus' && ok "l'en-tête d'un prompt l'emporte pour ce rôle seulement" || ko "en-tête de prompt"
 config_liste="$(bash factory/scripts/config-factory.sh 2>/dev/null)"
-printf '%s\n' "$config_liste" | grep -qx 'AGENT_MODELE=opus' && printf '%s\n' "$config_liste" | grep -qx 'AGENT_EFFORT=low' && ok "config-factory.sh affiche les valeurs par défaut du modèle et de l'effort" || ko "config-factory.sh modèle et effort" "$config_liste"
+printf '%s\n' "$config_liste" | grep -qx 'AGENT_MODELE=sonnet' && printf '%s\n' "$config_liste" | grep -qx 'AGENT_EFFORT=medium' && ok "config-factory.sh affiche les valeurs par défaut du modèle et de l'effort" || ko "config-factory.sh modèle et effort" "$config_liste"
 
 echo "init-projet.sh --sans-claude"
 d="$(depot_sync i-sans)"; cd "$d" || exit 1
@@ -1073,8 +1073,8 @@ printf 'touch pwned3\nMAX_ITERATIONS_REVUE=`touch pwned4`\nSECRET_INCONNU=abc\n'
 scripts/config-factory.sh >/dev/null 2>&1; scripts/config-factory.sh --max-iterations >/dev/null 2>&1
 [ ! -e pwned1 ] && [ ! -e pwned2 ] && [ ! -e pwned3 ] && [ ! -e pwned4 ] && ok "cs_config aucune commande des fichiers de configuration n'est exécutée" || ko "cs_config commande exécutée depuis la configuration" "$(ls pwned* 2>&1 | tr '\n' ' ')"
 printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRET_INCONNU=abc\n' > .factory.local.conf
-verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "AGENT_MODELE=opus
-AGENT_EFFORT=low
+verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "AGENT_MODELE=sonnet
+AGENT_EFFORT=medium
 MAX_ITERATIONS_REVUE=6
 MAX_CRITERES_ISSUE=10
 NOTIFICATION_COMMANDE=

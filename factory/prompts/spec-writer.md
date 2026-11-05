@@ -62,4 +62,4 @@ Section Sécurité obligatoire, construite avec `owasp-check` :
 ## Découpage en issues
 Quand l'utilisateur a validé le PRD, propose le découpage en issues (tranches verticales livrables seules, dépendances explicites) avec la skill
 `to-tickets`, publiées dans `docs/issues/` au format de `docs/issues/_template.md`. Chaque critère CA/CS du PRD est couvert par exactement une issue
-(champ `criteres` de l'issue ; vérifié par `scripts/couverture-prd.sh <prd>`, qui doit répondre OK avant de présenter le découpage). L'utilisateur approuve le découpage avant publication.
+(champ `criteres` de l'issue ; vérifié par `scripts/couverture-prd.sh <prd>`, qui doit répondre OK avant de présenter le découpage). Taille : environ 10 critères au plus par issue ; une issue plus grosse se découpe, ou justifie sa taille dans le découpage proposé à l'utilisateur et par le champ `criteres_justification:` de son en-tête. Ce chiffre est un ordre de grandeur, pas une mesure ; `scripts/couverture-prd.sh` avertit au-delà de `MAX_CRITERES_ISSUE`, sans échouer. L'utilisateur approuve le découpage avant publication.

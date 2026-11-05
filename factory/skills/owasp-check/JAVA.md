@@ -8,6 +8,12 @@ Compléments de `SKILL.md` pour une application Java (Spring Boot, JPA, Maven).
 - [A03] URL JDBC ou de service construites depuis une propriété : refuser `?`, `#` et tout caractère inattendu.
 - [A08] Aucun `ObjectInputStream`, aucune désérialisation polymorphe (`enableDefaultTyping`) ; le vérifier par un test d'architecture.
 
+## Pièges à tester avec des valeurs hostiles (constatés)
+- Jackson convertit un nombre en texte ; `LocalDate` accepte un tableau ou un horodatage ; `UUID` accepte du Base64.
+- `Content-Type` et extension sont déclarés par le client : vérifier le contenu sur les octets, avant toute écriture.
+- Multipart : une erreur de taille doit être traduite en 400, ou la connexion coupée, à tester sur serveur réel.
+- Texte : refuser l'Unicode invisible (catégorie `Cf`) ; `\P{Cntrl}` ne couvre que l'ASCII.
+
 ## Outils
 - [A06] Analyse des dépendances : `./mvnw org.owasp:dependency-check-maven:check` (clé NVD requise, secret `NVD_API_KEY` en CI) ou le profil Maven `security` du projet.
 - Analyse statique de sécurité : SpotBugs avec Find Security Bugs, branchée sur `verify` (le build échoue sur une faille). Toute exclusion est ciblée (classe et motif) et justifiée par écrit.

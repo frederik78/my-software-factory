@@ -35,6 +35,8 @@ Break the work into **tracer bullet** tickets.
 
 </vertical-slice-rules>
 
+**An external input is born with all its controls.** A route, received file, callback or third-party response gets its security criteria in the FIRST ticket that opens it, even when those criteria also cite another route. The criterion applies to the input being opened: a route not yet open cannot be tested in this ticket, so its part of the criterion is written for the ticket that opens it. Never open an input in one ticket and protect it in the next.
+
 Give each ticket its **blocking edges**: the other tickets that must complete before it can start. A ticket with no blockers can start immediately.
 
 **Wide refactors are the exception to vertical slicing.** A **wide refactor** is one mechanical change (rename a column, retype a shared symbol) whose **blast radius** fans across the whole codebase, so a single edit breaks thousands of call sites at once and no vertical slice can land green. Don't force it into a tracer bullet; sequence it as **expand–contract**. First expand: add the new form beside the old so nothing breaks. Then migrate the call sites over in batches sized by blast radius (per package, per directory), each batch its own ticket blocked by the expand, keeping CI green batch to batch because the old form still exists. Finally contract: delete the old form once no caller remains, in a ticket blocked by every migrate batch. When even the batches can't stay green alone, keep the sequence but let them share an integration branch that all block a final integrate-and-verify ticket; green is promised only there.
@@ -103,3 +105,7 @@ The end-to-end behaviour this ticket makes work, from the user's perspective, no
 </issue-template>
 
 In either form, avoid specific file paths or code snippets: they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
+
+## Taille d'une issue
+
+Visez environ 10 critères au plus par issue ; une issue plus grosse se découpe, ou justifie sa taille dans le découpage proposé à l'utilisateur et par le champ `criteres_justification:` de son en-tête. Ce chiffre est un ordre de grandeur, pas une mesure ; `scripts/couverture-prd.sh` avertit au-delà de `MAX_CRITERES_ISSUE`, sans échouer.

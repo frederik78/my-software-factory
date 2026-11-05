@@ -16,11 +16,11 @@ la boucle ci-dessous est autorisée par la demande de livrer l'issue.
 3. Une branche et une PR par issue : `feat/<prd>-<nn>-<slug>`, créée depuis `develop` à jour (ou depuis la branche de l'issue dont
    celle-ci dépend si elle n'est pas encore fusionnée). Si la branche existe déjà, reprends-la. Si l'utilisateur est sur une autre branche de
    travail non terminée, ne la quitte pas sans lui demander. `git status` doit être propre ; sinon signale les fichiers et demande quoi en faire.
-   **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Dès qu'un autre agent peut travailler en même temps, isole l'issue dans son propre dossier : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
-   crée `../<dépôt>-<id>` sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
+   **Jamais de travail sur `main` ni sur `develop`** (la PR a pour base `develop`). Chaque issue se réalise dans son propre worktree, même seule ; le dossier de l'utilisateur et de son IDE n'est jamais celui d'un agent : `scripts/worktree-issue.sh creer <issue> [--base <branche>]`
+   crée le dossier (structure bare : `<conteneur>/<branche avec / remplacé par ->` ; dépôt classique : `../<dépôt>-<id>`) sur la branche de l'issue (jamais deux agents dans le même dossier) ; donne le chemin absolu de ce dossier dans le brief. Après la fusion par l'utilisateur, il lance
    `scripts/worktree-issue.sh nettoyer <issue> --branche`.
    **Correctif urgent sur une release** (bug en production que l'utilisateur demande de corriger sans attendre la prochaine release) : branche `hotfix/<slug>` créée depuis `main` à jour
-   (en dossier isolé : `git worktree add -b hotfix/<slug> ../<dépôt>-hotfix-<slug> main`), PR vers `main` ; après sa fusion dans `main`, l'utilisateur fusionne aussi `main` (ou la branche
+   (en dossier isolé : `git worktree add -b hotfix/<slug> <conteneur>/hotfix-<slug> main` en structure bare, `../<dépôt>-hotfix-<slug>` sinon), PR vers `main` ; après sa fusion dans `main`, l'utilisateur fusionne aussi `main` (ou la branche
    `hotfix/<slug>`) dans `develop`. L'agent travaille sur la branche `hotfix/<slug>`, jamais sur `main` ni sur `develop`, et ne fusionne rien.
 4. Fixe la **base** (borne de `git log <base>..HEAD` pour toute la livraison). Si la branche est créée depuis `develop` : `<base>` = `git merge-base HEAD develop`
    (à défaut de `develop` : `origin/develop`, `origin/HEAD`, `main`, `master`). Si elle est créée depuis la branche d'une issue dont elle dépend et qui n'est pas fusionnée (branches empilées) : `<base>` = la pointe de cette
@@ -35,7 +35,7 @@ et remplis chaque champ à partir de l'issue (ne le résume pas de mémoire). Il
 - l'issue (objectif, périmètre, critères) et les chemins à lire : `AGENTS.md`, le PRD, l'ADR concernés, le code existant ;
 - TDD strict, RED constaté avant chaque GREEN, `owasp-check`, architecture et règles d'`AGENTS.md` ;
 - la **preuve avant / après** attendue (section « Preuve attendue » de l'issue : test qui échoue puis réussit, chiffres mesurés, captures) ;
-- vérification avec `scripts/verify-clean.sh` (jamais le build directement dans le dépôt quand un IDE est ouvert : il peut recompiler des classes générées et le casser) ;
+- vérification finale avec `scripts/fin-issue.sh <issue>`, tests ciblés avant (jamais le build directement dans le dépôt quand un IDE est ouvert : il peut recompiler des classes générées et le casser) ;
 - commits atomiques au format conventionnel, avec la ligne `Co-Authored-By` demandée par le harnais ; **pas de push** ;
 - le format de rapport de `factory/prompts/report-format.md` (inclus par référence), rapport complet, jamais vide.
 
@@ -43,6 +43,7 @@ et remplis chaque champ à partir de l'issue (ne le résume pas de mémoire). Il
 - Rapport vide ou « placeholder » : relance le developer.
 - `git log --oneline <base>..HEAD` : les commits annoncés existent, `git status` est propre.
 - `scripts/verify-clean.sh` : vert, et le nombre de tests correspond à l'annonce (écart = explication demandée).
+- Section « Entrées externes » du rapport : présente, une ligne par champ d'une entrée ajoutée ou modifiée, ou « Sans entrée externe ». Sinon, retour au developer.
 - Section « Code écrit à la place du framework » du rapport : présente, et chaque raison est un critère du PRD ou une mesure. Sinon, retour au developer.
 - Section « Alignement sur la référence » du rapport : présente, chaque écart a une raison, et tu ouvres au moins un fichier de la référence pour la recouper. Sinon, retour au developer.
 - `scripts/criteres-sans-test.sh <issue>` : chaque critère de l'issue a un test dont le nom contient son identifiant (CA-xx / CS-xx). Un critère
@@ -53,7 +54,9 @@ Lance le sous-agent `code-reviewer` avec le modèle `factory/prompts/briefs/revi
 confirmer, les points d'attention propres à l'issue, `scripts/verify-clean.sh` pour le build, **lecture seule**, et le format de rapport du reviewer.
 Écris son rapport tel quel dans `docs/reviews/<id-issue>.md` (une section datée « Itération n »).
 
-## 4. Corriger (`MAX_ITERATIONS_REVUE` itérations au plus, 5 par défaut, voir `.factory.conf`)
+**Mutations du relecteur** : garde-fous nouveaux ou modifiés de la passe, 8 au plus, les plus risqués d'abord ; ceux qui restent sont listés dans son rapport, non lancés. `fin-issue.sh` reste le filet final.
+
+## 4. Corriger (`MAX_ITERATIONS_REVUE` itérations au plus, 3 par défaut, voir `.factory.conf`)
 Lis la limite au début de la livraison : `scripts/config-factory.sh --max-iterations` (code 64 = valeur invalide : arrête-toi et dis-le à l'utilisateur). Une itération = une relecture
 du `code-reviewer` (étape 3) ; numérote-les dans `docs/reviews/<id-issue>.md`.
 Pour chaque constat, décide :
@@ -73,6 +76,10 @@ Pour chaque constat, décide :
   3. remonte le blocage à l'utilisateur dans la conversation (constats restants, options : trancher, simplifier ou découper l'issue, assouplir le critère). Si `notifier.sh` rend 3
      (notification non configurée) ou 4 (échec de la commande d'envoi), dis-le aussi, avec son message : l'utilisateur n'a pas reçu de courriel.
 
+**Risque de sécurité reporté** (ou dit « non exploitable aujourd'hui », « provisoire ») : décision de l'utilisateur, jamais du relecteur. La décision est consignée au backlog, et la dépendance dans `depend_de` de toute issue exposant ce risque, pour qu'elle ne parte pas avant sa correction.
+
+**Revue de branche finale** (`/code-review`) : le brief ne contient pas la liste des mineurs connus ; le relecteur ne garde que les décisions de l'utilisateur à respecter.
+
 ## 4 bis. Retour de revue externe (facultatif)
 Si le projet utilise un service de revue de PR (un agent tiers qui commente la PR et donne un score de confiance ; aucun fournisseur n'est imposé), il intervient APRÈS la définition de fini et après que l'utilisateur a poussé la branche et ouvert la PR
 (les agents ne poussent pas). L'utilisateur te transmet le retour (lien ou texte).
@@ -82,8 +89,8 @@ Si le projet utilise un service de revue de PR (un agent tiers qui commente la P
 
 ## 5. Terminer : définition de fini
 L'issue passe `Fait` seulement si TOUT est vrai :
-- [ ] `scripts/verify-clean.sh` vert (tests et analyses configurées par le projet : tests d'architecture, analyse statique de sécurité), vérifié par toi après le dernier commit ;
-- [ ] `scripts/criteres-sans-test.sh <issue>` ne signale aucun critère ; RED constaté pour chacun, ou raison écrite ;
+- [ ] `scripts/fin-issue.sh <issue>` à `FIN-ISSUE OK`, lancé par toi après le dernier commit de code (build, analyses, critères, tests ignorés, arbre propre) ; sa dernière ligne est reprise dans les Notes de l'issue et dans la PR ; une exécution avant un commit de code ne vaut plus. Sans cette ligne, l'issue ne passe pas à `Fait` ;
+- [ ] RED constaté pour chaque critère, ou raison écrite ;
 - [ ] dernière revue `APPROUVÉ`, aucun BLOQUANT/IMPORTANT ouvert, rapport dans `docs/reviews/` ;
 - [ ] **preuve avant / après** présente pour chaque critère, relancée par toi ou par le relecteur (et reprise dans la description de la PR : `.github/pull_request_template.md`) ;
 - [ ] commits atomiques, messages conventionnels, rien de poussé ;

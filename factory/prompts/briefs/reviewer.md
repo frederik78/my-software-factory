@@ -18,7 +18,7 @@ Décisions déjà prises que tu ne dois pas remettre en cause : {{liste}}
 
 Framework : pour chaque mécanisme transversal écrit à la main, cherche l'équivalent dans le framework et la référence de l'ADR (section « Framework » du rapport).
 Référence : {{projet et version fixés par l'ADR}} ; compare les fichiers de cette plage à leurs équivalents, lus à cette version.
-Mutations : pour chaque test de garde-fou, vérifie par mutation (délai max. `perl -e 'alarm 20; exec @ARGV' …` sous macOS) qu'il échoue proprement.
+Mutations : seulement les garde-fous nouveaux ou modifiés de la passe, 8 au plus, les plus risqués d'abord (sécurité, perte de données) ; liste les autres comme non vérifiés, sans les lancer. Vérifie par mutation (délai max. `perl -e 'alarm 20; exec @ARGV' …` sous macOS) qu'il échoue proprement.
 Build : scripts/verify-clean.sh (copie propre) ; rapporte les nombres. Ne lance pas le build directement dans le dépôt.
 Règles : factory/prompts/code-reviewer.md et skill owasp-check ; toute vulnérabilité OWASP avérée est BLOQUANTE.
 

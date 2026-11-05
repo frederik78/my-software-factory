@@ -2,6 +2,9 @@
 # Dashboard : page HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
 # Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. La page se rafraîchit seule (balise meta).
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
+# Le statut d'une issue est le plus avancé de celui du dossier courant et de celui de sa branche locale (champ « branche » de l'en-tête), avec le dernier commit de la branche sur la carte.
+# Une dépendance ne compte que `Fait` dans le dossier courant : une issue finie sur sa branche, pas encore fusionnée, bloque encore les suivantes.
+# Limite : le statut ne dit pas si un agent tourne encore, et le travail non commité n'est pas vu.
 #
 # Usage : scripts/dashboard.sh [--sortie <fichier>] [--attente <secondes>] [--boucle <secondes>]
 #   --sortie   fichier généré (défaut : dashboard.html à la racine du projet)
@@ -34,9 +37,9 @@ cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$dossier_scripts/lib-issues.sh"
 
-# Statuts du cycle, dans l'ordre des colonnes : besoins (backlog.md) et issues (docs/issues/README.md).
+# Statuts du cycle, dans l'ordre des colonnes : besoins (backlog.md).
 statuts_besoins=("À faire" "En clarification" "Spécifié" "En cours" "En revue" "Fait")
-statuts_issues=("À faire" "En cours" "En revue" "Fait")
+# statuts_issues vient de lib-issues.sh.
 classes=(afaire clarification specifie encours enrevue fait) # une par statut de besoin (liste fermée, jamais le texte brut)
 # Rang du champ « statut » dans les lignes produites par besoins_backlog et issues_dossier.
 RANG_STATUT_BESOIN=4; RANG_STATUT_ISSUE=3
@@ -69,11 +72,11 @@ besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd �
   ' backlog.md
 }
 
-issues_dossier() { # lignes « id SEP titre SEP statut SEP dépendances SEP besoin (F-xx) » lues dans les en-têtes, dans l'ordre des fichiers
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local », dans l'ordre des fichiers
   local f deps
   while IFS= read -r f; do
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_champ "$f" statut)" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)"
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)"
   done < <(issue_fichiers)
 }
 
@@ -86,9 +89,9 @@ carte_besoin() { # carte_besoin <ligne de besoins_backlog>
   printf '</div>\n'
 }
 
-# Contexte des cartes d'issues, rempli par generer : issue prête (etat-issues.sh --prochaine) et statut de chaque id.
+# Contexte des cartes d'issues, rempli par generer : issue prête (etat-issues.sh --prochaine) et statut local de chaque id.
 prochaine=""; ids_issues=(); statuts_lus=()
-statut_issue() { # statut_issue <id> : statut lu, vide si l'issue n'existe pas
+statut_issue() { # statut_issue <id> : statut local, vide si l'issue n'existe pas
   local i=0
   while [ "$i" -lt "${#ids_issues[@]}" ]; do
     [ "${ids_issues[$i]}" = "$1" ] && { printf '%s' "${statuts_lus[$i]}"; return; }
@@ -104,8 +107,8 @@ bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est �
   return 1
 }
 carte_issue() { # carte_issue <ligne de issues_dossier>
-  local id titre statut deps besoin marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin <<< "$1"
+  local id titre statut deps besoin commit marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin commit _ <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
@@ -115,6 +118,7 @@ carte_issue() { # carte_issue <ligne de issues_dossier>
   printf '<div class="carte%s"><strong>%s</strong> <span class="titre">%s</span>%s' "$etats" "$(echappe "$id")" "$(echappe "$titre")" "$marques"
   [ -z "$besoin" ] || printf '<span class="detail">%s</span>' "$(echappe "$besoin")"
   [ -z "$deps" ] || printf '<span class="detail">dépend de : %s</span>' "$(echappe "$deps")"
+  [ -z "$commit" ] || printf '<span class="detail">dernier commit : %s</span>' "$(echappe "$commit")"
   printf '</div>\n'
 }
 
@@ -149,7 +153,7 @@ kanban() { # kanban <lignes> <rang du statut> <fonction de carte> <statuts du cy
 encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cours et En revue, ou « Aucune issue en cours. »
   local id titre statut deps besoin n=0
   printf '<section id="en-cours">\n<h2>En cours</h2>\n'
-  while IFS="$sep" read -r id titre statut deps besoin; do
+  while IFS="$sep" read -r id titre statut _; do
     parmi "$statut" "En cours" "En revue" || continue
     [ "$n" -gt 0 ] || printf '<ul>\n'
     n=$((n + 1))
@@ -160,13 +164,13 @@ encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cou
 }
 
 generer() { # page complète sur la sortie standard
-  local b i id statut
+  local b i id statut_local
   b="$(besoins_backlog)"; i="$(issues_dossier)"
   prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
   ids_issues=(); statuts_lus=()
-  while IFS="$sep" read -r id _ statut _; do
+  while IFS="$sep" read -r id _ _ _ _ _ statut_local; do
     [ -n "$id" ] || continue
-    ids_issues+=("$id"); statuts_lus+=("$statut")
+    ids_issues+=("$id"); statuts_lus+=("$statut_local")
   done <<< "$i"
   cat <<HTML
 <!DOCTYPE html>

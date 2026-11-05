@@ -68,7 +68,7 @@ technologie sont dans des annexes (`JAVA.md` pour Java/Spring Boot). Pour une au
   Les clients de services tiers n'appellent que les URL configurées.
 
 ## Règles transverses
-- Valider toute entrée en liste blanche (type, longueur, bornes).
+- Valider toute entrée en liste blanche (type, longueur, bornes). Une conversion ou une valeur par défaut du framework n'est pas présumée sûre : la tester avec une valeur hostile.
 - Moindre privilège pour les comptes techniques et la base de données.
 - Aucun chemin de fichier fourni par l'utilisateur (path traversal).
 

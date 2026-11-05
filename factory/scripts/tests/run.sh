@@ -879,7 +879,7 @@ cmp -s .claude/agents/developer.md "$p/developer-avant.md" && ok "valeur refusé
 rm -f .factory.local.conf .factory.conf
 awk 'NR==2{print; print "model: haiku"; print "effort: high"; next}1' factory/prompts/developer.md > "$p/dev.md" && cp "$p/dev.md" factory/prompts/developer.md
 ./factory/sync-claude.sh >/dev/null 2>&1
-a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ code-reviewer 'model: opus' && ok "l'en-tête d'un prompt l'emporte pour ce rôle seulement" || ko "en-tête de prompt"
+a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ code-reviewer 'model: sonnet' && ok "l'en-tête d'un prompt l'emporte pour ce rôle seulement" || ko "en-tête de prompt"
 config_liste="$(bash factory/scripts/config-factory.sh 2>/dev/null)"
 printf '%s\n' "$config_liste" | grep -qx 'AGENT_MODELE=sonnet' && printf '%s\n' "$config_liste" | grep -qx 'AGENT_EFFORT=medium' && ok "config-factory.sh affiche les valeurs par défaut du modèle et de l'effort" || ko "config-factory.sh modèle et effort" "$config_liste"
 

@@ -96,7 +96,7 @@ doit répondre `OK` : chaque critère du PRD est couvert par exactement une issu
 /deliver 001-01          # ou : /deliver (la prochaine issue prête : scripts/etat-issues.sh --prochaine)
 ```
 La session principale :
-1. vérifie les dépendances, crée la branche `feat/<prd>-<nn>-<slug>`, passe l'issue `En cours` ;
+1. vérifie les dépendances, crée la branche `feat/<prd>-<nn>-<slug>`, passe l'issue `En cours` (puis `En revue` à la première relecture, `En cours` si les corrections repartent au développeur) ;
 2. lance le **developer** avec un brief complet (TDD, un test RED avant chaque code, tests nommés d'après les critères) ;
 3. **recoupe** son rapport : `git log`, arbre propre, `scripts/verify-clean.sh`, `scripts/criteres-sans-test.sh` ;
 4. lance le **code-reviewer** (build en copie propre, mutations des tests, OWASP), et archive son rapport dans `docs/reviews/<issue>.md` ;

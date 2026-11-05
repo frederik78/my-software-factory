@@ -1295,7 +1295,9 @@ NOTIFICATION_COMMANDE=
 NOTIFICATION_DESTINATAIRE=moi@example.com
 NOTIFICATION_EXPEDITEUR=
 FIN_ISSUE_ARGUMENTS=
-FIN_ISSUE_IGNORES_AUTORISES=" scripts/config-factory.sh
+FIN_ISSUE_IGNORES_AUTORISES=
+AGENTS_SILENCE_MINUTES=5
+AGENTS_RETRAIT_MINUTES=60" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
 printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
 out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"

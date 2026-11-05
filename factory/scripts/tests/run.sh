@@ -566,6 +566,44 @@ real_git="$(command -v git)"; mkdir -p "$p/stub"
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *%%ct*) exit 1 ;; esac; done\nexec "%s" "$@"\n' "$real_git" > "$p/stub/git"; chmod +x "$p/stub/git"
 PATH="$p/stub:$PATH" scripts/dashboard.sh --sortie "$p/stub.html" >/dev/null 2>&1
 grep -F '<strong>003-08</strong>' "$p/stub.html" | grep -qF '<span class="detail signal">état Git illisible</span>' && ! grep -Eq 'il y a [0-9]{4,} h' "$p/stub.html" && ok "activité illisible (git log en échec) : « état Git illisible », pas d'âge absurde" || ko "git log en échec" "$(grep -F '<strong>003-08</strong>' "$p/stub.html")"
+echo "dashboard.sh : encart « Autres travaux » (worktrees sans issue)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+git init -q -b develop .; printf 'dashboard.html\n' > .gitignore; rm -f docs/issues/[0-9]*.md
+issue_a() { printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: En cours\nbranche: %s\ndepend_de: []\n---\n' "$1" "$1" "$2" > "docs/issues/$1-x.md"; }
+issue_a 004-01 feat/i1
+gd_ add -A; gd_ commit -qm init
+HA='fix/<b>x&y</b>'
+git worktree add -q "$racine_tmp/wt-i1" -b feat/i1 >/dev/null 2>&1
+git worktree add -q "$racine_tmp/wt-rx" -b refactor/x >/dev/null 2>&1
+git worktree add -q "$racine_tmp/wt-ha" -b "$HA" >/dev/null 2>&1
+git worktree add -q "$racine_tmp/wt-dz" -b docs/z >/dev/null 2>&1
+git worktree add -q "$racine_tmp/wt-main" -b main >/dev/null 2>&1
+git worktree add -q --detach "$racine_tmp/wt-det" >/dev/null 2>&1
+printf 'a\n' > "$racine_tmp/wt-rx/a.txt"; printf 'b\n' > "$racine_tmp/wt-rx/b.txt"
+printf 'a\n' > "$racine_tmp/wt-i1/a.txt"; printf 'a\n' > "$racine_tmp/wt-main/a.txt"; printf 'a\n' > "$racine_tmp/wt-det/a.txt"; printf 'a\n' > f-develop.txt
+printf 'a\n' > "$racine_tmp/wt-ha/a.txt"
+printf 'gitdir: /inexistant\n' > "$racine_tmp/wt-dz/.git"
+sortie_a="$racine_tmp/autres.html"
+verifier_exact "autres travaux : aucune erreur (branche hostile, détachée, .git corrompu)" 0 "$sortie_a" scripts/dashboard.sh --sortie "$sortie_a"
+autres() { awk '/<section id="autres-travaux">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "$1"; }
+autres "$sortie_a" | grep -qF '<li><strong>refactor/x</strong> <span class="signal">2 fichiers non commités · activité il y a moins d'"'"'1 min</span></li>' && ok "autres travaux : worktree sans issue = branche, fichiers non commités et activité" || ko "autres travaux : ligne refactor/x" "$(autres "$sortie_a")"
+! autres "$sortie_a" | grep -qF 'feat/i1' && [ -n "$(autres "$sortie_a")" ] && ok "autres travaux : la branche d'une issue n'y figure pas" || ko "autres travaux : branche d'issue présente" "$(autres "$sortie_a")"
+! autres "$sortie_a" | grep -qF '<strong>develop</strong>' && ! autres "$sortie_a" | grep -qF '<strong>main</strong>' && [ -n "$(autres "$sortie_a")" ] && ok "autres travaux : ni develop ni main" || ko "autres travaux : develop ou main présent" "$(autres "$sortie_a")"
+[ "$(autres "$sortie_a" | grep -c '<li>')" = 3 ] && ok "autres travaux : une ligne par worktree sur branche (HEAD détaché exclu)" || ko "autres travaux : nombre de lignes" "$(autres "$sortie_a")"
+autres "$sortie_a" | grep -qF '<li><strong>fix/&lt;b&gt;x&amp;y&lt;/b&gt;</strong> ' && ! grep -qF '<b>x' "$sortie_a" && ok "cs_ autres travaux : nom de branche hostile échappé HTML" || ko "cs_ autres travaux : branche non échappée" "$(autres "$sortie_a")"
+autres "$sortie_a" | grep -qF '<li><strong>docs/z</strong> <span class="signal">état Git illisible</span></li>' && ok "autres travaux : git en échec = « état Git illisible »" || ko "autres travaux : git en échec" "$(autres "$sortie_a")"
+ordre_git="$(git worktree list --porcelain | sed -n 's#^branch refs/heads/##p' | grep -v -e '^develop$' -e '^main$' -e '^feat/i1$' | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' | paste -sd' ' -)"
+[ "$(autres "$sortie_a" | sed -n 's#^<li><strong>\(.*\)</strong> <span.*#\1#p' | paste -sd' ' -)" = "$ordre_git" ] && [ -n "$ordre_git" ] && ok "autres travaux : lignes dans l'ordre de git worktree list" || ko "autres travaux : ordre" "$(autres "$sortie_a")"
+[ "$(grep -n '<section id="issues">' "$sortie_a" | cut -d: -f1)" -lt "$(grep -n '<section id="autres-travaux">' "$sortie_a" | cut -d: -f1)" ] && ok "autres travaux : l'encart vient après les issues" || ko "autres travaux : position" "$(grep -n '<section' "$sortie_a")"
+for w in i1 rx ha dz main det; do git worktree remove --force "$racine_tmp/wt-$w" >/dev/null 2>&1; done
+rm -rf "$racine_tmp/wt-dz"; git worktree prune
+scripts/dashboard.sh --sortie "$sortie_a" >/dev/null
+autres "$sortie_a" | grep -qF '<p>Aucun autre travail.</p>' && ! autres "$sortie_a" | grep -q '<li>' && ok "autres travaux : aucun worktree concerné = « Aucun autre travail. »" || ko "autres travaux : aucun autre travail" "$(autres "$sortie_a")"
+for f in factory/scripts/dashboard.sh factory/README.md factory/CHANGELOG.md; do
+  lire_depot "$depot" "$f" | grep -q "Autres travaux" && ok "$f : encart « Autres travaux » documenté" || ko "$f : encart « Autres travaux » non documenté"
+done
+lire_depot "$depot" factory/CHANGELOG.md | grep -q '^## 1.16.0$' && [ "$(lire_depot "$depot" factory/VERSION)" = "1.16.0" ] && ok "version 1.16.0 (VERSION et CHANGELOG)" || ko "version 1.16.0 absente"
+
 
 echo "hook-agents-claude.sh (journal des agents, propre à Claude Code)"
 h="$(mktemp -d "$racine_tmp/h.XXXXXX")" || { ko "mktemp du dépôt du hook"; h=/inexistant; }

@@ -17,7 +17,7 @@ Règles
 2 à 4 lignes : ce qui est livré et ce qui ne l'est pas.
 
 ## Vérification
-- Commande : scripts/verify-clean.sh
+- Commande : scripts/fin-issue.sh <issue> (dernière ligne recopiée)
 - Résultat : <tests lancés / échecs / erreurs / ignorés>, <analyse statique : nombre de défauts, si le projet en a une>, VERIFY OK|ECHEC
 - Tests avant -> après : <n> -> <n>
 
@@ -37,6 +37,11 @@ Règles
 - Choix de conception faits seul (une ligne chacun, avec la raison).
 - Écarts avec le PRD ou l'issue.
 - Dépendances ajoutées : nom, version, origine, licence (A06).
+
+## Entrées externes
+| Champ | Format et borne | Code de refus | Test avec une valeur hostile |
+|---|---|---|---|
+Une ligne par champ d'une entrée ajoutée ou modifiée. « Sans entrée externe » est une réponse valable.
 
 ## Code écrit à la place du framework
 | Classe | Ce que le framework ou la référence de l'ADR fournit | Raison de ne pas l'utiliser (critère du PRD ou mesure) |

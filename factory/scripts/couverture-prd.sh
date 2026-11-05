@@ -5,13 +5,16 @@
 # Une issue appartient au PRD si son champ `prd:` pointe vers ce fichier. Les identifiants sont comparés sans zéros de tête (CA-03 = CA-3).
 #
 # Usage : scripts/couverture-prd.sh <docs/prd/NNN-module.md>
-# Rapporte : critères sans issue, critères portés par plusieurs issues, critères d'issue inconnus du PRD. Code 1 s'il y en a, 64 en cas d'usage.
+# Rapporte : critères sans issue, critères portés par plusieurs issues, critères d'issue inconnus du PRD. Code 1 s'il y en a, 64 en cas d'usage ou de limite invalide.
+# Avertit aussi (« ATTENTION », sans effet sur le code de sortie) pour chaque issue de plus de MAX_CRITERES_ISSUE critères (10 par défaut), sauf si son en-tête porte un champ `criteres_justification:` non vide.
 set -uo pipefail
 
 racine="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$(dirname "$0")/lib-issues.sh"
+
+max_criteres="$("$(dirname "$0")/config-factory.sh" --max-criteres)" || exit 64
 
 prd="${1:-}"
 if [ -z "$prd" ] || [ ! -f "$prd" ]; then
@@ -33,6 +36,10 @@ portes=""   # lignes « critère issue »
 while IFS= read -r f; do
   [ "$(issue_champ "$f" prd)" = "$prd" ] || continue
   id="$(issue_champ "$f" id)"
+  nb_criteres="$(issue_liste "$f" criteres | wc -l | tr -d ' ')"
+  if [ "$nb_criteres" -gt "$max_criteres" ] && [ -z "$(issue_champ "$f" criteres_justification)" ]; then
+    echo "ATTENTION  $id : $nb_criteres critères, limite $max_criteres (découper, ou justifier par criteres_justification: dans l'en-tête)"
+  fi
   while IFS= read -r c; do
     [ -n "$c" ] && portes="${portes}$(normaliser "$c") ${id}"$'\n'
   done < <(issue_liste "$f" criteres)

@@ -11,7 +11,8 @@
 # Commande de build, dans cet ordre : variable COMMANDE_VERIFY ; première ligne du fichier `.factory-verify` à la racine du projet (écriture shell permise : `npm ci && npm test`) ;
 # à défaut, le wrapper du projet s'il existe (`./mvnw -B clean verify`, `./gradlew --no-daemon clean build`) ; sinon le script s'arrête (code 64) en demandant de créer `.factory-verify`.
 # Les arguments passés après `--` sont ajoutés à la commande (disponibles comme "$@").
-# Le résumé chiffré reconnaît la sortie de Maven (« Tests run: n, Failures: … »), celle de unittest/pytest (« Ran n tests ») et celle de la suite de la factory (« TESTS OK : n vérifications », « TESTS EN ECHEC : x sur n »).
+# Le résumé chiffré reconnaît la sortie de Maven (« Tests run: n, Failures: … »), celle de unittest/pytest (« Ran n tests »), de jest et de node:test et celle de la suite de la factory (« TESTS OK : n vérifications », « TESTS EN ECHEC : x sur n »).
+# Plusieurs lanceurs du même type s'additionnent ; de types différents (Maven puis jest), le résumé dit « plusieurs types de résumé (…) », sans nombre. Limite : une sortie préfixée (jest lancé par Maven, « [INFO] Tests: … ») n'est pas reconnue.
 # Code de sortie : celui du build (0 = tout est vert). Dernière ligne : « VERIFY OK » ou « VERIFY ECHEC (code n) ».
 set -uo pipefail
 
@@ -27,7 +28,10 @@ while [ $# -gt 0 ]; do
 done
 
 depot="$(cd "$(dirname "$0")/.." && pwd)"
-copie="$(mktemp -d "${TMPDIR:-/tmp}/verify-clean.XXXXXX")"
+# Sans copie, « $copie/src » vaudrait « /src » : sous root, le build tournerait dans un dossier étranger (en boucle si c'est un dépôt avec sa propre vérification).
+copie="$(mktemp -d "${TMPDIR:-/tmp}/verify-clean.XXXXXX" 2>/dev/null)" && [ -n "$copie" ] && [ -d "$copie" ] || {
+  echo "Copie temporaire impossible : dossier temporaire inutilisable (${TMPDIR:-/tmp})" >&2; exit 1
+}
 journal="$copie/verify.log"
 
 nettoyer() {
@@ -68,12 +72,72 @@ case "$commande" in *'"$@"'*|*'$@'*) ;; *) commande="$commande \"\$@\"" ;; esac
 bash -c "$commande" verify-clean ${mvn_args[@]+"${mvn_args[@]}"} >"$journal" 2>&1
 code=$?
 
-tests="$(grep -E '^\[(INFO|ERROR|WARNING)\] Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$' "$journal" | tail -1 | sed -E 's/^\[[A-Z]+\] //')"
+# Plusieurs lanceurs enchaînés (pytest unit && pytest integ) : chaque résumé compte. Un seul : recopié tel quel.
+additionner() { # additionner <préfixe> : somme les « n mot » de l'entrée standard
+  awk -v pre="$1" '
+    { une = $0; nb++
+      for (i = 1; i < NF; i++) if ($i ~ /^[0-9]+$/) {
+        m = $(i + 1); gsub(/[^a-z]/, "", m); if (m == "error") m = "errors"
+        if (!(m in n)) ordre[++k] = m
+        n[m] += $i
+      } }
+    END {
+      if (!nb) exit
+      if (nb == 1) { print une; exit }
+      l = pre; for (j = 1; j <= k; j++) l = l (j > 1 ? ", " : "") n[ordre[j]] " " ordre[j]
+      print l
+    }'
+}
+
+# Une ligne par type de résumé, strictes : une ligne de journal ordinaire (« === build failed === », « 3 passed checks ») n'en crée pas un.
+RESUME_MAVEN='^\[(INFO|ERROR|WARNING)\] Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$'
+RESUME_UNITTEST='^Ran [0-9]+ tests? in [0-9.]+s$'
+mot_pytest='[0-9]+ (passed|failed|skipped|deselected|xfailed|xpassed|errors?|warnings?|rerun)'
+duree_pytest=' in [0-9][0-9:.]*( ?s| seconds)?( \(.*\))?'
+RESUME_PYTEST="^=+ [0-9]+ [a-z].*$duree_pytest =+\$|^(=+ )?$mot_pytest(, $mot_pytest)*($duree_pytest)?( =+)?\$"
+RESUME_JEST='^Tests: +([0-9]+ [a-z]+, )*[0-9]+ total$'
+RESUME_NODE_TESTS='^(ℹ|#) tests [0-9]+$'
+RESUME_NODE_PASS='^(ℹ|#) pass [0-9]+$'
+RESUME_FACTORY='^TESTS (OK : [0-9]+ vérifications|EN ECHEC : [0-9]+ sur [0-9]+)$'
+
+types_de_resume() { # noms des types de résumé présents dans le journal, séparés par « , »
+  local l=""
+  grep -Eq "$RESUME_MAVEN" "$journal" && l="$l, Maven"
+  grep -Eq "$RESUME_UNITTEST" "$journal" && l="$l, unittest"
+  grep -Eq "$RESUME_PYTEST" "$journal" && l="$l, pytest"
+  grep -Eq "$RESUME_JEST" "$journal" && l="$l, jest"
+  grep -Eq "$RESUME_NODE_TESTS" "$journal" && grep -Eq "$RESUME_NODE_PASS" "$journal" && l="$l, node:test"
+  grep -Eq "$RESUME_FACTORY" "$journal" && l="$l, suite de la factory"
+  printf '%s' "${l#, }"
+}
+
+# Maven : une ligne de total par module et par greffon (surefire, failsafe) ; on les additionne pour qu'aucun test ignoré ne se perde.
+tests="$(grep -E "$RESUME_MAVEN" "$journal" | sed -E 's/[^0-9]+/ /g' | awk 'NF { t += $1; f += $2; e += $3; s += $4; n = 1 } END { if (n) printf "Tests run: %d, Failures: %d, Errors: %d, Skipped: %d\n", t, f, e, s }')"
 if [ -z "$tests" ]; then
-  tests="$(grep -E '^Ran [0-9]+ tests? in ' "$journal" | tail -1)"
-  [ -z "$tests" ] && tests="$(grep -E '^=+ .*(passed|failed).* =+$|^[0-9]+ (passed|failed)' "$journal" | tail -1)"
-  [ -z "$tests" ] && tests="$(grep -E '^TESTS (OK : [0-9]+ vérifications|EN ECHEC : [0-9]+ sur [0-9]+)$' "$journal" | tail -1)"
+  # unittest : une ligne « Ran n tests » et un verdict par suite ; tout est additionné pour ne perdre aucun ignoré. Verdicts manquants : nombre d'ignorés non annoncé.
+  tests="$(grep -E "$RESUME_UNITTEST|^(OK|FAILED)( \(.*\))?\$" "$journal" | awk '
+    function nb(cle,   r) { r = $0; if (match(r, cle "=[0-9]+")) { r = substr(r, RSTART, RLENGTH); sub(/.*=/, "", r); return r + 0 } return 0 }
+    /^Ran / { t += $2; ran++; next }
+    { v++; if ($1 == "FAILED") { rouge = 1; if ($0 !~ /=/) e++ } f += nb("failures"); e += nb("errors"); s += nb("skipped") + nb("expected failures") }
+    END {
+      if (!ran) exit
+      l = "Ran " t " tests"
+      if (v == ran) {
+        if (rouge) l = l " ; FAILED (failures=" f ", errors=" e ", skipped=" s ")"
+        else if (s) l = l " ; OK (skipped=" s ")"
+        else l = l " ; OK"
+      }
+      print l
+    }')"
+  [ -z "$tests" ] && tests="$(grep -E "$RESUME_PYTEST" "$journal" | additionner "")"
+  # jest : « Tests: 1 skipped, 5 passed, 6 total ». node:test : compteurs « tests 5 », « pass 4 »... précédés de ℹ ou #.
+  [ -z "$tests" ] && tests="$(grep -E "$RESUME_JEST" "$journal" | sed -E 's/^Tests: +/Tests: /' | additionner "Tests: ")"
+  [ -z "$tests" ] && tests="$(grep -E '^(ℹ|#) (tests|pass|fail|cancelled|skipped|todo) [0-9]+$' "$journal" | awk '{ n[$2] += $3 } END { if (length(n)) printf "node:test tests %d, pass %d, fail %d, cancelled %d, skipped %d, todo %d\n", n["tests"], n["pass"], n["fail"], n["cancelled"], n["skipped"], n["todo"] }')"
+  [ -z "$tests" ] && tests="$(grep -E "$RESUME_FACTORY" "$journal" | tail -1)"
 fi
+# Lanceurs différents enchaînés : un résumé unique tairait les ignorés et les échecs des autres. fin-issue.sh le tient pour illisible.
+types="$(types_de_resume)"
+case "$types" in *", "*) tests="plusieurs types de résumé ($types)" ;; esac
 spotbugs="$(grep -E 'BugInstance size is [0-9]+' "$journal" | tail -1 | sed -E 's/.*(BugInstance size is [0-9]+).*/\1/')"
 
 if [ "$code" -ne 0 ]; then

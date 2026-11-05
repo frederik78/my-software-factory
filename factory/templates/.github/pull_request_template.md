@@ -15,7 +15,7 @@
 <Test qui échoue puis réussit (sorties), chiffres mesurés avant et après avec la commande, ou captures. À défaut, « Aucune » avec la raison.>
 
 ## Vérification
-`scripts/verify-clean.sh` : <tests lancés, échecs, résultat>
+`scripts/fin-issue.sh <issue>` : <ligne FIN-ISSUE OK recopiée>
 
 ## Décisions en attente de l'utilisateur
 <Comportements que le PRD ne fixait pas, à inscrire au PRD. « Aucune » sinon.>

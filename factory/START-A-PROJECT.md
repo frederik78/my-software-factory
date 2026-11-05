@@ -43,7 +43,7 @@ Ces éléments appartiennent à une première issue « socle » (`000-01`). Ils 
 - [ ] **Branches** : `develop` créée depuis `main` et définie comme branche par défaut sur GitHub ; `main` et `develop` protégées (pas de commit direct, PR et CI verte exigées) ; la CI se déclenche sur les deux.
 - [ ] **Modèle de PR** (`.github/pull_request_template.md`, créé par `init-projet.sh`) en place : il reprend la preuve avant / après et les décisions en attente.
 - [ ] **Licence** de chaque dépendance ajoutée vérifiée.
-- [ ] **Limite des revues et notification** : `MAX_ITERATIONS_REVUE` dans `.factory.conf` (5 par défaut) ; chaque personne renseigne `NOTIFICATION_COMMANDE` et `NOTIFICATION_DESTINATAIRE` dans `.factory.local.conf` (ignoré par git),
+- [ ] **Limite des revues et notification** : `MAX_ITERATIONS_REVUE` dans `.factory.conf` (3 par défaut) ; chaque personne renseigne `NOTIFICATION_COMMANDE` et `NOTIFICATION_DESTINATAIRE` dans `.factory.local.conf` (ignoré par git),
       secrets dans l'outil d'envoi (`~/.msmtprc`, trousseau), puis vérifie avec `scripts/notifier.sh --test`.
 - [ ] `scripts/verify-clean.sh` vert sur le socle ; `factory/scripts/tests/run.sh` vert.
 - [ ] Pour Java : relire l'annexe `factory/skills/owasp-check/JAVA.md`.
@@ -58,3 +58,6 @@ Ces éléments appartiennent à une première issue « socle » (`000-01`). Ils 
 - Relire `docs/lessons.md` et `factory/LESSONS.md` ; ajuster les prompts ou skills si une leçon le justifie (les écarts aux skills copiés de Matt Pocock
   sont notés dans `factory/skills/SOURCES.md`).
 - `./factory/sync.sh` après toute modification d'un en-tête de prompt.
+
+## Dossiers de travail
+Chaque issue se réalise dans son propre worktree, même seule ; le dossier de l'utilisateur et de son IDE n'est jamais celui d'un agent. Structure recommandée : `scripts/worktree-issue.sh initialiser <source> <conteneur>`, puis `scripts/worktree-issue.sh creer <issue>` depuis un worktree (les worktrees sont à côté de `<conteneur>/.git`).

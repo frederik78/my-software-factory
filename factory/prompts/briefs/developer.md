@@ -24,7 +24,7 @@ Points ouverts à traiter ou à ne pas traiter : {{remarques de revue précéden
 Comportements non fixés par le PRD : choisis le plus sûr et cohérent avec l'existant, et liste-le dans « À trancher par l'utilisateur » de ton rapport.
 
 Règles : factory/prompts/developer.md (TDD strict, RED constaté, nom des tests avec l'identifiant du critère, commits atomiques conventionnels, pas de push, pas
-de fusion). Vérification finale : scripts/verify-clean.sh (jamais le build directement dans le dépôt). Aucune dépendance sans me la signaler avec sa licence.
+de fusion). Avant chaque commit intermédiaire : tests ciblés, plus l'architecture si la structure change. Vérification finale : scripts/fin-issue.sh {{id}} après ton dernier commit, corrigé par de nouveaux commits s'il échoue, à reproduire dans ton rapport (jamais le build directement dans le dépôt). Aucune dépendance sans me la signaler avec sa licence.
 
 Rapport : factory/prompts/report-format.md, complet, 60 lignes au plus. Un rapport vide ou sans preuve sera refusé et la mission relancée.
 ```

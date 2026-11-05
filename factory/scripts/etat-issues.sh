@@ -2,7 +2,7 @@
 # État des issues de docs/issues/ lu directement dans leur en-tête (remplace un index tenu à la main, qui dériverait).
 #
 # Usage : scripts/etat-issues.sh [--statut "À faire"]     (tableau Markdown, une ligne par issue)
-#         scripts/etat-issues.sh --prochaine              (id de la première issue « À faire » dont toutes les dépendances sont « Fait »)
+#         scripts/etat-issues.sh --prochaine              (id de la première issue « À faire », ici et sur sa branche locale, dont toutes les dépendances sont « Fait » ici)
 # Code de sortie : 0 ; en mode --prochaine : 1 s'il n'y a aucune issue prête.
 set -uo pipefail
 
@@ -38,6 +38,7 @@ if [ "$mode" = "prochaine" ]; then
     while IFS= read -r dep; do
       [ -n "$dep" ] && [ "$(statut_de "$dep")" != "Fait" ] && pret=0
     done < <(issue_liste "${fichiers[$i]}" depend_de)
+    [ "$(issue_statut_effectif "${fichiers[$i]}")" = "À faire" ] || pret=0
     if [ "$pret" -eq 1 ]; then echo "${ids[$i]}"; exit 0; fi
   done
   exit 1

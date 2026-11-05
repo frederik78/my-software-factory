@@ -47,6 +47,53 @@ issue_fichiers() {
   return 0
 }
 
+# Statuts d'une issue, dans l'ordre du cycle (docs/issues/README.md).
+statuts_issues=("À faire" "En cours" "En revue" "Fait")
+
+# issue_rang_statut <statut> : rang dans le cycle ; code 1 et rien d'écrit pour un statut inconnu.
+issue_rang_statut() {
+  local i=0
+  while [ "$i" -lt "${#statuts_issues[@]}" ]; do
+    [ "${statuts_issues[$i]}" = "$1" ] && { echo "$i"; return 0; }
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# issue_ref_branche <fichier> : refs/heads/<nom> si le champ « branche » nomme une branche locale existante, sinon rien.
+# Le nom vient d'un fichier, donc non fiable : validé par git, jamais passé à un shell, toujours préfixé (ni option, ni intervalle).
+issue_ref_branche() {
+  local b ref
+  b="$(issue_champ "$1" branche)"
+  [ -n "$b" ] || return 0
+  ref="refs/heads/$b"
+  git check-ref-format "$ref" 2>/dev/null || return 0
+  git rev-parse --verify -q "$ref^{commit}" >/dev/null 2>&1 || return 0
+  printf '%s' "$ref"
+}
+
+# issue_statut_effectif <fichier> : le plus avancé dans le cycle du statut local et de celui de la branche de l'issue.
+# Branche absente, fichier absent sur la branche ou statut inconnu d'un côté : le statut local.
+issue_statut_effectif() {
+  local local_ ref distant r_local r_distant
+  local_="$(issue_champ "$1" statut)"
+  ref="$(issue_ref_branche "$1")"
+  if [ -n "$ref" ]; then
+    distant="$(git show "$ref:./$1" -- 2>/dev/null | issue_champ /dev/stdin statut)"
+    if r_local="$(issue_rang_statut "$local_")" && r_distant="$(issue_rang_statut "$distant")" && [ "$r_distant" -gt "$r_local" ]; then
+      local_="$distant"
+    fi
+  fi
+  printf '%s' "$local_"
+}
+
+# issue_dernier_commit <fichier> : « <hash court> du <date> » du dernier commit de la branche de l'issue, vide sans branche.
+issue_dernier_commit() {
+  local ref
+  ref="$(issue_ref_branche "$1")"
+  [ -z "$ref" ] || git log -1 --date=short --format='%h du %ad' "$ref" -- 2>/dev/null
+}
+
 # critere_motif <identifiant> : expression régulière (grep -E, insensible à la casse) reconnaissant CA-10, ca10, ca_10, « CA 10 ».
 critere_motif() {
   local lettres numero

@@ -8,6 +8,7 @@
 - `sync-claude.sh` conserve le mode du `settings.local.json` existant et ne remplace jamais un lien symbolique (avertissement avec le bloc à ajouter).
 - Une valeur invalide de `AGENTS_SILENCE_MINUTES` ou `AGENTS_RETRAIT_MINUTES` (entier entre 1 et 999999) arrête `dashboard.sh` en code 64.
 - Migration : remplacer `factory/`, relancer `./factory/init-projet.sh` si besoin, lancer `./factory/sync.sh`, ajouter `AGENTS_SILENCE_MINUTES=5` et `AGENTS_RETRAIT_MINUTES=60` à `.factory.conf` (facultatif : ce sont les défauts), vérifier que `.claude/settings.local.json` est ignoré par git, puis relancer la session Claude Code pour qu'elle lise les hooks.
+- `LESSONS.md` : leçon n° 33.
 
 ## 1.14.0
 - Correctif : `criteres-sans-test.sh` répondait `OK` pour n'importe quelle mention dans le dossier de tests. Une Javadoc citant un critère masquait le retrait de son seul test. Seuls comptent maintenant le nom ou le titre d'une déclaration de test en Java, Kotlin, Python ou Node ; les limites restantes sont dans l'en-tête du script.

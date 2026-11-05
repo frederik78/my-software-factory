@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.16.0
+- `dashboard.sh` : encart « Autres travaux » après les issues. Une ligne par worktree dont la branche n'est le champ `branche:` d'aucune issue (`refactor/…`, `fix/…`, `docs/…`), avec `n fichiers non commités · activité il y a …` ; rien pour `develop`, `main` ni un HEAD détaché ; « Aucun autre travail. » s'il n'y en a pas. Ordre de `git worktree list`. Réutilise les signaux déjà calculés (aucun appel git de plus, jamais de verrou), git en échec = « état Git illisible », nom de branche échappé HTML. Sans modèle, sans JavaScript.
+- Nouveauté, aucun changement de comportement incompatible.
+- Migration : remplacer `factory/`.
+
 ## 1.15.1
 - Correctif : `/deliver` ne prévoyait aucune étape pour le statut `En revue`, qui existait pourtant (cycle des issues, colonne du dashboard). L'orchestrateur passe maintenant l'issue à `En revue` (commit `docs: issue <id> en revue`) avant la première relecture, la remet `En cours` quand les corrections repartent au développeur (revue interne ou retour de revue externe), puis `En revue` avant la relecture suivante ; après la règle d'arrêt, l'issue reste `En revue`. Aucun script ne change.
 - Migration : remplacer `factory/` ; une issue en cours de livraison reprend le cycle à sa prochaine relecture.

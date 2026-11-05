@@ -14,7 +14,7 @@ quelle version il a été initialisé ; `factory/VERSION` donne celle du dossier
 5. Lancer `factory/scripts/tests/run.sh`, puis `scripts/verify-clean.sh`.
 
 ## Agents actifs dans le dashboard (1.15.0)
-`./factory/sync.sh` installe les hooks des sous-agents dans `.claude/settings.local.json` (non versionné). Si ce fichier a déjà une clé `hooks`, il n'est pas modifié : copiez le bloc affiché par l'avertissement. Relancez ensuite la session Claude Code. Sans hooks, le bandeau dit « journal absent » ; les signaux Git des worktrees fonctionnent sans eux.
+`./factory/sync.sh` installe les hooks des sous-agents dans `.claude/settings.local.json` (non versionné). Si ce fichier a déjà une clé `hooks`, il n'est pas modifié : copiez le bloc affiché par l'avertissement. Relancez ensuite la session Claude Code. Sans hooks (ou sans sous-agent lancé depuis l'installation), le bandeau dit « journal absent » ; les signaux Git des worktrees fonctionnent sans eux.
 
 ## Modèle et effort des agents par défaut (1.14.0)
 Les défauts passent de `opus` / `low` à `sonnet` / `medium`. Un projet dont `.factory.conf` (ou `.factory.local.conf`, ou `FACTORY_AGENT_*`) définit `AGENT_MODELE` et `AGENT_EFFORT` garde sa configuration : rien à faire. Sans ces clés, il adopte les nouveaux défauts au prochain `./factory/sync.sh` ; pour garder l'ancien comportement, y écrire `AGENT_MODELE=opus` et `AGENT_EFFORT=low`.

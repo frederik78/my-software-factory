@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -455,7 +455,67 @@ git worktree remove --force "$racine_tmp/wt-classique"
 git clone -q --bare . "$racine_tmp/nu.git" >/dev/null 2>&1; git -C "$racine_tmp/nu.git" worktree add -q "$racine_tmp/wt-nu" develop >/dev/null 2>&1
 "$racine_tmp/wt-nu/scripts/dashboard.sh" --sortie "$racine_tmp/nu.html" >/dev/null 2>&1
 [ "$(colonne_de 002-01 "$racine_tmp/nu.html")" = "En cours" ] && [ -n "$(carte_de 002-01 "$racine_tmp/nu.html" | grep 'dernier commit')" ] && ok "worktree d'un clone bare : branche lue" || ko "worktree de clone bare"
-lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "ne dit pas si un agent tourne encore" && lire_depot "$depot" factory/README.md | grep -q "ne dit pas si un agent tourne encore" && ok "limite du statut écrite (en-tête et README)" || ko "limite du statut absente"
+lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "Limite : une preuve d'activité, pas un état" && ! lire_depot "$depot" factory/scripts/dashboard.sh | grep -q "agent tourne encore" && ok "limite du bandeau écrite en tête du script (l'ancienne, devenue fausse, retirée)" || ko "limite du bandeau absente"
+
+echo "dashboard.sh : agents actifs (journal des hooks)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+git init -q -b develop .
+date_t() { date -r "$1" +%Y%m%d%H%M.%S 2>/dev/null || date -d "@$1" +%Y%m%d%H%M.%S; } # date_t <epoch> : format de touch -t (BSD puis GNU)
+bandeau() { awk '/<section id="agents-actifs">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "${1:-dashboard.html}"; }
+scripts/dashboard.sh >/dev/null
+[ "$(bandeau | sed -n 3p)" = "<p>Aucun agent signalé (journal absent : hooks non installés, voir factory/sync-claude.sh).</p>" ] && ok "journal absent : « Aucun agent signalé (journal absent…) »" || ko "journal absent" "$(bandeau)"
+[ "$(sed -n 2p <(bandeau))" = "<h2>Agents actifs</h2>" ] && [ "$(grep -n '<section id="agents-actifs">' dashboard.html | cut -d: -f1)" -lt "$(grep -n '<section id="en-cours">' dashboard.html | cut -d: -f1)" ] && ok "bandeau « Agents actifs » en haut, avant l'encart En cours" || ko "position du bandeau" "$(grep -n '<section' dashboard.html)"
+maintenant=$(date +%s); jr=.git/factory-agents.log; T=$'\t'
+printf 'debut%s%s%sF1%sdeveloper%s\nfin%s%s%sF1\n' "$T" "$((maintenant - 60))" "$T" "$T" "$T" "$T" "$((maintenant - 30))" "$T" > "$jr"
+scripts/dashboard.sh >/dev/null
+[ "$(bandeau | sed -n 3p)" = "<p>Aucun agent signalé.</p>" ] && ok "agent terminé (fin inscrite) : « Aucun agent signalé. »" || ko "fin inscrite" "$(bandeau)"
+touch "$p/j-a1.jsonl" "$p/j-h1.jsonl"; touch -t "$(date_t $((maintenant - 2700)))" "$p/j-s1.jsonl"
+{
+  printf 'debut\t%s\tA1\tdeveloper\t%s\n' "$((maintenant - 720))" "$p/j-a1.jsonl"
+  printf 'debut\t%s\tA2\tdeveloper\t%s\n' "$((maintenant - 180))" "$p/absent.jsonl"
+  printf 'description\t%s\tA1\tancienne\n' "$maintenant"
+  printf 'description\t%s\tA2\tEssai deux\n' "$maintenant"
+  printf 'description\t%s\tA1\tEssai un\n' "$maintenant"
+  printf 'debut\t%s\tS1\tcode-reviewer\t%s\n' "$((maintenant - 3000))" "$p/j-s1.jsonl"
+  printf 'description\t%s\tS1\tRelecture\n' "$maintenant"
+  printf 'debut\t%s\tR1\tdeveloper\t\n' "$((maintenant - 7200))"
+  printf 'debut\t%s\tZ1\tspec-writer\t\n' "$((maintenant + 600))"
+  printf 'debut\t%s\tH1\tdeveloper\t%s\n' "$((maintenant - 7500))" "$p/j-h1.jsonl"
+  printf 'debut\t%s\tX1\t<script>alert(1)</script>\t\n' "$maintenant"
+  printf 'description\t%s\tX1\t<img src=x onerror=1> & "q"\n' "$maintenant"
+  printf 'debut\tabc\tM1\tdeveloper\t\nnimporte quoi\ndebut\t1\ndescription\t1\tA1\nfin\t1\tA1\textra\ndebut\t%s\t../M2\tdeveloper\t\n\n' "$maintenant"
+} >> "$jr"
+verifier_exact "journal malformé : aucune erreur" 0 "$p/x.html" scripts/dashboard.sh --sortie "$p/x.html"; rm -f "$p/x.html"; scripts/dashboard.sh >/dev/null
+attendu_bandeau='<section id="agents-actifs">
+<h2>Agents actifs</h2>
+<ul>
+<li class="agent-actif"><strong>developer</strong> Essai un depuis 12 min</li>
+<li class="agent-actif"><strong>developer</strong> Essai deux depuis 3 min</li>
+<li class="agent-sans-nouvelles"><strong>code-reviewer</strong> Relecture sans nouvelles depuis 45 min</li>
+<li class="agent-actif"><strong>spec-writer</strong> depuis moins d'"'"'1 min</li>
+<li class="agent-actif"><strong>developer</strong> depuis 2 h 05</li>
+<li class="agent-actif"><strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong> &lt;img src=x onerror=1&gt; &amp; &quot;q&quot; depuis moins d'"'"'1 min</li>
+</ul>
+</section>'
+[ "$(bandeau)" = "$attendu_bandeau" ] && ok "bandeau : actif, sans nouvelles, retiré, fin, description la plus récente, deux agents de même rôle, horloge en avance, durées" || ko "bandeau" "$(diff <(printf '%s\n' "$attendu_bandeau") <(bandeau) | tr '\n' '|')"
+! grep -q '<script\|<img' dashboard.html && ok "cs_agents rôle et description échappés : aucune balise injectée" || ko "cs_agents injection" "$(grep -n 'script\|img' dashboard.html | head -3)"
+! grep -qi 'tourne' dashboard.html && ok "le bandeau affirme une preuve, jamais un état (« tourne » absent)" || ko "« tourne » dans la page"
+FACTORY_AGENTS_SILENCE_MINUTES=1 FACTORY_AGENTS_RETRAIT_MINUTES=180 scripts/dashboard.sh >/dev/null
+bandeau | grep -qxF '<li class="agent-sans-nouvelles"><strong>developer</strong> Essai deux sans nouvelles depuis 3 min</li>' && bandeau | grep -qxF '<li class="agent-sans-nouvelles"><strong>developer</strong> sans nouvelles depuis 2 h 00</li>' && ok "FACTORY_AGENTS_SILENCE_MINUTES et FACTORY_AGENTS_RETRAIT_MINUTES respectées" || ko "FACTORY_AGENTS_*" "$(bandeau)"
+printf 'AGENTS_SILENCE_MINUTES=60\nAGENTS_RETRAIT_MINUTES=30\n' > .factory.conf; scripts/dashboard.sh >/dev/null
+! bandeau | grep -q 'sans nouvelles' && bandeau | grep -qF 'Essai un depuis 12 min' && ok "silence >= retrait (.factory.conf) : pas d'état « sans nouvelles », permis" || ko "silence >= retrait" "$(bandeau)"
+rm -f .factory.conf dashboard.html
+for cle in AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES; do
+  for v in 0 abc 01 -3 '' '5<script>' 9999999999; do
+    printf '%s=%s\n' "$cle" "$v" > .factory.conf
+    verifier_exact "$cle=« $v » refusée : code 64, message sans la valeur, rien d'écrit" 64 "$cle invalide : entier entre 1 et 999999 attendu (voir .factory.conf, .factory.local.conf, FACTORY_$cle)." scripts/dashboard.sh
+    [ ! -e dashboard.html ] || { ko "$cle=$v : page écrite malgré une valeur invalide"; rm -f dashboard.html; }
+  done
+done
+rm -f .factory.conf
+config_liste="$(scripts/config-factory.sh)"
+printf '%s\n' "$config_liste" | grep -qx 'AGENTS_SILENCE_MINUTES=5' && printf '%s\n' "$config_liste" | grep -qx 'AGENTS_RETRAIT_MINUTES=60' && ok "config-factory.sh : AGENTS_SILENCE_MINUTES=5 et AGENTS_RETRAIT_MINUTES=60 par défaut" || ko "défauts AGENTS_*" "$config_liste"
+grep -qx 'AGENTS_SILENCE_MINUTES=5' "$factory/templates/.factory.conf" && grep -qx 'AGENTS_RETRAIT_MINUTES=60' "$factory/templates/.factory.conf" && ok "modèle .factory.conf : clés AGENTS_*" || ko "modèle .factory.conf sans AGENTS_*"
 
 echo "hook-agents-claude.sh (journal des agents, propre à Claude Code)"
 h="$(mktemp -d "$racine_tmp/h.XXXXXX")" || { ko "mktemp du dépôt du hook"; h=/inexistant; }

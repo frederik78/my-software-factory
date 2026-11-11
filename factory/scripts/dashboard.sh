@@ -290,7 +290,7 @@ kanban() { # kanban <lignes> <rang du statut> <fonction de carte> <statuts du cy
 encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cours et En revue, ou « Aucune issue en cours. »
   local id titre statut branche signal n=0
   printf '<section id="en-cours">\n<h2>En cours</h2>\n'
-  while IFS="$sep" read -r id titre statut _ _ _ _ branche; do
+  while IFS="$sep" read -r id titre statut _ _ _ _ branche _; do
     parmi "$statut" "En cours" "En revue" || continue
     [ "$n" -gt 0 ] || printf '<ul>\n'
     n=$((n + 1))
@@ -306,7 +306,7 @@ encart_autres_travaux() { # encart_autres_travaux <lignes de issues_dossier> : w
   local -a branches_issues=()
   while IFS= read -r ligne; do
     [ -n "$ligne" ] || continue
-    IFS="$sep" read -r _ _ _ _ _ _ _ branche <<< "$ligne"
+    IFS="$sep" read -r _ _ _ _ _ _ _ branche _ <<< "$ligne"
     [ -z "$branche" ] || branches_issues+=("$branche")
   done <<< "$1"
   printf '<section id="autres-travaux">\n<h2>Autres travaux</h2>\n'

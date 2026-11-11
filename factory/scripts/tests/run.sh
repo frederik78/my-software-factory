@@ -603,7 +603,7 @@ grep -F '<strong>003-08</strong>' "$p/stub.html" | grep -qF '<span class="detail
 echo "dashboard.sh : encart « Autres travaux » (worktrees sans issue)"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 git init -q -b develop .; printf 'dashboard.html\n' > .gitignore; rm -f docs/issues/[0-9]*.md
-issue_a() { printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: En cours\nbranche: %s\ndepend_de: []\n---\n' "$1" "$1" "$2" > "docs/issues/$1-x.md"; }
+issue_a() { printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: En cours\nbranche: %s\ndepend_de: []\n---\n\n## Objectif\nObjectif non vide : la branche lue ne doit pas absorber le descriptif.\n' "$1" "$1" "$2" > "docs/issues/$1-x.md"; }
 issue_a 004-01 feat/i1
 gd_ add -A; gd_ commit -qm init
 HA='fix/<b>x&y</b>'

@@ -2,6 +2,7 @@
 
 ## 1.19.1
 - Correctif : depuis 1.19.0, l'encart « Autres travaux » de `dashboard.sh` répétait les worktrees des issues du Kanban, et l'encart des issues en cours perdait leur signal d'activité. Le descriptif ajouté aux lignes d'issue était lu comme une partie du nom de branche. Un worktree sur la branche d'une issue n'apparaît de nouveau que dans le Kanban.
+- `LESSONS.md` : leçons 34 (champ ajouté à un format sans le remplir dans les tests), 35 (`worktree-issue.sh` ne lit pas le champ `branche:` de l'issue) et 36 (`fin-issue.sh` refuse une issue de refactorisation à `criteres: []`). Les correctifs des leçons 35 et 36 viendront dans une version suivante.
 - Migration : remplacer `factory/`.
 
 ## 1.19.0

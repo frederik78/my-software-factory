@@ -6,7 +6,8 @@
 #         scripts/worktree-issue.sh nettoyer <issue> [--branche] [--force]
 #         scripts/worktree-issue.sh lister
 #         scripts/worktree-issue.sh initialiser <source> <conteneur>
-#   <issue> = id (ex. 001-03) ; la branche est `feat/<nom du fichier d'issue sans .md>` (ex. feat/001-03-formatage).
+#   <issue> = id (ex. 001-03) ; la branche est le champ `branche:` de l'issue s'il est rempli (ex. refactor/001-22-x ; nom invalide = 64),
+#   sinon `feat/<nom du fichier d'issue sans .md>` (ex. feat/001-03-formatage).
 #   Structure recommandée : clone bare dans <conteneur>/.git et un worktree par issue, au même niveau, dans <conteneur>/<branche avec / remplacé par -> ;
 #   `creer` y lance aussi factory/sync.sh. Dépôt classique : `../<dépôt>-<id>`, sans sync.sh, avec un avertissement.
 #   initialiser  crée le conteneur depuis un dépôt existant (clone bare, origin vers l'URL de la source, refspec de suivi, fetch). Refuse un conteneur existant ;
@@ -29,7 +30,7 @@ cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$(dirname "$0")/lib-issues.sh"
 
-usage() { sed -n 2,23p "$0" | sed 's/^# \{0,1\}//' >&2; exit 64; }
+usage() { sed -n 2,24p "$0" | sed 's/^# \{0,1\}//' >&2; exit 64; }
 if [ "${1:-}" = "initialiser" ]; then
   [ $# -eq 3 ] || usage
   absolu() { case "$1" in /*) printf '%s' "$1" ;; *) printf '%s/%s' "$dossier_appel" "$1" ;; esac; }
@@ -79,12 +80,28 @@ base_par_defaut() {
   return 1
 }
 
-branche_de() { # branche_de <id> : feat/<nom du fichier d'issue>
-  local f
+branche_de() { # branche_de <id> : champ « branche » de l'issue, sinon feat/<nom du fichier d'issue> ; code 1 = introuvable, 2 = branche invalide
+  local f b
   f="$(issue_fichiers "$1" | grep -E "/$1(-[^/]*)?\.md$")"
   # Identifiant exact : un préfixe (« 00 ») pourrait viser une autre issue.
   [ -n "$f" ] && [ "$(printf '%s\n' "$f" | wc -l)" -eq 1 ] || return 1
+  b="$(issue_champ "$f" branche)"
+  if [ -n "$b" ]; then
+    # Le dashboard et etat-issues suivent ce champ : la branche créée doit être celle-là, jamais un nom reconstruit.
+    case "$b" in -*|*..*) return 2 ;; esac
+    git check-ref-format "refs/heads/$b" 2>/dev/null || return 2
+    printf '%s' "$b"; return 0
+  fi
   printf 'feat/%s' "$(basename "$f" .md)"
+}
+branche_ou_sortir() { # branche_ou_sortir <id> : la branche de l'issue, ou sortie 64 avec le motif
+  local b code
+  b="$(branche_de "$1")"; code=$?
+  case "$code" in
+    0) printf '%s' "$b" ;;
+    2) echo "Branche invalide dans l'en-tête de l'issue $1 (champ « branche »)." >&2; exit 64 ;;
+    *) echo "Issue introuvable : $1" >&2; exit 64 ;;
+  esac
 }
 
 # Fonctionne depuis n'importe quel worktree : le conteneur se déduit du dossier Git commun, jamais de $racine.
@@ -129,7 +146,7 @@ case "$commande" in
       esac
       shift
     done
-    branche="$(branche_de "$id")" || { echo "Issue introuvable : $id" >&2; exit 64; }
+    branche="$(branche_ou_sortir "$id")" || exit 64
     mise_a_jour
     base="${base:-$(base_par_defaut)}" || { echo "Aucune base trouvée (develop, origin/develop, origin/HEAD, main, master) : passez --base." >&2; exit 64; }
     git rev-parse --verify --quiet "$base^{commit}" >/dev/null || { echo "Base inconnue : $base" >&2; exit 64; }
@@ -164,7 +181,7 @@ case "$commande" in
       esac
       shift
     done
-    branche="$(branche_de "$id")" || { echo "Issue introuvable : $id" >&2; exit 64; }
+    branche="$(branche_ou_sortir "$id")" || exit 64
     dossier="$(dossier_de "$id" "$branche")"
     base="$(base_par_defaut)" || { echo "Aucune base trouvée : impossible de vérifier la fusion." >&2; exit 64; }
     mise_a_jour

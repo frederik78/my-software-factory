@@ -348,6 +348,8 @@ printf -- '---\nid: 001-09\ntitre: T001-09\nstatut: À faire\ndepend_de: []\nbra
 scripts/dashboard.sh >/dev/null
 carte F-02 | grep -qF '<span class="detail desc">Pourquoi : &lt;b&gt;reprise&lt;/b&gt; des anciens fichiers</span>' && ok "cartes : la décision du besoin est affichée (échappée)" || ko "descriptif de besoin" "$(carte F-02)"
 carte 001-09 | grep -qF '<span class="detail desc">Permettre l&#39;import &lt;i&gt;CSV&lt;/i&gt; sur deux lignes.</span>' && ! carte 001-09 | grep -q 'Second paragraphe' && ok "cartes : l'objectif de l'issue (premier paragraphe, échappé) est affiché" || ko "descriptif d'issue" "$(carte 001-09)"
+grep '^\.detail\.desc {' dashboard.html | grep -q 'color: var(--texte)' && ok "cartes : le descriptif suit la palette (lisible en thème sombre)" || ko "couleur du descriptif" "$(grep '^\.detail\.desc' dashboard.html)"
+scripts/dashboard.sh --theme sombre >/dev/null; ! grep '^\.detail\.desc {' dashboard.html | grep -q '#[0-9a-f]\{3,6\}' && ok "thème sombre : aucune couleur en dur sur le descriptif" || ko "couleur en dur du descriptif"
 rm -f docs/issues/001-09-x.md; scripts/dashboard.sh >/dev/null
 awk '/<section id="issues"/ { s = 1 } s && /<h3[^>]*>En cours \(0\)<\/h3>/ { getline; print; exit }' dashboard.html | grep -qx '<p class="vide">—</p>' && ok "colonne vide : « — » discret" || ko "colonne vide" "$(grep -n -A1 'En cours (0)' dashboard.html | head -4)"
 awk '/<section id="issues"/ { s = 1 } s && /class="carte/ { sub(/.*<strong>/, ""); sub(/<\/strong>.*/, ""); printf "%s ", $0 }' dashboard.html | grep -qx '001-02 001-03 001-01 ' && ok "cartes dans l'ordre des fichiers, par colonne" || ko "ordre des cartes" "$(grep -n 'class="carte' dashboard.html)"

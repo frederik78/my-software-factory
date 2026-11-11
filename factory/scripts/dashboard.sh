@@ -395,7 +395,7 @@ section ul { padding-left: 0; list-style: none; } section li { margin: 0; paddin
 .carte.prochaine { border-left-color: var(--prochaine); } .carte.bloquee { border-left-color: var(--bloquee); }
 .marqueur { display: inline-block; margin-left: .3rem; padding: 0 .4rem; border-radius: .6rem; font-size: .75rem; color: var(--marqueur-texte); }
 .marqueur-prochaine { background: var(--prochaine); } .marqueur-bloquee { background: var(--bloquee); }
-.detail.desc { color: #374151; margin-top: .2rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .detail.desc:hover { -webkit-line-clamp: unset; }
+.detail.desc { color: var(--texte); margin-top: .2rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .detail.desc:hover { -webkit-line-clamp: unset; }
 .detail { display: block; font-size: .85rem; color: var(--discret); }
 .vide { margin: .5rem; text-align: center; color: var(--vide); }
 .etiquette { padding: 0 .4rem; border-radius: .6rem; font-size: .8rem; }

@@ -4,6 +4,7 @@
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
 # Le statut d'une issue est le plus avancé de celui du dossier courant et de celui de sa branche locale (champ « branche » de l'en-tête), avec le dernier commit de la branche sur la carte.
 # Une dépendance ne compte que `Fait` dans le dossier courant : une issue finie sur sa branche, pas encore fusionnée, bloque encore les suivantes.
+# Descriptif des cartes : premier paragraphe de « ## Objectif » (issue), colonne « Décisions » du backlog (besoin) ; rien si vide.
 # Bandeau « Agents actifs » : lu dans <git-common-dir>/factory-agents.log, écrit par les hooks de l'outil d'agents (pour Claude Code :
 # factory/hook-agents-claude.sh, installé par factory/sync-claude.sh). Format, seul contrat, une ligne par événement, champs séparés par une tabulation :
 #   debut<TAB>epoch<TAB>agent_id<TAB>rôle<TAB>chemin du journal de l'agent | description<TAB>epoch<TAB>agent_id<TAB>texte | fin<TAB>epoch<TAB>agent_id
@@ -92,33 +93,43 @@ parmi() { # parmi <valeur> <liste...> : vrai si la valeur figure dans la liste
   return 1
 }
 
-besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd » du tableau « Besoins fonctionnels »
+besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd SEP décisions » du tableau « Besoins fonctionnels »
   [ -f backlog.md ] || return 0
   awk -v FS='|' -v OFS="$sep" '
     /^## / { actif = ($0 ~ /^## Besoins fonctionnels/); next }
     actif && /^\|/ {
       gsub(/\\\|/, "\001")  # « \| » est un « | » littéral dans la cellule, pas un séparateur
-      for (i = 2; i <= 6; i++) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i); gsub(/\001/, "|", $i) }
+      for (i = 2; i <= 7; i++) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i); gsub(/\001/, "|", $i) }
       if ($2 == "ID" || $2 ~ /^[-: ]+$/ || $2 == "" || $3 == "") next
-      print $2, $3, $4, $5, $6
+      print $2, $3, $4, $5, $6, $7
     }
   ' backlog.md
 }
 
-issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche », dans l'ordre des fichiers
+issue_objectif() { # issue_objectif <fichier> : premier paragraphe de la section « ## Objectif », sur une ligne ; vide si absent
+  awk '
+    NR == 1 && $0 == "---" { entete = 1; next }
+    entete { if ($0 == "---") entete = 0; next }
+    /^## / { if (actif) exit; actif = ($0 ~ /^## Objectif[[:space:]]*$/); next }
+    actif { if ($0 ~ /^[[:space:]]*$/) { if (texte != "") exit; next } gsub(/^[[:space:]]+|[[:space:]]+$/, ""); texte = (texte == "" ? $0 : texte " " $0) }
+    END { print texte }
+  ' "$1"
+}
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif », dans l'ordre des fichiers
   local f deps
   while IFS= read -r f; do
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)"
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")"
   done < <(issue_fichiers)
 }
 
 carte_besoin() { # carte_besoin <ligne de besoins_backlog>
-  local id libelle priorite statut prd
-  IFS="$sep" read -r id libelle priorite statut prd <<< "$1"
+  local id libelle priorite statut prd decisions
+  IFS="$sep" read -r id libelle priorite statut prd decisions <<< "$1"
   printf '<div class="carte"><strong>%s</strong> <span class="titre">%s</span>' "$(echappe "$id")" "$(echappe "$libelle")"
   [ -z "$priorite" ] || printf '<span class="detail">%s</span>' "$(echappe "$priorite")"
   [ -z "$prd" ] || printf '<span class="detail">PRD : %s</span>' "$(echappe "$prd")"
+  [ -z "$decisions" ] || printf '<span class="detail desc">%s</span>' "$(echappe "$decisions")"
   printf '</div>\n'
 }
 
@@ -140,8 +151,8 @@ bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est �
   return 1
 }
 carte_issue() { # carte_issue <ligne de issues_dossier>
-  local id titre statut deps besoin commit branche signal marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin commit _ branche <<< "$1"
+  local id titre statut deps besoin commit branche objectif signal marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
@@ -149,6 +160,7 @@ carte_issue() { # carte_issue <ligne de issues_dossier>
     etats="$etats bloquee"; marques="$marques"'<span class="marqueur marqueur-bloquee">bloquée</span>'
   fi
   printf '<div class="carte%s"><strong>%s</strong> <span class="titre">%s</span>%s' "$etats" "$(echappe "$id")" "$(echappe "$titre")" "$marques"
+  [ -z "$objectif" ] || printf '<span class="detail desc">%s</span>' "$(echappe "$objectif")"
   [ -z "$besoin" ] || printf '<span class="detail">%s</span>' "$(echappe "$besoin")"
   [ -z "$deps" ] || printf '<span class="detail">dépend de : %s</span>' "$(echappe "$deps")"
   [ -z "$commit" ] || printf '<span class="detail">dernier commit : %s</span>' "$(echappe "$commit")"
@@ -383,6 +395,7 @@ section ul { padding-left: 0; list-style: none; } section li { margin: 0; paddin
 .carte.prochaine { border-left-color: var(--prochaine); } .carte.bloquee { border-left-color: var(--bloquee); }
 .marqueur { display: inline-block; margin-left: .3rem; padding: 0 .4rem; border-radius: .6rem; font-size: .75rem; color: var(--marqueur-texte); }
 .marqueur-prochaine { background: var(--prochaine); } .marqueur-bloquee { background: var(--bloquee); }
+.detail.desc { color: var(--texte); margin-top: .2rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .detail.desc:hover { -webkit-line-clamp: unset; }
 .detail { display: block; font-size: .85rem; color: var(--discret); }
 .vide { margin: .5rem; text-align: center; color: var(--vide); }
 .etiquette { padding: 0 .4rem; border-radius: .6rem; font-size: .8rem; }

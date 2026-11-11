@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.19.0
+- `dashboard.sh` : les cartes du Kanban expliquent leur raison d'être. Une carte d'issue montre le premier paragraphe de la section `## Objectif` de son fichier ; une carte de besoin montre sa colonne « Décisions » du `backlog.md`. Texte échappé HTML, limité à 3 lignes (déplié au survol), absent si la source est vide : les cartes sans descriptif restent identiques.
+- Nouveauté, aucun changement de comportement incompatible.
+- Migration : remplacer `factory/`.
+
 ## 1.18.0
 - `dashboard.sh` : thème `clair` (défaut, rendu inchangé), `sombre` ou `auto` (suit `prefers-color-scheme`), par la clé `DASHBOARD_THEME` (`.factory.conf`, `.factory.local.conf`, `FACTORY_DASHBOARD_THEME`) ou l'option `--theme` ; valeur invalide = code 64. Couleurs en variables CSS (deux palettes), `data-theme` de Pico et `color-scheme` suivent le thème ; impression toujours claire ; toujours aucune ressource externe ni JavaScript.
 - Nouveauté, aucun changement de comportement incompatible. Seul écart visible : la page par défaut porte désormais `data-theme="light"`, pour que Pico ne passe pas en sombre tout seul sous un OS sombre.

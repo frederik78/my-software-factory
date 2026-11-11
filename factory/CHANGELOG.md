@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.17.0
+- `dashboard.sh` : mise en forme par Pico CSS (classless 2.0.6, licence MIT), embarqué dans la page depuis `factory/assets/pico.classless.min.css` (déclarations `url()` retirées) ; fond gris clair, titres de section soulignés, ombres légères sur cartes, colonnes et encarts, thème clair forcé. Toujours aucune ressource externe ni JavaScript, page lisible hors ligne ; si le fichier manque, la page garde son style d'origine.
+- Nouveauté, aucun changement de comportement incompatible. La page grossit d'environ 70 Ko.
+- Migration : remplacer `factory/` (le dossier `factory/assets/` est nouveau).
+
 ## 1.16.0
 - `dashboard.sh` : encart « Autres travaux » après les issues. Une ligne par worktree dont la branche n'est le champ `branche:` d'aucune issue (`refactor/…`, `fix/…`, `docs/…`), avec `n fichiers non commités · activité il y a …` ; rien pour `develop`, `main` ni un HEAD détaché ; « Aucun autre travail. » s'il n'y en a pas. Ordre de `git worktree list`. Réutilise les signaux déjà calculés (aucun appel git de plus, jamais de verrou), git en échec = « état Git illisible », nom de branche échappé HTML. Sans modèle, sans JavaScript.
 - Nouveauté, aucun changement de comportement incompatible.

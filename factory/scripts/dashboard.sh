@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dashboard : page HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
-# Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. La page se rafraîchit seule (balise meta).
+# Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. Style : Pico CSS classless embarqué (factory/assets/pico.classless.min.css, sans url()), aucune ressource externe. La page se rafraîchit seule (balise meta).
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
 # Le statut d'une issue est le plus avancé de celui du dossier courant et de celui de sa branche locale (champ « branche » de l'en-tête), avec le dernier commit de la branche sur la carte.
 # Une dépendance ne compte que `Fait` dans le dossier courant : une issue finie sur sa branche, pas encore fusionnée, bloque encore les suivantes.
@@ -316,9 +316,19 @@ generer() { # page complète sur la sortie standard
 <head>
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="$attente">
+<meta name="color-scheme" content="light">
 <title>Dashboard</title>
 <style>
-body { font-family: system-ui, sans-serif; margin: 2rem; color: #222; }
+$(cat "$racine/factory/assets/pico.classless.min.css" 2>/dev/null)
+</style>
+<style>
+:root { --pico-font-size: 90%; --pico-background-color: #f3f4f6; }
+body { font-family: system-ui, sans-serif; margin: 0; color: #222; }
+main { padding-block: 1.5rem; }
+h1 { margin-bottom: .2rem; } h2 { font-size: 1.4rem; margin-top: 2rem; padding-bottom: .3rem; border-bottom: 2px solid #d1d5db; }
+section ul { padding-left: 0; list-style: none; } section li { margin: 0; padding: .4rem .7rem; margin-bottom: .4rem; background: #fff; border: 1px solid #e5e7eb; border-radius: .4rem; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+.carte { box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.colonne { box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12rem, 1fr); gap: .8rem; overflow-x: auto; padding-bottom: .5rem; }
 .colonne { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: .4rem; min-width: 0; }
 .colonne h3 { margin: 0; padding: .4rem .6rem; font-size: 1rem; border-radius: .4rem .4rem 0 0; }
@@ -341,6 +351,7 @@ body { font-family: system-ui, sans-serif; margin: 2rem; color: #222; }
 </style>
 </head>
 <body>
+<main>
 <h1>Dashboard</h1>
 <p>Généré le $(date '+%Y-%m-%d à %H:%M:%S'), rafraîchi toutes les ${attente} s.</p>
 $(agents_actifs "$maintenant")
@@ -355,6 +366,7 @@ $(kanban "$b" "$RANG_STATUT_BESOIN" carte_besoin "${statuts_besoins[@]}")
 $(kanban "$i" "$RANG_STATUT_ISSUE" carte_issue "${statuts_issues[@]}")
 </section>
 $(encart_autres_travaux "$i")
+</main>
 </body>
 </html>
 HTML

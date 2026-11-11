@@ -23,6 +23,7 @@ defaut() { # defaut <clé> : valeur par défaut d'une clé connue
     AGENT_EFFORT) echo "$AGENT_EFFORT_DEFAUT" ;;
     AGENTS_SILENCE_MINUTES) echo "$AGENTS_SILENCE_MINUTES_DEFAUT" ;;
     AGENTS_RETRAIT_MINUTES) echo "$AGENTS_RETRAIT_MINUTES_DEFAUT" ;;
+    DASHBOARD_THEME) echo "$DASHBOARD_THEME_DEFAUT" ;;
     *) echo "" ;;
   esac
 }

@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.18.0
+- `dashboard.sh` : thème `clair` (défaut, rendu inchangé), `sombre` ou `auto` (suit `prefers-color-scheme`), par la clé `DASHBOARD_THEME` (`.factory.conf`, `.factory.local.conf`, `FACTORY_DASHBOARD_THEME`) ou l'option `--theme` ; valeur invalide = code 64. Couleurs en variables CSS (deux palettes), `data-theme` de Pico et `color-scheme` suivent le thème ; impression toujours claire ; toujours aucune ressource externe ni JavaScript.
+- Nouveauté, aucun changement de comportement incompatible. Seul écart visible : la page par défaut porte désormais `data-theme="light"`, pour que Pico ne passe pas en sombre tout seul sous un OS sombre.
+- Migration : remplacer `factory/` ; facultatif : ajouter `DASHBOARD_THEME=clair|sombre|auto` à `.factory.conf`.
+
 ## 1.17.0
 - `dashboard.sh` : mise en forme par Pico CSS (classless 2.0.6, licence MIT), embarqué dans la page depuis `factory/assets/pico.classless.min.css` (déclarations `url()` retirées) ; fond gris clair, titres de section soulignés, ombres légères sur cartes, colonnes et encarts, thème clair forcé. Toujours aucune ressource externe ni JavaScript, page lisible hors ligne ; si le fichier manque, la page garde son style d'origine.
 - Nouveauté, aucun changement de comportement incompatible. La page grossit d'environ 70 Ko.

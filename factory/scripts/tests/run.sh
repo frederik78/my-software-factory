@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -357,6 +357,31 @@ scripts/dashboard.sh --attente 5 >/dev/null
 grep -q 'content="5"' dashboard.html && ok "--attente change le rafraîchissement" || ko "--attente"
 verifier "--attente non numérique = 64" 64 "Usage" scripts/dashboard.sh --attente abc
 verifier "argument inconnu = 64" 64 "Usage" scripts/dashboard.sh --bad
+# Thème : clair (défaut, rendu inchangé), sombre, auto (prefers-color-scheme). Pas de JavaScript ni de ressource externe, quel que soit le thème.
+sans_horodatage() { grep -v 'Généré le' "$1"; }
+scripts/dashboard.sh --sortie defaut.html >/dev/null; scripts/dashboard.sh --sortie clair.html --theme clair >/dev/null
+scripts/dashboard.sh --sortie sombre.html --theme sombre >/dev/null; scripts/dashboard.sh --sortie auto.html --theme auto >/dev/null
+[ "$(sans_horodatage defaut.html)" = "$(sans_horodatage clair.html)" ] && ok "thème : le défaut est « clair »" || ko "thème par défaut = clair"
+grep -q '<html lang="fr" data-theme="light">' clair.html && grep -q '<meta name="color-scheme" content="light">' clair.html && grep -q -- '--fond: #f3f4f6;' clair.html && grep -q -- '--carte: #fff;' clair.html && ! grep -q 'prefers-color-scheme: dark' clair.html && ok "thème clair : data-theme=light, color-scheme light, palette claire d'origine, pas de palette sombre" || ko "thème clair" "$(grep -n 'data-theme\|color-scheme\|--fond' clair.html | head -5)"
+grep -q '<html lang="fr" data-theme="dark">' sombre.html && grep -q '<meta name="color-scheme" content="dark">' sombre.html && grep -q -- '--fond: #111827;' sombre.html && ! grep -q 'prefers-color-scheme: dark' sombre.html && ok "thème sombre : data-theme=dark, color-scheme dark, palette sombre" || ko "thème sombre" "$(grep -n 'data-theme\|color-scheme\|--fond' sombre.html | head -5)"
+grep -q '<html lang="fr">' auto.html && grep -q '<meta name="color-scheme" content="light dark">' auto.html && grep -q -- '--fond: #f3f4f6;' auto.html && grep -q '@media (prefers-color-scheme: dark)' auto.html && grep -q -- '--fond: #111827;' auto.html && ok "thème auto : sans data-theme, palette claire puis sombre sous prefers-color-scheme" || ko "thème auto" "$(grep -n 'data-theme\|color-scheme\|--fond' auto.html | head -5)"
+for t in clair sombre auto; do
+  ! grep -Eqi '<script|<link|<img|<iframe|@import|url\(|https?://' "$t.html" && grep -q -- '@media print' "$t.html" && ok "thème $t : aucune ressource externe ni JavaScript, impression prévue" || ko "thème $t : ressource externe ou impression" "$(grep -Eni '<script|<link|<img|<iframe|@import|url\(|https?://' "$t.html" | head -3)"
+done
+# L'impression redevient claire : la palette claire est réécrite après la palette sombre.
+[ "$(awk '/@media print/ { p = 1 } p && /--fond: #f3f4f6;/ { n++ } END { print n + 0 }' sombre.html)" = 1 ] && ok "thème sombre : impression en palette claire" || ko "impression claire du thème sombre"
+verifier "--theme invalide = 64" 64 "DASHBOARD_THEME invalide : clair, sombre ou auto attendu" scripts/dashboard.sh --theme violet
+verifier "--theme sans valeur = 64" 64 "Usage" scripts/dashboard.sh --theme
+printf 'DASHBOARD_THEME=sombre\n' > .factory.conf; scripts/dashboard.sh --sortie conf.html >/dev/null
+grep -q 'data-theme="dark"' conf.html && ok "DASHBOARD_THEME lu dans .factory.conf" || ko "DASHBOARD_THEME dans .factory.conf"
+FACTORY_DASHBOARD_THEME=auto scripts/dashboard.sh --sortie env.html >/dev/null
+! grep -q 'data-theme' env.html && grep -q 'prefers-color-scheme: dark' env.html && ok "FACTORY_DASHBOARD_THEME l'emporte sur .factory.conf" || ko "FACTORY_DASHBOARD_THEME"
+scripts/dashboard.sh --sortie opt.html --theme clair >/dev/null
+grep -q 'data-theme="light"' opt.html && ok "--theme l'emporte sur la configuration" || ko "--theme prioritaire"
+printf 'DASHBOARD_THEME=violet\n' > .factory.conf
+verifier "DASHBOARD_THEME invalide en configuration = 64" 64 "DASHBOARD_THEME invalide" scripts/dashboard.sh
+rm -f .factory.conf defaut.html clair.html sombre.html auto.html conf.html env.html opt.html
+verifier "config-factory.sh : DASHBOARD_THEME=clair par défaut" 0 "^DASHBOARD_THEME=clair$" scripts/config-factory.sh
 rm -f dashboard.html
 { perl -e 'alarm 4; exec @ARGV' scripts/dashboard.sh --boucle 1 >/dev/null 2>&1; } 2>/dev/null; code=$?
 [ -f dashboard.html ] && [ "$code" -ne 0 ] && ok "--boucle régénère en continu (arrêté par signal)" || ko "--boucle" "code $code"
@@ -602,7 +627,8 @@ autres "$sortie_a" | grep -qF '<p>Aucun autre travail.</p>' && ! autres "$sortie
 for f in factory/scripts/dashboard.sh factory/README.md factory/CHANGELOG.md; do
   lire_depot "$depot" "$f" | grep -q "Autres travaux" && ok "$f : encart « Autres travaux » documenté" || ko "$f : encart « Autres travaux » non documenté"
 done
-lire_depot "$depot" factory/CHANGELOG.md | grep -q '^## 1.16.0$' && [ "$(lire_depot "$depot" factory/VERSION)" = "1.16.0" ] && ok "version 1.16.0 (VERSION et CHANGELOG)" || ko "version 1.16.0 absente"
+version_courante="$(lire_depot "$depot" factory/VERSION | head -n1)"; titre_tete="$(lire_depot "$depot" factory/CHANGELOG.md | sed -n 's/^## //p' | head -n1)"
+[ -n "$version_courante" ] && [ "$titre_tete" = "$version_courante" ] && ok "version $version_courante : VERSION et en-tête du CHANGELOG concordent" || ko "VERSION ($version_courante) et première section du CHANGELOG ($titre_tete) divergent"
 
 
 echo "hook-agents-claude.sh (journal des agents, propre à Claude Code)"
@@ -1378,7 +1404,8 @@ NOTIFICATION_EXPEDITEUR=
 FIN_ISSUE_ARGUMENTS=
 FIN_ISSUE_IGNORES_AUTORISES=
 AGENTS_SILENCE_MINUTES=5
-AGENTS_RETRAIT_MINUTES=60" scripts/config-factory.sh
+AGENTS_RETRAIT_MINUTES=60
+DASHBOARD_THEME=clair" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
 printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
 out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"

@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 1.20.0
+- `criteres-sans-test.sh`, donc `fin-issue.sh` : une issue à `criteres: []` est acceptée quand son champ `criteres_justification:` est rempli (refactorisation sans changement de comportement) : `OK … aucun critère, justifié`. Tous les autres contrôles de `fin-issue.sh` restent (arbre propre, build, tests ignorés). Une liste vide sans justification reste une erreur, et une justification n'excuse jamais un critère déclaré sans test (leçon 36).
+- `worktree-issue.sh creer` et `nettoyer` prennent la branche dans le champ `branche:` de l'issue, et le dossier en dérive (`refactor/001-22-x` donne `refactor-001-22-x`) ; s'il est vide, la branche reste `feat/<fichier d'issue>`. Un nom invalide (format Git, `..`, tiret initial) est refusé, code 64 (leçon 35).
+- **Changement de comportement** : une issue dont le champ `branche:` diffère de `feat/<fichier>` reçoit désormais la branche de son en-tête. Le dashboard et `etat-issues.sh` suivaient déjà ce champ.
+- Migration : remplacer `factory/`. Une issue de refactorisation à `criteres: []` ajoute `criteres_justification:` à son en-tête. Un worktree déjà créé sous l'ancien nom garde sa branche : renommez-la (`git branch -m`) pour qu'elle corresponde à l'en-tête, ou nettoyez-le avec `--force`.
+
 ## 1.19.1
 - Correctif : depuis 1.19.0, l'encart « Autres travaux » de `dashboard.sh` répétait les worktrees des issues du Kanban, et l'encart des issues en cours perdait leur signal d'activité. Le descriptif ajouté aux lignes d'issue était lu comme une partie du nom de branche. Un worktree sur la branche d'une issue n'apparaît de nouveau que dans le Kanban.
 - `LESSONS.md` : leçons 34 (champ ajouté à un format sans le remplir dans les tests), 35 (`worktree-issue.sh` ne lit pas le champ `branche:` de l'issue) et 36 (`fin-issue.sh` refuse une issue de refactorisation à `criteres: []`). Les correctifs des leçons 35 et 36 viendront dans une version suivante.

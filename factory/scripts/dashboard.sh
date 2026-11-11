@@ -4,6 +4,7 @@
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
 # Le statut d'une issue est le plus avancé de celui du dossier courant et de celui de sa branche locale (champ « branche » de l'en-tête), avec le dernier commit de la branche sur la carte.
 # Une dépendance ne compte que `Fait` dans le dossier courant : une issue finie sur sa branche, pas encore fusionnée, bloque encore les suivantes.
+# Chaque Kanban défile dans un viewport (70vh, en-têtes fixes) ; la colonne « Fait » va de la plus récente à la moins récente (date du dernier commit du fichier de l'issue).
 # Descriptif des cartes : premier paragraphe de « ## Objectif » (issue), colonne « Décisions » du backlog (besoin) ; rien si vide.
 # Bandeau « Agents actifs » : lu dans <git-common-dir>/factory-agents.log, écrit par les hooks de l'outil d'agents (pour Claude Code :
 # factory/hook-agents-claude.sh, installé par factory/sync-claude.sh). Format, seul contrat, une ligne par événement, champs séparés par une tabulation :
@@ -115,17 +116,35 @@ issue_objectif() { # issue_objectif <fichier> : premier paragraphe de la section
     END { print texte }
   ' "$1"
 }
-issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif », dans l'ordre des fichiers
+issue_date() { # issue_date <fichier> : date (epoch) du dernier commit du fichier, à défaut de sa modification ; 0 si inconnue
+  local d
+  d="$(git log -1 --format=%ct -- "$1" 2>/dev/null)"
+  case "$d" in ''|*[!0-9]*) d="$(mtime "$1")" ;; esac
+  case "$d" in ''|*[!0-9]*) d=0 ;; esac
+  printf '%s' "$d"
+}
+besoins_dates() { # besoins_dates <lignes de besoins_backlog> <lignes de issues_dossier> : ajoute à chaque besoin la date de sa dernière issue (0 sans issue)
+  local ligne id d m idi besoin
+  while IFS= read -r ligne; do
+    [ -n "$ligne" ] || continue
+    id="${ligne%%"$sep"*}"; d=0
+    while IFS="$sep" read -r idi _ _ _ besoin _ _ _ _ m _; do
+      [ "$besoin" = "$id" ] && [ "${m:-0}" -gt "$d" ] && d="$m"
+    done <<< "$2"
+    printf '%s%s%s\n' "$ligne" "$sep" "$d"
+  done <<< "$1"
+}
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif SEP date (epoch) », dans l'ordre des fichiers
   local f deps
   while IFS= read -r f; do
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")"
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")" "$sep" "$(issue_date "$f")"
   done < <(issue_fichiers)
 }
 
 carte_besoin() { # carte_besoin <ligne de besoins_backlog>
   local id libelle priorite statut prd decisions
-  IFS="$sep" read -r id libelle priorite statut prd decisions <<< "$1"
+  IFS="$sep" read -r id libelle priorite statut prd decisions _ <<< "$1"
   printf '<div class="carte"><strong>%s</strong> <span class="titre">%s</span>' "$(echappe "$id")" "$(echappe "$libelle")"
   [ -z "$priorite" ] || printf '<span class="detail">%s</span>' "$(echappe "$priorite")"
   [ -z "$prd" ] || printf '<span class="detail">PRD : %s</span>' "$(echappe "$prd")"
@@ -152,7 +171,7 @@ bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est �
 }
 carte_issue() { # carte_issue <ligne de issues_dossier>
   local id titre statut deps besoin commit branche objectif signal marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif <<< "$1"
+  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif _ <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
@@ -263,9 +282,9 @@ dans_colonne() { # dans_colonne <statut lu> <colonne> <statuts du cycle...> : la
   local statut="$1" colonne="$2"; shift 2
   if [ "$colonne" = "(autre)" ]; then ! parmi "$statut" "$@"; else [ "$statut" = "$colonne" ]; fi
 }
-kanban() { # kanban <lignes> <rang du statut> <fonction de carte> <statuts du cycle...> : une colonne par statut, plus « (autre) » si besoin
-  local lignes="$1" rang="$2" carte="$3"; shift 3
-  local ligne s i n autre=0
+kanban() { # kanban <lignes> <rang du statut> <rang de la date> <fonction de carte> <statuts du cycle...> : une colonne par statut, plus « (autre) » si besoin
+  local lignes="$1" rang="$2" rang_date="$3" carte="$4"; shift 4
+  local ligne s i n d autre=0; local -a ordre=()
   local -a liste=() statuts_liste=() colonnes=("$@")
   while IFS= read -r ligne; do
     [ -n "$ligne" ] || continue
@@ -279,8 +298,12 @@ kanban() { # kanban <lignes> <rang du statut> <fonction de carte> <statuts du cy
     n=0; i=0
     while [ "$i" -lt "${#liste[@]}" ]; do dans_colonne "${statuts_liste[$i]}" "$s" "$@" && n=$((n + 1)); i=$((i + 1)); done
     printf '<div class="colonne">\n<h3 class="statut-%s">%s (%s)</h3>\n' "$(classe "$s")" "$(echappe "$s")" "$n"
-    i=0
-    while [ "$i" -lt "${#liste[@]}" ]; do dans_colonne "${statuts_liste[$i]}" "$s" "$@" && "$carte" "${liste[$i]}"; i=$((i + 1)); done
+    i=0; ordre=()
+    while [ "$i" -lt "${#liste[@]}" ]; do dans_colonne "${statuts_liste[$i]}" "$s" "$@" && ordre+=("$i"); i=$((i + 1)); done
+    if [ "$s" = "Fait" ] && [ "${#ordre[@]}" -gt 1 ]; then # la plus récente d'abord ; à date égale, l'ordre d'origine
+      mapfile -t ordre < <(for i in "${ordre[@]}"; do d="$(printf '%s' "${liste[$i]}" | cut -d "$sep" -f "$rang_date")"; printf '%s %s\n' "${d:-0}" "$i"; done | sort -s -k1,1nr | cut -d' ' -f2)
+    fi
+    for i in ${ordre[@]+"${ordre[@]}"}; do "$carte" "${liste[$i]}"; done
     [ "$n" -gt 0 ] || printf '<p class="vide">—</p>\n'
     printf '</div>\n'
   done
@@ -360,7 +383,7 @@ palettes() {
 generer() { # page complète sur la sortie standard
   local b i id statut_local maintenant
   maintenant="$(date +%s)"
-  b="$(besoins_backlog)"; i="$(issues_dossier)"
+  i="$(issues_dossier)"; b="$(besoins_dates "$(besoins_backlog)" "$i")"
   prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
   ids_issues=(); statuts_lus=()
   signaux_worktrees "$maintenant"
@@ -388,7 +411,8 @@ h1 { margin-bottom: .2rem; } h2 { font-size: 1.4rem; margin-top: 2rem; padding-b
 section ul { padding-left: 0; list-style: none; } section li { margin: 0; padding: .4rem .7rem; margin-bottom: .4rem; background: var(--carte); border: 1px solid var(--bord-doux); border-radius: .4rem; box-shadow: 0 1px 2px rgba(0,0,0,var(--ombre-a)); }
 .carte { box-shadow: 0 1px 3px rgba(0,0,0,var(--ombre-b)); }
 .colonne { box-shadow: 0 1px 2px rgba(0,0,0,var(--ombre-c)); }
-.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12rem, 1fr); gap: .8rem; overflow-x: auto; padding-bottom: .5rem; }
+.kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(12rem, 1fr); gap: .8rem; overflow-x: auto; overflow-y: auto; max-height: 70vh; padding-bottom: .5rem; }
+.colonne h3 { position: sticky; top: 0; z-index: 1; }
 .colonne { background: var(--colonne); border: 1px solid var(--bord-doux); border-radius: .4rem; min-width: 0; }
 .colonne h3 { margin: 0; padding: .4rem .6rem; font-size: 1rem; border-radius: .4rem .4rem 0 0; }
 .carte { background: var(--carte); border: 1px solid var(--bord); border-left: 4px solid var(--bord-gauche); border-radius: .3rem; margin: .5rem; padding: .4rem .5rem; overflow-wrap: anywhere; break-inside: avoid; }
@@ -407,7 +431,7 @@ section ul { padding-left: 0; list-style: none; } section li { margin: 0; paddin
 .agent-actif { color: var(--agent-actif); } .agent-sans-nouvelles { color: var(--agent-sans-nouvelles); font-style: italic; }
 @media print {
   body { margin: 0; } h1, h2, h3, h4, p, li, strong, small, code, a { color: var(--texte); } * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .kanban { grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); overflow: visible; }
+  .kanban { grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); overflow: visible; max-height: none; }
 }
 </style>
 </head>
@@ -419,12 +443,12 @@ $(agents_actifs "$maintenant")
 $(encart_en_cours "$i")
 <section id="besoins">
 <h2>Besoins</h2>
-$(kanban "$b" "$RANG_STATUT_BESOIN" carte_besoin "${statuts_besoins[@]}")
+$(kanban "$b" "$RANG_STATUT_BESOIN" 7 carte_besoin "${statuts_besoins[@]}")
 </section>
 <section id="issues">
 <h2>Issues</h2>
 <p>$(if [ -n "$prochaine" ]; then printf 'Prochaine issue prête : <strong>%s</strong>' "$(echappe "$prochaine")"; else printf 'Aucune issue prête.'; fi)</p>
-$(kanban "$i" "$RANG_STATUT_ISSUE" carte_issue "${statuts_issues[@]}")
+$(kanban "$i" "$RANG_STATUT_ISSUE" 10 carte_issue "${statuts_issues[@]}")
 </section>
 $(encart_autres_travaux "$i")
 </main>

@@ -627,7 +627,8 @@ autres "$sortie_a" | grep -qF '<p>Aucun autre travail.</p>' && ! autres "$sortie
 for f in factory/scripts/dashboard.sh factory/README.md factory/CHANGELOG.md; do
   lire_depot "$depot" "$f" | grep -q "Autres travaux" && ok "$f : encart « Autres travaux » documenté" || ko "$f : encart « Autres travaux » non documenté"
 done
-lire_depot "$depot" factory/CHANGELOG.md | grep -q '^## 1.16.0$' && [ "$(lire_depot "$depot" factory/VERSION)" = "1.16.0" ] && ok "version 1.16.0 (VERSION et CHANGELOG)" || ko "version 1.16.0 absente"
+version_courante="$(lire_depot "$depot" factory/VERSION | head -n1)"; titre_tete="$(lire_depot "$depot" factory/CHANGELOG.md | sed -n 's/^## //p' | head -n1)"
+[ -n "$version_courante" ] && [ "$titre_tete" = "$version_courante" ] && ok "version $version_courante : VERSION et en-tête du CHANGELOG concordent" || ko "VERSION ($version_courante) et première section du CHANGELOG ($titre_tete) divergent"
 
 
 echo "hook-agents-claude.sh (journal des agents, propre à Claude Code)"

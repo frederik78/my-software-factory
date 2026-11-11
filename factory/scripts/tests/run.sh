@@ -94,6 +94,12 @@ issue_id "$p" 001-02 "En cours" docs/prd/001-m.md "
 verifier "liste YAML sur plusieurs lignes lue (pas de faux OK à 0)" 0 "OK .*2 critère" scripts/criteres-sans-test.sh 001-02
 issue_id "$p" 001-03 "En cours" docs/prd/001-m.md "[]" "[]"
 verifier "aucun critère = erreur, jamais un faux OK" 1 "ERREUR .*aucun critère" scripts/criteres-sans-test.sh 001-03
+printf -- '---\nid: 001-09\ntitre: Refacto\nprd: docs/prd/001-m.md\nstatut: En cours\ndepend_de: []\ncriteres: []\ncriteres_justification: refactorisation sans changement de comportement\nbranche:\n---\n' > docs/issues/001-09-x.md
+verifier "aucun critère justifié (criteres_justification) = accepté, sans faux MANQUE" 0 "OK .*aucun critère, justifié" scripts/criteres-sans-test.sh 001-09
+printf -- '---\nid: 001-10\ntitre: Refacto\nprd: docs/prd/001-m.md\nstatut: En cours\ndepend_de: []\ncriteres: []\ncriteres_justification:   \nbranche:\n---\n' > docs/issues/001-10-x.md
+verifier "aucun critère, justification blanche = erreur" 1 "ERREUR .*aucun critère" scripts/criteres-sans-test.sh 001-10
+printf -- '---\nid: 001-11\ntitre: T\nprd: docs/prd/001-m.md\nstatut: En cours\ndepend_de: []\ncriteres: [CA-99]\ncriteres_justification: issue large\nbranche:\n---\n' > docs/issues/001-11-x.md
+verifier "justification sans effet quand des critères sont déclarés (CA-99 sans test)" 1 "MANQUE .*CA-99" scripts/criteres-sans-test.sh 001-11
 issue_id "$p" 001-04 "En cours" docs/prd/001-m.md "[CA-1, CA-11]" "[]"
 verifier "CA-1 ne se confond pas avec CA-10 / CA-11 sans test" 1 "MANQUE .*2/2" scripts/criteres-sans-test.sh 001-04
 issue_id "$p" 001-05 "À faire" docs/prd/001-m.md "[CA-99]" "[]"
@@ -918,6 +924,13 @@ git --git-dir="$c/.git" config branch.develop.remote >/dev/null && [ "$(git --gi
 cd "$c/develop" || exit 1
 issue_id "$c/develop" 001-04 "À faire" docs/prd/1.md "[CA-4]" "[]"; issue_id "$c/develop" 001-05 "À faire" docs/prd/1.md "[CA-5]" "[]"; issue_id "$c/develop" 001-06 "À faire" docs/prd/1.md "[CA-6]" "[]"; issue_id "$c/develop" 001-07 "À faire" docs/prd/1.md "[CA-7]" "[]"; git add -A; gc commit -qm issues
 verifier "creer : préfixe ambigu refusé" 64 "Issue introuvable" scripts/worktree-issue.sh creer 00
+printf -- '---\nid: 001-09\ntitre: Refacto\nprd: docs/prd/1.md\nstatut: À faire\ndepend_de: []\ncriteres: [CA-9]\nbranche: refactor/001-09-y\n---\n' > docs/issues/001-09-y.md; git add -A; gc commit -qm i9
+verifier "creer : la branche vient du champ « branche » de l'issue" 0 "branche : refactor/001-09-y" scripts/worktree-issue.sh creer 001-09
+[ -d "$c/refactor-001-09-y" ] && ok "creer : dossier nommé d'après la branche de l'issue" || ko "creer : dossier refactor-001-09-y absent" "$(ls "$c")"
+gc -C "$c/refactor-001-09-y" commit -q --allow-empty -m travail; gc merge -q --no-ff -m m refactor/001-09-y
+verifier "nettoyer : retrouve la branche du champ « branche »" 0 "supprimé" scripts/worktree-issue.sh nettoyer 001-09 --branche
+printf -- '---\nid: 001-12\ntitre: T\nprd: docs/prd/1.md\nstatut: À faire\ndepend_de: []\ncriteres: [CA-12]\nbranche: ../x\n---\n' > docs/issues/001-12-y.md; git add -A; gc commit -qm i12
+verifier "creer : champ « branche » invalide refusé" 64 "Branche invalide" scripts/worktree-issue.sh creer 001-12
 scripts/worktree-issue.sh creer 001-04 >/dev/null 2>&1
 git -C "$c/feat-001-04-x" checkout -q --detach; gc -C "$c/feat-001-04-x" commit -q --allow-empty -m perdu; git merge-base --is-ancestor feat/001-04-x develop || gc merge -q feat/001-04-x
 verifier "nettoyer : HEAD détaché refusé" 1 "n'est pas sur la branche" scripts/worktree-issue.sh nettoyer 001-04

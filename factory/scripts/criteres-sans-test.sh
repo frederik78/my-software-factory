@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Traçabilité critères -> tests : liste les critères d'acceptation (CA-xx / CS-xx) d'une issue qu'aucune déclaration de test ne nomme.
+# Une issue à `criteres: []` est une erreur, sauf si son champ `criteres_justification:` est rempli (refactorisation sans changement de comportement) : `OK … aucun critère, justifié`.
 #
 # Un critère est « couvert » si son identifiant figure dans le nom ou le titre d'une déclaration de test, quelle que soit la forme :
 # CA-10, ca10, ca_10, "CA 10" (insensible à la casse, zéros de tête ignorés, CA-1 ne se confond pas avec CA-10).
@@ -86,6 +87,11 @@ echec=0
 for issue in "${fichiers_issues[@]}"; do
   criteres=()
   while IFS= read -r c; do [ -n "$c" ] && criteres+=("$c"); done < <(issue_liste "$issue" criteres)
+  if [ "${#criteres[@]}" -eq 0 ] && [ -n "$(issue_champ "$issue" criteres_justification | tr -d '[:space:]')" ]; then
+    # Issue sans critère du PRD (refactorisation sans changement de comportement) : légitime quand l'en-tête en donne la raison.
+    echo "OK     $(basename "$issue"): aucun critère, justifié (criteres_justification)"
+    continue
+  fi
   if [ "${#criteres[@]}" -eq 0 ]; then
     echo "ERREUR $(basename "$issue"): aucun critère déclaré (champ « criteres » vide ou illisible)"
     echec=1

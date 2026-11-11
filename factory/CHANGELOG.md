@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 1.20.1
+- `dashboard.sh` : un Kanban qui grossit ne rallonge plus la page. Chaque Kanban tient dans un viewport de 70 % de la hauteur de la fenêtre, avec ascenseurs vertical et horizontal, et les en-têtes de colonnes restent visibles pendant le défilement. À l'impression, la page s'étend comme avant.
+- Colonne « Fait » triée de la plus récente à la moins récente : date du dernier commit du fichier de l'issue (à défaut, sa date de modification) ; pour un besoin, date de sa dernière issue. À date égale, l'ordre d'origine. Les autres colonnes gardent l'ordre des fichiers.
+- Nouveauté, aucun changement de comportement incompatible.
+- Migration : remplacer `factory/`.
+
 ## 1.20.0
 - `criteres-sans-test.sh`, donc `fin-issue.sh` : une issue à `criteres: []` est acceptée quand son champ `criteres_justification:` est rempli (refactorisation sans changement de comportement) : `OK … aucun critère, justifié`. Tous les autres contrôles de `fin-issue.sh` restent (arbre propre, build, tests ignorés). Une liste vide sans justification reste une erreur, et une justification n'excuse jamais un critère déclaré sans test (leçon 36).
 - `worktree-issue.sh creer` et `nettoyer` prennent la branche dans le champ `branche:` de l'issue, et le dossier en dérive (`refactor/001-22-x` donne `refactor-001-22-x`) ; s'il est vide, la branche reste `feat/<fichier d'issue>`. Un nom invalide (format Git, `..`, tiret initial) est refusé, code 64 (leçon 35).

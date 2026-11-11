@@ -356,6 +356,13 @@ carte F-02 | grep -qF '<span class="detail desc">Pourquoi : &lt;b&gt;reprise&lt;
 carte 001-09 | grep -qF '<span class="detail desc">Permettre l&#39;import &lt;i&gt;CSV&lt;/i&gt; sur deux lignes.</span>' && ! carte 001-09 | grep -q 'Second paragraphe' && ok "cartes : l'objectif de l'issue (premier paragraphe, échappé) est affiché" || ko "descriptif d'issue" "$(carte 001-09)"
 grep '^\.detail\.desc {' dashboard.html | grep -q 'color: var(--texte)' && ok "cartes : le descriptif suit la palette (lisible en thème sombre)" || ko "couleur du descriptif" "$(grep '^\.detail\.desc' dashboard.html)"
 scripts/dashboard.sh --theme sombre >/dev/null; ! grep '^\.detail\.desc {' dashboard.html | grep -q '#[0-9a-f]\{3,6\}' && ok "thème sombre : aucune couleur en dur sur le descriptif" || ko "couleur en dur du descriptif"
+# Colonne « Fait » : de la plus récente à la moins récente (date du dernier commit du fichier de l'issue, à défaut sa date de modification).
+issue_id "$p" 001-07 "Fait" docs/prd/001-m.md "[CA-07]" "[]"; issue_id "$p" 001-08 "Fait" docs/prd/001-m.md "[CA-08]" "[]"
+touch -t 202001010000 docs/issues/001-01-x.md; touch -t 202301010000 docs/issues/001-08-x.md; touch -t 202401010000 docs/issues/001-07-x.md
+scripts/dashboard.sh >/dev/null
+awk '/<section id="issues"/ { s = 1 } s && /<h3[^>]*>Fait/ { f = 1; next } f && /<h3/ { exit } f && /class="carte/ { sub(/.*<strong>/, ""); sub(/<\/strong>.*/, ""); printf "%s ", $0 }' dashboard.html | grep -qx '001-07 001-08 001-01 ' && ok "colonne Fait : de la plus récente à la moins récente" || ko "tri de la colonne Fait" "$(awk '/<h3[^>]*>Fait/ { f = 1 } f && /class="carte/' dashboard.html | cut -c1-80)"
+grep -q '^\.kanban {.*max-height: [0-9]*vh' dashboard.html && grep '^\.kanban {' dashboard.html | grep -q 'overflow-y: auto' && grep -q 'position: sticky' dashboard.html && ok "kanban dans un viewport à ascenseurs (en-têtes de colonnes fixes)" || ko "viewport du kanban" "$(grep -n 'kanban' dashboard.html | head -3)"
+rm -f docs/issues/001-07-x.md docs/issues/001-08-x.md
 rm -f docs/issues/001-09-x.md; scripts/dashboard.sh >/dev/null
 awk '/<section id="issues"/ { s = 1 } s && /<h3[^>]*>En cours \(0\)<\/h3>/ { getline; print; exit }' dashboard.html | grep -qx '<p class="vide">—</p>' && ok "colonne vide : « — » discret" || ko "colonne vide" "$(grep -n -A1 'En cours (0)' dashboard.html | head -4)"
 awk '/<section id="issues"/ { s = 1 } s && /class="carte/ { sub(/.*<strong>/, ""); sub(/<\/strong>.*/, ""); printf "%s ", $0 }' dashboard.html | grep -qx '001-02 001-03 001-01 ' && ok "cartes dans l'ordre des fichiers, par colonne" || ko "ordre des cartes" "$(grep -n 'class="carte' dashboard.html)"

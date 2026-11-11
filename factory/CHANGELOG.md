@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 1.19.1
+- Correctif : depuis 1.19.0, l'encart « Autres travaux » de `dashboard.sh` répétait les worktrees des issues du Kanban, et l'encart des issues en cours perdait leur signal d'activité. Le descriptif ajouté aux lignes d'issue était lu comme une partie du nom de branche. Un worktree sur la branche d'une issue n'apparaît de nouveau que dans le Kanban.
+- Migration : remplacer `factory/`.
+
 ## 1.19.0
 - `dashboard.sh` : les cartes du Kanban expliquent leur raison d'être. Une carte d'issue montre le premier paragraphe de la section `## Objectif` de son fichier ; une carte de besoin montre sa colonne « Décisions » du `backlog.md`. Texte échappé HTML, limité à 3 lignes (déplié au survol), absent si la source est vide : les cartes sans descriptif restent identiques.
 - Nouveauté, aucun changement de comportement incompatible.

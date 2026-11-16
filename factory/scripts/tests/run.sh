@@ -1630,7 +1630,7 @@ n="$("$verdict" "$dv/n-existe-pas.md" 2>&1 >/dev/null | wc -l | tr -d ' ')"
 verifier "ca05_aucun_argument : 64 et usage" 64 "Usage" "$verdict"
 verifier "ca05_plusieurs_arguments : 64 et usage" 64 "Usage" "$verdict" "$dv/ok.md" "$dv/ko.md"
 verifier "ca05_option_inconnue : 64 et usage" 64 "Usage" "$verdict" --inconnue
-verifier "ca05_usage_sur_sortie_erreur : rien sur la sortie standard" 0 "^$" bash -c '[ -z "$("$0" 2>/dev/null)" ] && echo' "$verdict"
+[ -z "$("$verdict" 2>/dev/null)" ] && ok "ca05_usage_sur_sortie_erreur : rien sur la sortie standard" || ko "ca05_usage_sur_sortie_erreur" "sortie standard non vide"
 verdict_cas "ca11_une_seule_ligne_sur_ligne_longue : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/ancienne.md"
 printf 'x$(touch marque)\n`touch marque`\n; rm -rf x\n' > "$dv/hostile.md"
 printf 'VERDICT: APPROUVÉ; touch marque\n' > "$dv/injection.md"
@@ -1652,7 +1652,7 @@ cd "$ici" || exit 1
 { head -c 6000 /dev/zero | tr '\0' 'B'; printf '\n'; } > "$dv/longue.md"
 printf 'VERDICT: APPROUVÉ\\nVERDICT: APPROUVÉ\n\x00\xff\n' > "$dv/binaire.md"
 for f in controle longue binaire; do
-  verdict_cas "cs03_fichier_hostile_$f : INCONNU, code 1, une ligne d'erreur sans le contenu" 1 "INCONNU" "^[^ ].{0,100}$" "$dv/$f.md"
+  verdict_cas "cs03_fichier_hostile_$f : INCONNU, code 1, une ligne d'erreur sans le contenu" 1 "INCONNU" "^verdict-revue : .{0,200}$" "$dv/$f.md"
   taille="$("$verdict" "$dv/$f.md" 2>&1 >/dev/null | wc -c | tr -d ' ')"
   [ "$taille" -lt 200 ] && ok "cs03_erreur_bornee_$f : $taille octets" || ko "cs03_erreur_bornee_$f" "$taille octets"
   "$verdict" "$dv/$f.md" 2>&1 >/dev/null | LC_ALL=C grep -q '[^[:print:]]' && ko "cs03_erreur_sans_controle_$f" "caractère de contrôle" || ok "cs03_erreur_sans_controle_$f : aucun caractère de contrôle"

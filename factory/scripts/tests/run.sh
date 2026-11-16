@@ -1598,6 +1598,66 @@ for f in factory/templates/AGENTS.md factory/prompts/developer.md factory/prompt
   lire_depot "$depot" "$f" | grep -q "classes techniques sont impérativement en anglais" && ok "$f : classes techniques en anglais" || ko "$f : règle de langue absente"
 done
 
+echo "verdict-revue.sh"
+verdict="$factory/scripts/verdict-revue.sh"
+dv="$racine_tmp/verdict"; mkdir -p "$dv"
+# verdict_cas <description> <code attendu> <sortie standard exacte> <motif de la sortie d'erreur (vide = aucune sortie d'erreur)> <fichier> [arguments...]
+# Le fichier lu doit rester inchangé ; la sortie standard doit tenir en une seule ligne (comparée en entier, retours à la ligne compris).
+verdict_cas() {
+  local desc="$1" attendu="$2" sortie_ok="$3" motif="$4"; shift 4
+  local avant apres sortie erreur code
+  avant="$(cksum < "$1" 2>/dev/null)"
+  sortie="$("$verdict" "${@:2}" "$1" 2>"$dv/err")"; code=$?
+  erreur="$(cat "$dv/err")"; apres="$(cksum < "$1" 2>/dev/null)"
+  if [ "$code" -ne "$attendu" ]; then ko "$desc" "code $code au lieu de $attendu"; return; fi
+  if [ "$sortie" != "$sortie_ok" ]; then ko "$desc" "sortie standard : $(printf '%s' "$sortie" | head -c 80 | tr '\n' '|')"; return; fi
+  if [ -z "$motif" ] && [ -n "$erreur" ]; then ko "$desc" "sortie d'erreur inattendue : $(printf '%s' "$erreur" | head -c 80)"; return; fi
+  if [ -n "$motif" ] && ! printf '%s' "$erreur" | grep -Eq "$motif"; then ko "$desc" "motif « $motif » absent de la sortie d'erreur : $(printf '%s' "$erreur" | head -c 80)"; return; fi
+  [ "$avant" = "$apres" ] || { ko "$desc" "fichier lu modifié"; return; }
+  ok "$desc"
+}
+printf 'VERDICT: APPROUVÉ\n## Verdict\nAPPROUVÉ\n' > "$dv/ok.md"
+printf 'VERDICT: CHANGEMENTS DEMANDÉS\n## Verdict\nx\n' > "$dv/ko.md"
+printf '## Verdict\nAPPROUVÉ\n' > "$dv/ancienne.md"
+: > "$dv/vide.md"
+verdict_cas "ca01_verdict_approuve : APPROUVÉ, code 0" 0 "APPROUVÉ" "" "$dv/ok.md"
+verdict_cas "ca02_verdict_changements : CHANGEMENTS DEMANDÉS, code 0" 0 "CHANGEMENTS DEMANDÉS" "" "$dv/ko.md"
+verdict_cas "ca03_sans_ligne_verdict : INCONNU, code 1, explication d'une ligne" 1 "INCONNU" "^[^ ].*ligne VERDICT" "$dv/ancienne.md"
+verdict_cas "ca03_fichier_vide : INCONNU, code 1" 1 "INCONNU" "ligne VERDICT" "$dv/vide.md"
+verdict_cas "ca04_fichier_absent : INCONNU, code 1, message distinct" 1 "INCONNU" "absent ou illisible" "$dv/n-existe-pas.md"
+n="$("$verdict" "$dv/n-existe-pas.md" 2>&1 >/dev/null | wc -l | tr -d ' ')"
+[ "$n" = 1 ] && ok "ca04_message_une_ligne : une seule ligne sur la sortie d'erreur" || ko "ca04_message_une_ligne" "$n lignes"
+verifier "ca05_aucun_argument : 64 et usage" 64 "Usage" "$verdict"
+verifier "ca05_plusieurs_arguments : 64 et usage" 64 "Usage" "$verdict" "$dv/ok.md" "$dv/ko.md"
+verifier "ca05_option_inconnue : 64 et usage" 64 "Usage" "$verdict" --inconnue
+verifier "ca05_usage_sur_sortie_erreur : rien sur la sortie standard" 0 "^$" bash -c '[ -z "$("$0" 2>/dev/null)" ] && echo' "$verdict"
+verdict_cas "ca11_une_seule_ligne_sur_ligne_longue : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/ancienne.md"
+printf 'x$(touch marque)\n`touch marque`\n; rm -rf x\n' > "$dv/hostile.md"
+printf 'VERDICT: APPROUVÉ; touch marque\n' > "$dv/injection.md"
+printf 'VERDICT: $(touch marque)\n' > "$dv/subst.md"
+cd "$dv" || exit 1
+verdict_cas "cs01_contenu_non_execute : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/hostile.md"
+verdict_cas "cs01_valeur_avec_point_virgule : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/injection.md"
+verdict_cas "cs01_substitution_en_valeur : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/subst.md"
+[ ! -e "$dv/marque" ] && ok "cs01_fichier_marque_absent : aucune commande du contenu exécutée" || ko "cs01_fichier_marque_absent" "marque créé"
+mkdir -p "$dv/avec espaces"; printf 'VERDICT: APPROUVÉ\n' > "$dv/avec espaces/r e.md"
+verdict_cas "cs02_chemin_avec_espaces : lu comme un chemin" 0 "APPROUVÉ" "" "$dv/avec espaces/r e.md"
+printf 'VERDICT: CHANGEMENTS DEMANDÉS\n' > "$dv/-n"
+verifier "cs02_chemin_tiret_refuse_en_usage : -n n'est pas une option" 64 "Usage" "$verdict" -n
+verdict_cas "cs02_chemin_tiret_apres_double_tiret : lu comme un chemin" 0 "CHANGEMENTS DEMANDÉS" "" "-n" --
+verifier "cs02_chemin_tiret_prefixe : ./-n lu comme un chemin" 0 "^CHANGEMENTS DEMANDÉS$" "$verdict" ./-n
+cd "$ici" || exit 1
+# Fichier hostile : octets de contrôle, ligne de plusieurs milliers de caractères, retours à la ligne dans la valeur.
+{ printf 'VERDICT: APPROUV\033[31m\001\r\n'; head -c 5000 /dev/zero | tr '\0' 'A'; printf '\nVERDICT: APPROUVÉ\n'; } > "$dv/controle.md"
+{ head -c 6000 /dev/zero | tr '\0' 'B'; printf '\n'; } > "$dv/longue.md"
+printf 'VERDICT: APPROUVÉ\\nVERDICT: APPROUVÉ\n\x00\xff\n' > "$dv/binaire.md"
+for f in controle longue binaire; do
+  verdict_cas "cs03_fichier_hostile_$f : INCONNU, code 1, une ligne d'erreur sans le contenu" 1 "INCONNU" "^[^ ].{0,100}$" "$dv/$f.md"
+  taille="$("$verdict" "$dv/$f.md" 2>&1 >/dev/null | wc -c | tr -d ' ')"
+  [ "$taille" -lt 200 ] && ok "cs03_erreur_bornee_$f : $taille octets" || ko "cs03_erreur_bornee_$f" "$taille octets"
+  "$verdict" "$dv/$f.md" 2>&1 >/dev/null | LC_ALL=C grep -q '[^[:print:]]' && ko "cs03_erreur_sans_controle_$f" "caractère de contrôle" || ok "cs03_erreur_sans_controle_$f : aucun caractère de contrôle"
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

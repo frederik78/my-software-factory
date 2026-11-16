@@ -343,6 +343,13 @@ verifier "ca09_.md .txt .bash ignorés" 1 "^MANQUE .*CA-11" scripts/criteres-san
 rm -rf src/test; mkdir -p src/test
 printf '@Test void ca10_x() {}\n' > src/test/A.java; printf 'verifier "cs01_y" 0 "OK" cmd\n' > src/test/t.sh
 verifier "ca18_Java et .sh cohabitent" 0 "^OK " scripts/criteres-sans-test.sh 002-03
+verdict_cas "ca01_guillemets simples : verifier 'ca10_x'" 0 t.sh <<'XEOF'
+verifier 'ca10_x' 0 "OK" cmd
+XEOF
+verdict_cas "ca01_guillemets simples : verdict_cas 'cs01_x'" 0 t.sh 002-02 <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+verdict_cas 'cs01_x' 0 "OK" cmd
+XEOF
 rm -rf src/test; mkdir -p src/test
 printf 'verifier "ca10_x" $(touch marque)\n$(touch marque)\n`touch marque`\n; touch marque\nverifier "cs01_y" `touch marque`\n' > src/test/t.sh
 printf 'x: $(touch marque)\n' > .factory.conf

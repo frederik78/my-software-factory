@@ -7,7 +7,7 @@
 # Déclarations reconnues (une seule ligne, commençant par la déclaration, éventuellement précédée d'annotations et de modificateurs) :
 #   .java .kt          class Ca10Test ; void ca10_x( ; fun ca10_x( ; fun `CA-10 x`( ; @DisplayName("CA-10 x")
 #   .py                def test_ca10 ; async def test_ca10 ; class TestCa10
-#   .sh                verifier "ca10_x" … ; verdict_cas "cs01_x" … (appel en début de ligne, premier argument entre guillemets doubles)
+#   .sh                verifier "ca10_x" … ; verdict_cas "cs01_x" … (appel en début de ligne, premier argument entre guillemets " ou ')
 #   .js .jsx .mjs .cjs .ts .tsx .mts .cts
 #                      it(, test(, describe( et leurs formes .each, .only, .concurrent, avec leur titre entre ' " ou `
 # Rien d'autre ne compte : commentaire, docstring, message d'assertion, chaîne quelconque, autre type de fichier.
@@ -61,10 +61,11 @@ noms_de_tests() {
       -e "s/${node}'([^']*)'.*/\\8/p" \
       -e "s/${node}\"([^\"]*)\".*/\\8/p" \
       -e "s/${node}\`([^\`]*)\`.*/\\8/p" {} +
-    # Bash : un appel `fonction "identifiant …"` en début de ligne ; seul le premier argument entre guillemets doubles compte.
+    # Bash : un appel `fonction "identifiant …"` en début de ligne ; seul le premier argument entre guillemets (" ou ') compte.
     # Lecture seule : le contenu n'est jamais évalué ni exécuté. Un commentaire, la ligne de définition `verifier() {`, un argument sans guillemets ne correspondent pas.
     find "$tests" -type f -name '*.sh' -exec env LC_ALL=C sed -nE \
-      -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+\"([^\"]*)\".*/\2/p" {} +
+      -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+\"([^\"]*)\".*/\2/p" \
+      -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+'([^']*)'.*/\2/p" {} +
   } | LC_ALL=C sed -E 's/^[Tt]est//'
 }
 

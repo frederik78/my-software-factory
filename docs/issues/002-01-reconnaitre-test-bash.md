@@ -3,7 +3,7 @@ id: 002-01
 titre: Reconnaître un test bash
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: En revue
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-04, CA-08, CA-09, CA-17, CA-18, CS-01, CS-05]
 branche: feat/002-01-reconnaitre-test-bash
@@ -26,3 +26,7 @@ Un test par critère qui échoue puis réussit, avec la sortie de `factory/scrip
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-16 : revue 1/3 CHANGEMENTS DEMANDÉS (voir docs/reviews/002-01.md). IMPORTANT 1 (test CS-05 vacueux) et IMPORTANT 2 (guillemets simples de RG-01) renvoyés au développeur.
+- 2026-11-16 : relais pour 002-02 : l'identifiant est cherché n'importe où dans le premier argument (D-06 / RG-03 / CA-05 demandent « commence par »), à resserrer dans 002-02.
+- 2026-11-16 : mineurs ouverts (non corrigés d'office) : emplacement de `fonctions_bash` dans le script, commentaire à ajouter sur le helper `verdict_cas` de run.sh, mutation équivalente sur la ligne de définition.
+- 2026-11-16 : le décompte annoncé par le développeur (625) venait d'une mesure à un autre état ; le nombre exact est 626 (verify-clean et revue).

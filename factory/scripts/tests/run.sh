@@ -291,6 +291,69 @@ void ca100_x() {
 void xca10_x() {
 EOF
 
+echo "criteres-sans-test.sh : tests bash"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+issue_id "$p" 002-01 "En cours" docs/prd/002-m.md "[CA-10]" "[]"
+issue_id "$p" 002-02 "En cours" docs/prd/002-m.md "[CA-10, CS-01]" "[]"
+# bash_cas <description> <code attendu> <fichier de tests> [issue] : le contenu du fichier vient de l'entrée standard.
+bash_cas() {
+  local iss="${4:-002-01}"
+  rm -rf src/test; mkdir -p "$(dirname "src/test/$3")"; cat > "src/test/$3"
+  if [ "$2" -eq 0 ]; then verifier "$1" 0 "^OK " scripts/criteres-sans-test.sh "$iss"
+  else verifier "$1" 1 "^MANQUE " scripts/criteres-sans-test.sh "$iss"; fi
+}
+bash_cas "ca01_verifier avec identifiant entre guillemets couvre CA-10" 0 t.sh <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+bash_cas "ca01_verdict_cas couvre CS-01" 0 t.sh 002-02 <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+verdict_cas "cs01_x" 0 "OK" cmd
+XEOF
+bash_cas "ca02_autre fonction ok ignorée" 1 t.sh <<'XEOF'
+ok "ca10_x"
+XEOF
+bash_cas "ca02_echo ignoré" 1 t.sh <<'XEOF'
+echo "ca10_x"
+XEOF
+bash_cas "ca02_argument sans guillemets ignoré" 1 t.sh <<'XEOF'
+verifier ca10_x 0 "OK" cmd
+XEOF
+bash_cas "ca02_ligne de définition ignorée" 1 t.sh <<'XEOF'
+verifier() {
+  local ca10_x=1
+}
+XEOF
+bash_cas "ca04_commentaire non indenté ignoré" 1 t.sh <<'XEOF'
+# verifier "ca10_x" 0 "OK" cmd
+XEOF
+bash_cas "ca04_commentaire indenté ignoré" 1 t.sh <<'XEOF'
+    # verifier "ca10_x" 0 "OK" cmd
+XEOF
+bash_cas "ca08_dossier sans appel reconnu : MANQUE sans erreur" 1 t.sh <<'XEOF'
+echo rien
+XEOF
+rm -rf src/test; mkdir -p src/test/sous/profond
+printf 'verifier "ca10_x" 0 "OK" cmd\n' > src/test/a.sh
+printf 'verdict_cas "cs01_y" 0 "OK" cmd\n' > src/test/sous/profond/b.sh
+printf 'verifier "ca11_z" 0 "OK" cmd\n' > src/test/n.md; printf 'verifier "ca11_z" 0 "OK" cmd\n' > src/test/n.txt; printf 'verifier "ca11_z" 0 "OK" cmd\n' > src/test/n.bash
+issue_id "$p" 002-03 "En cours" docs/prd/002-m.md "[CA-10, CS-01]" "[]"
+issue_id "$p" 002-04 "En cours" docs/prd/002-m.md "[CA-11]" "[]"
+verifier "ca09_union des .sh et sous-dossiers" 0 "^OK " scripts/criteres-sans-test.sh 002-03
+verifier "ca09_.md .txt .bash ignorés" 1 "^MANQUE .*CA-11" scripts/criteres-sans-test.sh 002-04
+rm -rf src/test; mkdir -p src/test
+printf '@Test void ca10_x() {}\n' > src/test/A.java; printf 'verifier "cs01_y" 0 "OK" cmd\n' > src/test/t.sh
+verifier "ca18_Java et .sh cohabitent" 0 "^OK " scripts/criteres-sans-test.sh 002-03
+rm -rf src/test; mkdir -p src/test
+printf 'verifier "ca10_x" $(touch marque)\n$(touch marque)\n`touch marque`\n; touch marque\nverifier "cs01_y" `touch marque`\n' > src/test/t.sh
+printf 'x: $(touch marque)\n' > .factory.conf
+chmod -x src/test/t.sh
+avant="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs cksum 2>/dev/null)"
+verifier "cs01_contenu hostile : critères couverts" 0 "^OK " scripts/criteres-sans-test.sh 002-03
+[ ! -e marque ] && ok "cs01_aucune commande du contenu exécutée (pas de fichier marque)" || ko "cs01_fichier marque créé" "marque existe"
+apres="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs cksum 2>/dev/null)"
+[ "$avant" = "$apres" ] && ok "cs05_aucun fichier créé ni modifié par le contrôle" || ko "cs05_dépôt modifié par le contrôle" "avant/après différents"
+rm -f .factory.conf
+
 echo "etat-issues.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 issue_id "$p" 001-01 "Fait" docs/prd/001-m.md "[CA-01]" "[]"

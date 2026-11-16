@@ -351,7 +351,7 @@ avant="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs ck
 verifier "cs01_contenu hostile : critères couverts" 0 "^OK " scripts/criteres-sans-test.sh 002-03
 [ ! -e marque ] && ok "cs01_aucune commande du contenu exécutée (pas de fichier marque)" || ko "cs01_fichier marque créé" "marque existe"
 apres="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs cksum 2>/dev/null)"
-[ "$avant" = "$apres" ] && ok "cs05_aucun fichier créé ni modifié par le contrôle" || ko "cs05_dépôt modifié par le contrôle" "avant/après différents"
+verifier "cs05_aucun fichier créé ni modifié par le contrôle" 0 "" test "$avant" = "$apres"
 rm -rf src/test; mkdir -p src/test
 printf '@Test void ca10_x() {}\n' > src/test/A.java; printf 'def test_ca11_x():\n    pass\n' > src/test/t.py
 printf '@Test fun ca12_x() {}\n' > src/test/K.kt; printf "it('CA-13 x', () => {});\n" > src/test/a.test.js

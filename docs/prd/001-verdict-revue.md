@@ -80,7 +80,7 @@ Usage : `scripts/verdict-revue.sh <fichier-de-revue>` ; le chemin est un argumen
 - **RG-16** `factory/prompts/report-format.md` : rapport du reviewer, première ligne `VERDICT: …`, section `## Verdict` de même valeur ; mention de la section `## Pour l'humain` écrite par la session.
 - **RG-17** `factory/prompts/code-reviewer.md` : consigne de commencer le rapport par la ligne `VERDICT:` (deux valeurs seules) ; sa dernière phrase (« Conclus par APPROUVÉ ou CHANGEMENTS DEMANDÉS ») est alignée.
 - **RG-18** `factory/README.md` : description du script, de la ligne de verdict, de la carte et de la liste d'escalade ; version affichée mise à jour.
-- **RG-19** `CHANGELOG.md` : entrée 1.21.0 ; `factory/VERSION` : `1.21.0`.
+- **RG-19** `CHANGELOG.md` : entrée 1.22.0 ; `factory/VERSION` : `1.22.0`.
 - **RG-20** Migration « remplacer `factory/` » : documentée (README/CHANGELOG) ; les projets ayant leur propre `AGENTS.md` y ajoutent la section d'escalade à la main ; leurs anciennes revues restent telles quelles. Pas d'ADR (D-05).
 - **RG-21** `factory/skills/deliver` : étapes 3 et 4 mises à jour (RG-06 à RG-12) ; alias régénérés par `factory/sync.sh`, sans éditer `.claude/skills`.
 
@@ -113,8 +113,8 @@ Les identifiants suivent la convention de `scripts/couverture-prd.sh` (`CA-xx`) 
 - **CA-14** Given la skill `deliver`, When on lit la règle d'arrêt, Then la session rédige la carte « pour l'humain » (trois rubriques dans l'ordre) uniquement après `MAX_ITERATIONS_REVUE` revues sans `APPROUVÉ`, l'inscrit en section `## Pour l'humain` de `docs/reviews/<id-issue>.md`, et en tête du corps du courriel de `scripts/notifier.sh` seulement s'il reste au moins un BLOQUANT (s'il ne reste que des IMPORTANT : carte dans le fichier et dans la conversation, sans courriel).
 - **CA-15** Given un corps de notification contenant la carte, When on lance `scripts/notifier.sh --sujet … --corps-fichier …` avec une commande d'envoi de test, Then le message reçu contient la carte en tête du corps, et `notifier.sh` est inchangé (ses tests existants passent).
 - **CA-16** Given `factory/templates/AGENTS.md` et `AGENTS.md` du dépôt, When on les lit, Then chacun contient les six sujets d'escalade (secrets et identifiants, authentification et autorisation, dépendance et licence, déploiement et CI, contrat d'un service externe, écart avec le PRD), la consigne d'arrêt et les deux destinations (`## QUESTIONS`, `## À trancher par l'utilisateur`), pour tous les rôles.
-- **CA-17** Given `fin-issue.sh` et le dashboard, When on compare à la version 1.20.1, Then leur comportement et leurs tests sont inchangés, et les revues existantes de `docs/reviews/` ne sont pas modifiées.
-- **CA-18** Given le dépôt après livraison, When on lit `factory/VERSION`, `CHANGELOG.md` et `factory/README.md`, Then la version est `1.21.0`, le CHANGELOG décrit le changement et la migration « remplacer `factory/` », et le README décrit le script, la carte et la liste d'escalade.
+- **CA-17** Given `fin-issue.sh` et le dashboard, When on compare à la version 1.21.0, Then leur comportement et leurs tests sont inchangés, et les revues existantes de `docs/reviews/` ne sont pas modifiées.
+- **CA-18** Given le dépôt après livraison, When on lit `factory/VERSION`, `CHANGELOG.md` et `factory/README.md`, Then la version est `1.22.0`, le CHANGELOG décrit le changement et la migration « remplacer `factory/` », et le README décrit le script, la carte et la liste d'escalade.
 - **CA-19** Given `factory/scripts/tests/run.sh`, When on le lance, Then les tests de `verdict-revue.sh` (CA-01 à CA-11) y figurent et passent, sans régression sur les tests existants.
 
 ## 6. Sécurité (owasp-check)

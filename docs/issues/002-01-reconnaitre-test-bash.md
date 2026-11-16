@@ -3,7 +3,7 @@ id: 002-01
 titre: Reconnaître un test bash
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: En cours
+statut: En revue
 depend_de: []
 criteres: [CA-01, CA-02, CA-04, CA-08, CA-09, CA-17, CA-18, CS-01, CS-05]
 branche: feat/002-01-reconnaitre-test-bash

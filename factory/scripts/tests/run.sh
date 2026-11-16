@@ -295,41 +295,41 @@ echo "criteres-sans-test.sh : tests bash"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 issue_id "$p" 002-01 "En cours" docs/prd/002-m.md "[CA-10]" "[]"
 issue_id "$p" 002-02 "En cours" docs/prd/002-m.md "[CA-10, CS-01]" "[]"
-# bash_cas <description> <code attendu> <fichier de tests> [issue] : le contenu du fichier vient de l'entrée standard.
-bash_cas() {
+# verdict_cas <description> <code attendu> <fichier de tests> [issue] : le contenu du fichier vient de l'entrée standard.
+verdict_cas() {
   local iss="${4:-002-01}"
   rm -rf src/test; mkdir -p "$(dirname "src/test/$3")"; cat > "src/test/$3"
   if [ "$2" -eq 0 ]; then verifier "$1" 0 "^OK " scripts/criteres-sans-test.sh "$iss"
   else verifier "$1" 1 "^MANQUE " scripts/criteres-sans-test.sh "$iss"; fi
 }
-bash_cas "ca01_verifier avec identifiant entre guillemets couvre CA-10" 0 t.sh <<'XEOF'
+verdict_cas "ca01_verifier avec identifiant entre guillemets couvre CA-10" 0 t.sh <<'XEOF'
 verifier "ca10_x" 0 "OK" cmd
 XEOF
-bash_cas "ca01_verdict_cas couvre CS-01" 0 t.sh 002-02 <<'XEOF'
+verdict_cas "ca01_verdict_cas couvre CS-01" 0 t.sh 002-02 <<'XEOF'
 verifier "ca10_x" 0 "OK" cmd
 verdict_cas "cs01_x" 0 "OK" cmd
 XEOF
-bash_cas "ca02_autre fonction ok ignorée" 1 t.sh <<'XEOF'
+verdict_cas "ca02_autre fonction ok ignorée" 1 t.sh <<'XEOF'
 ok "ca10_x"
 XEOF
-bash_cas "ca02_echo ignoré" 1 t.sh <<'XEOF'
+verdict_cas "ca02_echo ignoré" 1 t.sh <<'XEOF'
 echo "ca10_x"
 XEOF
-bash_cas "ca02_argument sans guillemets ignoré" 1 t.sh <<'XEOF'
+verdict_cas "ca02_argument sans guillemets ignoré" 1 t.sh <<'XEOF'
 verifier ca10_x 0 "OK" cmd
 XEOF
-bash_cas "ca02_ligne de définition ignorée" 1 t.sh <<'XEOF'
+verdict_cas "ca02_ligne de définition ignorée" 1 t.sh <<'XEOF'
 verifier() {
   local ca10_x=1
 }
 XEOF
-bash_cas "ca04_commentaire non indenté ignoré" 1 t.sh <<'XEOF'
+verdict_cas "ca04_commentaire non indenté ignoré" 1 t.sh <<'XEOF'
 # verifier "ca10_x" 0 "OK" cmd
 XEOF
-bash_cas "ca04_commentaire indenté ignoré" 1 t.sh <<'XEOF'
+verdict_cas "ca04_commentaire indenté ignoré" 1 t.sh <<'XEOF'
     # verifier "ca10_x" 0 "OK" cmd
 XEOF
-bash_cas "ca08_dossier sans appel reconnu : MANQUE sans erreur" 1 t.sh <<'XEOF'
+verdict_cas "ca08_dossier sans appel reconnu : MANQUE sans erreur" 1 t.sh <<'XEOF'
 echo rien
 XEOF
 rm -rf src/test; mkdir -p src/test/sous/profond
@@ -352,6 +352,11 @@ verifier "cs01_contenu hostile : critères couverts" 0 "^OK " scripts/criteres-s
 [ ! -e marque ] && ok "cs01_aucune commande du contenu exécutée (pas de fichier marque)" || ko "cs01_fichier marque créé" "marque existe"
 apres="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs cksum 2>/dev/null)"
 [ "$avant" = "$apres" ] && ok "cs05_aucun fichier créé ni modifié par le contrôle" || ko "cs05_dépôt modifié par le contrôle" "avant/après différents"
+rm -rf src/test; mkdir -p src/test
+printf '@Test void ca10_x() {}\n' > src/test/A.java; printf 'def test_ca11_x():\n    pass\n' > src/test/t.py
+printf '@Test fun ca12_x() {}\n' > src/test/K.kt; printf "it('CA-13 x', () => {});\n" > src/test/a.test.js
+issue_id "$p" 002-05 "En cours" docs/prd/002-m.md "[CA-10, CA-11, CA-12, CA-13]" "[]"
+verifier "ca17_Java, Python, Kotlin, JS/TS : résultat inchangé" 0 "^OK +002-05-x.md: 4 critère\(s\), tous couverts$" scripts/criteres-sans-test.sh 002-05
 rm -f .factory.conf
 
 echo "etat-issues.sh"

@@ -19,7 +19,10 @@ L'orchestrateur ne met à jour ici que les statuts et les décisions ; il ne ref
 
 | ID | Besoin | Priorité | Statut | PRD | Décisions |
 |----|--------|----------|--------|-----|-----------|
-| F-01 | | P1 | À faire | | |
+| F-01 | Chaque rapport de revue commence par un verdict lisible par machine (`VERDICT: PASS` ou `VERDICT: CHANGES`) ; une issue bloquée en revue porte une carte « pour l'humain » (décision à prendre, fichiers à lire, vérification suggérée) ; `AGENTS.md` liste les sujets d'escalade obligatoire (secrets, authentification, dépendances, déploiement, contrat externe, licence) | P1 | En clarification | | Traité en premier, seul |
+| F-02 | La revue d'une issue est faite par plusieurs relecteurs en parallèle, la sécurité (OWASP) séparée sur un modèle plus fort ; chacun écrit son rapport avec son verdict | P2 | À faire | | Dépend de F-01 ; coût en appels au modèle à trancher au cadrage |
+| F-03 | Le dashboard affiche, sur une issue « En revue », le verdict du dernier tour de revue et le numéro du tour | P3 | À faire | | Dépend de F-01 (lecture du champ `revue:` de l'en-tête de l'issue) |
+| F-04 | Le dashboard affiche les issues au statut `Abandonnée` dans leur propre regroupement, au lieu de « (autre) » | P3 | À faire | | Constaté sur le dashboard de gestion-chalet |
 
 ## Besoins non fonctionnels
 

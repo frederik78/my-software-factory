@@ -7,8 +7,8 @@ statut: En revue
 depend_de: []
 criteres: [CA-16]
 branche: feat/001-05-liste-escalade
-commits: []
-revue:
+commits: [17df2d5, 719f80a, 0ba9e0b, 42f8654]
+revue: APPROUVÉ (itération 2 sur 3, docs/reviews/001-05.md)
 ---
 
 ## Objectif
@@ -26,3 +26,7 @@ Un test de lecture des deux fichiers qui échoue avant la modification puis réu
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-17 : revue 1 CHANGEMENTS DEMANDÉS (2 IMPORTANT : le test ca16_ cherchait dans tout le fichier au lieu de la section, et RG-14 / RG-15 non testées), revue 2 APPROUVÉ. `verify-clean.sh` 676 OK ; `criteres-sans-test.sh` OK avec `DOSSIER_TESTS=factory/scripts/tests`.
+- 2026-11-17 : `scripts/fin-issue.sh 001-05` échoue (`Dossier de tests introuvable : src/test`, DOSSIER_TESTS non réglé dans ce dépôt avant 002-05). Statut laissé `En revue` : la dérogation d'amorçage accordée par l'utilisateur couvre les issues de F-05, pas celles de F-01 (D-08 garde 001-01 `En cours` pour la même raison). Passage à `Fait` en attente de son accord, ou de 002-05.
+- Mineurs ouverts : diff des deux sections de l'AGENTS.md absent du test ; redite « ne tranche pas seul » / « ne décide pas seul » dans la section ; titre de section en double non détecté.
+- Choix du développeur acceptés par la revue (à confirmer au PRD) : titre « Sujets à remonter à l'utilisateur », emplacement avant « Tests (TDD obligatoire) », « code-reviewer » pour « reviewer ».

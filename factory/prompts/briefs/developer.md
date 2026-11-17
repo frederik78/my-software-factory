@@ -20,7 +20,8 @@ Mécanismes du framework à utiliser dans cette issue : {{classes et propriété
 Référence de code : {{projet et version fixés par l'ADR, fichiers à lire pour cette issue ; « aucune » si l'ADR n'en nomme pas}}
 
 Décisions déjà prises (ne les remets pas en cause) : {{décisions de l'utilisateur et de l'orchestrateur}}
-Points ouverts à traiter ou à ne pas traiter : {{remarques de revue précédentes, mineurs reportés}}
+Revue précédente : {{« aucune » à la première itération ; sinon : lis docs/reviews/<id>.md EN ENTIER avant de coder (toutes les itérations et le tableau « Suivi des constats », mineurs ouverts compris) ; c'est la source, ce brief n'en est pas un résumé. Réponds à chaque constat ouvert dans la section « Réponse à la revue » de ton rapport}}
+Points ouverts à traiter ou à ne pas traiter : {{décisions de l'orchestrateur sur ces constats (ex. « mineur 4 : ne pas corriger »)}}
 Comportements non fixés par le PRD : choisis le plus sûr et cohérent avec l'existant, et liste-le dans « À trancher par l'utilisateur » de ton rapport.
 
 Règles : factory/prompts/developer.md (TDD strict, RED constaté, nom des tests avec l'identifiant du critère, commits atomiques conventionnels, pas de push, pas

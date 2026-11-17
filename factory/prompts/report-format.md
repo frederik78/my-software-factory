@@ -33,6 +33,9 @@ Règles
 - État AVANT (sortie du test qui échoue, mesure, capture) et état APRÈS, avec la commande qui les produit. Quand rien n'est visible, des chiffres (ex. temps de chargement 815 ms -> 61 ms).
   Pour un critère déjà couvert par le RED/GREEN des tests, nomme le test et colle la ligne de sortie. « Aucune » est une réponse acceptable seulement pour un changement sans comportement observable (documentation, refactor couvert).
 
+## Réponse à la revue
+Seulement après une revue : une ligne par constat ouvert du « Suivi des constats » de `docs/reviews/<id>.md` (numéro, gravité) : corrigé (commit, test RED puis GREEN) / non corrigé (raison). « Première itération » sinon.
+
 ## Décisions et écarts
 - Choix de conception faits seul (une ligne chacun, avec la raison).
 - Écarts avec le PRD ou l'issue.

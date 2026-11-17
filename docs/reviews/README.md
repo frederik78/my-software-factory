@@ -4,6 +4,9 @@ Rapports du rôle `code-reviewer`, un fichier par issue : `docs/reviews/<id-issu
 par passage. L'orchestrateur (skill `/deliver`) les écrit tels que reçus, au format de `factory/prompts/report-format.md`.
 Ils servent de piste d'audit (qui a vu quoi, ce qui a été corrigé) et permettent de retrouver les points mineurs laissés ouverts.
 
+## Suivi des constats
+Le fichier d'une issue porte, en tête, un tableau tenu par l'orchestrateur : `# | Gravité | Constat | Statut (ouvert / corrigé / refusé + raison) | Itération`. C'est la mémoire de l'issue : le développeur le lit en entier avant de corriger et répond à chaque constat ouvert (section « Réponse à la revue » de son rapport) ; le relecteur suivant s'en sert pour confirmer chaque point. Les mineurs ouverts y restent visibles d'une itération à l'autre.
+
 ## Lire une revue sans contexte
 Chaque itération s'ouvre par un bloc « En clair » (l'issue, le verdict, le sens de chaque critère, les constats, les mutations). Le reste est le détail technique.
 - **Verdict** : `APPROUVÉ` (rien de bloquant, l'issue peut avancer) ou `CHANGEMENTS DEMANDÉS` (corrections à faire, puis nouvelle revue).

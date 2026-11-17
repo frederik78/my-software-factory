@@ -1227,6 +1227,37 @@ fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 verifier "fin-issue : DOSSIER_TESTS absolu refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="$p/src/test" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS avec .. refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="src/../../x" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS relatif admis" 0 "FIN-ISSUE OK" env DOSSIER_TESTS="src/test" scripts/fin-issue.sh 001-01
+# Configuration lue dans l'extraction de HEAD (F-05) : dossier de tests bash réglé par .factory.conf commité.
+commit_tout() { git add -A >/dev/null; git -c user.name=t -c user.email=t@t commit -qm "etat $RANDOM" --allow-empty; }
+git rm -q -f src/test/A.java; mkdir -p tests-bash autre; printf 'verifier "ca10_x" 0 "" true\n' > tests-bash/run.sh; printf 'rien\n' > autre/LISEZMOI
+printf 'args.txt\n.factory.local.conf\n' > .gitignore; printf 'DOSSIER_TESTS=tests-bash\n' > .factory.conf; commit_tout
+verifier "ca19_dossier réglé par .factory.conf : issue couverte = FIN-ISSUE OK" 0 "FIN-ISSUE OK 001-01 " scripts/fin-issue.sh 001-01
+verifier "ca19_critère sans cas = ECHEC critère sans test" 1 "FIN-ISSUE ECHEC : .*critère sans test" scripts/fin-issue.sh 001-02
+verifier_exact "ca19_la raison « critère sans test » est absente du succès" 0 "" sh -c 'scripts/fin-issue.sh 001-01 2>&1 | grep "critère sans test"; true'
+printf 'DOSSIER_TESTS=autre\n' > .factory.local.conf
+verifier "ca25_.factory.local.conf non versionné ignoré dans l'extraction" 0 "FIN-ISSUE OK 001-01 " scripts/fin-issue.sh 001-01
+/bin/rm -f .factory.local.conf
+verifier "ca25_FACTORY_DOSSIER_TESTS s'applique dans l'extraction" 1 "FIN-ISSUE ECHEC : .*critère sans test" env FACTORY_DOSSIER_TESTS=autre scripts/fin-issue.sh 001-01
+REFUS="FIN-ISSUE ECHEC : DOSSIER_TESTS doit être un chemin relatif"
+for mauvais in "$p/tests-bash" .. ../x a/../b x/..; do
+  etiquette="${mauvais#"$p"/}"; [ "$etiquette" != "tests-bash" ] || etiquette="chemin absolu"
+  verifier "ca20_variable DOSSIER_TESTS=$etiquette refusée, sans build" 64 "^$REFUS" env DOSSIER_TESTS="$mauvais" scripts/fin-issue.sh 001-01
+  verifier "ca20_FACTORY_DOSSIER_TESTS=$etiquette refusée" 64 "^$REFUS" env FACTORY_DOSSIER_TESTS="$mauvais" scripts/fin-issue.sh 001-01
+  printf 'DOSSIER_TESTS=%s\n' "$mauvais" > .factory.local.conf
+  verifier "ca20_.factory.local.conf DOSSIER_TESTS=$etiquette refusé" 64 "^$REFUS" scripts/fin-issue.sh 001-01
+  /bin/rm -f .factory.local.conf
+  printf 'DOSSIER_TESTS=%s\n' "$mauvais" > .factory.conf; commit_tout
+  verifier "ca20_.factory.conf DOSSIER_TESTS=$etiquette refusé" 64 "^$REFUS" scripts/fin-issue.sh 001-01
+  printf 'DOSSIER_TESTS=tests-bash\n' > .factory.conf; commit_tout
+done
+# Le refus précède le build : un build qui laisserait une trace n'est pas lancé.
+fin_projet "touch '$p/build-lance.txt'; echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
+printf 'DOSSIER_TESTS=../x\n' > .factory.conf; commit_tout
+verifier "ca20_aucun build lancé avant le refus" 64 "^$REFUS" scripts/fin-issue.sh 001-01
+[ ! -e build-lance.txt ] && ok "ca20_build non lancé (aucune trace)" || ko "ca20_build non lancé" "build-lance.txt existe"
+/bin/rm -f build-lance.txt
+git rm -q -f -r tests-bash autre .factory.conf; printf 'args.txt\n' > .gitignore; commit_tout
+fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 # Plusieurs types de résumé : un seul serait lu, les ignorés ou échecs des autres se perdraient.
 MELANGE='FIN-ISSUE ECHEC : nombre de tests ignorés illisible dans le résumé \(« plusieurs types de résumé'
 M_OK="echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"

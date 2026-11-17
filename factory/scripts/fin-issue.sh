@@ -48,9 +48,13 @@ fi
 id="$(issue_champ "$fichier" id)"; id="${id:-$issue_arg}"
 
 # Les critères sont lus dans le commit : un dossier de tests qui en sort contournerait ce contrôle.
-case "${DOSSIER_TESTS:-}" in
-  /*|..|../*|*/..|*/../*) echo "FIN-ISSUE ECHEC : DOSSIER_TESTS doit être un chemin relatif à l'intérieur du dépôt"; exit 64 ;;
-esac
+# Les quatre sources sont contrôlées, même celle qu'une plus prioritaire masque ou que l'extraction ignorerait (.factory.local.conf) :
+# les valeurs sont des données non fiables, lues comme du texte (jamais évaluées) et jamais recopiées dans le message.
+for source_dossier in "${DOSSIER_TESTS:-}" "${FACTORY_DOSSIER_TESTS:-}" "$(config_fichier_valeur .factory.local.conf DOSSIER_TESTS)" "$(config_fichier_valeur .factory.conf DOSSIER_TESTS)"; do
+  case "$source_dossier" in
+    /*|..|../*|*/..|*/../*) echo "FIN-ISSUE ECHEC : DOSSIER_TESTS doit être un chemin relatif à l'intérieur du dépôt"; exit 64 ;;
+  esac
+done
 
 autorises="$(config_valeur FIN_ISSUE_IGNORES_AUTORISES "")"
 case "$autorises" in

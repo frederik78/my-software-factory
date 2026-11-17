@@ -74,6 +74,17 @@ noms_de_tests() {
 # l'ouverture jusqu'à la ligne du délimiteur final incluse ; pour <<-, le délimiteur peut être précédé de tabulations). La ligne
 # d'ouverture est gardée : elle peut être un vrai appel. Lecture seule, rien n'est évalué. CRLF toléré. <<< (chaîne ici) n'ouvre rien.
 read -r -d '' sans_documents_ici <<'AWK'
+# dans_chaine(texte) : vrai si la fin de texte se trouve à l'intérieur d'une chaîne entre guillemets " ou ' non refermée.
+function dans_chaine(texte,    i, c, q) {
+  q = ""
+  for (i = 1; i <= length(texte); i++) {
+    c = substr(texte, i, 1)
+    if (q == "" && (c == "\"" || c == "'")) q = c
+    else if (q == "\"" && c == "\\") i++
+    else if (c == q) q = ""
+  }
+  return q != ""
+}
 FNR == 1 { nb = 0; cur = 1 }
 { ligne = $0; sub(/\r$/, "", ligne) }
 cur <= nb {
@@ -84,10 +95,15 @@ cur <= nb {
 {
   print
   # Tous les documents ouverts sur la ligne (<<A <<B) sont mis en file et se referment dans l'ordre.
-  nb = 0; cur = 1; reste = ligne
+  # Un << dans une chaîne entre guillemets (titre d'un test, par exemple) n'ouvre rien.
+  nb = 0; cur = 1; reste = ligne; decalage = 0
   while (match(reste, /(^|[^<])<<-?[ \t]*(\\|\$?["'])?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
     mot = substr(reste, RSTART, RLENGTH)
-    reste = substr(reste, RSTART + RLENGTH)
+    fin = RSTART + RLENGTH
+    en_chaine = dans_chaine(substr(ligne, 1, decalage + RSTART))
+    decalage += fin - 1
+    reste = substr(reste, fin)
+    if (en_chaine) continue
     sub(/^[^<]*<</, "", mot)
     nb++
     tabs[nb] = (substr(mot, 1, 1) == "-")

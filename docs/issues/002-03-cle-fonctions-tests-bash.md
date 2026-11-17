@@ -26,3 +26,6 @@ Un test par critère qui échoue puis réussit, avec la sortie de `factory/scrip
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-17 : revue 1 APPROUVÉ (docs/reviews/002-03.md). `verify-clean.sh` 674 OK ; critères OK avec `DOSSIER_TESTS=factory/scripts/tests`. `scripts/fin-issue.sh 002-03` échoue (attendu, bootstrap F-05, lecture de la configuration en 002-05). Passage à `Fait` en attente de l'accord de l'utilisateur, la dérogation accordée pour 002-01 étant « unique ».
+- Mineurs ouverts : `|| return 64` mort dans `lib-config.sh:64` ; pas de cas dédié aux doublons ni à la tabulation entre noms valides.
+- Choix du développeur à confirmer : espaces multiples tolérés, doublons acceptés, tabulation refusée ; message sans la valeur ; clé en dernier dans l'affichage de `config-factory.sh` (à confirmer en 002-04).

@@ -95,12 +95,14 @@ cur <= nb {
 {
   print
   # Tous les documents ouverts sur la ligne (<<A <<B) sont mis en file et se referment dans l'ordre.
-  # Un << dans une chaîne entre guillemets (titre d'un test, par exemple) n'ouvre rien.
+  # Un << dans une chaîne entre guillemets (titre d'un test, par exemple) n'ouvre rien, sauf si la ligne contient $( ou ` avant lui.
   nb = 0; cur = 1; reste = ligne; decalage = 0
   while (match(reste, /(^|[^<])<<-?[ \t]*(\\|\$?["'])?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
     mot = substr(reste, RSTART, RLENGTH)
     fin = RSTART + RLENGTH
-    en_chaine = dans_chaine(substr(ligne, 1, decalage + RSTART))
+    avant = substr(ligne, 1, decalage + RSTART)
+    # Dans le doute on ouvre : un $( ou une apostrophe inverse avant le << peut faire de ce << du code (out="$(cat <<EOF").
+    en_chaine = dans_chaine(avant) && avant !~ /\$\(|`/
     decalage += fin - 1
     reste = substr(reste, fin)
     if (en_chaine) continue

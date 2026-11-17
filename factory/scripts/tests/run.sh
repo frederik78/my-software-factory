@@ -394,6 +394,35 @@ verifier "cs01_x <<\EOF y" 0 "OK" cmd
 verifier 'cs01_z <<EOF' 0 "OK" cmd
 verifier "ca10_x" 0 "OK" cmd
 XEOF
+verdict_cas "ca06_document ici ouvert dans une substitution de commande entre guillemets ignoré" 1 t.sh <<'XEOF'
+out="$(cat <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+)"
+XEOF
+verdict_cas "ca06_document ici ouvert dans des apostrophes inverses entre guillemets ignoré" 1 t.sh <<'XEOF'
+out="`cat <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+`"
+XEOF
+verdict_cas "ca06_document ici ouvert dans une substitution de commande sans guillemets ignoré" 1 t.sh <<'XEOF'
+out=$(cat <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+)
+XEOF
+verdict_cas "ca06_après une substitution de commande entre guillemets refermée, l'appel suivant est couvert" 0 t.sh <<'XEOF'
+out="$(cat <<EOF
+x
+EOF
+)"
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_limite assumée : substitution puis chevrons doubles dans la même chaîne ouvre un document (faux MANQUE, sens sûr)" 1 t.sh <<'XEOF'
+verifier "cs01_x $(date) <<EOF" 0 "OK" cmd
+verifier "ca10_x" 0 "OK" cmd
+XEOF
 verdict_cas "ca06_le même appel après le délimiteur final est couvert" 0 t.sh <<'XEOF'
 cat > f <<'EOF'
 verifier "ca10_x" 0 "OK" cmd

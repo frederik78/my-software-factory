@@ -37,6 +37,8 @@ Risque reporté : un risque de sécurité reporté, ou qualifié « non exploita
 Documentation : AGENTS.md, ADR, déploiement, PRD, backlog restent-ils fidèles au code ? Liste les passages devenus faux, sans les modifier (le PRD et
 le backlog appartiennent à l'utilisateur).
 
+Écris pour un lecteur sans contexte : ouvre le rapport par le bloc `## En clair` de `report-format.md` (sens de chaque critère, mutations expliquées en une phrase) et définis tout terme technique à sa première apparition.
+
 Rends ton rapport au format de `factory/prompts/report-format.md` : liste classée BLOQUANT / IMPORTANT / MINEUR, avec fichier:ligne, chaque point
 de sécurité rattaché à sa catégorie OWASP (ex. [A01], [A03]). Toute vulnérabilité OWASP avérée est BLOQUANTE. Pour chaque remarque de la revue
 précédente, dis si elle est corrigée, avec la preuve. Conclus par APPROUVÉ ou CHANGEMENTS DEMANDÉS.

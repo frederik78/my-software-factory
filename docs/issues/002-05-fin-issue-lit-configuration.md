@@ -3,12 +3,12 @@ id: 002-05
 titre: fin-issue.sh lit la configuration
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: En revue
+statut: Fait
 depend_de: [002-04]
 criteres: [CA-19, CA-20, CA-21, CA-25]
 branche: feat/002-05-fin-issue-lit-configuration
-commits: []
-revue:
+commits: [def6ed6, 95805ba]
+revue: APPROUVÉ (itération 1 sur 3, docs/reviews/002-05.md)
 ---
 
 ## Objectif
@@ -26,3 +26,9 @@ Un test par critère qui échoue puis réussit, avec la sortie de `factory/scrip
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-17 : `scripts/fin-issue.sh 002-05` : `FIN-ISSUE OK 002-05 95805ba : 783 tests, 0 échec, 0 ignoré` (lancé après le dernier commit de code, rejoué par l'orchestrateur). C'est le premier contrôle de fin d'issue réussi sans régler `DOSSIER_TESTS` à la main : la dérogation d'amorçage F-05 prend fin avec cette issue.
+- 2026-11-17 : revue 1 APPROUVÉ (7 mutations sur 7 détectées, dont 3 prouvant que CA-19 et CA-25, sans test rouge préalable car déjà verts avant l'issue, sont discriminants).
+- Branche empilée : feat/002-02, puis feat/002-04, puis celle-ci. À fusionner dans cet ordre (le `.factory.conf` de cette branche suppose la clé de 002-04).
+- À faire maintenant que `fin-issue.sh` fonctionne ici : relancer `scripts/fin-issue.sh` sur 002-01, 002-02, 002-03 et 002-04 (dérogation d'amorçage) et inscrire les résultats dans leurs issues.
+- Mineurs ouverts : `FACTORY_DOSSIER_TESTS=` définie mais vide ne déclenche pas de refus (traitée comme non définie, sans effet de sécurité) ; le test CA-25 « variable FACTORY_ s'applique » ne distingue pas le motif d'échec d'une autre cause (le motif de sortie est contrôlé) ; lien symbolique versionné vers l'extérieur : limite déjà documentée en tête de `fin-issue.sh`.
+- Choix du développeur acceptés (à inscrire au PRD) : refus appliqué aux quatre sources même masquées ; message identique pour les quatre sources, sans nommer la source ni recopier la valeur ; variable définie mais vide = non définie.

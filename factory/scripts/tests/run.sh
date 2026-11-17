@@ -1753,9 +1753,11 @@ for f in factory/templates/AGENTS.md factory/prompts/developer.md factory/prompt
 done
 
 echo "liste d'escalade (CA-16)"
-escalade_manque() { # escalade_manque <fichier> : affiche les éléments absents ; code 1 s'il en manque
-  local txt manque=""; txt="$(lire_depot "$depot" "$1")"
-  printf '%s\n' "$txt" | grep -q "^## Sujets à remonter à l'utilisateur$" || manque="$manque section"
+escalade_manque() { # escalade_manque <fichier> : affiche les éléments absents DE LA SECTION ; code 1 s'il en manque
+  local txt manque=""
+  # la section seule (du titre au « ## » suivant) : une chaîne citée ailleurs dans le fichier ne compte pas
+  txt="$(lire_depot "$depot" "$1" | awk '/^## /{ d = ($0 == "## Sujets à remonter à l'"'"'utilisateur") } d')"
+  [ -n "$txt" ] || manque="$manque section"
   for sujet in "1. secrets et identifiants" "2. authentification et autorisation" "3. dépendance et licence" "4. déploiement et CI" "5. contrat d'un service externe" "6. écart avec le PRD"; do
     printf '%s\n' "$txt" | grep -q "^$sujet" || manque="$manque [$sujet]"
   done
@@ -1763,6 +1765,8 @@ escalade_manque() { # escalade_manque <fichier> : affiche les éléments absents
   printf '%s\n' "$txt" | grep -q '`## QUESTIONS`' || manque="$manque QUESTIONS"
   printf '%s\n' "$txt" | grep -q '`## À trancher par l'"'"'utilisateur`' || manque="$manque A-trancher"
   printf '%s\n' "$txt" | grep -q "tous les rôles (session, developer, code-reviewer, spec-writer)" || manque="$manque roles"
+  printf '%s\n' "$txt" | grep -q "Le code-reviewer ne le classe jamais « mineur »" || manque="$manque reviewer-pas-mineur"
+  printf '%s\n' "$txt" | grep -q "complète les règles existantes sans les contredire" || manque="$manque RG-15"
   echo "manque :$manque"; [ -z "$manque" ]
 }
 verifier "ca16_modèle AGENTS.md : six sujets, arrêt, deux destinations, tous les rôles" 0 "" escalade_manque factory/templates/AGENTS.md

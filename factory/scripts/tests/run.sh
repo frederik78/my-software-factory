@@ -2003,6 +2003,11 @@ for f in factory/templates/AGENTS.md factory/prompts/developer.md factory/prompt
   lire_depot "$depot" "$f" | grep -q "classes techniques sont impérativement en anglais" && ok "$f : classes techniques en anglais" || ko "$f : règle de langue absente"
 done
 
+echo "ce dépôt : dossier de tests bash"
+cd "$depot" || exit 1
+lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/tests' && ok "ca21_.factory.conf règle DOSSIER_TESTS=factory/scripts/tests" || ko "ca21_.factory.conf ne règle pas DOSSIER_TESTS=factory/scripts/tests"
+verifier "ca21_criteres-sans-test.sh sur une issue de ce dépôt = OK" 0 "^OK " env -u DOSSIER_TESTS -u FACTORY_DOSSIER_TESTS scripts/criteres-sans-test.sh 002-05
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

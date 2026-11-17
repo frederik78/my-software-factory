@@ -3,10 +3,10 @@ id: 002-03
 titre: Clé TESTS_BASH_FONCTIONS
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: À faire
+statut: En cours
 depend_de: [002-01]
 criteres: [CA-03, CA-14, CA-15, CS-02, CS-04, CS-06]
-branche:
+branche: feat/002-03-cle-fonctions-tests-bash
 commits: []
 revue:
 ---

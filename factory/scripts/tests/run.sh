@@ -386,6 +386,8 @@ verifier "ca03_sans clé : défaut inchangé" 0 "^OK " scripts/criteres-sans-tes
 refuse_f() { # refuse_f <description> <valeur>
   verifier_exact "$1" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS="$2" DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-01
 }
+# Les cas ci-dessous passent par refuse_f (message exact) ; une déclaration `verifier` littérale par critère le rend visible du contrôle des critères.
+verifier "ca14_liste vide : code 64 et message TESTS_BASH_FONCTIONS invalide" 64 "^TESTS_BASH_FONCTIONS invalide" env FACTORY_TESTS_BASH_FONCTIONS= DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-01
 refuse_f "ca14_liste vide refusée" ""
 refuse_f "ca14_espaces seuls refusés" "   "
 for v in a-b a.b 1a -a 'a;b' '$(x)' 'a*' "$(printf 'a%.0s' $(seq 65))" "$(printf 'n%s ' $(seq 21))"; do refuse_f "ca14_valeur refusée : ${v:0:20}" "$v"; done
@@ -416,6 +418,7 @@ printf 'verifier "ca10_x" 0\n' > src/test/t.sh
 for v in 'verifier;touch marque' '$(touch marque)' '`touch marque`' '.*' 'a|b' 'a b;c' '-x' "$(printf 'verifier\ntouch marque')" "$(printf 'verifier\ttouch')" 'é'; do
   refuse_f "cs02_valeur hostile refusée : $(printf '%s' "$v" | tr '\n\t' '  ')" "$v"
 done
+verifier "cs02_valeur « verifier;touch marque » : code 64, message TESTS_BASH_FONCTIONS invalide" 64 "^TESTS_BASH_FONCTIONS invalide" env FACTORY_TESTS_BASH_FONCTIONS='verifier;touch marque' scripts/criteres-sans-test.sh 002-01
 [ ! -e marque ] && ok "cs02_aucune commande de la valeur exécutée (pas de fichier marque)" || ko "cs02_fichier marque créé" "marque existe"
 # Le motif .* est refusé comme les autres (liste ci-dessus) : code 64 et message seul, aucune ligne OK ni MANQUE, donc jamais un critère couvert.
 verifier_exact "cs02_valeur avec saut de ligne final refusée (rien n'est rogné)" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS="$(printf 'verifier\n.')" scripts/criteres-sans-test.sh 002-01
@@ -435,6 +438,7 @@ rm -f .factory.conf .factory.local.conf
 esc_f="$(printf 'ver\033[31mifier\r\rFAUX')"
 sortie_f="$(env FACTORY_TESTS_BASH_FONCTIONS="$esc_f" scripts/criteres-sans-test.sh 002-01 2>&1 >/dev/null)"
 [ "$sortie_f" = "$invalide_f" ] && [ "$(printf '%s\n' "$sortie_f" | wc -l | tr -d ' ')" = 1 ] && ok "cs06_séquence d'échappement et retours chariot : message exact sur une ligne" || ko "cs06_message" "$(printf '%s' "$sortie_f" | od -c | head -3)"
+verifier "cs06_valeur avec séquence d'échappement : message sans caractère de contrôle, sur une ligne" 64 "^TESTS_BASH_FONCTIONS invalide[^[:cntrl:]]*$" env FACTORY_TESTS_BASH_FONCTIONS="$esc_f" scripts/criteres-sans-test.sh 002-01
 printf '%s' "$sortie_f" | LC_ALL=C grep -q "[[:cntrl:]]" && ko "cs06_caractère de contrôle brut dans le message" "$(printf '%s' "$sortie_f" | od -c | head -3)" || ok "cs06_aucun caractère de contrôle brut dans le message"
 sortie_f="$(printf 'TESTS_BASH_FONCTIONS=ab\033[31mc\r\n' > .factory.conf; scripts/criteres-sans-test.sh 002-01 2>&1 >/dev/null)"
 [ "$sortie_f" = "$invalide_f" ] && ok "cs06_séquence d'échappement dans .factory.conf : message exact" || ko "cs06_fichier" "$(printf '%s' "$sortie_f" | od -c | head -3)"

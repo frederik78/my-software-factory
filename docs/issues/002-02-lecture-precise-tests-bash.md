@@ -3,10 +3,10 @@ id: 002-02
 titre: Lecture précise des tests bash
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: À faire
+statut: En cours
 depend_de: [002-01]
 criteres: [CA-05, CA-06, CA-07]
-branche:
+branche: feat/002-02-lecture-precise-tests-bash
 commits: []
 revue:
 ---

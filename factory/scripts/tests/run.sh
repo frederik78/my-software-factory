@@ -359,6 +359,36 @@ verifier "ca10_x" 0 "OK" cmd
 EOF
 XEOF
 verdict_cas "ca06_document ici <<-EOF à délimiteur indenté par tabulation ignoré" 1 t.sh < <(printf 'cat > f <<-EOF\n\tverifier "ca10_x" 0 "OK" cmd\n\tEOF\n')
+verdict_cas "ca06_deux documents ici sur une ligne : le corps du second est ignoré" 1 t.sh <<'XEOF'
+cat <<A <<B
+x
+A
+verifier "ca10_x" 0 "OK" cmd
+B
+XEOF
+verdict_cas "ca06_deux documents ici sur une ligne : l'appel après les deux est couvert" 0 t.sh <<'XEOF'
+cat <<A <<B
+x
+A
+y
+B
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_document ici <<\EOF ignoré" 1 t.sh <<'XEOF'
+cat <<\EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<$'EOF' ignoré" 1 t.sh <<'XEOF'
+cat <<$'EOF'
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_fins de ligne CRLF : délimiteur reconnu, l'appel suivant est couvert" 0 t.sh < <(printf 'cat <<EOF\r\nverifier "cs01_y" 0\r\nEOF\r\nverifier "ca10_x" 0 "OK" cmd\r\n')
+verdict_cas "ca06_chaîne ici <<< n'ouvre pas de document" 0 t.sh <<'XEOF'
+cat <<< "x"
+verifier "ca10_x" 0 "OK" cmd
+XEOF
 verdict_cas "ca06_le même appel après le délimiteur final est couvert" 0 t.sh <<'XEOF'
 cat > f <<'EOF'
 verifier "ca10_x" 0 "OK" cmd

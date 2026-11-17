@@ -70,25 +70,29 @@ noms_de_tests() {
   } | LC_ALL=C sed -E 's/^[Tt]est//'
 }
 
-# Programme awk : copie les fichiers reçus sans les lignes d'un document ici (<<MOT, <<'MOT', <<"MOT", <<-MOT : de la ligne qui suit
+# Programme awk : copie les fichiers reçus sans les lignes d'un document ici (<<MOT, <<'MOT', <<"MOT", <<\MOT, <<$'MOT', <<-MOT : de la ligne qui suit
 # l'ouverture jusqu'à la ligne du délimiteur final incluse ; pour <<-, le délimiteur peut être précédé de tabulations). La ligne
 # d'ouverture est gardée : elle peut être un vrai appel. Lecture seule, rien n'est évalué. CRLF toléré. <<< (chaîne ici) n'ouvre rien.
 read -r -d '' sans_documents_ici <<'AWK'
-FNR == 1 { delim = "" }
+FNR == 1 { nb = 0; cur = 1 }
 { ligne = $0; sub(/\r$/, "", ligne) }
-delim != "" {
-  if (tabs) sub(/^\t+/, "", ligne)
-  if (ligne == delim) delim = ""
+cur <= nb {
+  if (tabs[cur]) sub(/^\t+/, "", ligne)
+  if (ligne == delim[cur]) cur++
   next
 }
 {
   print
-  if (match(ligne, /(^|[^<])<<-?[ \t]*["']?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
-    mot = substr(ligne, RSTART, RLENGTH)
+  # Tous les documents ouverts sur la ligne (<<A <<B) sont mis en file et se referment dans l'ordre.
+  nb = 0; cur = 1; reste = ligne
+  while (match(reste, /(^|[^<])<<-?[ \t]*(\\|\$?["'])?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
+    mot = substr(reste, RSTART, RLENGTH)
+    reste = substr(reste, RSTART + RLENGTH)
     sub(/^[^<]*<</, "", mot)
-    tabs = (substr(mot, 1, 1) == "-")
-    gsub(/^-?[ \t]*["']?|["']$/, "", mot)
-    delim = mot
+    nb++
+    tabs[nb] = (substr(mot, 1, 1) == "-")
+    gsub(/^-?[ \t]*(\\|\$?["'])?|["']$/, "", mot)
+    delim[nb] = mot
   }
 }
 AWK

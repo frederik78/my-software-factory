@@ -585,60 +585,57 @@ manque_f() { # manque_f <critère lu> : ligne attendue quand seul ce critère es
   for c in CA-10 CA-11 CA-12 CA-13 CA-14; do [ "$c" = "$1" ] || lus="$lus $c"; done
   printf 'MANQUE 002-11-x.md: 4/5 sans test :%s' "$lus"
 }
-lu_f() { # lu_f <description> <critère lu> [VAR=valeur...] : le contrôle lit le dossier qui couvre ce critère
-  local desc="$1" lu="$2"; shift 2
-  verifier_exact "$desc" 1 "$(manque_f "$lu")" env "$@" scripts/criteres-sans-test.sh 002-11
-}
 rm -f .factory.conf .factory.local.conf
 printf 'DOSSIER_TESTS=dd\n' > .factory.conf
-lu_f "ca10_DOSSIER_TESTS dans .factory.conf : ce dossier est lu (pas src/test)" CA-13
+verifier "ca10_DOSSIER_TESTS dans .factory.conf : ce dossier est lu (pas src/test)" 1 "^$(manque_f CA-13)$" env scripts/criteres-sans-test.sh 002-11
 # Les cinq sources sont toutes renseignées ; on retire la plus forte une à une.
 printf 'DOSSIER_TESTS=dc\n' > .factory.local.conf
-lu_f "ca11_cinq sources : la variable DOSSIER_TESTS l'emporte" CA-10 DOSSIER_TESTS=da FACTORY_DOSSIER_TESTS=db
-lu_f "ca11_sans la variable : FACTORY_DOSSIER_TESTS l'emporte" CA-11 FACTORY_DOSSIER_TESTS=db
-lu_f "ca11_sans FACTORY_DOSSIER_TESTS : .factory.local.conf l'emporte" CA-12
+verifier "ca11_cinq sources : la variable DOSSIER_TESTS l'emporte" 1 "^$(manque_f CA-10)$" env DOSSIER_TESTS=da FACTORY_DOSSIER_TESTS=db scripts/criteres-sans-test.sh 002-11
+verifier "ca11_sans la variable : FACTORY_DOSSIER_TESTS l'emporte" 1 "^$(manque_f CA-11)$" env FACTORY_DOSSIER_TESTS=db scripts/criteres-sans-test.sh 002-11
+verifier "ca11_sans FACTORY_DOSSIER_TESTS : .factory.local.conf l'emporte" 1 "^$(manque_f CA-12)$" env scripts/criteres-sans-test.sh 002-11
 rm -f .factory.local.conf
-lu_f "ca11_sans .factory.local.conf : .factory.conf l'emporte" CA-13
+verifier "ca11_sans .factory.local.conf : .factory.conf l'emporte" 1 "^$(manque_f CA-13)$" env scripts/criteres-sans-test.sh 002-11
 rm -f .factory.conf
-lu_f "ca11_sans .factory.conf : détection automatique (src/test)" CA-14
+verifier "ca11_sans .factory.conf : détection automatique (src/test)" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
 printf 'DOSSIER_TESTS=dd\n' > .factory.conf; printf 'DOSSIER_TESTS=dc\n' > .factory.local.conf
-lu_f "ca11_variable DOSSIER_TESTS vide = non définie : la source suivante s'applique" CA-11 DOSSIER_TESTS= FACTORY_DOSSIER_TESTS=db
-lu_f "ca11_FACTORY_DOSSIER_TESTS vide (définie) : détection, pas la valeur des fichiers" CA-14 FACTORY_DOSSIER_TESTS=
+verifier "ca11_variable DOSSIER_TESTS vide = non définie : la source suivante s'applique" 1 "^$(manque_f CA-11)$" env DOSSIER_TESTS= FACTORY_DOSSIER_TESTS=db scripts/criteres-sans-test.sh 002-11
+verifier "ca11_FACTORY_DOSSIER_TESTS vide (définie) : détection, pas la valeur des fichiers" 1 "^$(manque_f CA-14)$" env FACTORY_DOSSIER_TESTS= scripts/criteres-sans-test.sh 002-11
 printf 'DOSSIER_TESTS=\n' > .factory.local.conf
-lu_f "ca11_DOSSIER_TESTS= vide dans .factory.local.conf : détection, pas .factory.conf" CA-14
+verifier "ca11_DOSSIER_TESTS= vide dans .factory.local.conf : détection, pas .factory.conf" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
 printf 'DOSSIER_TESTS=\n' > .factory.conf; rm -f .factory.local.conf
-lu_f "ca11_DOSSIER_TESTS= vide dans .factory.conf : détection, pas d'erreur" CA-14
+verifier "ca11_DOSSIER_TESTS= vide dans .factory.conf : détection, pas d'erreur" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
 rm -f .factory.conf
 
 # Détection automatique inchangée : src/test, puis tests, puis test.
 rm -rf src; mkdir -p tests test
 printf 'verifier "ca10_x" 0 "OK" cmd\n' > tests/t.sh; printf 'verifier "ca11_x" 0 "OK" cmd\n' > test/t.sh
-lu_f "ca12_sans configuration : tests avant test" CA-10
+verifier "ca12_sans configuration : tests avant test" 1 "^$(manque_f CA-10)$" env scripts/criteres-sans-test.sh 002-11
 mkdir -p src/test; printf 'verifier "ca14_x" 0 "OK" cmd\n' > src/test/t.sh
-lu_f "ca12_sans configuration : src/test avant tests" CA-14
+verifier "ca12_sans configuration : src/test avant tests" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
 rm -rf src tests
-lu_f "ca12_sans configuration : test en dernier" CA-11
+verifier "ca12_sans configuration : test en dernier" 1 "^$(manque_f CA-11)$" env scripts/criteres-sans-test.sh 002-11
 
 # Dossier configuré absent : introuvable, code 64, jamais de repli sur la détection (test existe ici).
 absent_f="Dossier de tests introuvable : absent"
-verifier_exact "ca13_variable DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "$absent_f" env DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
-verifier_exact "ca13_FACTORY_DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "$absent_f" env FACTORY_DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
+verifier "ca13_variable DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "^$absent_f$" env DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
+verifier "ca13_FACTORY_DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "^$absent_f$" env FACTORY_DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
 printf 'DOSSIER_TESTS=absent\n' > .factory.local.conf
-verifier_exact "ca13_.factory.local.conf vers un dossier absent : 64, sans repli" 64 "$absent_f" scripts/criteres-sans-test.sh 002-11
+verifier "ca13_.factory.local.conf vers un dossier absent : 64, sans repli" 64 "^$absent_f$" scripts/criteres-sans-test.sh 002-11
 rm -f .factory.local.conf; printf 'DOSSIER_TESTS=absent\n' > .factory.conf
-verifier_exact "ca13_.factory.conf vers un dossier absent : 64, sans repli" 64 "$absent_f" scripts/criteres-sans-test.sh 002-11
+verifier "ca13_.factory.conf vers un dossier absent : 64, sans repli" 64 "^$absent_f$" scripts/criteres-sans-test.sh 002-11
 rm -f .factory.conf
 
 # La valeur est un chemin, jamais une option : absente, elle est introuvable (64) ; présente, elle est lue comme un dossier.
 for v in -n --help -- 'a b' '-n x' '--version' '$(touch marque)'; do
-  verifier_exact "cs03_valeur « $v » absente : lue comme un chemin, introuvable (64)" 64 "Dossier de tests introuvable : $v" env DOSSIER_TESTS="$v" scripts/criteres-sans-test.sh 002-11
+  motif_v="^Dossier de tests introuvable : $(printf '%s' "$v" | sed 's/[][\.*^$(){}?+|/]/\\&/g')$"
+  verifier "cs03_valeur « $v » absente : lue comme un chemin, introuvable (64)" 64 "$motif_v" env DOSSIER_TESTS="$v" scripts/criteres-sans-test.sh 002-11
   printf 'DOSSIER_TESTS=%s\n' "$v" > .factory.conf
-  verifier_exact "cs03_valeur « $v » absente dans .factory.conf : introuvable (64)" 64 "Dossier de tests introuvable : $v" scripts/criteres-sans-test.sh 002-11
+  verifier "cs03_valeur « $v » absente dans .factory.conf : introuvable (64)" 64 "$motif_v" scripts/criteres-sans-test.sh 002-11
   rm -f .factory.conf
 done
 for v in -n --help 'avec espaces' '-x y'; do
   mkdir -p "./$v"; printf 'verifier "ca11_x" 0 "OK" cmd\n' > "./$v/t.sh"
-  lu_f "cs03_dossier existant « $v » : lu comme un chemin, pas comme une option" CA-11 DOSSIER_TESTS="$v"
+  verifier "cs03_dossier existant « $v » : lu comme un chemin, pas comme une option" 1 "^$(manque_f CA-11)$" env DOSSIER_TESTS="$v" scripts/criteres-sans-test.sh 002-11
 done
 [ ! -e marque ] && ok "cs03_rien n'est exécuté (pas de fichier marque)" || ko "cs03_fichier marque créé" "marque existe"
 rm -rf ./-n ./--help "./avec espaces" "./-x y"

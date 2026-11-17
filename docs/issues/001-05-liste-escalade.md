@@ -3,10 +3,10 @@ id: 001-05
 titre: Liste d'escalade
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-16]
-branche:
+branche: feat/001-05-liste-escalade
 commits: []
 revue:
 ---

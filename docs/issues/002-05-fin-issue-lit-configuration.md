@@ -3,10 +3,10 @@ id: 002-05
 titre: fin-issue.sh lit la configuration
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: À faire
+statut: En cours
 depend_de: [002-04]
 criteres: [CA-19, CA-20, CA-21, CA-25]
-branche:
+branche: feat/002-05-fin-issue-lit-configuration
 commits: []
 revue:
 ---

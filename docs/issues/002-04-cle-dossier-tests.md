@@ -3,10 +3,10 @@ id: 002-04
 titre: Clé DOSSIER_TESTS
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: À faire
+statut: En cours
 depend_de: [002-03]
 criteres: [CA-10, CA-11, CA-12, CA-13, CA-16, CS-03]
-branche:
+branche: feat/002-04-cle-dossier-tests
 commits: []
 revue:
 ---

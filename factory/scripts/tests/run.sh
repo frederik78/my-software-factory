@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -296,6 +296,8 @@ p="$(nouveau_projet)"; cd "$p" || exit 1
 issue_id "$p" 002-01 "En cours" docs/prd/002-m.md "[CA-10]" "[]"
 issue_id "$p" 002-02 "En cours" docs/prd/002-m.md "[CA-10, CS-01]" "[]"
 # verdict_cas <description> <code attendu> <fichier de tests> [issue] : le contenu du fichier vient de l'entrée standard.
+# Attention : ce helper porte le nom d'une fonction de test reconnue par défaut (TESTS_BASH_FONCTIONS) ; ses appels ci-dessous sont donc des déclarations
+# de test pour le contrôle lui-même. Voulu (le dépôt se contrôle avec ses propres cas) ; sa ligne de définition n'est pas reconnue (pas de guillemet après le nom).
 verdict_cas() {
   local iss="${4:-002-01}"
   rm -rf src/test; mkdir -p "$(dirname "src/test/$3")"; cat > "src/test/$3"
@@ -366,6 +368,76 @@ printf '@Test void ca10_x() {}\n' > src/test/A.java; printf 'def test_ca11_x():\
 printf '@Test fun ca12_x() {}\n' > src/test/K.kt; printf "it('CA-13 x', () => {});\n" > src/test/a.test.js
 issue_id "$p" 002-05 "En cours" docs/prd/002-m.md "[CA-10, CA-11, CA-12, CA-13]" "[]"
 verifier "ca17_Java, Python, Kotlin, JS/TS : résultat inchangé" 0 "^OK +002-05-x.md: 4 critère\(s\), tous couverts$" scripts/criteres-sans-test.sh 002-05
+rm -f .factory.conf
+
+echo "criteres-sans-test.sh : clé TESTS_BASH_FONCTIONS (liste des fonctions de test bash)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+issue_id "$p" 002-01 "En cours" docs/prd/002-m.md "[CA-10]" "[]"
+mkdir -p src/test
+# Message attendu, écrit en littéral (source indépendante du code) ; la valeur refusée n'y est jamais recopiée.
+invalide_f="TESTS_BASH_FONCTIONS invalide : 1 à 20 noms séparés par des espaces, chacun de 64 caractères au plus parmi A-Z a-z 0-9 _ et ne commençant pas par un chiffre (voir .factory.conf, .factory.local.conf, FACTORY_TESTS_BASH_FONCTIONS)."
+printf 'cas "ca10_x" 0\n' > src/test/t.sh
+verifier "ca03_TESTS_BASH_FONCTIONS=cas : la ligne cas couvre CA-10" 0 "^OK " env FACTORY_TESTS_BASH_FONCTIONS=cas scripts/criteres-sans-test.sh 002-01
+printf 'verifier "ca10_x" 0\n' > src/test/t.sh
+verifier "ca03_la liste remplace le défaut : verifier ne couvre plus (MANQUE)" 1 "^MANQUE " env FACTORY_TESTS_BASH_FONCTIONS=cas scripts/criteres-sans-test.sh 002-01
+verifier "ca03_sans clé : défaut inchangé" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+
+# Valeur refusée : code 64, message exact, et l'erreur précède toute lecture des tests (le dossier de tests absent n'est pas signalé).
+refuse_f() { # refuse_f <description> <valeur>
+  verifier_exact "$1" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS="$2" DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-01
+}
+refuse_f "ca14_liste vide refusée" ""
+refuse_f "ca14_espaces seuls refusés" "   "
+for v in a-b a.b 1a -a 'a;b' '$(x)' 'a*' "$(printf 'a%.0s' $(seq 65))" "$(printf 'n%s ' $(seq 21))"; do refuse_f "ca14_valeur refusée : ${v:0:20}" "$v"; done
+accepte_f() { printf 'cas "ca10_x" 0\n' > src/test/t.sh; verifier "$1" 0 "^OK " env FACTORY_TESTS_BASH_FONCTIONS="$2" scripts/criteres-sans-test.sh 002-01; }
+printf 'cas "ca10_x" 0\n' > src/test/t.sh
+accepte_f "ca14_borne : nom de 64 caractères accepté" "cas $(printf 'a%.0s' $(seq 64))"
+accepte_f "ca14_borne : 20 noms acceptés" "cas $(printf 'n%s ' $(seq 19))"
+accepte_f "ca14_espaces multiples et de bord tolérés" "  cas   verifier "
+
+# Priorité : variable > .factory.local.conf > .factory.conf > défaut.
+rm -f .factory.conf .factory.local.conf
+printf 'TESTS_BASH_FONCTIONS=confv\n' > .factory.conf
+printf 'confv "ca10_x" 0\n' > src/test/t.sh
+verifier "ca15_.factory.conf lu" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+printf 'TESTS_BASH_FONCTIONS=conflocal\n' > .factory.local.conf
+verifier "ca15_.factory.local.conf l'emporte sur .factory.conf" 1 "^MANQUE " scripts/criteres-sans-test.sh 002-01
+printf 'conflocal "ca10_x" 0\n' > src/test/t.sh
+verifier "ca15_.factory.local.conf lu" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+printf 'cvar "ca10_x" 0\n' > src/test/t.sh
+verifier "ca15_la variable l'emporte sur les deux fichiers" 0 "^OK " env FACTORY_TESTS_BASH_FONCTIONS=cvar scripts/criteres-sans-test.sh 002-01
+verifier_exact "ca15_variable vide : l'emporte aussi, donc refusée" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS= scripts/criteres-sans-test.sh 002-01
+rm -f .factory.local.conf; printf 'TESTS_BASH_FONCTIONS=\n' > .factory.conf
+verifier_exact "ca15_valeur vide dans .factory.conf : refusée" 64 "$invalide_f" scripts/criteres-sans-test.sh 002-01
+rm -f .factory.conf
+
+# Valeurs hostiles : jamais exécutées, jamais prises pour un motif.
+printf 'verifier "ca10_x" 0\n' > src/test/t.sh
+for v in 'verifier;touch marque' '$(touch marque)' '`touch marque`' '.*' 'a|b' 'a b;c' '-x' "$(printf 'verifier\ntouch marque')" "$(printf 'verifier\ttouch')" 'é'; do
+  refuse_f "cs02_valeur hostile refusée : $(printf '%s' "$v" | tr '\n\t' '  ')" "$v"
+done
+[ ! -e marque ] && ok "cs02_aucune commande de la valeur exécutée (pas de fichier marque)" || ko "cs02_fichier marque créé" "marque existe"
+# Le motif .* est refusé comme les autres (liste ci-dessus) : code 64 et message seul, aucune ligne OK ni MANQUE, donc jamais un critère couvert.
+verifier_exact "cs02_valeur avec saut de ligne final refusée (rien n'est rogné)" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS="$(printf 'verifier\n.')" scripts/criteres-sans-test.sh 002-01
+
+# Fichier de configuration : jamais sourcé ni évalué, clés inconnues ignorées.
+printf 'DOSSIER_TESTS=$(touch marque)\nAUTRE=`touch marque`\nTESTS_BASH_FONCTIONS=verifier\n' > .factory.conf
+verifier "cs04_.factory.conf hostile : lu sans exécution, clés inconnues ignorées" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+[ ! -e marque ] && ok "cs04_aucune commande du fichier exécutée (pas de fichier marque)" || ko "cs04_fichier marque créé" "marque existe"
+printf 'TESTS_BASH_FONCTIONS=$(touch marque)\n' > .factory.conf
+verifier_exact "cs04_valeur de la clé elle-même : refusée, jamais évaluée" 64 "$invalide_f" scripts/criteres-sans-test.sh 002-01
+printf 'TESTS_BASH_FONCTIONS=verifier;touch marque\n' > .factory.local.conf
+verifier_exact "cs04_idem dans .factory.local.conf (point-virgule)" 64 "$invalide_f" scripts/criteres-sans-test.sh 002-01
+[ ! -e marque ] && ok "cs04_toujours pas de fichier marque" || ko "cs04_fichier marque créé" "marque existe"
+rm -f .factory.conf .factory.local.conf
+
+# Caractères de contrôle : le message tient sur une seule ligne, sans séquence d'échappement ni retour chariot.
+esc_f="$(printf 'ver\033[31mifier\r\rFAUX')"
+sortie_f="$(env FACTORY_TESTS_BASH_FONCTIONS="$esc_f" scripts/criteres-sans-test.sh 002-01 2>&1 >/dev/null)"
+[ "$sortie_f" = "$invalide_f" ] && [ "$(printf '%s\n' "$sortie_f" | wc -l | tr -d ' ')" = 1 ] && ok "cs06_séquence d'échappement et retours chariot : message exact sur une ligne" || ko "cs06_message" "$(printf '%s' "$sortie_f" | od -c | head -3)"
+printf '%s' "$sortie_f" | LC_ALL=C grep -q "[[:cntrl:]]" && ko "cs06_caractère de contrôle brut dans le message" "$(printf '%s' "$sortie_f" | od -c | head -3)" || ok "cs06_aucun caractère de contrôle brut dans le message"
+sortie_f="$(printf 'TESTS_BASH_FONCTIONS=ab\033[31mc\r\n' > .factory.conf; scripts/criteres-sans-test.sh 002-01 2>&1 >/dev/null)"
+[ "$sortie_f" = "$invalide_f" ] && ok "cs06_séquence d'échappement dans .factory.conf : message exact" || ko "cs06_fichier" "$(printf '%s' "$sortie_f" | od -c | head -3)"
 rm -f .factory.conf
 
 echo "etat-issues.sh"
@@ -1511,7 +1583,8 @@ FIN_ISSUE_ARGUMENTS=
 FIN_ISSUE_IGNORES_AUTORISES=
 AGENTS_SILENCE_MINUTES=5
 AGENTS_RETRAIT_MINUTES=60
-DASHBOARD_THEME=clair" scripts/config-factory.sh
+DASHBOARD_THEME=clair
+TESTS_BASH_FONCTIONS=verifier verdict_cas" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
 printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
 out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"

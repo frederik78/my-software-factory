@@ -84,7 +84,7 @@ printf '%s\n' "$sortie"
 extrait="$(mktemp -d "${TMPDIR:-/tmp}/fin-issue.XXXXXX")" || echec "extraction du commit impossible (mktemp)"
 trap 'rm -rf "$extrait"' EXIT
 git archive HEAD | tar -x -C "$extrait" || echec "extraction du commit impossible"
-mkdir -p "$extrait/.fin-issue"; cp "$dossier_scripts/criteres-sans-test.sh" "$dossier_scripts/lib-issues.sh" "$extrait/.fin-issue/"
+mkdir -p "$extrait/.fin-issue"; cp "$dossier_scripts/criteres-sans-test.sh" "$dossier_scripts/lib-issues.sh" "$dossier_scripts/lib-config.sh" "$extrait/.fin-issue/"
 "$extrait/.fin-issue/criteres-sans-test.sh" "$fichier"; code_criteres=$?
 
 raisons=""

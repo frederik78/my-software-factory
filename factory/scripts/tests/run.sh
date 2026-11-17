@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -553,8 +553,10 @@ verifier "cs02_valeur « verifier;touch marque » : code 64, message TESTS_BASH_
 verifier_exact "cs02_valeur avec saut de ligne final refusée (rien n'est rogné)" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS="$(printf 'verifier\n.')" scripts/criteres-sans-test.sh 002-01
 
 # Fichier de configuration : jamais sourcé ni évalué, clés inconnues ignorées.
-printf 'DOSSIER_TESTS=$(touch marque)\nAUTRE=`touch marque`\nTESTS_BASH_FONCTIONS=verifier\n' > .factory.conf
+printf 'AUTRE=`touch marque`\nDOSSIER_TESTS=\nTESTS_BASH_FONCTIONS=verifier\n' > .factory.conf
 verifier "cs04_.factory.conf hostile : lu sans exécution, clés inconnues ignorées" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+printf 'DOSSIER_TESTS=$(touch marque)\n' > .factory.conf
+verifier_exact "cs04_DOSSIER_TESTS=\$(touch marque) : lu comme un chemin introuvable (64), jamais évalué" 64 'Dossier de tests introuvable : $(touch marque)' scripts/criteres-sans-test.sh 002-01
 [ ! -e marque ] && ok "cs04_aucune commande du fichier exécutée (pas de fichier marque)" || ko "cs04_fichier marque créé" "marque existe"
 printf 'TESTS_BASH_FONCTIONS=$(touch marque)\n' > .factory.conf
 verifier_exact "cs04_valeur de la clé elle-même : refusée, jamais évaluée" 64 "$invalide_f" scripts/criteres-sans-test.sh 002-01
@@ -572,6 +574,85 @@ printf '%s' "$sortie_f" | LC_ALL=C grep -q "[[:cntrl:]]" && ko "cs06_caractère 
 sortie_f="$(printf 'TESTS_BASH_FONCTIONS=ab\033[31mc\r\n' > .factory.conf; scripts/criteres-sans-test.sh 002-01 2>&1 >/dev/null)"
 [ "$sortie_f" = "$invalide_f" ] && ok "cs06_séquence d'échappement dans .factory.conf : message exact" || ko "cs06_fichier" "$(printf '%s' "$sortie_f" | od -c | head -3)"
 rm -f .factory.conf
+
+echo "criteres-sans-test.sh : clé DOSSIER_TESTS (dossier des tests)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+# Cinq dossiers, chacun couvrant UN critère différent : la ligne MANQUE (littérale, source indépendante du code) dit lequel a été lu.
+issue_id "$p" 002-11 "En cours" docs/prd/002-m.md "[CA-10, CA-11, CA-12, CA-13, CA-14]" "[]"
+for d in da:ca10 db:ca11 dc:ca12 dd:ca13 src/test:ca14; do mkdir -p "${d%%:*}"; printf 'verifier "%s_x" 0 "OK" cmd\n' "${d##*:}" > "${d%%:*}/t.sh"; done
+manque_f() { # manque_f <critère lu> : ligne attendue quand seul ce critère est couvert
+  local c lus=""
+  for c in CA-10 CA-11 CA-12 CA-13 CA-14; do [ "$c" = "$1" ] || lus="$lus $c"; done
+  printf 'MANQUE 002-11-x.md: 4/5 sans test :%s' "$lus"
+}
+lu_f() { # lu_f <description> <critère lu> [VAR=valeur...] : le contrôle lit le dossier qui couvre ce critère
+  local desc="$1" lu="$2"; shift 2
+  verifier_exact "$desc" 1 "$(manque_f "$lu")" env "$@" scripts/criteres-sans-test.sh 002-11
+}
+rm -f .factory.conf .factory.local.conf
+printf 'DOSSIER_TESTS=dd\n' > .factory.conf
+lu_f "ca10_DOSSIER_TESTS dans .factory.conf : ce dossier est lu (pas src/test)" CA-13
+# Les cinq sources sont toutes renseignées ; on retire la plus forte une à une.
+printf 'DOSSIER_TESTS=dc\n' > .factory.local.conf
+lu_f "ca11_cinq sources : la variable DOSSIER_TESTS l'emporte" CA-10 DOSSIER_TESTS=da FACTORY_DOSSIER_TESTS=db
+lu_f "ca11_sans la variable : FACTORY_DOSSIER_TESTS l'emporte" CA-11 FACTORY_DOSSIER_TESTS=db
+lu_f "ca11_sans FACTORY_DOSSIER_TESTS : .factory.local.conf l'emporte" CA-12
+rm -f .factory.local.conf
+lu_f "ca11_sans .factory.local.conf : .factory.conf l'emporte" CA-13
+rm -f .factory.conf
+lu_f "ca11_sans .factory.conf : détection automatique (src/test)" CA-14
+printf 'DOSSIER_TESTS=dd\n' > .factory.conf; printf 'DOSSIER_TESTS=dc\n' > .factory.local.conf
+lu_f "ca11_variable DOSSIER_TESTS vide = non définie : la source suivante s'applique" CA-11 DOSSIER_TESTS= FACTORY_DOSSIER_TESTS=db
+lu_f "ca11_FACTORY_DOSSIER_TESTS vide (définie) : détection, pas la valeur des fichiers" CA-14 FACTORY_DOSSIER_TESTS=
+printf 'DOSSIER_TESTS=\n' > .factory.local.conf
+lu_f "ca11_DOSSIER_TESTS= vide dans .factory.local.conf : détection, pas .factory.conf" CA-14
+printf 'DOSSIER_TESTS=\n' > .factory.conf; rm -f .factory.local.conf
+lu_f "ca11_DOSSIER_TESTS= vide dans .factory.conf : détection, pas d'erreur" CA-14
+rm -f .factory.conf
+
+# Détection automatique inchangée : src/test, puis tests, puis test.
+rm -rf src; mkdir -p tests test
+printf 'verifier "ca10_x" 0 "OK" cmd\n' > tests/t.sh; printf 'verifier "ca11_x" 0 "OK" cmd\n' > test/t.sh
+lu_f "ca12_sans configuration : tests avant test" CA-10
+mkdir -p src/test; printf 'verifier "ca14_x" 0 "OK" cmd\n' > src/test/t.sh
+lu_f "ca12_sans configuration : src/test avant tests" CA-14
+rm -rf src tests
+lu_f "ca12_sans configuration : test en dernier" CA-11
+
+# Dossier configuré absent : introuvable, code 64, jamais de repli sur la détection (test existe ici).
+absent_f="Dossier de tests introuvable : absent"
+verifier_exact "ca13_variable DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "$absent_f" env DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
+verifier_exact "ca13_FACTORY_DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "$absent_f" env FACTORY_DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=absent\n' > .factory.local.conf
+verifier_exact "ca13_.factory.local.conf vers un dossier absent : 64, sans repli" 64 "$absent_f" scripts/criteres-sans-test.sh 002-11
+rm -f .factory.local.conf; printf 'DOSSIER_TESTS=absent\n' > .factory.conf
+verifier_exact "ca13_.factory.conf vers un dossier absent : 64, sans repli" 64 "$absent_f" scripts/criteres-sans-test.sh 002-11
+rm -f .factory.conf
+
+# La valeur est un chemin, jamais une option : absente, elle est introuvable (64) ; présente, elle est lue comme un dossier.
+for v in -n --help -- 'a b' '-n x' '--version' '$(touch marque)'; do
+  verifier_exact "cs03_valeur « $v » absente : lue comme un chemin, introuvable (64)" 64 "Dossier de tests introuvable : $v" env DOSSIER_TESTS="$v" scripts/criteres-sans-test.sh 002-11
+  printf 'DOSSIER_TESTS=%s\n' "$v" > .factory.conf
+  verifier_exact "cs03_valeur « $v » absente dans .factory.conf : introuvable (64)" 64 "Dossier de tests introuvable : $v" scripts/criteres-sans-test.sh 002-11
+  rm -f .factory.conf
+done
+for v in -n --help 'avec espaces' '-x y'; do
+  mkdir -p "./$v"; printf 'verifier "ca11_x" 0 "OK" cmd\n' > "./$v/t.sh"
+  lu_f "cs03_dossier existant « $v » : lu comme un chemin, pas comme une option" CA-11 DOSSIER_TESTS="$v"
+done
+[ ! -e marque ] && ok "cs03_rien n'est exécuté (pas de fichier marque)" || ko "cs03_fichier marque créé" "marque existe"
+rm -rf ./-n ./--help "./avec espaces" "./-x y"
+
+# Affichage de la configuration (CA-16) : les deux clés, et le modèle les documente.
+p="$(nouveau_projet)"; cd "$p" || exit 1
+verifier_exact "ca16_config-factory affiche DOSSIER_TESTS= (vide par défaut)" 0 "DOSSIER_TESTS=" sh -c 'scripts/config-factory.sh | grep "^DOSSIER_TESTS="'
+verifier_exact "ca16_config-factory affiche TESTS_BASH_FONCTIONS=verifier verdict_cas" 0 "TESTS_BASH_FONCTIONS=verifier verdict_cas" sh -c 'scripts/config-factory.sh | grep "^TESTS_BASH_FONCTIONS="'
+printf 'DOSSIER_TESTS=factory/scripts/tests\n' > .factory.conf
+verifier_exact "ca16_config-factory affiche la valeur réglée de DOSSIER_TESTS" 0 "DOSSIER_TESTS=factory/scripts/tests" sh -c 'scripts/config-factory.sh | grep "^DOSSIER_TESTS="'
+verifier_exact "ca16_FACTORY_DOSSIER_TESTS vide l'emporte sur .factory.conf (affichage)" 0 "DOSSIER_TESTS=" sh -c 'FACTORY_DOSSIER_TESTS= scripts/config-factory.sh | grep "^DOSSIER_TESTS="'
+rm -f .factory.conf
+verifier "ca16_le modèle .factory.conf documente DOSSIER_TESTS" 0 "" grep -Eq '^DOSSIER_TESTS=' "$factory/templates/.factory.conf"
+verifier "ca16_le modèle .factory.conf documente TESTS_BASH_FONCTIONS" 0 "" grep -Eq '^TESTS_BASH_FONCTIONS=verifier verdict_cas$' "$factory/templates/.factory.conf"
 
 echo "etat-issues.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -1717,7 +1798,8 @@ FIN_ISSUE_IGNORES_AUTORISES=
 AGENTS_SILENCE_MINUTES=5
 AGENTS_RETRAIT_MINUTES=60
 DASHBOARD_THEME=clair
-TESTS_BASH_FONCTIONS=verifier verdict_cas" scripts/config-factory.sh
+TESTS_BASH_FONCTIONS=verifier verdict_cas
+DOSSIER_TESTS=" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
 printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
 out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"

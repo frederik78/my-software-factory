@@ -3,7 +3,7 @@ id: 002-03
 titre: Clé TESTS_BASH_FONCTIONS
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: En revue
+statut: Fait
 depend_de: [002-01]
 criteres: [CA-03, CA-14, CA-15, CS-02, CS-04, CS-06]
 branche: feat/002-03-cle-fonctions-tests-bash
@@ -29,3 +29,4 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-17 : revue 1 APPROUVÉ (docs/reviews/002-03.md). `verify-clean.sh` 674 OK ; critères OK avec `DOSSIER_TESTS=factory/scripts/tests`. `scripts/fin-issue.sh 002-03` échoue (attendu, bootstrap F-05, lecture de la configuration en 002-05). Passage à `Fait` en attente de l'accord de l'utilisateur, la dérogation accordée pour 002-01 étant « unique ».
 - Mineurs ouverts : `|| return 64` mort dans `lib-config.sh:64` ; pas de cas dédié aux doublons ni à la tabulation entre noms valides.
 - Choix du développeur à confirmer : espaces multiples tolérés, doublons acceptés, tabulation refusée ; message sans la valeur ; clé en dernier dans l'affichage de `config-factory.sh` (à confirmer en 002-04).
+- 2026-11-17 : l'utilisateur étend la dérogation d'amorçage à toutes les issues de F-05 jusqu'à la livraison de 002-05 (revue APPROUVÉ, `verify-clean` vert, critères OK avec le dossier réglé à la main) : 002-03 passe `Fait`. Après 002-05, relancer `scripts/fin-issue.sh` sur 002-01, 002-03, 002-04, 002-05 et inscrire les résultats. Les trois choix du développeur (espaces multiples tolérés, doublons acceptés, message sans la valeur) sont acceptés.

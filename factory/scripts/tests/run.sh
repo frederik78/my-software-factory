@@ -389,6 +389,11 @@ verdict_cas "ca06_chaîne ici <<< n'ouvre pas de document" 0 t.sh <<'XEOF'
 cat <<< "x"
 verifier "ca10_x" 0 "OK" cmd
 XEOF
+verdict_cas "ca06_<< dans une chaîne entre guillemets n'ouvre pas de document" 0 t.sh <<'XEOF'
+verifier "cs01_x <<\EOF y" 0 "OK" cmd
+verifier 'cs01_z <<EOF' 0 "OK" cmd
+verifier "ca10_x" 0 "OK" cmd
+XEOF
 verdict_cas "ca06_le même appel après le délimiteur final est couvert" 0 t.sh <<'XEOF'
 cat > f <<'EOF'
 verifier "ca10_x" 0 "OK" cmd

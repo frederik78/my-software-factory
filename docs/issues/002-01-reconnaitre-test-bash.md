@@ -3,7 +3,7 @@ id: 002-01
 titre: Reconnaître un test bash
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: En revue
+statut: Fait
 depend_de: []
 criteres: [CA-01, CA-02, CA-04, CA-08, CA-09, CA-17, CA-18, CS-01, CS-05]
 branche: feat/002-01-reconnaitre-test-bash
@@ -31,4 +31,5 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-16 : mineurs ouverts (non corrigés d'office) : emplacement de `fonctions_bash` dans le script, commentaire à ajouter sur le helper `verdict_cas` de run.sh, mutation équivalente sur la ligne de définition.
 - 2026-11-16 : le décompte annoncé par le développeur (625) venait d'une mesure à un autre état ; le nombre exact est 626 (verify-clean et revue).
 - 2026-11-16 : revue 2/3 APPROUVÉ (docs/reviews/002-01.md). `verify-clean.sh` : 628 vérifications, VERIFY OK.
-- 2026-11-16 : `scripts/fin-issue.sh 002-01` ne peut pas donner `FIN-ISSUE OK` avant 002-05 : sans configuration, « Dossier de tests introuvable : src/test » ; avec `DOSSIER_TESTS=factory/scripts/tests` dans l'environnement, le contrôle des critères répond OK mais la variable fuit dans la suite de tests (`run.sh` ne la neutralise pas) : TESTS EN ECHEC 121 sur 628, donc build en échec. Issue laissée `En revue` en attendant la décision de l'utilisateur.
+- 2026-11-16 : `scripts/fin-issue.sh 002-01` ne peut pas donner `FIN-ISSUE OK` avant 002-05 : sans configuration, « Dossier de tests introuvable : src/test » ; avec `DOSSIER_TESTS=factory/scripts/tests` dans l'environnement, le contrôle des critères répond OK mais la variable fuit dans la suite de tests (`run.sh` ne la neutralise pas) : TESTS EN ECHEC 121 sur 628, donc build en échec. Voir la dérogation ci-dessous.
+- 2026-11-17 : DÉROGATION UNIQUE d'amorçage, décidée par l'utilisateur (option 1) : 002-01 passe `Fait` sans `FIN-ISSUE OK`. Preuves : revue 2 APPROUVÉ, `verify-clean.sh` TESTS OK 628, `criteres-sans-test.sh` OK (9 critères) avec `DOSSIER_TESTS=factory/scripts/tests`. À faire après la livraison de 002-05 : relancer `scripts/fin-issue.sh 002-01` et en inscrire le résultat ici. À corriger dans 002-04/002-06 : `run.sh` doit neutraliser `DOSSIER_TESTS`.

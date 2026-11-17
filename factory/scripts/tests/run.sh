@@ -331,6 +331,71 @@ XEOF
 verdict_cas "ca04_commentaire indenté ignoré" 1 t.sh <<'XEOF'
     # verifier "ca10_x" 0 "OK" cmd
 XEOF
+verdict_cas "ca05_identifiant dans un texte qui ne commence pas par lui" 1 t.sh <<'XEOF'
+verifier "voir ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca05_identifiant dans un autre argument que le premier" 1 t.sh <<'XEOF'
+verifier "autre" 0 "ca10_x"
+XEOF
+verdict_cas "ca05_identifiant seulement dans un commentaire final" 1 t.sh <<'XEOF'
+verifier "autre" 0 "OK" cmd # ca10
+XEOF
+verdict_cas "ca05_appel en milieu de ligne" 1 t.sh <<'XEOF'
+rm -rf d; verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_document ici <<'EOF' ignoré" 1 t.sh <<'XEOF'
+cat > f <<'EOF'
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<EOF ignoré" 1 t.sh <<'XEOF'
+cat > f <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<\"EOF\" ignoré" 1 t.sh <<'XEOF'
+cat > f <<"EOF"
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<-EOF à délimiteur indenté par tabulation ignoré" 1 t.sh < <(printf 'cat > f <<-EOF\n\tverifier "ca10_x" 0 "OK" cmd\n\tEOF\n')
+verdict_cas "ca06_le même appel après le délimiteur final est couvert" 0 t.sh <<'XEOF'
+cat > f <<'EOF'
+verifier "ca10_x" 0 "OK" cmd
+EOF
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_après un <<-EOF à tabulation, l'appel suivant est couvert" 0 t.sh < <(printf 'cat > f <<-EOF\n\tverifier "cs01_y" 0\n\tEOF\nverifier "ca10_x" 0 "OK" cmd\n')
+verdict_cas "ca06_ouverture sur la ligne d'un appel : l'appel compte, le corps non" 0 t.sh <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd <<EOF
+verifier "cs01_y" 0
+EOF
+XEOF
+verdict_cas "ca07_CA-10 couvert par « CA-10 x »" 0 t.sh <<'XEOF'
+verifier "CA-10 x" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_CA-10 couvert par ca_10" 0 t.sh <<'XEOF'
+verifier "ca_10" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_CA-10 couvert par « CA 10 »" 0 t.sh <<'XEOF'
+verifier "CA 10" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_CA-10 couvert par Ca010" 0 t.sh <<'XEOF'
+verifier "Ca010" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_ca1_x ne couvre pas CA-10" 1 t.sh <<'XEOF'
+verifier "ca1_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_ca100_x ne couvre pas CA-10" 1 t.sh <<'XEOF'
+verifier "ca100_x" 0 "OK" cmd
+XEOF
+issue_id "$p" 002-07 "En cours" docs/prd/002-m.md "[CA-1]" "[]"
+verdict_cas "ca07_ca10_x ne couvre pas CA-1" 1 t.sh 002-07 <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_ca1_x couvre CA-1" 0 t.sh 002-07 <<'XEOF'
+verifier "ca1_x" 0 "OK" cmd
+XEOF
 verdict_cas "ca08_dossier sans appel reconnu : MANQUE sans erreur" 1 t.sh <<'XEOF'
 echo rien
 XEOF

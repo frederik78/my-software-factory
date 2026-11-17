@@ -94,6 +94,11 @@ issue_dernier_commit() {
   [ -z "$ref" ] || git log -1 --date=short --format='%h du %ad' "$ref" -- 2>/dev/null
 }
 
+# critere_motif_debut <identifiant> : comme critere_motif, mais l'identifiant doit COMMENCER le texte (premier argument d'un test bash).
+critere_motif_debut() {
+  critere_motif "$1" | sed -E 's/^\(\^\|\[\^a-z\]\)/^/'
+}
+
 # critere_motif <identifiant> : expression régulière (grep -E, insensible à la casse) reconnaissant CA-10, ca10, ca_10, « CA 10 ».
 critere_motif() {
   local lettres numero

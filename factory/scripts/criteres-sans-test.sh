@@ -67,12 +67,39 @@ noms_de_tests() {
       -e "s/${node}'([^']*)'.*/\\8/p" \
       -e "s/${node}\"([^\"]*)\".*/\\8/p" \
       -e "s/${node}\`([^\`]*)\`.*/\\8/p" {} +
-    # Bash : un appel `fonction "identifiant …"` en début de ligne ; seul le premier argument entre guillemets (" ou ') compte.
-    # Lecture seule : le contenu n'est jamais évalué ni exécuté. Un commentaire, la ligne de définition `verifier() {`, un argument sans guillemets ne correspondent pas.
-    find "$tests" -type f -name '*.sh' -exec env LC_ALL=C sed -nE \
-      -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+\"([^\"]*)\".*/\2/p" \
-      -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+'([^']*)'.*/\2/p" {} +
   } | LC_ALL=C sed -E 's/^[Tt]est//'
+}
+
+# Programme awk : copie les fichiers reçus sans les lignes d'un document ici (<<MOT, <<'MOT', <<"MOT", <<-MOT : de la ligne qui suit
+# l'ouverture jusqu'à la ligne du délimiteur final incluse ; pour <<-, le délimiteur peut être précédé de tabulations). La ligne
+# d'ouverture est gardée : elle peut être un vrai appel. Lecture seule, rien n'est évalué. CRLF toléré. <<< (chaîne ici) n'ouvre rien.
+read -r -d '' sans_documents_ici <<'AWK'
+FNR == 1 { delim = "" }
+{ ligne = $0; sub(/\r$/, "", ligne) }
+delim != "" {
+  if (tabs) sub(/^\t+/, "", ligne)
+  if (ligne == delim) delim = ""
+  next
+}
+{
+  print
+  if (match(ligne, /(^|[^<])<<-?[ \t]*["']?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
+    mot = substr(ligne, RSTART, RLENGTH)
+    sub(/^[^<]*<</, "", mot)
+    tabs = (substr(mot, 1, 1) == "-")
+    gsub(/^-?[ \t]*["']?|["']$/, "", mot)
+    delim = mot
+  }
+}
+AWK
+
+# noms_de_tests_bash : le premier argument de chaque appel `fonction "texte …"` en début de ligne des .sh, hors documents ici, un par ligne.
+# Seul ce premier argument entre guillemets (" ou ') compte. Un commentaire, la ligne de définition `verifier() {`, un argument sans
+# guillemets, un appel en milieu de ligne ne correspondent pas. Lecture seule : le contenu n'est jamais évalué ni exécuté.
+noms_de_tests_bash() {
+  find "$tests" -type f -name '*.sh' -exec env LC_ALL=C awk "$sans_documents_ici" {} + | LC_ALL=C sed -nE \
+    -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+\"([^\"]*)\".*/\2/p" \
+    -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+'([^']*)'.*/\2/p"
 }
 
 fichiers_issues=()
@@ -96,6 +123,7 @@ if [ "${#fichiers_issues[@]}" -eq 0 ]; then
 fi
 
 noms="$(noms_de_tests)"
+noms_bash="$(noms_de_tests_bash)"
 echec=0
 for issue in "${fichiers_issues[@]}"; do
   criteres=()
@@ -112,7 +140,8 @@ for issue in "${fichiers_issues[@]}"; do
   fi
   sans=()
   for c in "${criteres[@]}"; do
-    if ! grep -iEq "$(critere_motif "$c")" <<< "$noms"; then
+    # Autres langages : l'identifiant figure n'importe où dans le nom ; bash : il COMMENCE le premier argument (RG-03).
+    if ! grep -iEq "$(critere_motif "$c")" <<< "$noms" && ! grep -iEq "$(critere_motif_debut "$c")" <<< "$noms_bash"; then
       sans+=("$c")
     fi
   done

@@ -43,7 +43,8 @@ if [ -z "$tests" ]; then
 fi
 
 if [ ! -d "$tests" ]; then
-  echo "Dossier de tests introuvable : $tests" >&2
+  # La valeur est une donnée non fiable (variable, .factory.conf d'un dépôt cloné) : retours à la ligne, tabulations et caractères de contrôle neutralisés à l'affichage.
+  echo "Dossier de tests introuvable : $(printf '%s' "$tests" | tr '\r\n\t' '   ' | tr -d '[:cntrl:]')" >&2
   exit 64
 fi
 # La valeur est un chemin, jamais une option de find : un chemin relatif qui commence par « - » est préfixé par « ./ ».

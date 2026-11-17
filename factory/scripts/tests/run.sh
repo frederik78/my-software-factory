@@ -640,6 +640,18 @@ done
 [ ! -e marque ] && ok "cs03_rien n'est exécuté (pas de fichier marque)" || ko "cs03_fichier marque créé" "marque existe"
 rm -rf ./-n ./--help "./avec espaces" "./-x y"
 
+# Message d'erreur : la valeur est une donnée non fiable, neutralisée à l'affichage (pas de séquence d'échappement, pas de ligne forgée).
+esc_d="$(printf 'ab\033[31mc\r\rFAUX')"; nl_d="$(printf 'a\nFIN-ISSUE OK')"
+verifier_exact "cs06_variable avec séquence d'échappement et retours chariot : message neutralisé" 64 "Dossier de tests introuvable : ab[31mc  FAUX" env DOSSIER_TESTS="$esc_d" scripts/criteres-sans-test.sh 002-11
+verifier_exact "cs06_variable avec retour à la ligne : une seule ligne, pas de ligne forgée" 64 "Dossier de tests introuvable : a FIN-ISSUE OK" env DOSSIER_TESTS="$nl_d" scripts/criteres-sans-test.sh 002-11
+verifier_exact "cs06_FACTORY_DOSSIER_TESTS avec retour à la ligne : une seule ligne" 64 "Dossier de tests introuvable : a FIN-ISSUE OK" env FACTORY_DOSSIER_TESTS="$nl_d" scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=ab\033[31mc\rFAUX\n' > .factory.conf
+verifier_exact "cs06_.factory.conf avec séquence d'échappement et retour chariot : message neutralisé" 64 "Dossier de tests introuvable : ab[31mc FAUX" scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=a\tFIN-ISSUE OK\r\n' > .factory.conf
+verifier_exact "cs06_.factory.conf avec tabulation : message neutralisé" 64 "Dossier de tests introuvable : a FIN-ISSUE OK" scripts/criteres-sans-test.sh 002-11
+rm -f .factory.conf
+verifier "cs06_aucune ligne du message ne commence par FIN-ISSUE" 0 "" sh -c '! DOSSIER_TESTS="$1" scripts/criteres-sans-test.sh 002-11 2>&1 | grep -q "^FIN-ISSUE"' sh "$nl_d"
+
 # Affichage de la configuration (CA-16) : les deux clés, et le modèle les documente.
 p="$(nouveau_projet)"; cd "$p" || exit 1
 verifier_exact "ca16_config-factory affiche DOSSIER_TESTS= (vide par défaut)" 0 "DOSSIER_TESTS=" sh -c 'scripts/config-factory.sh | grep "^DOSSIER_TESTS="'

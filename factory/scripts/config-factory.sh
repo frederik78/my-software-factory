@@ -24,6 +24,7 @@ defaut() { # defaut <clé> : valeur par défaut d'une clé connue
     AGENTS_SILENCE_MINUTES) echo "$AGENTS_SILENCE_MINUTES_DEFAUT" ;;
     AGENTS_RETRAIT_MINUTES) echo "$AGENTS_RETRAIT_MINUTES_DEFAUT" ;;
     DASHBOARD_THEME) echo "$DASHBOARD_THEME_DEFAUT" ;;
+    TESTS_BASH_FONCTIONS) echo "$TESTS_BASH_FONCTIONS_DEFAUT" ;;
     *) echo "" ;;
   esac
 }

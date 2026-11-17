@@ -12,13 +12,14 @@
 # Si une clé apparaît plusieurs fois, la dernière gagne.
 # Compatible bash 3.2 (macOS).
 
-CONFIG_CLES="AGENT_MODELE AGENT_EFFORT MAX_ITERATIONS_REVUE MAX_CRITERES_ISSUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR FIN_ISSUE_ARGUMENTS FIN_ISSUE_IGNORES_AUTORISES AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES DASHBOARD_THEME"
+CONFIG_CLES="AGENT_MODELE AGENT_EFFORT MAX_ITERATIONS_REVUE MAX_CRITERES_ISSUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR FIN_ISSUE_ARGUMENTS FIN_ISSUE_IGNORES_AUTORISES AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES DASHBOARD_THEME TESTS_BASH_FONCTIONS"
 
 AGENT_MODELE_DEFAUT=sonnet
 AGENT_EFFORT_DEFAUT=medium
 AGENTS_SILENCE_MINUTES_DEFAUT=5   # bandeau « Agents actifs » de dashboard.sh
 AGENTS_RETRAIT_MINUTES_DEFAUT=60
 DASHBOARD_THEME_DEFAUT=clair      # thème de dashboard.sh : clair, sombre ou auto
+TESTS_BASH_FONCTIONS_DEFAUT="verifier verdict_cas"   # fonctions dont un appel déclare un test dans les .sh (criteres-sans-test.sh)
 
 # config_fichier_valeur <fichier> <clé> : affiche la valeur de la clé dans le fichier ; code 1 si le fichier ou la clé est absent.
 config_fichier_valeur() {
@@ -50,4 +51,26 @@ config_valeur() {
   config_fichier_valeur .factory.local.conf "$cle" && return 0
   config_fichier_valeur .factory.conf "$cle" && return 0
   printf '%s\n' "$defaut"
+}
+
+# config_tests_bash_fonctions : affiche les noms de fonctions de test bash (TESTS_BASH_FONCTIONS), un par ligne, validés.
+# La valeur est une donnée non fiable : elle n'est ni évaluée ni recopiée dans le message. Elle est validée AVANT tout usage, au caractère près
+# (aucune coupure sur les sauts de ligne ou tabulations) : 1 à 20 noms séparés par des espaces, chacun [A-Za-z_][A-Za-z0-9_]* de 64 caractères au plus.
+# Code 64 (message sur stderr) sinon ; la valeur remplace le défaut, elle ne s'y ajoute pas.
+config_tests_bash_fonctions() {
+  local LC_ALL=C brut valeur nom noms n=0 refus
+  refus="TESTS_BASH_FONCTIONS invalide : 1 à 20 noms séparés par des espaces, chacun de 64 caractères au plus parmi A-Z a-z 0-9 _ et ne commençant pas par un chiffre (voir .factory.conf, .factory.local.conf, FACTORY_TESTS_BASH_FONCTIONS)."
+  # Sentinelle « x » : la substitution de commande ne retire pas les sauts de ligne finaux de la valeur (ils la rendent invalide).
+  brut="$(config_valeur TESTS_BASH_FONCTIONS "$TESTS_BASH_FONCTIONS_DEFAUT"; printf x)" || return 64
+  valeur="${brut%x}"; valeur="${valeur%$'\n'}"
+  case "$valeur" in *[!A-Za-z0-9_\ ]*) echo "$refus" >&2; return 64 ;; esac
+  noms=()
+  IFS=' ' read -r -a noms <<< "$valeur"
+  for nom in ${noms[@]+"${noms[@]}"}; do
+    n=$((n + 1))
+    case "$nom" in [0-9]*) echo "$refus" >&2; return 64 ;; esac
+    [ "${#nom}" -le 64 ] || { echo "$refus" >&2; return 64; }
+  done
+  { [ "$n" -ge 1 ] && [ "$n" -le 20 ]; } || { echo "$refus" >&2; return 64; }
+  printf '%s\n' "${noms[@]}"
 }

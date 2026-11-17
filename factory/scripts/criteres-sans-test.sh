@@ -19,6 +19,8 @@
 # Usage : scripts/criteres-sans-test.sh <issue>        <issue> = chemin du fichier, ou id (ex. 001-03)
 #         scripts/criteres-sans-test.sh --tous         toutes les issues dont le statut n'est pas « À faire »
 # Variable : DOSSIER_TESTS (défaut : le premier dossier existant parmi src/test, tests, test)
+# Configuration (lib-config.sh, jamais exécutée) : TESTS_BASH_FONCTIONS = noms des fonctions de test bash, séparés par des espaces (défaut : verifier verdict_cas).
+#   Elle REMPLACE le défaut ; validée avant toute lecture des tests (invalide : message sur stderr, code 64).
 # Une issue sans AUCUN critère est une erreur (jamais un « tout couvert » silencieux).
 # Code de sortie : 0 si tout est couvert, 1 sinon, 64 en cas d'erreur d'usage.
 set -uo pipefail
@@ -27,6 +29,11 @@ racine="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$(dirname "$0")/lib-issues.sh"
+# shellcheck source=lib-config.sh
+. "$(dirname "$0")/lib-config.sh"
+# Fonctions de test bash : validées d'abord (RG-12). Les noms ne contiennent que [A-Za-z0-9_] : l'alternance construite ici est littérale.
+noms_fonctions="$(config_tests_bash_fonctions)" || exit 64
+fonctions_bash="$(printf '%s' "$noms_fonctions" | tr '\n' '|')"
 tests="${DOSSIER_TESTS:-}"
 if [ -z "$tests" ]; then
   for d in src/test tests test; do [ -d "$d" ] && { tests="$d"; break; }; done
@@ -42,7 +49,6 @@ fi
 # sed plutôt que grep pour ne garder que le nom : le reste de la ligne (message d'assertion, commentaire final) ne compte pas.
 # Crochets écrits }{ et non {} : GNU find refuse un second {} dans les arguments de -exec ... +.
 # LC_ALL=C : un octet hors UTF-8 dans un fichier de tests ferait échouer sed sous macOS ; les noms acceptent les lettres accentuées (Java, Kotlin, Python). Le préfixe test est retiré pour lire TestCa10 et testCa10.
-fonctions_bash='verifier|verdict_cas'
 noms_de_tests() {
   local jvm='^[[:space:]]*((@[A-Za-z0-9_.]+(\([^)]*\))?|public|protected|internal|static|final|abstract|open|sealed|override|suspend|data|inner)[[:space:]]+)*'
   local node='^[[:space:]]*(await[[:space:]]+)?((it|test|describe)(\.(describe|only|concurrent|parallel|serial))*(\.each(\([^()]*\)|`[^`]*`))?|\]\))\('

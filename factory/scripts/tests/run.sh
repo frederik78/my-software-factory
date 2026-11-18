@@ -2903,6 +2903,7 @@ verifier "ca26_docs/issues/README.md et son modèle disent la même chose de l'�
 version="$(lire_depot "$depot" factory/VERSION | head -n1)"
 changelog="$(lire_depot "$depot" factory/CHANGELOG.md)"
 entree="$(awk '/^## /{n++} n==1' <<<"$changelog")"
+entree_f08="$(awk '/^## /{p = ($0 == "## 1.22.0")} p' <<<"$changelog")" # l'entrée 1.22.0 (F-08), quelle que soit la version courante
 plus_grande() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_grande <a> <b> : a > b (versions x.y.z)
 etiquettes_fautives() { # etiquettes_fautives <dépôt> <version> : étiquettes vX.Y.Z supérieures à la version (une étiquette égale est admise)
   local e; for e in $(git -C "$1" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do plus_grande "${e#v}" "$2" && echo "$e"; done
@@ -2925,10 +2926,63 @@ else
   ok "ca27_aucune étiquette lisible (copie propre ou clone sans étiquettes) : comparaison aux étiquettes non faite, celle au CHANGELOG fait foi"
 fi
 for motif in 'rattach' 'par convention' 'empilée sur' 'avancement' 'à vérifier' '--boucle' 'Migration : remplacer `factory/`' 'sans action'; do
-  verifier "ca27_entrée du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
+  verifier "ca27_entrée 1.22.0 du CHANGELOG : « $motif »" 0 "" contient "$entree_f08" "$motif"
 done
-verifier "ca27_factory/README.md mentionne la nouveauté ($version)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "($version)"
-verifier "ca27_factory/UPGRADE.md décrit la migration sans action de $version" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($version)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
+verifier "ca27_factory/README.md mentionne la nouveauté (1.22.0)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "(1.22.0)"
+verifier "ca27_factory/UPGRADE.md décrit la migration sans action de 1.22.0" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="(1.22.0)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
+
+# F-01 (PRD 001, issue 001-06) : CA-17 non-régression de fin-issue.sh, du dashboard, de etat-issues.sh et des revues existantes ; CA-18 version 1.23.0 (D-27) et documents.
+# CA-17 s'entend ainsi (D-27 : 1.22.0 est F-08, qui a modifié dashboard.sh et etat-issues.sh) : aucun commit de F-01 (sujet citant 001-01 à 001-06), depuis la base de F-01
+# (le commit qui a créé les issues de F-01), ne modifie ces trois scripts, leurs fichiers de référence (tests/golden), les lignes de run.sh qui les nomment, ni une revue de docs/reviews créée avant F-01.
+# Limites : (1) verify-clean.sh et fin-issue.sh exécutent la suite dans une copie sans .git : ce bloc ne tourne que dans un run.sh direct dans le dépôt Git (sinon un ok explicite le dit) ;
+# (2) l'attribution d'un commit à F-01 repose sur son sujet (001-01 à 001-06) : un commit de F-01 sans cette mention échappe au contrôle ; (3) les lignes retirées de ca17_ (ce bloc) sont exclues de la deuxième comparaison.
+base_f01="935e0ed~1"
+commits_f01() { git -C "$depot" log --no-merges --format=%H -E --grep='001-0[1-6]' "$base_f01..HEAD"; }
+f01_fichiers() { local c; for c in $(commits_f01); do git -C "$depot" show --no-renames --name-only --format= "$c" -- "$@"; done; } # fichiers touchés par F-01 sous <chemins>
+f01_modifie() { # revues présentes à la base de F-01 (D-30 : « existantes avant F-01 »), hors 001-* (celles de F-01), modifiées ou supprimées par un commit de F-01
+  local c f; for c in $(commits_f01); do git -C "$depot" show --no-renames --diff-filter=MD --name-only --format= "$c" -- 'docs/reviews/[0-9]*.md'; done | grep -v '^docs/reviews/001-' | sort -u |
+    while read -r f; do git -C "$depot" cat-file -e "$base_f01:$f" 2>/dev/null && echo "$f"; done
+}
+f01_lignes_retirees() { local c; for c in $(commits_f01); do git -C "$depot" show -U0 --format= "$c" -- factory/scripts/tests/run.sh | grep '^-[^-]'; done; } # lignes de run.sh retirées par F-01
+if depot_git "$depot" && git -C "$depot" cat-file -e "$base_f01^{commit}" 2>/dev/null && [ -n "$(commits_f01)" ]; then
+  verifier "ca17_l'historique de F-01 est lisible (au moins un commit de F-01 trouvé)" 0 "" test -n "$(commits_f01)"
+  verifier "ca17_aucun commit de F-01 ne touche fin-issue.sh, dashboard.sh, etat-issues.sh ni tests/golden (comparaison vide)" 0 "" test -z "$(f01_fichiers factory/scripts/fin-issue.sh factory/scripts/dashboard.sh factory/scripts/etat-issues.sh factory/scripts/tests/golden)"
+  verifier "ca17_aucun commit de F-01 ne retire de ligne de run.sh qui nomme fin-issue, dashboard ou etat-issues" 0 "" test -z "$(f01_lignes_retirees | grep -v 'ca17_' | grep -E 'fin-issue|dashboard|etat-issues')"
+  verifier "ca17_aucune revue de docs/reviews créée avant F-01 n'est modifiée par F-01 (comparaison vide)" 0 "" test -z "$(f01_modifie)"
+  # Le contrôle voit une violation : sur un dépôt jetable, un commit de F-01 qui modifie dashboard.sh et une revue antérieure est détecté.
+  ca17_j="$racine_tmp/ca17"; mkdir -p "$ca17_j/factory/scripts" "$ca17_j/docs/reviews"; git -C "$ca17_j" init -q -b develop .
+  printf 'a\n' > "$ca17_j/factory/scripts/dashboard.sh"; printf 'a\n' > "$ca17_j/docs/reviews/003-01.md"
+  git -C "$ca17_j" add -A; git -C "$ca17_j" -c user.name=t -c user.email=t@t commit -q -m "base"
+  printf 'a\n' > "$ca17_j/docs/reviews/003-05.md" # revue créée pendant F-01 (absente de la base)
+  git -C "$ca17_j" add -A; git -C "$ca17_j" -c user.name=t -c user.email=t@t commit -q -m "docs: revue 003-05"
+  printf 'b\n' > "$ca17_j/factory/scripts/dashboard.sh"; printf 'b\n' > "$ca17_j/docs/reviews/003-01.md"; printf 'b\n' > "$ca17_j/docs/reviews/003-05.md"
+  git -C "$ca17_j" add -A; git -C "$ca17_j" -c user.name=t -c user.email=t@t commit -q -m "fix: 001-02 touche tout"
+  ca17_d() { depot="$ca17_j"; base_f01="HEAD~2"; echo "$(f01_fichiers factory/scripts/dashboard.sh)|$(f01_modifie)"; }
+  verifier "ca17_le contrôle détecte un commit de F-01 qui modifie dashboard.sh et une revue antérieure, mais pas une revue créée pendant F-01 puis reformatée" 0 "" test "$(ca17_d)" = "factory/scripts/dashboard.sh|docs/reviews/003-01.md"
+else
+  ok "ca17_historique Git de F-01 absent (copie propre ou clone partiel) : comparaison des commits non faite"
+fi
+verifier "ca17_fin-issue.sh, dashboard.sh et etat-issues.sh existent dans le dépôt" 0 "" test -n "$(lire_depot "$depot" factory/scripts/fin-issue.sh)$(lire_depot "$depot" factory/scripts/dashboard.sh)$(lire_depot "$depot" factory/scripts/etat-issues.sh)"
+
+# CA-18 : version 1.23.0, entrée en tête du CHANGELOG (changement et migration), guide d'utilisation (script, ligne de verdict, carte, liste d'escalade, règle d'arrêt), guide de mise à jour.
+v_f01="1.23.0"
+cl_f01="$(lire_depot "$depot" factory/CHANGELOG.md | awk -v t="## $v_f01" '/^## /{p = ($0 == t)} p')"
+rd_f01="$(lire_depot "$depot" factory/README.md)"
+verifier "ca18_factory/VERSION contient $v_f01 (ou une version plus récente, lue par ca27)" 0 "" test "$(lire_depot "$depot" factory/VERSION | head -n1)" = "$v_f01"
+verifier "ca18_le CHANGELOG a une entrée $v_f01" 0 "" contient_motif "$(head -n1 <<<"$cl_f01")" '^## 1\.23\.0$'
+verifier "ca18_l'entrée $v_f01 est la première du CHANGELOG" 0 "" test "$(lire_depot "$depot" factory/CHANGELOG.md | grep -m1 '^## ')" = "## $v_f01"
+for motif in 'scripts/verdict-revue.sh' 'VERDICT:' 'APPROUVÉ' 'CHANGEMENTS DEMANDÉS' 'INCONNU' 'Codes : 0 valeur valide, 1 `INCONNU`' '64 usage' '200 octets' '1 Mio' 'relance' 'MAX_ITERATIONS_REVUE' 'Pour l'"'"'humain' 'courriel' 'BLOQUANT' 'escalade' 'secrets et identifiants' 'écart avec le PRD' 'tous les rôles' 'AGENTS.md' 'Migration : remplacer `factory/`' 'sans action'; do
+  verifier "ca18_entrée $v_f01 du CHANGELOG : « $motif »" 0 "" contient "$cl_f01" "$motif"
+done
+for motif in 'scripts/verdict-revue.sh' 'VERDICT: APPROUVÉ' 'INCONNU' "## Pour l'humain" '**Décision à prendre**' '**Fichiers à lire**' '**Vérification suggérée**' "## Sujets à remonter à l'utilisateur" 'secrets et identifiants' 'authentification et autorisation' 'dépendance et licence' 'déploiement et CI' "contrat d'un service externe" 'écart avec le PRD' "($v_f01)"; do
+  verifier "ca18_factory/README.md : « $motif »" 0 "" contient "$rd_f01" "$motif"
+done
+# La règle d'arrêt est décrite avec la carte aux deux endroits du guide (étape 4 de la livraison, tableau des situations) : les lignes qui citent la limite de revues et notifier.sh citent la carte.
+verifier "ca18_factory/README.md : la règle d'arrêt (étape 4 de la livraison) cite la carte « pour l'humain »" 0 "" test "$(grep -F 'au-delà, s'"'"'arrête' <<<"$rd_f01" | grep -cF "pour l'humain")" = 1
+verifier "ca18_factory/README.md : la ligne du tableau des situations (arrêt après les revues) cite la carte « pour l'humain »" 0 "" test "$(grep -F '| **`MAX_ITERATIONS_REVUE` itérations de revue' <<<"$rd_f01" | grep -cF "pour l'humain")" = 1
+verifier "ca18_factory/README.md : la ligne de notifier.sh cite la carte" 0 "" test "$(grep -F '| `scripts/notifier.sh`' <<<"$rd_f01" | grep -cF "pour l'humain")" = 1
+verifier "ca18_factory/UPGRADE.md : section $v_f01 de migration sans action" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($v_f01)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
+verifier "ca18_factory/UPGRADE.md : la section $v_f01 dit d'ajouter la liste d'escalade aux AGENTS.md des projets" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($v_f01)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "Sujets à remonter à l'utilisateur"
 
 echo "statuts.sh : table unique des statuts et lecture du backlog et des en-têtes (PRD 004, issue 004-01)"
 st_depot() { # st_depot : projet jetable (dépôt git, branche develop, aucune issue), on s'y place

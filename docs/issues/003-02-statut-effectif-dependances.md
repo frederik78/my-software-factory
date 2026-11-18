@@ -3,7 +3,7 @@ id: 003-02
 titre: Statut effectif, dépendance levée et prochaine issue prête
 prd: docs/prd/003-dashboard-a-jour.md
 besoin: F-08
-statut: À faire
+statut: En cours
 depend_de: [003-01]
 criteres: [CA-10, CA-11, CA-12, CA-13, CA-14, CA-15, CS-06]
 branche: feat/003-02-statut-effectif-dependances

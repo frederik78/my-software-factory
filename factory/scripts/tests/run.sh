@@ -2008,6 +2008,52 @@ cd "$depot" || exit 1
 lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/tests' && ok "ca21_.factory.conf règle DOSSIER_TESTS=factory/scripts/tests" || ko "ca21_.factory.conf ne règle pas DOSSIER_TESTS=factory/scripts/tests"
 verifier "ca21_criteres-sans-test.sh sur une issue de ce dépôt = OK" 0 "^OK " env -u DOSSIER_TESTS -u FACTORY_DOSSIER_TESTS scripts/criteres-sans-test.sh 002-05
 
+echo "F-05 : documentation, version et cas réunis (CA-22 à CA-24)"
+contient() { grep -qiF -e "$2" <<<"$1"; }     # contient <texte> <chaîne littérale> (sans tenir compte de la casse)
+contient_motif() { grep -qE -e "$2" <<<"$1"; } # contient_motif <texte> <motif grep -E>
+# CA-22 : forme du test bash, deux clés, défauts et priorité, dans les endroits où un utilisateur les cherche.
+# Chaque motif est cherché dans le PASSAGE concerné (de sa phrase d'ancrage à sa fin), jamais dans le fichier entier : un mot présent ailleurs ne suffit pas.
+passage_entete='/^# Forme du test bash/{p=1} /^# Limites connues/{p=0} p'
+passage_puce='/^- \*\*Tests bash\*\*/{p=1; print; next} p && /^  /{print; next} {p=0}'
+passage_commande='/^- `scripts\/criteres-sans-test.sh/{p=1; print; next} p && /^  /{print; next} {p=0}'
+passage_modele='/^# Traçabilité critères -> tests/{p=1} p'
+for ancre in "factory/scripts/criteres-sans-test.sh|$passage_entete" "factory/README.md|$passage_puce" "AGENTS.md|$passage_commande" "factory/templates/AGENTS.md|$passage_commande" "factory/templates/.factory.conf|$passage_modele"; do
+  f="${ancre%%|*}"; doc="$(lire_depot "$depot" "$f" | awk "${ancre#*|}")"
+  verifier "ca22_$f : le passage existe" 0 "" test -n "$doc"
+  for motif in 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'FACTORY_DOSSIER_TESTS' 'verifier "' 'verdict_cas' 'priorité'; do
+    verifier "ca22_$f décrit « $motif »" 0 "" contient "$doc" "$motif"
+  done
+  if [ "$f" = factory/scripts/criteres-sans-test.sh ]; then # l'en-tête précise l'effet d'une valeur vide, différent pour chaque clé
+    verifier "ca22_$f : TESTS_BASH_FONCTIONS vide = invalide" 0 "" contient "$doc" 'une valeur vide (quelle que soit la source) est invalide'
+  fi
+  if [ "$f" = factory/templates/.factory.conf ]; then # le modèle porte aussi les lignes de clés, avec leurs défauts
+    verifier "ca22_$f : ligne de clé DOSSIER_TESTS=" 0 "" contient_motif "$doc" '^DOSSIER_TESTS='
+    verifier "ca22_$f : ligne de clé TESTS_BASH_FONCTIONS=verifier verdict_cas" 0 "" contient_motif "$doc" '^TESTS_BASH_FONCTIONS=verifier verdict_cas$'
+  fi
+done
+# CA-23 : tous les cas de CA-01 à CA-20 et CA-25 figurent dans cette suite, leur nom contient l'identifiant ; variables isolées en tête.
+suite="$(lire_depot "$depot" factory/scripts/tests/run.sh)"
+for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 25; do
+  verifier "ca23_le cas ca${n}_ figure dans run.sh" 0 "" contient_motif "$suite" "^[^#]*[\"']ca${n}_"
+done
+unsets="$(grep -E '^unset ' <<<"$suite")"
+for v in FACTORY_DOSSIER_TESTS FACTORY_TESTS_BASH_FONCTIONS DOSSIER_TESTS; do
+  verifier "ca23_$v isolée de l'environnement appelant" 0 "" contient_motif "$unsets" "(^| )$v( |$)"
+done
+# CA-24 : version 1.21.0, entrée du CHANGELOG (changement et migration), README et guide de mise à jour.
+verifier "ca24_factory/VERSION vaut 1.21.0" 0 "" contient_motif "$(lire_depot "$depot" factory/VERSION | head -n1)" '^1\.21\.0$'
+entree="$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{n++} n==1')"
+verifier "ca24_le CHANGELOG commence par 1.21.0" 0 "" contient_motif "$(head -n1 <<<"$entree")" '^## 1\.21\.0$'
+for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'Migration : remplacer `factory/`' 'sans action'; do
+  verifier "ca24_entrée 1.21.0 du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
+done
+for f in factory/README.md factory/UPGRADE.md; do
+  doc="$(lire_depot "$depot" "$f")"
+  for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS'; do
+    verifier "ca24_$f mentionne « $motif »" 0 "" contient "$doc" "$motif"
+  done
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

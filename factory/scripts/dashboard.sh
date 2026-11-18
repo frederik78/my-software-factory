@@ -356,7 +356,7 @@ dans_colonne() { # dans_colonne <statut lu> <colonne> <statuts du cycle...> : la
 }
 kanban() { # kanban <lignes> <rang du statut> <rang de la date> <fonction de carte> <statuts du cycle...> : une colonne par statut, plus « (autre) » si besoin
   local lignes="$1" rang="$2" rang_date="$3" carte="$4"; shift 4
-  local ligne s i n d autre=0; local -a ordre=()
+  local ligne s i n d rang_trie autre=0; local -a ordre=()
   local -a liste=() statuts_liste=() colonnes=("$@")
   while IFS= read -r ligne; do
     [ -n "$ligne" ] || continue
@@ -373,7 +373,8 @@ kanban() { # kanban <lignes> <rang du statut> <rang de la date> <fonction de car
     i=0; ordre=()
     while [ "$i" -lt "${#liste[@]}" ]; do dans_colonne "${statuts_liste[$i]}" "$s" "$@" && ordre+=("$i"); i=$((i + 1)); done
     if [ "$s" = "Fait" ] && [ "${#ordre[@]}" -gt 1 ]; then # la plus récente d'abord ; à date égale, l'ordre d'origine
-      mapfile -t ordre < <(for i in "${ordre[@]}"; do d="$(printf '%s' "${liste[$i]}" | cut -d "$sep" -f "$rang_date")"; printf '%s %s\n' "${d:-0}" "$i"; done | sort -s -k1,1nr | cut -d' ' -f2)
+      rang_trie="$(for i in "${ordre[@]}"; do d="$(printf '%s' "${liste[$i]}" | cut -d "$sep" -f "$rang_date")"; printf '%s %s\n' "${d:-0}" "$i"; done | sort -s -k1,1nr | cut -d' ' -f2)"
+      ordre=(); while IFS= read -r i; do ordre+=("$i"); done <<< "$rang_trie" # bash 3.2 (macOS) n'a pas mapfile
     fi
     for i in ${ordre[@]+"${ordre[@]}"}; do "$carte" "${liste[$i]}"; done
     [ "$n" -gt 0 ] || printf '<p class="vide">—</p>\n'

@@ -134,11 +134,18 @@ besoins_dates() { # besoins_dates <lignes de besoins_backlog> <lignes de issues_
     printf '%s%s%s\n' "$ligne" "$sep" "$d"
   done <<< "$1"
 }
-issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif SEP date (epoch) », dans l'ordre des fichiers
+mention_rattachement() { # mention_rattachement <fichier> : « branche : <nom> (déduite) » ou « branche ambiguë : <liste> » ; vide pour une branche déclarée ou aucune
+  local b
+  b="$(issue_branche_deduite "$1")"
+  if [ -n "$b" ]; then printf 'branche : %s (déduite)' "$b"; return; fi
+  b="$(issue_branches_ambigues "$1")"
+  [ -z "$b" ] || printf 'branche ambiguë : %s' "$b"
+}
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif SEP date (epoch) SEP mention de rattachement », dans l'ordre des fichiers
   local f deps
   while IFS= read -r f; do
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")" "$sep" "$(issue_date "$f")"
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")" "$sep" "$(issue_date "$f")" "$sep" "$(mention_rattachement "$f")"
   done < <(issue_fichiers)
 }
 
@@ -170,8 +177,8 @@ bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est �
   return 1
 }
 carte_issue() { # carte_issue <ligne de issues_dossier>
-  local id titre statut deps besoin commit branche objectif signal marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif _ <<< "$1"
+  local id titre statut deps besoin commit branche objectif mention signal marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif _ mention <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
@@ -182,6 +189,7 @@ carte_issue() { # carte_issue <ligne de issues_dossier>
   [ -z "$objectif" ] || printf '<span class="detail desc">%s</span>' "$(echappe "$objectif")"
   [ -z "$besoin" ] || printf '<span class="detail">%s</span>' "$(echappe "$besoin")"
   [ -z "$deps" ] || printf '<span class="detail">dépend de : %s</span>' "$(echappe "$deps")"
+  [ -z "$mention" ] || printf '<span class="detail">%s</span>' "$(echappe "$mention")"
   [ -z "$commit" ] || printf '<span class="detail">dernier commit : %s</span>' "$(echappe "$commit")"
   signal="$(signal_branche "$branche")"
   [ -z "$signal" ] || printf '<span class="detail signal">%s</span>' "$signal"
@@ -383,6 +391,7 @@ palettes() {
 generer() { # page complète sur la sortie standard
   local b i id statut_local maintenant
   maintenant="$(date +%s)"
+  rattachements_charger # une seule lecture des branches locales par génération, avant tout sous-shell qui lit les rattachements
   i="$(issues_dossier)"; b="$(besoins_dates "$(besoins_backlog)" "$i")"
   prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
   ids_issues=(); statuts_lus=()

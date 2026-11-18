@@ -2054,6 +2054,142 @@ for f in factory/README.md factory/UPGRADE.md; do
   done
 done
 
+echo "dashboard.sh et etat-issues.sh : rattachement d'une issue à sa branche par convention (PRD 003)"
+rat_depot() { # rat_depot : dépôt git jetable (branche develop, un commit sans issue), on s'y place ; les issues s'écrivent avec issue_b / rat_issue puis rat_commit
+  p="$(nouveau_projet)"; cd "$p" || exit 1
+  git init -q -b develop .; printf 'dashboard.html\n' > .gitignore; rm -f docs/issues/[0-9]*.md
+}
+rat_issue() { # rat_issue <nom de fichier> <ligne « id: … » ou vide> <statut> <branche> : issue au fichier et à l'identifiant choisis
+  printf -- '---\n%s\ntitre: T%s\nstatut: %s\nbranche: %s\ndepend_de: []\n---\n' "$2" "$1" "$3" "$4" > "docs/issues/$1.md"
+}
+rat_commit() { gd_ add -A; gd_ commit -qm "issues"; }
+rat_page() { scripts/dashboard.sh --sortie "$racine_tmp/rat.html" >"$racine_tmp/rat.out" 2>"$racine_tmp/rat.err"; }
+rat_carte() { carte_de "$1" "$racine_tmp/rat.html"; }
+rat_col() { colonne_de "$1" "$racine_tmp/rat.html"; }
+rat_detail() { rat_carte "$1" | grep -qF "<span class=\"detail\">$2</span>"; } # rat_detail <id> <texte échappé> : la carte porte cette ligne de détail
+rat_sans_mention() { ! rat_carte "$1" | grep -q 'déduite\|ambiguë\|dernier commit'; }
+
+# ca01 : branche déduite quand le champ est vide
+rat_depot
+issue_b 002-02 "À faire" ""; rat_commit
+sur_branche feat/002-02-x 002-02 "Fait" ""
+rat_page
+rat_c() { [ "$(rat_col 002-02)" = "Fait" ] && rat_detail 002-02 "branche : feat/002-02-x (déduite)" && rat_detail 002-02 "dernier commit : $(git log -1 --format='%h' feat/002-02-x) du $(git log -1 --format='%cs' feat/002-02-x)" || { printf '%s\n' "$(rat_col 002-02) | $(rat_carte 002-02)"; return 1; }; }; verifier "ca01_champ vide : la branche feat/002-02-x est déduite (colonne Fait, mention, dernier commit)" 0 "" rat_c
+verifier "ca01_etat-issues : colonne Branche « feat/002-02-x (déduite) », statut local conservé" 0 '^\| 002-02 \| T002-02 \| À faire \| : \| feat/002-02-x \(déduite\) \|$' scripts/etat-issues.sh
+
+# ca02 : tout type de branche
+rat_depot
+n=0; for t in fix docs refactor test build hotfix zz; do n=$((n + 1)); issue_b "003-0$n" "À faire" ""; done
+rat_commit
+n=0; for t in fix docs refactor test build hotfix zz; do n=$((n + 1)); git branch "$t/003-0$n-x"; done
+rat_page
+tout=1; n=0; for t in fix docs refactor test build hotfix zz; do n=$((n + 1)); rat_detail "003-0$n" "branche : $t/003-0$n-x (déduite)" || tout=0; done
+rat_c() { [ "$tout" -eq 1 ] || { printf '%s\n' "$(grep -c 'déduite' "$racine_tmp/rat.html") déduites"; return 1; }; }; verifier "ca02_fix, docs, refactor, test, build, hotfix et zz : chaque branche est rattachée à son issue" 0 "" rat_c
+
+# ca03 : le champ rempli l'emporte ; une branche déclarée par A n'est pas déduite pour B
+rat_depot
+issue_b 002-02 "À faire" "feat/a"; issue_b 002-03 "À faire" "feat/002-04-z"; issue_b 002-04 "À faire" ""; rat_commit
+sur_branche feat/a 002-02 "En cours" "feat/a"; git branch feat/002-02-b; git branch feat/002-04-z
+rat_page
+rat_c() { [ "$(rat_col 002-02)" = "En cours" ] && rat_detail 002-02 "dernier commit : $(git log -1 --format='%h' feat/a) du $(git log -1 --format='%cs' feat/a)" && ! rat_carte 002-02 | grep -q 'déduite\|ambiguë' || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "ca03_champ rempli et existant : feat/a retenue, sans « déduite » ni ambiguïté malgré feat/002-02-b" 0 "" rat_c
+rat_c() { rat_sans_mention 002-04 || { printf '%s\n' "$(rat_carte 002-04)"; return 1; }; }; verifier "ca03_branche déclarée par 002-03 : jamais déduite pour 002-04" 0 "" rat_c
+
+# ca04 : champ rempli invalide ou absent ; branche déduite supprimée
+rat_depot
+n=0; for b in "feat/absente" "-x" "a..b"; do n=$((n + 1)); issue_b "004-0$n" "À faire" "$b"; done
+rat_commit
+n=0; for b in 1 2 3; do n=$((n + 1)); git branch "feat/004-0$n-x"; done
+rat_page; rat_code=$?
+n=0; tout=1; for b in 1 2 3; do n=$((n + 1)); [ "$(rat_col "004-0$n")" = "À faire" ] && rat_sans_mention "004-0$n" || tout=0; done
+rat_c() { [ "$tout" -eq 1 ] && [ ! -s "$racine_tmp/rat.err" ] || { printf '%s\n' "$(rat_carte 004-01) | $(cat "$racine_tmp/rat.err")"; return 1; }; }; verifier "ca04_champ rempli absent ou invalide : statut local, aucune déduction, aucun message" 0 "" rat_c
+rat_depot
+issue_b 002-02 "À faire" ""; rat_commit
+sur_branche feat/002-02-x 002-02 "Fait" ""
+rat_page; premier="$(rat_col 002-02)"
+git update-ref -d refs/heads/feat/002-02-x; rat_page
+rat_c() { [ "$premier" = "Fait" ] && [ "$(rat_col 002-02)" = "À faire" ] && rat_sans_mention 002-02 && [ ! -s "$racine_tmp/rat.err" ] || { printf '%s\n' "$premier | $(rat_col 002-02) | $(cat "$racine_tmp/rat.err")"; return 1; }; }; verifier "ca04_branche déduite supprimée entre deux générations : statut local, sans message" 0 "" rat_c
+
+# ca05 : deux branches pour une issue
+rat_depot
+issue_b 002-02 "À faire" ""; issue_b 002-03 "À faire" ""; rat_commit
+sur_branche fix/002-02-y 002-02 "Fait" ""; sur_branche feat/002-02-x 002-02 "Fait" ""
+git branch feat/002-03-a; git branch feat/002-03-Z
+rat_page
+rat_c() { [ "$(rat_col 002-02)" = "À faire" ] && rat_detail 002-02 "branche ambiguë : feat/002-02-x, fix/002-02-y" && ! rat_carte 002-02 | grep -q 'dernier commit\|déduite' || { printf '%s\n' "$(rat_col 002-02) | $(rat_carte 002-02)"; return 1; }; }; verifier "ca05_deux branches : aucune retenue (statut local, pas de commit), « branche ambiguë : » triée" 0 "" rat_c
+rat_c() { rat_detail 002-03 "branche ambiguë : feat/002-03-Z, feat/002-03-a" || { printf '%s\n' "$(rat_carte 002-03)"; return 1; }; }; verifier "ca05_tri par ordre d'octets (Z avant a)" 0 "" rat_c
+verifier "ca05_etat-issues : colonne Branche « ambiguë : feat/002-02-x, fix/002-02-y » ; Statut local" 0 '^\| 002-02 \| T002-02 \| À faire \| : \| ambiguë : feat/002-02-x, fix/002-02-y \|$' scripts/etat-issues.sh
+
+# ca06 : l'identifiant doit être suivi d'un tiret
+rat_depot
+issue_b 002-1 "À faire" ""; issue_b 002-10 "À faire" ""; rat_commit
+for b in feat/002-10-x feat/002-1 feat/002-1- feat/002-11-x; do git branch "$b"; done
+rat_page
+rat_c() { rat_detail 002-10 "branche : feat/002-10-x (déduite)" && rat_sans_mention 002-1 || { printf '%s\n' "$(rat_carte 002-10) | $(rat_carte 002-1)"; return 1; }; }; verifier "ca06_002-10 reçoit feat/002-10-x seulement ; 002-1 n'a aucune branche (002-1, 002-1-, 002-11-x ignorées)" 0 "" rat_c
+git branch feat/002-1-x; rat_page
+rat_c() { rat_detail 002-1 "branche : feat/002-1-x (déduite)" && rat_detail 002-10 "branche : feat/002-10-x (déduite)" || { printf '%s\n' "$(rat_carte 002-1)"; return 1; }; }; verifier "ca06_feat/002-1-x est celle de 002-1" 0 "" rat_c
+
+# ca07 : forme du nom, branches locales seulement
+rat_depot
+issue_b 002-02 "À faire" ""; rat_commit
+git branch 002-02-x; git branch a/b/002-02-x; git branch refs/tags/002-02-x; git branch feat/002-02-z/y
+git tag feat/002-02-t; git update-ref refs/remotes/origin/feat/002-02-r HEAD
+rat_page
+rat_c() { rat_sans_mention 002-02 || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "ca07_sans type, deux segments, refs/tags/…, étiquette et branche de suivi distant : aucun retenu" 0 "" rat_c
+git branch origin/002-02-x; rat_page
+rat_c() { rat_detail 002-02 "branche : origin/002-02-x (déduite)" || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "ca07_la branche locale origin/002-02-x est retenue (le type est un segment quelconque)" 0 "" rat_c
+
+# ca08 : identifiants inutilisables
+rat_depot
+rat_issue 01-absent "" "À faire" ""; rat_issue 02-vide "id:" "À faire" ""; rat_issue 03-etoile "id: 0*" "À faire" ""; rat_issue 04-point "id: 002.02" "À faire" ""
+rat_issue 05-espace "id: a b" "À faire" ""; rat_issue 06-motif "id: .*" "À faire" ""; rat_issue 07-partage "id: 002-02" "À faire" ""; rat_issue 08-partage "id: 002-02" "À faire" ""; rat_issue 09-hostile "id: a;b" "À faire" ""
+rat_commit
+for b in feat/002-02-x feat/002x02-x feat/0-x "feat/a;b-x"; do git branch "$b"; done
+rat_page; rat_code=$?
+rat_c() { [ "$rat_code" -eq 0 ] && [ "$(grep -c '<div class="carte' "$racine_tmp/rat.html")" -eq 9 ] && [ ! -s "$racine_tmp/rat.err" ] && ! grep -q 'déduite\|ambiguë' "$racine_tmp/rat.html" || { printf '%s\n' "code $rat_code | $(cat "$racine_tmp/rat.err") | $(grep -c 'déduite\|ambiguë' "$racine_tmp/rat.html")"; return 1; }; }; verifier "ca08_id absent, vide, 0*, 002.02, a b, .*, ou partagé : aucune déduction, ni erreur ni message, page générée" 0 "" rat_c
+verifier "ca08_etat-issues : aucune déduction pour ces identifiants, sans erreur (9 issues)" 0 "" scripts/etat-issues.sh
+rat_c() { [ "$(scripts/etat-issues.sh | grep -c '^| ')" -eq 10 ] && ! scripts/etat-issues.sh | grep -q 'déduite\|ambiguë' || { printf '%s\n' "$(scripts/etat-issues.sh | head -12 | tr '\n' '|')"; return 1; }; }; verifier "ca08_etat-issues : colonne Branche vide pour ces identifiants" 0 "" rat_c
+
+# ca09 : l'identifiant le plus long l'emporte
+rat_depot
+rat_issue 01-courte "id: 002-01" "À faire" ""; rat_issue 02-longue "id: 002-01-b" "À faire" ""; rat_commit # la courte vient en premier : un choix « premier trouvé » échouerait
+git branch feat/002-01-b-x; rat_page
+rat_c() { rat_detail 002-01-b "branche : feat/002-01-b-x (déduite)" && rat_sans_mention 002-01 || { printf '%s\n' "$(rat_carte 002-01-b) | $(rat_carte 002-01)"; return 1; }; }; verifier "ca09_feat/002-01-b-x est celle de 002-01-b seulement (002-01 sans branche, pas d'ambiguïté)" 0 "" rat_c
+git branch feat/002-01-x; rat_page
+rat_c() { rat_detail 002-01 "branche : feat/002-01-x (déduite)" && rat_detail 002-01-b "branche : feat/002-01-b-x (déduite)" || { printf '%s\n' "$(rat_carte 002-01)"; return 1; }; }; verifier "ca09_feat/002-01-x reste celle de 002-01" 0 "" rat_c
+
+# cs03 : un nom n'est jamais lu comme option, révision ou étiquette
+rat_depot
+printf 'a\n' > a.txt; gd_ add -A; gd_ commit -qm "un"; printf 'b\n' > b.txt; gd_ add -A; gd_ commit -qm "deux"
+git tag tg-seul
+n=0; for b in "-x" "--help" "HEAD" 'develop^' "main..develop" '@{1}' "tg-seul"; do n=$((n + 1)); issue_b "005-0$n" "À faire" "$b"; done
+issue_b 002-02 "À faire" ""; rat_commit
+rat_page
+tout=1; n=0; for b in 1 2 3 4 5 6 7; do n=$((n + 1)); [ "$(rat_col "005-0$n")" = "À faire" ] && rat_sans_mention "005-0$n" || tout=0; done
+rat_c() { [ "$tout" -eq 1 ] || { printf '%s\n' "$(rat_carte 005-03)"; return 1; }; }; verifier "cs03_branche: -x, --help, HEAD, develop^, main..develop, @{1}, étiquette seule : statut local, aucune branche retenue" 0 "" rat_c
+anc="$(git rev-parse HEAD~1)"; git tag feat/002-02-x "$anc"; git branch feat/002-02-x HEAD 2>/dev/null; rat_page
+rat_c() { rat_detail 002-02 "dernier commit : $(git log -1 --format='%h' refs/heads/feat/002-02-x) du $(git log -1 --format='%cs' refs/heads/feat/002-02-x)" || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "cs03_étiquette et branche de même nom : c'est la branche qui est lue" 0 "" rat_c
+
+# cs05 : 500 branches, une trop longue
+rat_depot
+n=0; while [ "$n" -lt 12 ]; do n=$((n + 1)); issue_b "$(printf '006-%02d' "$n")" "À faire" ""; done
+rat_commit
+sha="$(git rev-parse HEAD)"; remplissage="$(printf 'a%.0s' $(seq 1 190))"
+{
+  printf '# pack-refs with: peeled fully-peeled \n'
+  n=0; while [ "$n" -lt 10 ]; do n=$((n + 1)); printf '%s refs/heads/feat/006-%02d-x\n' "$sha" "$n"; done
+  printf '%s refs/heads/feat/006-11-%s\n' "$sha" "$(printf '%s' "$remplissage" | cut -c1-188)"
+  printf '%s refs/heads/feat/006-12-%s\n' "$sha" "$(printf '%s' "$remplissage" | cut -c1-189)"
+  n=0; while [ "$n" -lt 488 ]; do n=$((n + 1)); printf '%s refs/heads/zz/remplissage-%d\n' "$sha" "$n"; done
+} > .git/packed-refs
+rat_c() { [ "$(git for-each-ref refs/heads | wc -l | tr -d ' ')" -ge 500 ] && [ "$(git for-each-ref --format='%(refname:short)' refs/heads/feat/006-11-* refs/heads/feat/006-12-* | awk '{ print length($0) }' | paste -sd, -)" = "200,201" ] || { printf '%s\n' "$(git for-each-ref refs/heads | wc -l)"; return 1; }; }; verifier "cs05_fixture : au moins 500 branches, dont deux noms de 200 et 201 caractères" 0 "" rat_c
+mkdir -p "$racine_tmp/bin-compte"; printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$COMPTE_GIT"\nexec "%s" "$@"\n' "$(command -v git)" > "$racine_tmp/bin-compte/git"; chmod +x "$racine_tmp/bin-compte/git"
+export COMPTE_GIT="$racine_tmp/compte-git.log"; : > "$COMPTE_GIT"
+PATH="$racine_tmp/bin-compte:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/rat.html" >"$racine_tmp/rat.out" 2>"$racine_tmp/rat.err"; rat_code=$?
+rat_c() { [ "$rat_code" -eq 0 ] && [ -s "$racine_tmp/rat.html" ] && [ "$(grep -c 'déduite' "$racine_tmp/rat.html")" -eq 11 ] && rat_sans_mention 006-12 && rat_detail 006-11 "branche : feat/006-11-$(printf '%s' "$remplissage" | cut -c1-188) (déduite)" || { printf '%s\n' "code $rat_code | $(grep -c 'déduite' "$racine_tmp/rat.html") déduites"; return 1; }; }; verifier "cs05_500 branches : page produite, la branche de 200 caractères est déduite, celle de 201 est ignorée" 0 "" rat_c
+: > "$COMPTE_GIT"; PATH="$racine_tmp/bin-compte:$PATH" scripts/etat-issues.sh >/dev/null 2>&1
+rat_c() { [ "$(grep -c 'for-each-ref' "$COMPTE_GIT")" -eq 1 ] || { printf '%s\n' "$(grep -c 'for-each-ref' "$COMPTE_GIT") listages"; return 1; }; }; verifier "cs05_le listage des branches locales est unique par exécution (etat-issues.sh, 500 branches, 12 issues)" 0 "" rat_c
+unset COMPTE_GIT
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

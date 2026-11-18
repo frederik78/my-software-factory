@@ -13,6 +13,9 @@ quelle version il a été initialisé ; `factory/VERSION` donne celle du dossier
    reprendre à la main ce qui vous intéresse : `AGENTS.md`, `.claude/settings.json`, `docs/agents/*`, et pour la stack du projet `diff -r factory/stacks/<stack>/.github .github` (CI, Dependabot).
 5. Lancer `factory/scripts/tests/run.sh`, puis `scripts/verify-clean.sh`.
 
+## Dashboard à jour avant la fusion (1.22.0)
+Remplacez `factory/` : sans action requise. Un dépôt dont chaque issue a `branche:` rempli se comporte comme avant. Un champ `branche:` vide est désormais complété par la branche locale `<type>/<id>-…` (rattachement par convention), et une dépendance `Fait` seulement sur sa branche lève la suivante (« empilée sur <branche> »). Pour que la page reste à jour, laissez tourner `scripts/dashboard.sh --boucle <secondes>`.
+
 ## Tests bash reconnus par le contrôle des critères (1.21.0)
 Remplacez `factory/` : sans action si votre `.factory.conf` reste inchangé (le contrôle se comporte comme avant). Pour que `criteres-sans-test.sh` et `fin-issue.sh` reconnaissent des tests bash, ajoutez à `.factory.conf` (modèle : `factory/templates/.factory.conf`) `DOSSIER_TESTS=<dossier des .sh>` et, au besoin, `TESTS_BASH_FONCTIONS=<noms des fonctions de test>` (défaut `verifier verdict_cas`). Un test déclare son critère par `verifier "ca10_x" …` en début de ligne. Un `DOSSIER_TESTS` absolu ou contenant `..` est refusé par `fin-issue.sh` (code 64).
 

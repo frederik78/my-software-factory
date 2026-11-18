@@ -18,6 +18,8 @@ ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
 racine_tmp="$(mktemp -d "${TMPDIR:-/tmp}/factory-tests.XXXXXX")"
 trap 'rm -rf "$racine_tmp"' EXIT
+# Environnement Git isolé : ni configuration globale ou système de l'utilisateur, ni son HOME ; les dépôts de test sont créés sous $racine_tmp.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null HOME="$racine_tmp/home"; mkdir -p "$HOME"
 
 total=0; echecs=0
 ok()  { total=$((total + 1)); printf '  ok   %s\n' "$1"; }

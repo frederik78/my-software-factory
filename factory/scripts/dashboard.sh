@@ -2,10 +2,17 @@
 # Dashboard : page HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
 # Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. Style : Pico CSS classless embarqué (factory/assets/pico.classless.min.css, sans url()), aucune ressource externe. La page se rafraîchit seule (balise meta).
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
-# Le statut d'une issue est le plus avancé de celui du dossier courant et de celui du même fichier sur sa branche retenue (champ « branche » de l'en-tête, sinon branche déduite
-# par convention de nommage), avec le dernier commit de la branche sur la carte. Le fichier lu sur la branche est borné en taille, jamais un lien symbolique suivi.
+# Rattachement d'une issue à sa branche : le champ « branche » de l'en-tête, s'il est rempli, est prioritaire (même s'il nomme une branche absente : statut du dossier courant, sans déduction).
+# Champ vide : rattachement par convention de nommage à la branche LOCALE `<type>/<id>-<suffixe>` : type quelconque (un seul segment : feat, fix, docs, refactor…), identifiant de l'issue (champ « id »)
+# suivi d'un tiret, suffixe non vide. La carte indique « branche : <nom> (déduite) ». Plusieurs branches conviennent : aucune n'est retenue, la carte porte « branche ambiguë : <liste> »
+# (l'identifiant le plus long l'emporte ; pas de déduction si l'identifiant est absent, invalide ou partagé). Les noms de branche sont des données non fiables : échappés, jamais exécutés.
+# Le statut d'une issue est le plus avancé de celui du dossier courant et de celui du même fichier sur sa branche retenue, avec le dernier commit de la branche sur la carte.
+# Le fichier lu sur la branche est borné en taille, jamais un lien symbolique suivi. Les signaux Git des worktrees suivent la même branche retenue.
 # Une dépendance est levée dès que son statut effectif est `Fait`, même sur une branche non fusionnée : l'issue suivante porte alors « empilée sur <branche> » (et non « bloquée »).
 # La prochaine issue prête suit la même règle que etat-issues.sh --prochaine, calculée sans relancer ce script (les branches locales sont lues une seule fois par génération).
+# Avancement des besoins : la carte d'un besoin affiche le compte de ses issues par statut effectif (« 5/6 Fait · 1 En cours ») et « à vérifier : <motif> » si le statut du backlog diverge ;
+# backlog.md et les fichiers d'issue ne sont jamais modifiés, la seule écriture est le fichier de sortie.
+# La page ne reste à jour que si --boucle <secondes> tourne (sinon une seule génération) : lancez-le et laissez-le tourner.
 # Chaque Kanban défile dans un viewport (70vh, en-têtes fixes) ; la colonne « Fait » va de la plus récente à la moins récente (date du dernier commit du fichier de l'issue).
 # Descriptif des cartes : premier paragraphe de « ## Objectif » (issue), colonne « Décisions » du backlog (besoin) ; rien si vide.
 # Bandeau « Agents actifs » : lu dans <git-common-dir>/factory-agents.log, écrit par les hooks de l'outil d'agents (pour Claude Code :
@@ -143,7 +150,7 @@ mention_rattachement() { # mention_rattachement <fichier> : « branche : <nom> (
   b="$(issue_branches_ambigues "$1")"
   [ -z "$b" ] || printf 'branche ambiguë : %s' "$b"
 }
-issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif SEP date (epoch) SEP mention de rattachement SEP branche retenue », dans l'ordre des fichiers
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche déclarée (réservée : plus lue, rangs stables, nettoyage F-09) SEP objectif SEP date (epoch) SEP mention de rattachement SEP branche retenue », dans l'ordre des fichiers
   local f deps ref
   while IFS= read -r f; do
     ref="$(issue_ref_branche "$f")" # une fois par issue : statut effectif, dernier commit et branche retenue en dépendent

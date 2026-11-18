@@ -4,6 +4,8 @@
 # Usage : scripts/etat-issues.sh [--statut "À faire"]     (tableau Markdown, une ligne par issue)
 #         scripts/etat-issues.sh --prochaine              (id de la première issue dont le statut effectif est « À faire » et dont toutes les dépendances sont levées,
 #                                                          c'est-à-dire « Fait » ici ou sur leur branche retenue, déclarée ou déduite ; le tableau garde le statut local)
+#         Colonne Branche : le champ « branche » tel quel s'il est rempli ; sinon `<nom> (déduite)` (branche locale `<type>/<id>-<suffixe>` trouvée par convention de nommage),
+#         `ambiguë : <liste>` si plusieurs branches conviennent, vide sans correspondance.
 # Code de sortie : 0 ; en mode --prochaine : 1 s'il n'y a aucune issue prête.
 set -uo pipefail
 

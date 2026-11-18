@@ -2240,7 +2240,7 @@ verifier "ca13_deliver_second_inconnu_arret_et_remontee" 0 "" doc_a $dl 'second 
 verifier "ca13_deliver_second_inconnu_l_issue_reste_en_revue" 0 "" doc_a $dl 'second rapport est encore `INCONNU`.*reste `En revue`'
 verifier "ca13_deliver_ne_devine_pas_le_verdict" 0 "" doc_a $dl 'ne devines (jamais|pas) le verdict'
 verifier "ca13_deliver_changements_demandes_mene_aux_corrections" 0 "" doc_a $dl '`CHANGEMENTS DEMANDÉS` mène à l.étape 4'
-verifier "ca13_deliver_definition_de_fini_s_entend_de_la_sortie_du_script" 0 "" doc_a $dl 'dernière revue `APPROUVÉ` \(sortie de `scripts/verdict-revue\.sh`\)'
+verifier "ca13_deliver_definition_de_fini_s_entend_de_la_sortie_du_script" 0 "" doc_a $dl 'dernière revue `APPROUVÉ` \(sortie de `scripts/verdict-revue\.sh`, pas ta lecture'
 
 echo "ce dépôt : dossier de tests bash"
 cd "$depot" || exit 1

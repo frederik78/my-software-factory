@@ -2903,6 +2903,7 @@ verifier "ca26_docs/issues/README.md et son modèle disent la même chose de l'�
 version="$(lire_depot "$depot" factory/VERSION | head -n1)"
 changelog="$(lire_depot "$depot" factory/CHANGELOG.md)"
 entree="$(awk '/^## /{n++} n==1' <<<"$changelog")"
+entree_f08="$(awk '/^## /{p = ($0 == "## 1.22.0")} p' <<<"$changelog")" # l'entrée 1.22.0 (F-08), quelle que soit la version courante
 plus_grande() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_grande <a> <b> : a > b (versions x.y.z)
 etiquettes_fautives() { # etiquettes_fautives <dépôt> <version> : étiquettes vX.Y.Z supérieures à la version (une étiquette égale est admise)
   local e; for e in $(git -C "$1" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do plus_grande "${e#v}" "$2" && echo "$e"; done
@@ -2925,10 +2926,10 @@ else
   ok "ca27_aucune étiquette lisible (copie propre ou clone sans étiquettes) : comparaison aux étiquettes non faite, celle au CHANGELOG fait foi"
 fi
 for motif in 'rattach' 'par convention' 'empilée sur' 'avancement' 'à vérifier' '--boucle' 'Migration : remplacer `factory/`' 'sans action'; do
-  verifier "ca27_entrée du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
+  verifier "ca27_entrée 1.22.0 du CHANGELOG : « $motif »" 0 "" contient "$entree_f08" "$motif"
 done
-verifier "ca27_factory/README.md mentionne la nouveauté ($version)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "($version)"
-verifier "ca27_factory/UPGRADE.md décrit la migration sans action de $version" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($version)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
+verifier "ca27_factory/README.md mentionne la nouveauté (1.22.0)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "(1.22.0)"
+verifier "ca27_factory/UPGRADE.md décrit la migration sans action de 1.22.0" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="(1.22.0)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
 
 echo "statuts.sh : table unique des statuts et lecture du backlog et des en-têtes (PRD 004, issue 004-01)"
 st_depot() { # st_depot : projet jetable (dépôt git, branche develop, aucune issue), on s'y place

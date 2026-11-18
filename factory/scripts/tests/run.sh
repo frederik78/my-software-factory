@@ -2934,15 +2934,20 @@ verifier "ca27_factory/UPGRADE.md décrit la migration sans action de 1.22.0" 0 
 # F-01 (PRD 001, issue 001-06) : CA-17 non-régression de fin-issue.sh, du dashboard, de etat-issues.sh et des revues existantes ; CA-18 version 1.23.0 (D-27) et documents.
 # CA-17 s'entend ainsi (D-27 : 1.22.0 est F-08, qui a modifié dashboard.sh et etat-issues.sh) : aucun commit de F-01 (sujet citant 001-01 à 001-06), depuis la base de F-01
 # (le commit qui a créé les issues de F-01), ne modifie ces trois scripts, leurs fichiers de référence (tests/golden), les lignes de run.sh qui les nomment, ni une revue de docs/reviews créée avant F-01.
+# Limites : (1) verify-clean.sh et fin-issue.sh exécutent la suite dans une copie sans .git : ce bloc ne tourne que dans un run.sh direct dans le dépôt Git (sinon un ok explicite le dit) ;
+# (2) l'attribution d'un commit à F-01 repose sur son sujet (001-01 à 001-06) : un commit de F-01 sans cette mention échappe au contrôle ; (3) les lignes retirées de ca17_ (ce bloc) sont exclues de la deuxième comparaison.
 base_f01="935e0ed~1"
 commits_f01() { git -C "$depot" log --no-merges --format=%H -E --grep='001-0[1-6]' "$base_f01..HEAD"; }
 f01_fichiers() { local c; for c in $(commits_f01); do git -C "$depot" show --no-renames --name-only --format= "$c" -- "$@"; done; } # fichiers touchés par F-01 sous <chemins>
-f01_modifie() { local c; for c in $(commits_f01); do git -C "$depot" show --no-renames --diff-filter=MD --name-only --format= "$c" -- 'docs/reviews/[0-9]*.md'; done | grep -v '^docs/reviews/001-' | sort -u; } # revues antérieures modifiées ou supprimées
+f01_modifie() { # revues présentes à la base de F-01 (D-30 : « existantes avant F-01 »), hors 001-* (celles de F-01), modifiées ou supprimées par un commit de F-01
+  local c f; for c in $(commits_f01); do git -C "$depot" show --no-renames --diff-filter=MD --name-only --format= "$c" -- 'docs/reviews/[0-9]*.md'; done | grep -v '^docs/reviews/001-' | sort -u |
+    while read -r f; do git -C "$depot" cat-file -e "$base_f01:$f" 2>/dev/null && echo "$f"; done
+}
 f01_lignes_retirees() { local c; for c in $(commits_f01); do git -C "$depot" show -U0 --format= "$c" -- factory/scripts/tests/run.sh | grep '^-[^-]'; done; } # lignes de run.sh retirées par F-01
 if depot_git "$depot" && git -C "$depot" cat-file -e "$base_f01^{commit}" 2>/dev/null && [ -n "$(commits_f01)" ]; then
   verifier "ca17_l'historique de F-01 est lisible (au moins un commit de F-01 trouvé)" 0 "" test -n "$(commits_f01)"
   verifier "ca17_aucun commit de F-01 ne touche fin-issue.sh, dashboard.sh, etat-issues.sh ni tests/golden (comparaison vide)" 0 "" test -z "$(f01_fichiers factory/scripts/fin-issue.sh factory/scripts/dashboard.sh factory/scripts/etat-issues.sh factory/scripts/tests/golden)"
-  verifier "ca17_aucun commit de F-01 ne retire de ligne de run.sh qui nomme fin-issue, dashboard ou etat-issues" 0 "" test -z "$(f01_lignes_retirees | grep -E 'fin-issue|dashboard|etat-issues')"
+  verifier "ca17_aucun commit de F-01 ne retire de ligne de run.sh qui nomme fin-issue, dashboard ou etat-issues" 0 "" test -z "$(f01_lignes_retirees | grep -v 'ca17_' | grep -E 'fin-issue|dashboard|etat-issues')"
   verifier "ca17_aucune revue de docs/reviews créée avant F-01 n'est modifiée par F-01 (comparaison vide)" 0 "" test -z "$(f01_modifie)"
   # Le contrôle voit une violation : sur un dépôt jetable, un commit de F-01 qui modifie dashboard.sh et une revue antérieure est détecté.
   ca17_j="$racine_tmp/ca17"; mkdir -p "$ca17_j/factory/scripts" "$ca17_j/docs/reviews"; git -C "$ca17_j" init -q -b develop .

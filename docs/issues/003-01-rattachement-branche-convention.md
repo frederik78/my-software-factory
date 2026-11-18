@@ -3,7 +3,7 @@ id: 003-01
 titre: Rattachement d'une issue à sa branche par convention
 prd: docs/prd/003-dashboard-a-jour.md
 besoin: F-08
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CA-07, CA-08, CA-09, CS-03, CS-05]
 criteres_justification: Plus de 10 critères : ils portent tous sur une seule règle (le rattachement), et la scinder ferait couvrir un même cas par deux issues.

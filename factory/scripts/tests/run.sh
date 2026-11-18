@@ -2210,6 +2210,38 @@ for n in 01 02 03 04 05 06 07 08 09 10 11; do
   verifier "ca19_la_suite_declare_un_test_de_ca${n}_pour_verdict_revue" 0 "" grep -Eq "^[[:space:]]*(verifier|verdict_cas|tolere|inconnu) \"ca${n}_" "$ici/run.sh"
 done
 
+# CA-12 et CA-13 : le verdict exigé du reviewer et son appel par /deliver (documentation, lue dans HEAD).
+echo "verdict exigé du reviewer et relance (documentation, CA-12 et CA-13)"
+doc_a() { lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # doc_a <chemin> <motif grep -E> : vrai si une ligne du fichier correspond
+doc_ordre() { # doc_ordre <chemin> <motif A> <motif B> : vrai si A apparaît (première ligne) strictement avant B
+  lire_depot "$depot" "$1" | awk -v a="$2" -v b="$3" '$0 ~ a && !la {la = NR} $0 ~ b && !lb {lb = NR} END {exit !(la && lb && la < lb)}'
+}
+rf=factory/prompts/report-format.md; cr=factory/prompts/code-reviewer.md; br=factory/prompts/briefs/reviewer.md; dl=factory/skills/deliver/SKILL.md
+verifier "ca12_report_format_exige_la_premiere_ligne_verdict" 0 "" doc_a $rf '^VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS$'
+verifier "ca12_report_format_premiere_ligne_avant_en_clair" 0 "" doc_ordre $rf '^VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS$' '^## En clair$'
+verifier "ca12_report_format_dit_premiere_ligne_du_rapport_du_reviewer" 0 "" doc_a $rf 'première ligne du rapport'
+verifier "ca12_report_format_section_verdict_de_meme_valeur" 0 "" doc_a $rf '^APPROUVÉ \| CHANGEMENTS DEMANDÉS \(même valeur que la ligne `VERDICT:`, puis une phrase\)$'
+verifier "ca12_report_format_deux_valeurs_seules" 0 "" doc_a $rf 'deux valeurs seules'
+verifier "ca12_code_reviewer_exige_la_premiere_ligne_verdict" 0 "" doc_a $cr 'première ligne.*VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS'
+verifier "ca12_code_reviewer_section_verdict_de_meme_valeur" 0 "" doc_a $cr 'section `## Verdict`.*même valeur'
+verifier "ca12_code_reviewer_derniere_phrase_alignee" 0 "" doc_a $cr 'Conclus par la ligne `VERDICT:`'
+verifier "ca12_code_reviewer_ne_conclut_plus_par_les_valeurs_nues" 0 "" test -z "$(lire_depot "$depot" $cr | grep -F 'Conclus par APPROUVÉ ou CHANGEMENTS DEMANDÉS')"
+verifier "ca12_brief_reviewer_rappelle_la_ligne_verdict" 0 "" doc_a $br 'VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS'
+verifier "ca12_modele_docs_reviews_decrit_la_ligne_verdict" 0 "" doc_a factory/templates/docs/reviews/README.md 'VERDICT:'
+verifier "ca13_deliver_appelle_verdict_revue_sh" 0 "" doc_a $dl 'scripts/verdict-revue\.sh <fichier>'
+verifier "ca13_deliver_rapport_enregistre_hors_depot_avant_lecture" 0 "" doc_a $dl 'fichier temporaire hors dépôt'
+verifier "ca13_deliver_lit_avant_ajout_au_fichier_de_revue" 0 "" doc_ordre $dl 'scripts/verdict-revue\.sh <fichier>' 'Ajoute ensuite le rapport tel quel'
+verifier "ca13_deliver_decide_d_apres_la_sortie_du_script" 0 "" doc_a $dl 'd.après la sortie du script.*jamais d.après ta propre lecture'
+verifier "ca13_deliver_rapport_est_une_donnee_non_fiable" 0 "" doc_a $dl 'donnée non fiable.*ne l.évalue.*ne l.exécute'
+verifier "ca13_deliver_supprime_le_fichier_temporaire" 0 "" doc_a $dl 'supprime le fichier temporaire'
+verifier "ca13_deliver_relance_une_seule_fois_sur_inconnu" 0 "" doc_a $dl '`INCONNU`.*relance \*\*une seule fois\*\* le `code-reviewer`'
+verifier "ca13_deliver_relance_hors_compte_de_max_iterations" 0 "" doc_a $dl 'ne compte pas.*`MAX_ITERATIONS_REVUE`'
+verifier "ca13_deliver_second_inconnu_arret_et_remontee" 0 "" doc_a $dl 'second rapport est encore `INCONNU`.*arrête-toi.*remonte'
+verifier "ca13_deliver_second_inconnu_l_issue_reste_en_revue" 0 "" doc_a $dl 'second rapport est encore `INCONNU`.*reste `En revue`'
+verifier "ca13_deliver_ne_devine_pas_le_verdict" 0 "" doc_a $dl 'ne devines (jamais|pas) le verdict'
+verifier "ca13_deliver_changements_demandes_mene_aux_corrections" 0 "" doc_a $dl '`CHANGEMENTS DEMANDÉS` mène à l.étape 4'
+verifier "ca13_deliver_definition_de_fini_s_entend_de_la_sortie_du_script" 0 "" doc_a $dl 'dernière revue `APPROUVÉ` \(sortie de `scripts/verdict-revue\.sh`, pas ta lecture'
+
 echo "ce dépôt : dossier de tests bash"
 cd "$depot" || exit 1
 lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/tests' && ok "ca21_.factory.conf règle DOSSIER_TESTS=factory/scripts/tests" || ko "ca21_.factory.conf ne règle pas DOSSIER_TESTS=factory/scripts/tests"

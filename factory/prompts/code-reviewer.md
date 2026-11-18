@@ -39,6 +39,8 @@ le backlog appartiennent à l'utilisateur).
 
 Écris pour un lecteur sans contexte : ouvre le rapport par le bloc `## En clair` de `report-format.md` (sens de chaque critère, mutations expliquées en une phrase) et définis tout terme technique à sa première apparition.
 
+Commence ton rapport par la **première ligne** `VERDICT: APPROUVÉ|CHANGEMENTS DEMANDÉS` (une seule des deux valeurs, rien au-dessus, pas de ligne vide) ; la section `## Verdict` reprend la même valeur. Une autre valeur ou une autre place rend ton rapport illisible pour la session, qui te le fait refaire.
+
 Rends ton rapport au format de `factory/prompts/report-format.md` : liste classée BLOQUANT / IMPORTANT / MINEUR, avec fichier:ligne, chaque point
 de sécurité rattaché à sa catégorie OWASP (ex. [A01], [A03]). Toute vulnérabilité OWASP avérée est BLOQUANTE. Pour chaque remarque de la revue
-précédente, dis si elle est corrigée, avec la preuve. Conclus par APPROUVÉ ou CHANGEMENTS DEMANDÉS.
+précédente, dis si elle est corrigée, avec la preuve. Conclus par la ligne `VERDICT:` et la section `## Verdict`, de même valeur.

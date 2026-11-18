@@ -3,12 +3,12 @@ id: 001-03
 titre: Verdict exigé du reviewer et relance
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: À faire
+statut: Fait
 depend_de: [001-02]
 criteres: [CA-12, CA-13]
-branche:
-commits: []
-revue:
+branche: feat/001-03-verdict-exige-et-relance
+commits: [9e7b104, fbfd76e, afc4c91]
+revue: docs/reviews/001-03.md (APPROUVÉ, itération 1/3)
 ---
 
 ## Objectif
@@ -26,3 +26,6 @@ Un test de lecture des documents concernés par critère, qui échoue avant la m
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-18 : revue 1 APPROUVÉ sans constat bloquant ni important ; `FIN-ISSUE OK 001-03 aaab880 : 1271 tests, 0 échec, 0 ignoré` (lancé par l'orchestrateur après le dernier commit de code).
+- Mineurs ouverts : (1) le fichier temporaire du rapport n'est supprimé qu'après l'ajout au fichier de revue (SKILL.md:61) : « supprime les fichiers temporaires dans tous les cas » ; (2) le test ca13 « hors compte » (run.sh:2236) laisse passer « ne compte pas pour » ; (3) « rien au-dessus » de code-reviewer.md non testé ; (4) le gabarit de report-format.md:71 montre `VERDICT: APPROUVÉ|CHANGEMENTS DEMANDÉS` avec une barre verticale : un reviewer qui le recopie obtient INCONNU et une relance inutile (correctif rapide proposé : un exemple à valeur unique).
+- Décisions du développeur à inscrire au PRD 001 (silences comblés, acceptés par le relecteur) : après une relance réussie, le rapport de la relance (et non le premier, invalide) est ajouté à docs/reviews/<id>.md ; au second INCONNU rien n'est ajouté, les deux rapports et le message du script sont remontés ; un code 64 du script est une erreur de la session, sans relance ; fichier temporaire par `mktemp`.

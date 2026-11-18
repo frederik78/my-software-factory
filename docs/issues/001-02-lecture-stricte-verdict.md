@@ -3,7 +3,7 @@ id: 001-02
 titre: Lecture stricte du verdict
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: En cours
+statut: En revue
 depend_de: [001-01]
 criteres: [CA-06, CA-07, CA-08, CA-09, CA-10, CA-19]
 branche: feat/001-02-lecture-stricte-verdict

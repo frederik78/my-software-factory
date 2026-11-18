@@ -3,12 +3,12 @@ id: 001-02
 titre: Lecture stricte du verdict
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: En revue
+statut: Fait
 depend_de: [001-01]
 criteres: [CA-06, CA-07, CA-08, CA-09, CA-10, CA-19]
 branche: feat/001-02-lecture-stricte-verdict
-commits: []
-revue:
+commits: [575a5ed]
+revue: docs/reviews/001-02.md (APPROUVÉ, itération 1/3)
 ---
 
 ## Objectif
@@ -26,3 +26,6 @@ Un test par critère qui échoue puis réussit, et la sortie de `factory/scripts
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-18 : revue 1 APPROUVÉ sans constat bloquant ni important ; `FIN-ISSUE OK 001-02 61afb09 : 1188 tests, 0 échec, 0 ignoré` (lancé par l'orchestrateur après le dernier commit de code). Mutations : 20 lancées par le développeur (toutes tuées) ; le relecteur n'a pas pu en lancer (copie jetable refusée par le système).
+- Mineurs ouverts : (1) une ligne commençant par un NUL ou contenant un `\r` interne n'est pas comptée comme doublon (verdict-revue.sh:50), risque faible ; (2) le fichier est lu trois fois (course hors modèle de menace).
+- Décisions en attente de l'utilisateur (à inscrire au PRD 001, silences du PRD comblés dans le sens de l'échec sûr) : (1) première ligne limitée à 200 octets ; (2) fichier limité à 1 Mio ; (3) séparateurs tolérés = espaces et tabulations (pas d'insécables, pas d'espaces internes multiples) ; (4) un `\r` interne donne INCONNU, seul un `\r` final est toléré. Recommandation : accepter (acceptés par l'utilisateur le 2026-11-18 « j'accepte ta recommandation »). (5) un doublon `VERDICT:` est refusé même indenté ou cité dans un bloc de code (un rapport qui cite `VERDICT:` en début de ligne donne INCONNU puis la relance de RG-07) : recommandation accepter, réponse de l'utilisateur à confirmer.

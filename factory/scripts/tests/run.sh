@@ -2988,6 +2988,7 @@ echo "statuts.sh : table unique des statuts et lecture du backlog et des en-têt
 st_depot() { # st_depot : projet jetable (dépôt git, branche develop, aucune issue), on s'y place
   p="$(nouveau_projet)"; cd "$p" || exit 1
   git init -q -b develop .; rm -f docs/issues/[0-9]*.md
+  gd_ commit -q --allow-empty -m "premier commit" # la branche develop existe (sans commit, elle est absente : A13)
 }
 st_table_attendue() { cat <<'TXT'
 Statuts d'une issue (dans l'ordre) :
@@ -3120,7 +3121,7 @@ ERREUR E10 issue 004-96 : statut inconnu « $DECOMP » (attendus : $ATTENDUS_I)
 STATUTS : 6 erreur(s), 0 avis
 TXT
 st_depot
-printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+mkdir -p docs/prd; printf '# PRD\n' > docs/prd/p.md; printf '| F-01 | B | P1 | En revue | `docs/prd/p.md` | |\n' | st_backlog
 st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fait'"; st_issue 004-94 ' " Fait "'
 st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucune erreur ; les avis A01 montrent que ces issues sont lues Fait)" 0 <<'TXT'
 AVIS A01 issue 004-91 : Fait sans champ revue renseigné
@@ -3151,7 +3152,7 @@ TXT
 
 # ca05 : un statut de besoin inconnu est une erreur E05
 st_depot
-printf '%s\n' '| F-01 | B | P1 | Specifie | | |' '| F-02 | B | P1 | en cours | | |' '| F-03 | B | P1 | Fini | | |' '| F-04 | B | P1 | | | |' '| F-05 | B | P1 | Fait | | |' | st_backlog
+printf '%s\n' '| F-01 | B | P1 | Specifie | | |' '| F-02 | B | P1 | en cours | | |' '| F-03 | B | P1 | Fini | | |' '| F-04 | B | P1 | | | |' '| F-05 | B | P1 | À faire | | |' | st_backlog
 st_cas "ca05_statuts : « Specifie », « en cours », « Fini » et vide = E05 par besoin, liste des attendus de la table, code 1" 1 <<TXT
 ERREUR E05 besoin F-01 : statut inconnu « Specifie » (attendus : $ATTENDUS_B)
 ERREUR E05 besoin F-02 : statut inconnu « en cours » (attendus : $ATTENDUS_B)
@@ -3196,7 +3197,7 @@ ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
 STATUTS : 2 erreur(s), 0 avis
 TXT
 st_depot
-printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n\n## Besoins fonctionnels\n\n| Besoin | PRD | Décisions | Statut | ID |\n|---|---|---|---|---|\n| B | | | Fait | F-01 |\n| B | | | Bof | F-02 |\n' > backlog.md
+printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n\n## Besoins fonctionnels\n\n| Besoin | PRD | Décisions | Statut | ID |\n|---|---|---|---|---|\n| B | | | À faire | F-01 |\n| B | | | Bof | F-02 |\n' > backlog.md
 st_cas "ca06_statuts : le tableau non fonctionnel qui précède n'est pas lu ; le premier tableau avec ID, Statut et PRD l'est, colonnes repérées par leur nom (ordre quelconque)" 1 <<TXT
 ERREUR E05 besoin F-02 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
 STATUTS : 1 erreur(s), 0 avis
@@ -3208,12 +3209,12 @@ ERREUR E05 besoin F-03 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
 ERREUR E03 besoin F-04 : ligne illisible (nombre de colonnes différent de l'en-tête)
 STATUTS : 3 erreur(s), 0 avis
 TXT
-printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Fait | | |' '| F-01 | Copie | P1 | Fait | | |' | st_backlog
+printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | À faire | | |' '| F-01 | Copie | P1 | Fait | | |' | st_backlog
 st_cas "ca06_statuts : deux lignes de même identifiant = une erreur E04 pour cet identifiant" 1 <<'TXT'
 ERREUR E04 besoin F-01 : identifiant en double dans le backlog
 STATUTS : 1 erreur(s), 0 avis
 TXT
-printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | Fait | | |' | st_backlog
+printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | À faire | | |' | st_backlog
 st_cas "ca06_statuts : F-1 et F-10 sont deux identifiants distincts (pas de doublon)" 0 <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
@@ -3280,7 +3281,7 @@ STATUTS : 5 erreur(s), 0 avis
 TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
-printf -- '---\nid: 004-1\nstatut: À faire\n---\n' > docs/issues/004-1-x.md; printf -- '---\nid: 004-10\nstatut: À faire\n---\n' > docs/issues/004-10-x.md
+printf -- '---\nid: 004-1\nbesoin: F-01\nstatut: À faire\n---\n' > docs/issues/004-1-x.md; printf -- '---\nid: 004-10\nbesoin: F-01\nstatut: À faire\n---\n' > docs/issues/004-10-x.md
 st_cas "ca08_statuts : 004-1 et 004-10 sont deux identifiants distincts" 0 <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
@@ -3299,10 +3300,10 @@ TXT
 
 # ca09 : fichier d'issue illisible = E14, ignoré ; le contenu du fichier visé n'est reproduit nulle part
 st_depot
-printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+mkdir -p docs/prd; printf '# PRD\n' > docs/prd/p.md; printf '| F-01 | B | P1 | En revue | `docs/prd/p.md` | |\n' | st_backlog
 printf 'id: 004-91\nstatut: Fait\n---\n' > docs/issues/004-91-ouvre.md
 printf -- '---\nid: 004-92\nstatut: Fait\n' > docs/issues/004-92-ferme.md
-st_entete="$(printf -- '---\nid: 004-93\nstatut: Fait\n---\n')"
+st_entete="$(printf -- '---\nid: 004-93\nbesoin: F-01\nstatut: Fait\n---\n')"
 { printf '%s\n' "$st_entete"; head -c $((1048577 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-93-gros.md
 { printf '%s\n' "$st_entete" | sed 's/004-93/004-94/'; head -c $((1048576 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-94-limite.md
 printf -- '---\nid: SECRET-ID\nstatut: SECRET-CONTENU\n---\n' > cible-secrete.md; ln -s ../../cible-secrete.md docs/issues/004-95-lien.md
@@ -3381,9 +3382,12 @@ verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR re
 
 
 echo "statuts.sh : preuves d'une issue, branche retenue, Abandonnée et dépendances (PRD 004, issue 004-02)"
-pr_depot() { # pr_depot : st_depot + backlog à un besoin « En cours » + un premier commit ; $pr_c = son identifiant court, $pr_cl = complet
+pr_besoin() { # pr_besoin <statut> [décisions] : le statut du besoin F-01 auquel appartiennent les issues de pr_issue (« En revue » par défaut : toutes les issues Fait, non fusionnées, n'y donnent aucun constat)
+  printf '| F-01 | B | P1 | %s | `docs/prd/p.md` | %s |\n' "$1" "${2:-}" | st_backlog
+}
+pr_depot() { # pr_depot : st_depot + backlog à un besoin « En revue » + un premier commit ; $pr_c = son identifiant court, $pr_cl = complet
   st_depot
-  printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
+  pr_besoin "En revue"
   mkdir -p docs/issues; : > docs/issues/.gitkeep; gd_ add docs/issues/.gitkeep; gd_ commit -q -m init # le dossier des issues existe dans les branches créées ensuite
   pr_c="$(git rev-parse --short HEAD)"; pr_cl="$(git rev-parse HEAD)"
   mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md
@@ -3486,12 +3490,12 @@ TXT
 
 
 # ca13 : commits déclarés
-pr_shim_git() { # pr_shim_git : un « git » en tête de PATH qui consigne ses arguments (git.args) et l'entrée de cat-file (git.stdin), puis lance le vrai
+pr_shim_git() { # pr_shim_git : un « git » en tête de PATH qui consigne ses arguments (git.args) et l'entrée de « cat-file --batch-check » (git.stdin), puis lance le vrai
   local reel; reel="$(command -v git)"; mkdir -p "$racine_tmp/shim"; : > "$racine_tmp/git.args"; : > "$racine_tmp/git.stdin"
   cat > "$racine_tmp/shim/git" <<SHIM
 #!/bin/bash
 printf '%s\n' "\$*" >> "$racine_tmp/git.args"
-if [ "\$1" = cat-file ]; then tee -a "$racine_tmp/git.stdin" | "$reel" "\$@"; exit "\${PIPESTATUS[1]}"; fi
+if [ "\$1 \$2" = "cat-file --batch-check" ]; then tee -a "$racine_tmp/git.stdin" | "$reel" "\$@"; exit "\${PIPESTATUS[1]}"; fi
 exec "$reel" "\$@"
 SHIM
   chmod +x "$racine_tmp/shim/git"
@@ -3525,7 +3529,7 @@ AVIS A06 issue 004-84 : commit déclaré introuvable : \$(touch\${IFS}marque)
 AVIS A06 issue 004-85 : commit déclaré introuvable : --output=x1234
 STATUTS : 0 erreur(s), 13 avis
 TXT
-verifier "ca13_preuves : une seule vérification groupée par Git (cat-file), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
+verifier "ca13_preuves : une seule vérification groupée par Git (cat-file --batch-check), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file --batch-check' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
 verifier "ca13_preuves : seules des valeurs hexadécimales de 7 à 40 caractères parviennent à Git (zzz, \$(x), --help, 41 caractères : aucun appel sur ces valeurs)" 0 "" test "$(grep -c . "$racine_tmp/git.stdin")|$(grep -vc '^[0-9a-f]\{7,40\}$' "$racine_tmp/git.stdin")" = "6|0"
 
 
@@ -3535,6 +3539,9 @@ pr_reel() { # pr_reel <dossier> : chemins des fichiers 001-* à 003-* du dossier
   if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD "$1/"; else (cd "$depot" && ls "$1"/*); fi | grep -E "^$1/00[123]-"
 }
 for pr_f in $(pr_reel docs/issues) $(pr_reel docs/reviews); do lire_depot "$depot" "$pr_f" > "$pr_f"; done
+# leurs besoins (F-01, F-05, F-08) et PRD, dans un état cohérent avec des issues terminées et non fusionnées : « En revue »
+for pr_f in 001-verdict-revue 002-criteres-tests-bash 003-dashboard-a-jour; do lire_depot "$depot" "docs/prd/$pr_f.md" > "docs/prd/$pr_f.md"; done
+printf '%s\n' '| F-01 | B | P1 | En revue | `docs/prd/001-verdict-revue.md` | |' '| F-05 | B | P1 | En revue | `docs/prd/002-criteres-tests-bash.md` | |' '| F-08 | B | P1 | En revue | `docs/prd/003-dashboard-a-jour.md` | |' | st_backlog
 scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; pr_code=$?
 verifier "ca14_issues réelles 001-01 à 003-05 : copiées dans un dépôt jetable (17 issues)" 0 "" test "$(ls docs/issues/00[123]-*.md | wc -l | tr -d ' ')" = 17
 verifier "ca14_issues réelles : aucune erreur, le code de sortie est celui des seules erreurs (0), avis présents" 0 "" test "$pr_code|$(grep -c '^ERREUR' "$racine_tmp/st.out")|$(grep -Ec '^STATUTS : 0 erreur\(s\), [1-9][0-9]* avis$' "$racine_tmp/st.out")|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|0|1|0"
@@ -3542,7 +3549,7 @@ verifier "ca14_issues réelles : 002-01 et 002-03 (revue vide) = avis A01, et ri
 
 
 # ca15 : issue En revue sans fichier de revue lisible = A07
-pr_depot
+pr_depot; pr_besoin "En cours"
 git branch feat/b HEAD
 pr_er() { pr_issue "$1" "${3:-En revue}" "$2" "[]" "" "" feat/b; } # pr_er <id> <revue> [statut] : issue sur la branche feat/b (existante), sans commits ni notes
 pr_er 004-71 ""; pr_er 004-72 "docs/reviews/absent.md"; pr_er 004-75 "docs/reviews/x/../y.md"
@@ -3560,7 +3567,7 @@ TXT
 
 
 # ca16 : issue En cours ou En revue (statut effectif) sans branche retenue = A08
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf 'APPROUVÉ\n' > docs/reviews/revue.md
 pr_enc() { pr_issue "$1" "$2" "docs/reviews/revue.md" "[]" "" "" "${3:-}"; } # pr_enc <id> <statut> [branche de l'en-tête] : issue à l'état indiqué (revue lisible, sans commits)
 pr_enc 004-71 "En cours"; pr_enc 004-72 "En revue" feat/absente
@@ -3578,7 +3585,7 @@ AVIS A08 issue 004-74 : En cours : branche ambiguë : feat/004-74-a, fix/004-74-
 STATUTS : 0 erreur(s), 3 avis
 TXT
 # valeurs hostiles dans les noms de branche : lues comme du texte (CS-02)
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf 'APPROUVÉ\n' > docs/reviews/revue.md
 pr_enc 004-71 "En cours"; git branch 'feat/004-71-$(touch${IFS}marque)'; git branch 'fix/004-71-;touch${IFS}marque'
 st_cas "ca16_branche : noms de branche hostiles dans la liste ambiguë : écrits tels quels, rien n'est exécuté" 0 <<'TXT'
@@ -3589,7 +3596,7 @@ verifier "ca16_branche : le fichier « marque » n'existe pas" 0 "" test ! -e ma
 
 
 # ca16 : un fichier d'issue refusé (lien symbolique) n'est jamais lu pour rattacher les branches (CS-03)
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf -- '---\nid: 004-60\nbranche:\nstatut: Fait\n---\nSECRET\n' > "$racine_tmp/cible-issue.md"
 pr_enc 004-60 "En cours"; git branch feat/004-60-z; ln -s "$racine_tmp/cible-issue.md" docs/issues/004-61-lien.md
 st_cas "ca16_branche : un lien symbolique d'issue (E14) qui porte le même identifiant ne rend pas la branche déduite ambiguë ni absente ; son contenu n'apparaît pas" 1 <<'TXT'
@@ -3599,7 +3606,7 @@ TXT
 
 
 # ca17 : issue Abandonnée = raison écrite dans les Notes (E13) ; jamais promue ni rétrogradée par sa branche
-pr_depot
+pr_depot; pr_besoin Abandonnée Abandonné
 pr_ab() { pr_issue "$1" "Abandonnée" "" "[]" "$2" "" "" "${3:-x}"; } # pr_ab <id> <notes> [corps avant les Notes] : issue Abandonnée
 pr_ab 004-71 "- 2026-11-18 : une note sans raison."
 pr_ab 004-72 "Abandonnée par l'utilisateur, sans puce."
@@ -3635,7 +3642,7 @@ TXT
 
 
 # ca18 : dépendances d'une issue
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf 'APPROUVÉ\n' > docs/reviews/revue.md; git branch feat/b HEAD
 pr_full() { pr_issue "$1" Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok "$1")" "${2:-}" "${3:-}"; } # pr_full <id> [depend_de] [branche] : issue Fait complète
 pr_ab 004-70 "- 2026-11-18 : Abandonnée."
@@ -3674,7 +3681,7 @@ verifier_exact "ca18_dependances : etat-issues --prochaine ne rend pas l'issue d
 scripts/dashboard.sh --sortie "$racine_tmp/ca18.html" >/dev/null 2>&1
 verifier "ca18_dependances : le dashboard marque l'issue bloquée" 0 "bloquée" carte_de 004-71 "$racine_tmp/ca18.html"
 # valeurs hostiles dans depend_de : lues comme du texte
-pr_depot
+pr_depot; pr_besoin "À faire"
 pr_issue 004-71 "À faire" "" "[]" "" '$(touch${IFS}marque)'; pr_issue 004-72 "À faire" "" "[]" "" '*'; pr_issue 004-73 "À faire" "" "[]" "" '--help'; pr_issue 004-74 "À faire" "" "[]" "" "004-7$(printf '\037')1"
 pr_issue 004-75 "À faire" "" "[]" "" '[a-z]'; pr_issue 004-76 "À faire" "" "[]" "" '.*'
 st_cas "ca18_dependances : dépendances hostiles (\$(…), *, --help, 0x1F, [a-z], .*) = A10 avec la valeur neutralisée, jamais un motif ni une commande" 0 <<'TXT'
@@ -3725,7 +3732,7 @@ pr_compte() { # pr_compte <nombre d'issues Fait> : crée n issues Fait complète
   wc -l < "$racine_tmp/git.args" | tr -d ' '
 }
 pr_n3="$(pr_compte 3)"; pr_n30="$(pr_compte 30)"
-verifier "ca13_sûreté : appels Git de statuts.sh identiques pour 3 et 30 issues Fait avec commits ($pr_n3 et $pr_n30), au plus 2 (lecture des branches, vérification groupée)" 0 "" test "$pr_n3|$pr_n30" = "2|2"
+verifier "ca13_sûreté : appels Git de statuts.sh identiques pour 3 et 30 issues Fait avec commits ($pr_n3 et $pr_n30), au plus 4 (lecture des branches, branches fusionnées dans develop, fichiers dans develop, vérification groupée des commits)" 0 "" test "$pr_n3|$pr_n30" = "4|4"
 pr_depot; pr_issue 004-71 "À faire" "" "[]" ""; pr_issue 004-72 "Abandonnée" "" "[]" "- Abandonnée"
 pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
 verifier "ca13_sûreté : aucune issue Fait = aucune vérification de commit (pas d'appel cat-file)" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")" = 0
@@ -3755,6 +3762,319 @@ AVIS A03 issue 004-66 : Fait : la dernière ligne de docs/reviews/004-66.md n'es
 AVIS A03 issue 004-68 : Fait : la dernière ligne de docs/reviews/004-68.md n'est pas APPROUVÉ
 STATUTS : 0 erreur(s), 5 avis
 TXT
+
+
+echo "statuts.sh : cohérence des besoins avec leurs issues (PRD 004, issue 004-03)"
+# ca19 : chaque bibliothèque de factory/scripts a son lien dans scripts/ (le wrapper scripts/statuts.sh les source toutes) ; le wrapper du dépôt réel les trouve
+bs_manquants=""
+for bs_lib in "$factory"/scripts/lib-*.sh; do
+  [ -L "$depot/scripts/$(basename "$bs_lib")" ] && [ -f "$depot/scripts/$(basename "$bs_lib")" ] || bs_manquants="$bs_manquants $(basename "$bs_lib")"
+done
+verifier "ca19_wrapper : chaque factory/scripts/lib-*.sh a son lien scripts/lib-*.sh (manquants :${bs_manquants:- aucun})" 0 "" test -z "$bs_manquants"
+"$depot/scripts/statuts.sh" > "$racine_tmp/w.out" 2> "$racine_tmp/w.err"; bs_code=$?
+verifier "ca19_wrapper : scripts/statuts.sh du dépôt réel lance le contrôle des besoins : code 0 ou 1, rien sur la sortie d'erreur, récapitulatif présent" 0 "" test "$([ "$bs_code" -le 1 ] && echo ok)|$(wc -c < "$racine_tmp/w.err" | tr -d ' ')|$(grep -c '^STATUTS : ' "$racine_tmp/w.out")" = "ok|0|1"
+
+# Assistants de la section : dépôt jetable (branche develop, un commit), backlog, issues complètes. $bs_c = identifiant court du premier commit.
+bs_depot() { # bs_depot : st_depot + dossiers docs/prd (p.md, q.md) et docs/reviews (revue.md approuvée) + un premier commit sur develop
+  st_depot
+  mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md; printf '# PRD\n' > docs/prd/q.md; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+  : > docs/issues/.gitkeep; gd_ add -A; gd_ commit -q -m init; bs_c="$(git rev-parse --short HEAD)"
+  git branch feat/b # même commit que develop : fusionnée
+  git branch feat/nf "$(gd_ commit-tree 'HEAD^{tree}' -p HEAD -m avance)" # un commit de plus que develop : non fusionnée
+}
+bs_issue() { # bs_issue <id> <statut> <besoin> [branche] [prd : « none » = vide] [notes] : docs/issues/<id>-x.md ; une issue Fait reçoit une revue approuvée, un commit et sa ligne FIN-ISSUE OK
+  local revue="" commits="[]" notes="${6:-}" prd="${5:-docs/prd/p.md}"
+  [ "$prd" != none ] || prd=""
+  [ "$2" != "En revue" ] || revue=" docs/reviews/revue.md"
+  if [ "$2" = Fait ]; then revue=" docs/reviews/revue.md"; commits="[$bs_c]"; notes="- \`FIN-ISSUE OK $1 abc1234 : 1 test\`${notes:+
+$notes}"; fi
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nprd: %s\nstatut: %s\ndepend_de: []\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\nx\n\n## Notes\n%s\n' \
+    "$1" "$1" "$3" "$prd" "$2" "${4:-}" "$commits" "$revue" "$notes" > "docs/issues/$1-x.md"
+}
+
+# ca19 : issue sans besoin connu = E12, comptée pour aucun besoin
+bs_depot
+printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | À faire | | |' '| F-02 | B | P1 | Spécifié | `docs/prd/p.md` | |' | st_backlog
+git branch feat/b
+bs_issue 004-71 "En cours" "" feat/b; bs_issue 004-72 "En cours" "F-99" feat/b; bs_issue 004-73 "En cours" "F-02, F-1" feat/b; bs_issue 004-74 "À faire" "F-1" "" none; bs_issue 004-75 "À faire" "F-10" "" none
+bs_issue 004-76 "En cours" "F-0" feat/b; bs_issue 004-77 "En cours" "f-02" feat/b; bs_issue 004-78 "À faire" '"F-1"' "" none
+bs_issue 004-79 "En cours" "F-02$(printf '\037')x" feat/b; bs_issue 004-80 "En cours" '*' feat/b; bs_issue 004-81 "En cours" '.*' feat/b; bs_issue 004-82 "En cours" '$(touch${IFS}marque)' feat/b
+st_cas "ca19_besoin : besoin vide, absent du backlog (F-99, F-0, f-02) ou à plusieurs valeurs = E12 (valeur entre guillemets, vide comprise), l'issue n'est comptée pour aucun besoin (F-02 Spécifié ne reçoit pas d'E07) ; F-1 et F-10 sont deux besoins distincts ; guillemets de bord retirés" 1 <<'TXT'
+ERREUR E12 issue 004-71 : besoin «  » inconnu du backlog
+ERREUR E12 issue 004-72 : besoin « F-99 » inconnu du backlog
+ERREUR E12 issue 004-73 : besoin « F-02, F-1 » inconnu du backlog
+ERREUR E12 issue 004-76 : besoin « F-0 » inconnu du backlog
+ERREUR E12 issue 004-77 : besoin « f-02 » inconnu du backlog
+ERREUR E12 issue 004-79 : besoin « F-02x » inconnu du backlog
+ERREUR E12 issue 004-80 : besoin « * » inconnu du backlog
+ERREUR E12 issue 004-81 : besoin « .* » inconnu du backlog
+ERREUR E12 issue 004-82 : besoin « $(touch${IFS}marque) » inconnu du backlog
+STATUTS : 9 erreur(s), 0 avis
+TXT
+verifier "ca19_besoin : valeurs hostiles ($(…), *, .*, 0x1F) lues comme du texte : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
+# ca20 : besoin Spécifié, En cours, En revue ou Fait sans PRD valide = E06 ; les autres statuts n'exigent rien
+bs_depot
+printf 'x\n' > hors-depot.md; ln -s ../../hors-depot.md docs/prd/lien.md # le lien vise un fichier existant : il n'est pas suivi
+printf '%s\n' \
+  '| F-01 | B | P1 | Spécifié | | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/absent.md` | |' \
+  '| F-03 | B | P1 | En revue | `docs/prd/p.md`, `docs/prd/absent.md` | |' \
+  '| F-04 | B | P1 | Fait | à définir | |' \
+  '| F-05 | B | P1 | À faire | | |' \
+  '| F-06 | B | P1 | En clarification | | |' \
+  '| F-07 | B | P1 | Abandonnée | | Abandonné |' \
+  '| F-08 | B | P1 | Spécifié | [PRD](docs/prd/p.md) et `docs/prd/q.md` | |' \
+  '| F-09 | B | P1 | Spécifié | ../docs/prd/p.md | |' \
+  '| F-10 | B | P1 | Spécifié | `docs/prd/lien.md` | |' \
+  '| F-11 | B | P1 | Spécifié | docs/prd/p.md.bak | |' | st_backlog
+bs_issue 004-71 "En cours" F-02 feat/b none; bs_issue 004-72 "Fait" F-03 feat/nf none; bs_issue 004-73 "Fait" F-04 feat/b none
+st_cas "ca20_prd : colonne PRD vide, fichier absent (parmi plusieurs), texte sans chemin, chemin avec .., lien symbolique ou nom plus long = E06 pour Spécifié, En cours, En revue et Fait ; À faire, En clarification, Abandonnée sans PRD, et PRD présent sans issue (plusieurs chemins, lien Markdown) = aucun constat" 1 <<'TXT'
+ERREUR E06 besoin F-01 : statut Spécifié sans PRD valide (colonne PRD vide)
+ERREUR E06 besoin F-02 : statut En cours sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E06 besoin F-03 : statut En revue sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E06 besoin F-04 : statut Fait sans PRD valide (fichier absent : à définir)
+ERREUR E06 besoin F-09 : statut Spécifié sans PRD valide (fichier absent : ../docs/prd/p.md)
+ERREUR E06 besoin F-10 : statut Spécifié sans PRD valide (fichier absent : docs/prd/lien.md)
+ERREUR E06 besoin F-11 : statut Spécifié sans PRD valide (fichier absent : docs/prd/p.md.bak)
+STATUTS : 7 erreur(s), 0 avis
+TXT
+
+# ca21 : besoin À faire, En clarification ou Spécifié dont une issue est démarrée (statut effectif) = E07 « en retard »
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | À faire | | |' \
+  '| F-02 | B | P1 | En clarification | | |' \
+  '| F-03 | B | P1 | Spécifié | `docs/prd/p.md` | |' \
+  '| F-04 | B | P1 | Spécifié | `docs/prd/p.md` | |' \
+  '| F-05 | B | P1 | À faire | | |' \
+  '| F-06 | B | P1 | À faire | | |' \
+  '| F-07 | B | P1 | Spécifié | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 "En cours" F-01 feat/b none
+bs_issue 004-72 "À faire" F-02 feat/f none; sur_branche feat/f 004-72 "Fait" feat/f
+bs_issue 004-73 "En cours" F-03 feat/b none
+bs_issue 004-74 "Abandonnée" F-04 "" none "- 2026-11-18 : Abandonnée."; bs_issue 004-84 "À faire" F-04 "" none
+bs_issue 004-75 "Abandonnée" F-05 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-76 "À faire" F-06 "" none; bs_issue 004-77 "En cours" F-06 feat/b none; bs_issue 004-78 "En cours" F-06 feat/b none
+bs_issue 004-79 "À faire" F-07 "" none
+st_cas "ca21_retard : À faire, En clarification ou Spécifié avec une issue En cours (statut local) ou Fait seulement sur sa branche (statut effectif) = E07 « l'issue <id> est démarrée » (la première dans l'ordre des fichiers) ; issues Abandonnée ou À faire seules = aucune erreur" 1 <<'TXT'
+ERREUR E07 besoin F-01 : statut À faire en retard : l'issue 004-71 est démarrée
+ERREUR E07 besoin F-02 : statut En clarification en retard : l'issue 004-72 est démarrée
+ERREUR E07 besoin F-03 : statut Spécifié en retard : l'issue 004-73 est démarrée
+ERREUR E07 besoin F-06 : statut À faire en retard : l'issue 004-77 est démarrée
+STATUTS : 4 erreur(s), 0 avis
+TXT
+
+# ca24 : la fusion se lit dans Git, relativement à la branche locale develop (jamais la branche courante)
+bs_depot
+for bs_n in 1 2 3 4 5 6 7; do printf '| F-0%s | B | P1 | Fait | `docs/prd/p.md` | |\n' "$bs_n"; done | st_backlog
+bs_issue 004-71 Fait F-01 feat/b none                                              # branche déclarée, fusionnée
+git branch feat/004-72-x feat/nf; bs_issue 004-72 Fait F-02 "" none                 # branche déduite, un commit de plus que develop
+bs_issue 004-73 Fait F-03 feat/gone none                                           # branche supprimée, fichier Fait dans develop
+bs_issue 004-74 "En revue" F-04 feat/gone none                                     # branche supprimée, fichier encore En revue dans develop
+git branch feat/004-75-a feat/nf; git branch fix/004-75-b feat/nf; bs_issue 004-75 Fait F-05 "" none   # branche ambiguë, fichier Fait dans develop
+git branch feat/004-76-a feat/nf; git branch fix/004-76-b feat/nf; bs_issue 004-76 Fait F-06 "" none   # branche ambiguë, fichier absent de develop
+gd_ add docs/issues/004-73-x.md docs/issues/004-74-x.md docs/issues/004-75-x.md; gd_ commit -q -m "issues terminées dans develop"
+git branch feat/same develop; bs_issue 004-77 Fait F-07 feat/same none            # branche au même commit que develop
+bs_issue 004-74 Fait F-04 feat/gone none                                           # Fait en local seulement
+bs_ca24_attendu() { cat <<'TXT'
+ERREUR E08 besoin F-02 : statut Fait non justifié : la branche de l'issue 004-72 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-04 : statut Fait non justifié : la branche de l'issue 004-74 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-06 : statut Fait non justifié : la branche de l'issue 004-76 n'est pas fusionnée dans develop
+STATUTS : 3 erreur(s), 0 avis
+TXT
+}
+bs_ca24_attendu | st_cas "ca24_fusion : branche déclarée fusionnée, au même commit que develop, supprimée avec fichier Fait dans develop, ambiguë avec fichier Fait dans develop = fusionnées ; branche déduite en avance de un commit, supprimée dont le fichier n'est pas Fait dans develop, ambiguë sans fichier dans develop = non fusionnées (E08)" 1
+# ca24 : la branche courante n'intervient pas (une branche de travail qui a fusionné feat/nf n'y change rien : la fusion se lit dans develop)
+gd_ checkout -q -b feat/cur develop; gd_ merge -q --no-edit feat/nf
+verifier "ca24_fusion : prémisse du cas : on est sur feat/cur, où feat/nf est fusionnée alors qu'elle ne l'est pas dans develop" 0 "" test "$(git rev-parse --abbrev-ref HEAD)|$(git merge-base --is-ancestor feat/nf HEAD && echo oui)|$(git merge-base --is-ancestor feat/nf develop || echo non)" = "feat/cur|oui|non"
+bs_ca24_attendu | st_cas "ca24_fusion : depuis une autre branche (qui a fusionné feat/nf), même résultat : la fusion est lue relativement à develop, pas à la branche courante" 1
+# ca24 : develop absente = A13 une seule fois, ni E07 ni E08 pour cause de fusion ; aucune issue Fait à vérifier = aucun A13
+bs_depot
+printf '%s\n' '| F-01 | B | P1 | Fait | `docs/prd/p.md` | |' '| F-02 | B | P1 | En revue | `docs/prd/p.md` | |' '| F-03 | B | P1 | En revue | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 Fait F-01 feat/nf none; bs_issue 004-72 Fait F-02 feat/b none; bs_issue 004-73 Fait F-03 feat/nf none
+git branch -m develop trunk
+st_cas "ca24_fusion : branche develop absente = AVIS A13 (une fois), et ni E07 ni E08 pour cause de fusion (Fait non fusionnée, En revue toutes Fait fusionnées ou non), code 0" 0 <<'TXT'
+AVIS A13 backlog : branche develop absente : fusion non vérifiable
+STATUTS : 0 erreur(s), 1 avis
+TXT
+bs_depot
+printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none; git branch -m develop trunk
+st_cas "ca24_fusion : develop absente sans issue Fait à vérifier = pas de lecture de la fusion, donc pas d'A13" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
+# ca22 : besoin En cours ou En revue dont toutes les issues (hors Abandonnée) sont Fait
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-03 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-04 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-05 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-06 | B | P1 | En cours | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 Fait F-01 feat/nf none; bs_issue 004-72 Abandonnée F-01 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-73 Fait F-02 feat/b none
+bs_issue 004-74 Fait F-03 feat/nf none
+bs_issue 004-75 Fait F-04 feat/b none; bs_issue 004-76 Abandonnée F-04 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-77 Fait F-05 feat/b none; bs_issue 004-78 Fait F-05 feat/nf none
+bs_issue 004-79 Fait F-06 feat/b none; bs_issue 004-80 "En cours" F-06 feat/b none
+st_cas "ca22_retard : En cours dont toutes les issues sont Fait non fusionnées = E07 « attendu : En revue » ; toutes fusionnées dans develop (En cours ou En revue) = E07 « attendu : Fait » ; En revue avec des issues Fait non fusionnées (toutes, ou une seule) = aucun constat ; issues Abandonnée écartées ; En cours avec une issue encore En cours = aucun constat" 1 <<'TXT'
+ERREUR E07 besoin F-01 : statut En cours en retard : toutes les issues sont Fait (attendu : En revue)
+ERREUR E07 besoin F-02 : statut En cours en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)
+ERREUR E07 besoin F-04 : statut En revue en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)
+STATUTS : 3 erreur(s), 0 avis
+TXT
+
+# ca23 : besoin Fait non justifié = E08, premier motif dans l'ordre : aucune issue Fait, puis l'issue ni Fait ni Abandonnée, puis la branche non fusionnée
+bs_depot
+for bs_n in 1 2 3 4 5 6 7 8 9; do printf '| F-0%s | B | P1 | Fait | `docs/prd/p.md` | |\n' "$bs_n"; done | st_backlog
+bs_issue 004-71 Fait F-02 feat/b none; bs_issue 004-72 "À faire" F-02 "" none
+bs_issue 004-73 Fait F-03 feat/b none; bs_issue 004-74 "En cours" F-03 feat/b none
+bs_issue 004-75 Fait F-04 feat/b none; bs_issue 004-76 "En revue" F-04 feat/b none
+bs_issue 004-77 Fait F-05 feat/nf none
+bs_issue 004-78 Fait F-06 feat/b none; bs_issue 004-79 Abandonnée F-06 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-80 Abandonnée F-07 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-81 Fait F-08 feat/nf none; bs_issue 004-82 "À faire" F-08 "" none
+bs_issue 004-83 "À faire" F-09 "" none
+st_cas "ca23_fait : Fait sans issue, avec seulement des issues À faire ou Abandonnée = E08 « aucune issue Fait » ; avec une issue À faire, En cours ou En revue = E08 « l'issue <id> n'est ni Fait ni Abandonnée » ; avec une issue Fait non fusionnée = E08 « la branche de l'issue <id> n'est pas fusionnée dans develop » (le motif de l'issue vient avant celui de la branche) ; issues Fait fusionnées et Abandonnée = aucun constat" 1 <<'TXT'
+ERREUR E08 besoin F-01 : statut Fait non justifié : aucune issue Fait
+ERREUR E08 besoin F-02 : statut Fait non justifié : l'issue 004-72 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-03 : statut Fait non justifié : l'issue 004-74 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-04 : statut Fait non justifié : l'issue 004-76 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-05 : statut Fait non justifié : la branche de l'issue 004-77 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-07 : statut Fait non justifié : aucune issue Fait
+ERREUR E08 besoin F-08 : statut Fait non justifié : l'issue 004-82 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-09 : statut Fait non justifié : aucune issue Fait
+STATUTS : 8 erreur(s), 0 avis
+TXT
+
+# ca25 : besoin En cours sans issue démarrée, ou En revue dont les issues ne sont pas toutes Fait = A12 « en avance » (avis, code 0)
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-03 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-04 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-05 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-06 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-07 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-08 | B | P1 | En revue | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-72 "À faire" F-02 "" none
+bs_issue 004-73 Abandonnée F-03 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-75 "En cours" F-05 feat/b none
+bs_issue 004-76 Fait F-06 feat/nf none; bs_issue 004-77 "À faire" F-06 "" none
+bs_issue 004-78 "En cours" F-07 feat/b none
+bs_issue 004-79 Fait F-08 feat/nf none
+st_cas "ca25_avance : En cours sans issue ou sans issue démarrée (À faire, Abandonnée seulement) = A12 « aucune issue démarrée » ; En revue sans issue ou dont une issue n'est pas Fait (En cours, À faire) = A12 « toutes les issues ne sont pas Fait » ; En cours avec une issue démarrée et En revue dont toutes les issues sont Fait = aucun constat ; code 0" 0 <<'TXT'
+AVIS A12 besoin F-01 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-02 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-03 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-04 : statut En revue en avance : toutes les issues ne sont pas Fait
+AVIS A12 besoin F-05 : statut En revue en avance : toutes les issues ne sont pas Fait
+AVIS A12 besoin F-06 : statut En revue en avance : toutes les issues ne sont pas Fait
+STATUTS : 0 erreur(s), 6 avis
+TXT
+
+# ca26 : un besoin réparti sur plusieurs PRD : toutes ses issues comptent ; le PRD d'une issue non listé ou introuvable = A14
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | Spécifié | `docs/prd/p.md` | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/p.md`, `docs/prd/q.md` | |' \
+  '| F-03 | B | P1 | En cours | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 "En cours" F-01 feat/b docs/prd/q.md                               # PRD q non listé dans la colonne de F-01 : l'issue compte (E07) et reçoit A14
+bs_issue 004-72 "En cours" F-02 feat/b docs/prd/q.md; bs_issue 004-73 "À faire" F-02 "" docs/prd/p.md   # les deux PRD sont listés : rien
+bs_issue 004-74 "En cours" F-03 feat/b docs/prd/absent.md                          # ni listé ni présent
+bs_issue 004-75 "À faire" F-03 "" ../x.md                                          # pas un chemin de PRD : introuvable
+bs_issue 004-76 "À faire" F-03 "" none                                             # pas de PRD : aucun avis
+bs_issue 004-77 "À faire" F-03 "" docs/prd/p.md                                    # listé et présent : rien
+bs_issue 004-78 "À faire" F-03 "" docs/prd/../prd/p.md                             # chemin avec .. : introuvable (jamais suivi)
+st_cas "ca26_prd : les issues de deux PRD comptent toutes dans l'état du besoin (E07 pour F-01 Spécifié) ; PRD d'issue non listé = A14 « non listé dans le backlog pour le besoin <id> » ; PRD absent ou de forme invalide = A14 « introuvable » ; deux PRD listés et présents ou aucun prd: = aucun avis" 1 <<'TXT'
+ERREUR E07 besoin F-01 : statut Spécifié en retard : l'issue 004-71 est démarrée
+AVIS A14 issue 004-71 : PRD docs/prd/q.md non listé dans le backlog pour le besoin F-01
+AVIS A14 issue 004-74 : PRD docs/prd/absent.md non listé dans le backlog pour le besoin F-03
+AVIS A14 issue 004-74 : PRD docs/prd/absent.md introuvable
+AVIS A14 issue 004-75 : PRD ../x.md introuvable
+AVIS A14 issue 004-78 : PRD docs/prd/../prd/p.md introuvable
+STATUTS : 1 erreur(s), 5 avis
+TXT
+printf '%s\n' '| F-01 | B | P1 | En cours | `docs/prd/p.md`, `docs/prd/absent.md` | |' | st_backlog
+rm -f docs/issues/004-7[2-8]-x.md
+st_cas "ca26_prd : colonne PRD à deux chemins dont un absent = E06 (les deux sont exigés présents)" 1 <<'TXT'
+ERREUR E06 besoin F-01 : statut En cours sans PRD valide (fichier absent : docs/prd/absent.md)
+AVIS A14 issue 004-71 : PRD docs/prd/q.md non listé dans le backlog pour le besoin F-01
+STATUTS : 1 erreur(s), 1 avis
+TXT
+
+# ca27 : besoin Abandonnée : raison dans la colonne Décisions (E09), issues encore ouvertes (A15)
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | Abandonnée | | |' \
+  '| F-02 | B | P1 | Abandonnée | | Abandonné par l'"'"'utilisateur (périmètre retiré) |' \
+  '| F-03 | B | P1 | Abandonnée | | abandonné, en minuscules |' \
+  '| F-04 | B | P1 | Abandonnée | | Abandonnée |' \
+  '| F-05 | B | P1 | Abandonnée | | Abandonnée |' \
+  '| F-06 | B | P1 | Fait | `docs/prd/p.md` | |' \
+  '| F-07 | B | P1 | Abandonnée | | Abandonnée |' | st_backlog
+bs_issue 004-71 Fait F-02 feat/b none; bs_issue 004-72 Abandonnée F-02 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-73 "En cours" F-04 feat/b none
+bs_issue 004-74 "À faire" F-05 "" none; bs_issue 004-75 "En revue" F-05 feat/b none
+bs_issue 004-76 Fait F-06 feat/b none; bs_issue 004-77 Abandonnée F-06 "" none "- 2026-11-18 : Abandonnée."
+st_cas "ca27_abandon : besoin Abandonnée sans le mot « Abandonn » dans Décisions (vide, minuscules) = E09 ; avec le mot = aucun constat ; une issue En cours, À faire ou En revue = A15 (un avis par issue) ; issues Fait ou Abandonnée seules = aucun constat ; besoin Fait avec une issue Abandonnée et une Fait fusionnée = aucun constat" 1 <<'TXT'
+ERREUR E09 besoin F-01 : statut Abandonnée sans raison dans la colonne Décisions
+ERREUR E09 besoin F-03 : statut Abandonnée sans raison dans la colonne Décisions
+AVIS A15 besoin F-04 : Abandonnée alors que l'issue 004-73 est En cours
+AVIS A15 besoin F-05 : Abandonnée alors que l'issue 004-74 est À faire
+AVIS A15 besoin F-05 : Abandonnée alors que l'issue 004-75 est En revue
+STATUTS : 2 erreur(s), 3 avis
+TXT
+
+# ca24 : coût Git de la lecture de la fusion : un listage des branches fusionnées et une sonde par lot, quel que soit le nombre d'issues ; aucun appel sans issue Fait à vérifier
+bs_compte() { # bs_compte <nombre d'issues Fait> <branche déclarée de chaque issue, vide ou absente> : lance statuts.sh avec un git de comptage ; écrit « appels | listages fusionnées | sondes »
+  local k
+  bs_depot; printf '| F-01 | B | P1 | Fait | `docs/prd/p.md` | |\n' | st_backlog
+  for k in $(seq 1 "$1"); do bs_issue "$(printf '004-%02d' "$k")" Fait F-01 "$2" none; done
+  pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"
+  printf '%s|%s|%s' "$(wc -l < "$racine_tmp/git.args" | tr -d ' ')" "$(grep -c '^for-each-ref --merged' "$racine_tmp/git.args")" "$(grep -c '^cat-file --batch$' "$racine_tmp/git.args")"
+}
+bs_n3="$(bs_compte 3 "")"; bs_n12="$(bs_compte 12 "")"; bs_n50="$(bs_compte 50 "")"
+verifier "ca24_coût : issues Fait sans branche retenue, 3, 12 et 50 issues : mêmes appels Git ($bs_n3, $bs_n12, $bs_n50 : appels | listages des fusionnées | sondes par lot), un seul listage et une seule sonde" 0 "" test "$bs_n3|$bs_n12|$bs_n50" = "4|1|1|4|1|1|4|1|1"
+bs_n3="$(bs_compte 3 feat/gone)"; bs_n50="$(bs_compte 50 feat/gone)"
+verifier "ca24_coût : issues Fait à branche déclarée absente, 3 et 50 issues : mêmes appels Git ($bs_n3, $bs_n50), un seul listage et une seule sonde" 0 "" test "$bs_n3|$bs_n50" = "3|1|1|3|1|1"
+bs_n50="$(bs_compte 50 feat/b)"
+verifier "ca24_coût : issues Fait à branche déclarée existante, 50 issues : une sonde (existence des branches non fusionnées ou fichier), un seul listage ($bs_n50)" 0 "" test "$bs_n50" = "3|1|1"
+bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none; bs_issue 004-72 "À faire" F-01 "" none
+pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
+verifier "ca24_coût : aucune issue Fait à vérifier = ni listage des fusionnées ni sonde" 0 "" test "$(grep -c -e '--merged' "$racine_tmp/git.args")|$(grep -c '^cat-file' "$racine_tmp/git.args")" = "0|0"
+
+# ca24 : noms de branche déclarés hostiles : jamais transmis à Git comme révision, la fusion se lit alors dans le fichier de develop
+bs_depot
+for bs_n in 1 2 3 4 5 6; do printf '| F-0%s | B | P1 | Fait | `docs/prd/p.md` | |\n' "$bs_n"; done | st_backlog
+git branch 'feat/$(touch${IFS}marque)' feat/b
+bs_issue 004-71 Fait F-01 '$(touch${IFS}marque)' none; bs_issue 004-72 Fait F-02 '--help' none; bs_issue 004-73 Fait F-03 '../../x' none
+bs_issue 004-74 Fait F-04 'feat/b^{commit}' none; bs_issue 004-75 Fait F-05 'feat/b:docs' none; bs_issue 004-76 Fait F-06 'feat/$(touch${IFS}marque)' none
+st_cas "ca24_sûreté : branche déclarée \$(…), --help, ../.., feat/b^{commit}, feat/b:docs ou aux caractères interdits : jamais lue comme révision ni option, la fusion se lit dans le fichier de develop (absent : non fusionnée), rien n'est exécuté" 1 <<'TXT'
+ERREUR E08 besoin F-01 : statut Fait non justifié : la branche de l'issue 004-71 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-02 : statut Fait non justifié : la branche de l'issue 004-72 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-03 : statut Fait non justifié : la branche de l'issue 004-73 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-04 : statut Fait non justifié : la branche de l'issue 004-74 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-05 : statut Fait non justifié : la branche de l'issue 004-75 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-06 : statut Fait non justifié : la branche de l'issue 004-76 n'est pas fusionnée dans develop
+STATUTS : 6 erreur(s), 0 avis
+TXT
+verifier "ca24_sûreté : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
+# ca20 : cellules hostiles du backlog (identifiant, PRD) : neutralisées, tronquées à 120 caractères, jamais évaluées
+bs_depot
+printf '%s\n' "$(printf '| F-01\033[31m | B | P1 | Fait | \033[31m$(touch${IFS}marque) | ERREUR E13 forgé |')" "| F-02 | B | P1 | Spécifié | $(printf 'x%.0s' $(seq 1 130)) | |" "| F-03 | B | P1 | Spécifié | * | |" | st_backlog
+st_cas "ca20_sûreté : identifiant avec ESC, cellule PRD avec ESC et \$(…), PRD de 130 caractères ou « * » : une seule ligne par constat, neutralisés, tronqués à 120 caractères, rien n'est exécuté" 1 <<TXT
+ERREUR E06 besoin F-01[31m : statut Fait sans PRD valide (fichier absent : [31m\$(touch\${IFS}marque))
+ERREUR E08 besoin F-01[31m : statut Fait non justifié : aucune issue Fait
+ERREUR E06 besoin F-02 : statut Spécifié sans PRD valide (fichier absent : $(printf 'x%.0s' $(seq 1 120))…)
+ERREUR E06 besoin F-03 : statut Spécifié sans PRD valide (fichier absent : *)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+verifier "ca20_sûreté : le fichier « marque » n'existe pas" 0 "" test ! -e marque
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

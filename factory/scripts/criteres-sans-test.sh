@@ -18,7 +18,8 @@
 #
 # Usage : scripts/criteres-sans-test.sh <issue>        <issue> = chemin du fichier, ou id (ex. 001-03)
 #         scripts/criteres-sans-test.sh --tous         toutes les issues dont le statut n'est pas « À faire »
-# Variable : DOSSIER_TESTS (défaut : le premier dossier existant parmi src/test, tests, test)
+# Dossier de tests : DOSSIER_TESTS (variable, puis FACTORY_DOSSIER_TESTS, .factory.local.conf, .factory.conf) ; sinon le premier dossier existant
+#   parmi src/test, tests, test. Un dossier configuré absent : message, code 64, sans repli. La valeur est un chemin, jamais une option.
 # Configuration (lib-config.sh, jamais exécutée) : TESTS_BASH_FONCTIONS = noms des fonctions de test bash, séparés par des espaces (défaut : verifier verdict_cas).
 #   Elle REMPLACE le défaut ; validée avant toute lecture des tests (invalide : message sur stderr, code 64).
 # Une issue sans AUCUN critère est une erreur (jamais un « tout couvert » silencieux).
@@ -34,16 +35,20 @@ cd "$racine" || exit 1
 # Fonctions de test bash : validées d'abord (RG-12). Les noms ne contiennent que [A-Za-z0-9_] : l'alternance construite ici est littérale.
 noms_fonctions="$(config_tests_bash_fonctions)" || exit 64
 fonctions_bash="$(printf '%s' "$noms_fonctions" | tr '\n' '|')"
-tests="${DOSSIER_TESTS:-}"
+# Dossier configuré (config_dossier_tests) : introuvable = erreur, jamais de repli sur la détection. Rien de configuré : détection.
+tests="$(config_dossier_tests)" || exit 64
 if [ -z "$tests" ]; then
   for d in src/test tests test; do [ -d "$d" ] && { tests="$d"; break; }; done
   tests="${tests:-src/test}"
 fi
 
 if [ ! -d "$tests" ]; then
-  echo "Dossier de tests introuvable : $tests" >&2
+  # La valeur est une donnée non fiable (variable, .factory.conf d'un dépôt cloné) : retours à la ligne, tabulations et caractères de contrôle neutralisés à l'affichage.
+  echo "Dossier de tests introuvable : $(printf '%s' "$tests" | tr '\r\n\t' '   ' | tr -d '[:cntrl:]')" >&2
   exit 64
 fi
+# La valeur est un chemin, jamais une option de find : un chemin relatif qui commence par « - » est préfixé par « ./ ».
+case "$tests" in -*) tests="./$tests" ;; esac
 
 # noms_de_tests : un nom ou un titre de test par ligne. Chaque motif s'ancre en début de ligne : un commentaire ne peut donc pas correspondre.
 # sed plutôt que grep pour ne garder que le nom : le reste de la ligne (message d'assertion, commentaire final) ne compte pas.

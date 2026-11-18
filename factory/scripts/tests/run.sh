@@ -3467,6 +3467,42 @@ ERREUR E14 fichier docs/issues/004-61-lien.md : fichier d'issue illisible (lien 
 STATUTS : 1 erreur(s), 0 avis
 TXT
 
+
+# ca17 : issue Abandonnée = raison écrite dans les Notes (E13) ; jamais promue ni rétrogradée par sa branche
+pr_depot
+pr_ab() { pr_issue "$1" "Abandonnée" "" "[]" "$2" "" "" "${3:-x}"; } # pr_ab <id> <notes> [corps avant les Notes] : issue Abandonnée
+pr_ab 004-71 "- 2026-11-18 : une note sans raison."
+pr_ab 004-72 "Abandonnée par l'utilisateur, sans puce."
+pr_ab 004-73 "- 2026-11-18 : abandonnee (sans accent)."
+pr_ab 004-74 "" "- Abandonnée avant les Notes"
+pr_ab 004-75 "- 2026-11-18 : Abandonnée par l'utilisateur (périmètre retiré)."
+pr_ab 004-76 "  * Abandonnée, indentée"
+pr_ab 004-77 "+ Abandonnée"
+pr_ab 004-78 "- une note
+
+## Suite
+- Abandonnée mais hors des Notes"
+st_cas "ca17_abandonnee : sans ligne à puce contenant « Abandonnée » dans les Notes (sans puce, sans accent, avant les Notes, après la section) = E13, code 1 ; avec la ligne (puces - * +, indentée) = aucun constat" 1 <<'TXT'
+ERREUR E13 issue 004-71 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-72 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-73 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-74 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-78 : statut Abandonnée sans raison dans les Notes
+STATUTS : 5 erreur(s), 0 avis
+TXT
+# statut effectif : Abandonnée local reste Abandonnée même si sa branche dit Fait ; Fait local reste Fait même si sa branche dit Abandonnée
+pr_depot
+pr_ab 004-71 "- 2026-11-18 : Abandonnée." "x"; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+sed -i.bak 's/^branche:.*/branche: feat\/a/' docs/issues/004-71-x.md; rm docs/issues/004-71-x.md.bak
+pr_issue 004-72 Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok 004-72)" "" feat/f; sed -i.bak 's/^branche:.*/branche: feat\/f/' docs/issues/004-72-x.md; rm docs/issues/004-72-x.md.bak
+gd_ add -A; gd_ commit -qm fixtures
+sur_branche feat/a 004-71 "Fait" feat/a; sur_branche feat/f 004-72 "Abandonnée" feat/f
+scripts/dashboard.sh --sortie "$racine_tmp/ca17.html" >/dev/null 2>&1
+verifier "ca17_abandonnee : Abandonnée local dont la branche dit Fait reste dans « (autre) » ; Fait local dont la branche dit Abandonnée reste dans « Fait » (statut effectif)" 0 "" test "$(colonne_de 004-71 "$racine_tmp/ca17.html")|$(colonne_de 004-72 "$racine_tmp/ca17.html")" = "(autre)|Fait"
+st_cas "ca17_abandonnee : Abandonnée avec sa raison et Fait complet : aucun constat" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

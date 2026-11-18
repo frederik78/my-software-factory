@@ -172,3 +172,12 @@ preuves_branche() {
     constat_ajouter AVIS A08 2 "$1" "$statut" "$3 sans branche retenue"
   fi
 }
+
+# preuves_abandon <rang> <fichier> <id> : erreur E13 d'une issue Abandonnée dont la section Notes n'a aucune ligne à puce contenant le mot « Abandonnée » (la raison).
+# La qualité de la raison n'est pas jugée.
+preuves_abandon() {
+  notes_lire "$2" "$3"
+  [ "$notes_abandon" -eq 0 ] || return 0
+  constat_neutraliser "$3"
+  constat_ajouter ERREUR E13 2 "$1" "issue $neutre" "statut Abandonnée sans raison dans les Notes"
+}

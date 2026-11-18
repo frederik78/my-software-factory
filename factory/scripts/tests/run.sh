@@ -812,16 +812,16 @@ rm -f dashboard.html; (umask 022 && scripts/dashboard.sh >/dev/null)
 [ "$(droits dashboard.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits dashboard.html)"
 rm -f dashboard.html; (umask 027 && scripts/dashboard.sh >/dev/null)
 [ "$(droits dashboard.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits dashboard.html)"
-# Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
-cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
-printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
+# Génération bloquée (une commande `date` lente, appelée pendant la génération) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
+mkdir -p "$racine_tmp/shim-date"
+printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\nexec "%s" "$@"\n' "$p" "$(command -v date)" > "$racine_tmp/shim-date/date"; chmod +x "$racine_tmp/shim-date/date"
 # Le cas --boucle plus haut est tué par SIGALRM : il a laissé son temporaire 2 fois sur 250 (mesure), par un mécanisme non identifié. À retirer ici, sinon ce cas échoue au hasard.
-rm -f generation-en-cours dashboard.html.*; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+rm -f generation-en-cours dashboard.html.*; PATH="$racine_tmp/shim-date:$PATH" scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
 n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 restes="$(ls dashboard.html.* 2>/dev/null)"
 [ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
-cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours dashboard.html*
+rm -f generation-en-cours dashboard.html*
 
 echo "dashboard.sh : statut lu sur la branche de l'issue"
 p="$(nouveau_projet)"; cd "$p" || exit 1

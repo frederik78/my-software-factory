@@ -152,11 +152,52 @@ issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances
   done < <(issue_fichiers)
 }
 
+# Besoin de chaque issue, rempli par generer (même rang que ids_issues et statuts_effectifs) ; le besoin d'une issue est comparé en texte littéral (RG-16).
+besoins_issues=()
+# avancement_besoin <id du besoin> : écrit « <f>/<n> Fait · <k> <statut>… » (RG-16) puis, sur la ligne suivante, le motif de divergence (RG-17) si le statut du backlog
+# <statut du backlog> diverge ; rien pour un besoin sans issue. Les statuts hors cycle sont comptés comme « non Fait » (Q-13). Le dashboard n'écrit jamais dans backlog.md (RG-18).
+avancement_besoin() { # avancement_besoin <id du besoin> <statut du backlog>
+  local i=0 n=0 fait=0 afaire=0 encours=0 enrevue=0 s k ligne="" motif="" autres=() comptes=()
+  while [ "$i" -lt "${#ids_issues[@]}" ]; do
+    if [ "${besoins_issues[$i]}" = "$1" ]; then
+      s="${statuts_effectifs[$i]}"; n=$((n + 1))
+      case "$s" in
+        "Fait") fait=$((fait + 1)) ;;
+        "À faire") afaire=$((afaire + 1)) ;;
+        "En cours") encours=$((encours + 1)) ;;
+        "En revue") enrevue=$((enrevue + 1)) ;;
+        *)
+          k=0; while [ "$k" -lt "${#autres[@]}" ] && [ "${autres[$k]}" != "$s" ]; do k=$((k + 1)); done
+          if [ "$k" -eq "${#autres[@]}" ]; then autres+=("$s"); comptes+=(1); else comptes[$k]=$((comptes[k] + 1)); fi ;;
+      esac
+    fi
+    i=$((i + 1))
+  done
+  [ "$n" -gt 0 ] || return 0
+  ligne="$fait/$n Fait"
+  [ "$afaire" -eq 0 ] || ligne="$ligne · $afaire À faire"
+  [ "$encours" -eq 0 ] || ligne="$ligne · $encours En cours"
+  [ "$enrevue" -eq 0 ] || ligne="$ligne · $enrevue En revue"
+  k=0; while [ "$k" -lt "${#autres[@]}" ]; do ligne="$ligne · ${comptes[$k]} ${autres[$k]}"; k=$((k + 1)); done
+  case "$2" in
+    "À faire"|"En clarification"|"Spécifié") [ $((encours + enrevue + fait)) -eq 0 ] || motif="des issues sont déjà démarrées" ;;
+    "En cours")
+      if [ "$fait" -eq "$n" ]; then motif="toutes les issues sont Fait"
+      elif [ "$afaire" -eq "$n" ]; then motif="aucune issue démarrée"; fi ;;
+    "En revue") [ "$afaire" -ne "$n" ] || motif="aucune issue démarrée" ;;
+    "Fait") if [ "$fait" -lt "$n" ]; then if [ $((n - fait)) -eq 1 ]; then motif="1 issue non Fait"; else motif="$((n - fait)) issues non Fait"; fi; fi ;;
+  esac
+  printf '%s\n%s\n' "$ligne" "$motif"
+}
+
 carte_besoin() { # carte_besoin <ligne de besoins_backlog>
-  local id libelle priorite statut prd decisions
+  local id libelle priorite statut prd decisions avancement motif
   IFS="$sep" read -r id libelle priorite statut prd decisions _ <<< "$1"
+  { IFS= read -r avancement; IFS= read -r motif; } < <(avancement_besoin "$id" "$statut")
   printf '<div class="carte"><strong>%s</strong> <span class="titre">%s</span>' "$(echappe "$id")" "$(echappe "$libelle")"
   [ -z "$priorite" ] || printf '<span class="detail">%s</span>' "$(echappe "$priorite")"
+  [ -z "$avancement" ] || printf '<span class="detail">%s</span>' "$(echappe "$avancement")"
+  [ -z "$motif" ] || printf '<span class="detail">à vérifier : %s</span>' "$(echappe "$motif")"
   [ -z "$prd" ] || printf '<span class="detail">PRD : %s</span>' "$(echappe "$prd")"
   [ -z "$decisions" ] || printf '<span class="detail desc">%s</span>' "$(echappe "$decisions")"
   printf '</div>\n'
@@ -403,16 +444,16 @@ palettes() {
 }
 
 generer() { # page complète sur la sortie standard
-  local b i id statut_local statut_effectif retenue maintenant
+  local b i id statut_local statut_effectif besoin_issue retenue maintenant
   maintenant="$(date +%s)"
   rattachements_charger # une seule lecture des branches locales par génération, avant tout sous-shell qui lit les rattachements
   i="$(issues_dossier)"; b="$(besoins_dates "$(besoins_backlog)" "$i")"
   prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
   signaux_worktrees "$maintenant"
-  ids_issues=(); statuts_effectifs=(); statuts_lus=(); branches_retenues=()
-  while IFS="$sep" read -r id _ statut_effectif _ _ _ statut_local _ _ _ _ retenue; do
+  ids_issues=(); statuts_effectifs=(); statuts_lus=(); branches_retenues=(); besoins_issues=()
+  while IFS="$sep" read -r id _ statut_effectif _ besoin_issue _ statut_local _ _ _ _ retenue; do
     [ -n "$id" ] || continue
-    ids_issues+=("$id"); statuts_effectifs+=("$statut_effectif"); statuts_lus+=("$statut_local"); branches_retenues+=("$retenue")
+    ids_issues+=("$id"); statuts_effectifs+=("$statut_effectif"); statuts_lus+=("$statut_local"); branches_retenues+=("$retenue"); besoins_issues+=("$besoin_issue")
   done <<< "$i"
   cat <<HTML
 <!DOCTYPE html>

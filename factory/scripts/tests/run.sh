@@ -2934,6 +2934,7 @@ echo "statuts.sh : table unique des statuts et lecture du backlog et des en-têt
 st_depot() { # st_depot : projet jetable (dépôt git, branche develop, aucune issue), on s'y place
   p="$(nouveau_projet)"; cd "$p" || exit 1
   git init -q -b develop .; rm -f docs/issues/[0-9]*.md
+  gd_ commit -q --allow-empty -m "premier commit" # la branche develop existe (sans commit, elle est absente : A13)
 }
 st_table_attendue() { cat <<'TXT'
 Statuts d'une issue (dans l'ordre) :
@@ -3432,12 +3433,12 @@ TXT
 
 
 # ca13 : commits déclarés
-pr_shim_git() { # pr_shim_git : un « git » en tête de PATH qui consigne ses arguments (git.args) et l'entrée de cat-file (git.stdin), puis lance le vrai
+pr_shim_git() { # pr_shim_git : un « git » en tête de PATH qui consigne ses arguments (git.args) et l'entrée de « cat-file --batch-check » (git.stdin), puis lance le vrai
   local reel; reel="$(command -v git)"; mkdir -p "$racine_tmp/shim"; : > "$racine_tmp/git.args"; : > "$racine_tmp/git.stdin"
   cat > "$racine_tmp/shim/git" <<SHIM
 #!/bin/bash
 printf '%s\n' "\$*" >> "$racine_tmp/git.args"
-if [ "\$1" = cat-file ]; then tee -a "$racine_tmp/git.stdin" | "$reel" "\$@"; exit "\${PIPESTATUS[1]}"; fi
+if [ "\$1 \$2" = "cat-file --batch-check" ]; then tee -a "$racine_tmp/git.stdin" | "$reel" "\$@"; exit "\${PIPESTATUS[1]}"; fi
 exec "$reel" "\$@"
 SHIM
   chmod +x "$racine_tmp/shim/git"
@@ -3471,7 +3472,7 @@ AVIS A06 issue 004-84 : commit déclaré introuvable : \$(touch\${IFS}marque)
 AVIS A06 issue 004-85 : commit déclaré introuvable : --output=x1234
 STATUTS : 0 erreur(s), 13 avis
 TXT
-verifier "ca13_preuves : une seule vérification groupée par Git (cat-file), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
+verifier "ca13_preuves : une seule vérification groupée par Git (cat-file --batch-check), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file --batch-check' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
 verifier "ca13_preuves : seules des valeurs hexadécimales de 7 à 40 caractères parviennent à Git (zzz, \$(x), --help, 41 caractères : aucun appel sur ces valeurs)" 0 "" test "$(grep -c . "$racine_tmp/git.stdin")|$(grep -vc '^[0-9a-f]\{7,40\}$' "$racine_tmp/git.stdin")" = "6|0"
 
 
@@ -3674,7 +3675,7 @@ pr_compte() { # pr_compte <nombre d'issues Fait> : crée n issues Fait complète
   wc -l < "$racine_tmp/git.args" | tr -d ' '
 }
 pr_n3="$(pr_compte 3)"; pr_n30="$(pr_compte 30)"
-verifier "ca13_sûreté : appels Git de statuts.sh identiques pour 3 et 30 issues Fait avec commits ($pr_n3 et $pr_n30), au plus 2 (lecture des branches, vérification groupée)" 0 "" test "$pr_n3|$pr_n30" = "2|2"
+verifier "ca13_sûreté : appels Git de statuts.sh identiques pour 3 et 30 issues Fait avec commits ($pr_n3 et $pr_n30), au plus 4 (lecture des branches, branches fusionnées dans develop, fichiers dans develop, vérification groupée des commits)" 0 "" test "$pr_n3|$pr_n30" = "4|4"
 pr_depot; pr_issue 004-71 "À faire" "" "[]" ""; pr_issue 004-72 "Abandonnée" "" "[]" "- Abandonnée"
 pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
 verifier "ca13_sûreté : aucune issue Fait = aucune vérification de commit (pas d'appel cat-file)" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")" = 0
@@ -3722,7 +3723,7 @@ bs_depot() { # bs_depot : st_depot + dossiers docs/prd (p.md, q.md) et docs/revi
   mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md; printf '# PRD\n' > docs/prd/q.md; printf 'APPROUVÉ\n' > docs/reviews/revue.md
   : > docs/issues/.gitkeep; gd_ add -A; gd_ commit -q -m init; bs_c="$(git rev-parse --short HEAD)"
   git branch feat/b # même commit que develop : fusionnée
-  git branch feat/nf "$(git commit-tree 'HEAD^{tree}' -p HEAD -m avance)" # un commit de plus que develop : non fusionnée
+  git branch feat/nf "$(gd_ commit-tree 'HEAD^{tree}' -p HEAD -m avance)" # un commit de plus que develop : non fusionnée
 }
 bs_issue() { # bs_issue <id> <statut> <besoin> [branche] [prd : « none » = vide] [notes] : docs/issues/<id>-x.md ; une issue Fait reçoit une revue approuvée, un commit et sa ligne FIN-ISSUE OK
   local revue="" commits="[]" notes="${6:-}" prd="${5:-docs/prd/p.md}"
@@ -3804,6 +3805,45 @@ ERREUR E07 besoin F-02 : statut En clarification en retard : l'issue 004-72 est 
 ERREUR E07 besoin F-03 : statut Spécifié en retard : l'issue 004-73 est démarrée
 ERREUR E07 besoin F-06 : statut À faire en retard : l'issue 004-77 est démarrée
 STATUTS : 4 erreur(s), 0 avis
+TXT
+
+# ca24 : la fusion se lit dans Git, relativement à la branche locale develop (jamais la branche courante)
+bs_depot
+for bs_n in 1 2 3 4 5 6 7; do printf '| F-0%s | B | P1 | Fait | `docs/prd/p.md` | |\n' "$bs_n"; done | st_backlog
+bs_issue 004-71 Fait F-01 feat/b none                                              # branche déclarée, fusionnée
+git branch feat/004-72-x feat/nf; bs_issue 004-72 Fait F-02 "" none                 # branche déduite, un commit de plus que develop
+bs_issue 004-73 Fait F-03 feat/gone none                                           # branche supprimée, fichier Fait dans develop
+bs_issue 004-74 "En revue" F-04 feat/gone none                                     # branche supprimée, fichier encore En revue dans develop
+git branch feat/004-75-a feat/nf; git branch fix/004-75-b feat/nf; bs_issue 004-75 Fait F-05 "" none   # branche ambiguë, fichier Fait dans develop
+git branch feat/004-76-a feat/nf; git branch fix/004-76-b feat/nf; bs_issue 004-76 Fait F-06 "" none   # branche ambiguë, fichier absent de develop
+gd_ add docs/issues/004-73-x.md docs/issues/004-74-x.md docs/issues/004-75-x.md; gd_ commit -q -m "issues terminées dans develop"
+git branch feat/same develop; bs_issue 004-77 Fait F-07 feat/same none            # branche au même commit que develop
+bs_issue 004-74 Fait F-04 feat/gone none                                           # Fait en local seulement
+bs_ca24_attendu() { cat <<'TXT'
+ERREUR E08 besoin F-02 : statut Fait non justifié : la branche de l'issue 004-72 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-04 : statut Fait non justifié : la branche de l'issue 004-74 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-06 : statut Fait non justifié : la branche de l'issue 004-76 n'est pas fusionnée dans develop
+STATUTS : 3 erreur(s), 0 avis
+TXT
+}
+bs_ca24_attendu | st_cas "ca24_fusion : branche déclarée fusionnée, au même commit que develop, supprimée avec fichier Fait dans develop, ambiguë avec fichier Fait dans develop = fusionnées ; branche déduite en avance de un commit, supprimée dont le fichier n'est pas Fait dans develop, ambiguë sans fichier dans develop = non fusionnées (E08)" 1
+# ca24 : la branche courante n'intervient pas (une branche de travail qui a fusionné feat/nf n'y change rien : la fusion se lit dans develop)
+gd_ checkout -q -b feat/cur develop; gd_ merge -q --no-edit feat/nf
+verifier "ca24_fusion : prémisse du cas : on est sur feat/cur, où feat/nf est fusionnée alors qu'elle ne l'est pas dans develop" 0 "" test "$(git rev-parse --abbrev-ref HEAD)|$(git merge-base --is-ancestor feat/nf HEAD && echo oui)|$(git merge-base --is-ancestor feat/nf develop || echo non)" = "feat/cur|oui|non"
+bs_ca24_attendu | st_cas "ca24_fusion : depuis une autre branche (qui a fusionné feat/nf), même résultat : la fusion est lue relativement à develop, pas à la branche courante" 1
+# ca24 : develop absente = A13 une seule fois, ni E07 ni E08 pour cause de fusion ; aucune issue Fait à vérifier = aucun A13
+bs_depot
+printf '%s\n' '| F-01 | B | P1 | Fait | `docs/prd/p.md` | |' '| F-02 | B | P1 | En revue | `docs/prd/p.md` | |' '| F-03 | B | P1 | En revue | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 Fait F-01 feat/nf none; bs_issue 004-72 Fait F-02 feat/b none; bs_issue 004-73 Fait F-03 feat/nf none
+git branch -m develop trunk
+st_cas "ca24_fusion : branche develop absente = AVIS A13 (une fois), et ni E07 ni E08 pour cause de fusion (Fait non fusionnée, En revue toutes Fait fusionnées ou non), code 0" 0 <<'TXT'
+AVIS A13 backlog : branche develop absente : fusion non vérifiable
+STATUTS : 0 erreur(s), 1 avis
+TXT
+bs_depot
+printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none; git branch -m develop trunk
+st_cas "ca24_fusion : develop absente sans issue Fait à vérifier = pas de lecture de la fusion, donc pas d'A13" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
 TXT
 
 echo

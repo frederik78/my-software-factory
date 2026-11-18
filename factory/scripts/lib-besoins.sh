@@ -89,20 +89,21 @@ controle_besoins() {
 
 # --- Cohérence des besoins avec leurs issues (RG-05, RG-09, RG-17) -------------------------------------------------------------------------------
 # Suppose les tableaux d'issues de statuts.sh (iss_fichiers, iss_ids, iss_rangs, iss_etats, iss_statuts, iss_effectifs, iss_refs) remplis par controle_issues.
-# Valeurs lues de l'en-tête de chaque issue contrôlée (indice des tableaux d'issues) : besoin et prd, sans espaces de bord.
-iss_besoins=(); iss_prds=()
+# Valeurs lues de l'en-tête de chaque issue contrôlée (indice des tableaux d'issues) : besoin, prd et branche déclarée, sans espaces de bord.
+iss_besoins=(); iss_prds=(); iss_branches=()
 
-# besoins_issues_lire : remplit iss_besoins et iss_prds (un passage awk par issue contrôlée).
+# besoins_issues_lire : remplit iss_besoins, iss_prds et iss_branches (un passage awk par issue contrôlée).
 besoins_issues_lire() {
-  local i out b p
-  iss_besoins=(); iss_prds=()
+  local i out b p br
+  iss_besoins=(); iss_prds=(); iss_branches=()
   for i in "${!iss_fichiers[@]}"; do
-    iss_besoins+=(""); iss_prds+=("")
+    iss_besoins+=(""); iss_prds+=(""); iss_branches+=("")
     [ "${iss_etats[$i]}" = controlee ] || continue
-    out="$(issue_champs "${iss_fichiers[$i]}" besoin prd)"
-    case "$out" in *$'\n'*) b="${out%%$'\n'*}"; p="${out#*$'\n'}" ;; *) b="$out"; p="" ;; esac
+    out="$(issue_champs "${iss_fichiers[$i]}" besoin prd branche)"
+    { IFS= read -r b; IFS= read -r p; IFS= read -r br; } <<< "$out"
     table_nettoyer "$b"; iss_besoins[$i]="$nettoye"
     table_nettoyer "$p"; iss_prds[$i]="$nettoye"
+    table_nettoyer "$br"; iss_branches[$i]="$nettoye"
   done
 }
 
@@ -118,12 +119,14 @@ issue_classe() {
 }
 
 # besoins_flux : le flux d'entrée de besoins_agreger, une ligne par enregistrement, champs séparés par CONSTAT_SEP :
-#   K <id>                       identifiant d'une ligne du tableau (lisible ou non)
-#   B <rang> <id>                besoin contrôlé (rang = rang de sa ligne)
-#   I <indice> <besoin> <classe> issue contrôlée (indice dans les tableaux d'issues, classe : issue_classe) ; un besoin qui contient CONSTAT_SEP est envoyé vide
-#                                (il ne peut désigner aucune ligne)
+#   K <id>                                              identifiant d'une ligne du tableau (lisible ou non)
+#   B <rang> <id>                                       besoin contrôlé (rang = rang de sa ligne)
+#   I <indice> <besoin> <classe> <ref> <existe> <fait>  issue contrôlée (indice dans les tableaux d'issues, classe : issue_classe, ref = branche retenue refs/heads/<nom> ou vide,
+#                                                       existe = 0 si la branche déclarée est absente (la fusion se lit alors dans le fichier), fait = 1 si son fichier est Fait
+#                                                       dans develop, lu seulement sans branche retenue) ; un besoin qui contient CONSTAT_SEP est envoyé vide (il ne peut désigner
+#                                                       aucune ligne)
 besoins_flux() {
-  local i classe
+  local i classe besoin
   for i in "${!bes_ids[@]}"; do
     printf 'K%s%s\n' "$CONSTAT_SEP" "${bes_ids[$i]}"
     [ "${bes_etats[$i]}" != controlee ] || printf 'B%s%s%s%s\n' "$CONSTAT_SEP" "$((i + 1))" "$CONSTAT_SEP" "${bes_ids[$i]}"
@@ -131,20 +134,22 @@ besoins_flux() {
   for i in "${!iss_fichiers[@]}"; do
     [ "${iss_etats[$i]}" = controlee ] || continue
     issue_classe "${iss_effectifs[$i]}"
-    case "${iss_besoins[$i]}" in
-      *"$CONSTAT_SEP"*) printf 'I%s%s%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" "$CONSTAT_SEP" "$classe" ;;
-      *) printf 'I%s%s%s%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" "${iss_besoins[$i]}" "$CONSTAT_SEP" "$classe" ;;
-    esac
+    besoin="${iss_besoins[$i]}"; case "$besoin" in *"$CONSTAT_SEP"*) besoin="" ;; esac
+    printf 'I%s%s%s%s%s%s%s%s%s%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" "$besoin" "$CONSTAT_SEP" "$classe" "$CONSTAT_SEP" "${iss_fusion_refs[$i]}" "$CONSTAT_SEP" "${iss_fusion_existe[$i]}" \
+      "$CONSTAT_SEP" "${iss_fusion_fait[$i]}"
   done
 }
 
-# besoins_agreger : lit le flux de besoins_flux et rapproche les issues des besoins en un seul passage (coût linéaire ; les valeurs sont des clés de tableau, jamais des motifs).
-# Écrit, séparés par CONSTAT_SEP :
-#   X <indice>                                            issue dont le besoin n'est l'identifiant d'aucune ligne du tableau
-#   S <rang> <n> <fait> <démarrées> <première démarrée>   un état par besoin contrôlé : issues non abandonnées, terminées, démarrées (y compris terminées) et indice
-#                                                         de la première démarrée dans l'ordre des fichiers (vide s'il n'y en a pas)
+# besoins_agreger : rapproche les issues des besoins en un seul passage (coût linéaire ; les valeurs sont des clés de tableau, jamais des motifs). Lit les refs fusionnées dans develop
+# (fus_refs, précédées d'une ligne « # » pour que le fichier ne soit jamais vide) puis le flux de besoins_flux. Écrit, séparés par CONSTAT_SEP :
+#   X <indice>                          issue dont le besoin n'est l'identifiant d'aucune ligne du tableau
+#   S <rang> <n> <fait> <démarrées> <première démarrée> <première non terminée> <première non fusionnée> <fusion inconnue>
+#                                       un état par besoin contrôlé : issues non abandonnées, terminées, démarrées (y compris terminées), indice de la première démarrée,
+#                                       de la première ni terminée ni abandonnée et de la première terminée non fusionnée dans l'ordre des fichiers (vides s'il n'y en a pas),
+#                                       nombre d'issues terminées dont la fusion n'est pas vérifiable (develop absente)
 besoins_agreger() {
-  LC_ALL=C awk 'BEGIN { FS = OFS = "\037" }
+  LC_ALL=C awk -v connue="$fus_connue" 'BEGIN { FS = OFS = "\037" }
+    FNR == NR { fusionnee[$0] = 1; next }
     $1 == "K" { connu[$2] = 1; next }
     $1 == "B" { nb++; ordre[nb] = $2; rang_de[$3] = $2; next }
     $1 == "I" {
@@ -154,8 +159,14 @@ besoins_agreger() {
       if (classe != "A") n[r]++
       if (classe == "F") fait[r]++
       if (classe == "D" || classe == "F") { dem[r]++; if (!(r in premiere)) premiere[r] = $2 }
+      if ((classe == "T" || classe == "D") && !(r in nonterm)) nonterm[r] = $2
+      if (classe == "F") {
+        if (!connue) inconnue[r]++
+        else if (((($5 != "") && ($6 != 0)) ? !($5 in fusionnee) : $7 != 1) && !(r in nonfus)) nonfus[r] = $2
+      }
     }
-    END { for (k = 1; k <= nb; k++) { r = ordre[k]; print "S", r, n[r] + 0, fait[r] + 0, dem[r] + 0, premiere[r] } }'
+    END { for (k = 1; k <= nb; k++) { r = ordre[k]; print "S", r, n[r] + 0, fait[r] + 0, dem[r] + 0, premiere[r], nonterm[r], nonfus[r], inconnue[r] + 0 } }' \
+    <(printf '#\n%s\n' "$fus_refs") <(besoins_flux)
 }
 
 # prd_present <chemin docs/prd/<nom>.md> : vrai si le PRD est un fichier régulier, ni lien symbolique ni dans un dossier docs/prd en lien (jamais ouvert : sa présence seule compte).
@@ -181,31 +192,84 @@ besoins_prd() {
   done
 }
 
-# besoin_ecart <rang> <n> <fait> <démarrées> <première démarrée> : l'écart entre le statut du besoin et l'état de ses issues (RG-17), au plus un constat par besoin.
+# besoins_fusion_preparer : lit dans Git la fusion des issues Fait (statut effectif) des besoins pour lesquels elle compte (En cours, En revue, Fait) : la liste des branches fusionnées
+# dans develop (un appel), puis une sonde par lot (un appel) : existence de la branche déclarée d'une issue Fait locale, fichier d'issue tel qu'il est dans develop pour une issue
+# sans branche retenue. Aucun appel Git s'il n'y a aucune telle issue. Remplit, par indice d'issue, la branche retenue (iss_fusion_refs), l'existence de la branche déclarée
+# (iss_fusion_existe : 0 ou vide) et iss_fusion_fait (1 ou 0, vide si non lu) ; avis A13 si develop est absente.
+# La branche retenue d'une issue dont le statut local n'est pas Fait vient du calcul du statut effectif (iss_refs) ; pour une issue Fait locale, c'est la branche déclarée
+# (existante), sinon la branche déduite (rattachements_charger) ; une branche ambiguë ou absente ne retient rien.
+iss_fusion_refs=(); iss_fusion_existe=(); iss_fusion_fait=()
+besoins_fusion_preparer() {
+  local i j k pertinents=$'\n' besoin utile=0 noms=() cibles=() jeton ref declaree
+  iss_fusion_refs=(); iss_fusion_existe=(); iss_fusion_fait=(); fus_connue=0; fus_refs=""
+  for i in "${!bes_ids[@]}"; do
+    [ "${bes_etats[$i]}" = controlee ] || continue
+    case "${bes_statuts[$i]}" in "En cours"|"En revue"|Fait) pertinents="$pertinents${bes_ids[$i]}"$'\n' ;; esac
+  done
+  for i in "${!iss_fichiers[@]}"; do
+    iss_fusion_refs+=(""); iss_fusion_existe+=(""); iss_fusion_fait+=("")
+    [ "${iss_etats[$i]}" = controlee ] && [ "${iss_effectifs[$i]}" = Fait ] || continue
+    besoin="${iss_besoins[$i]}"; [ -n "$besoin" ] || continue
+    case "$pertinents" in *$'\n'"$besoin"$'\n'*) ;; *) continue ;; esac
+    utile=1
+    ref="${iss_refs[$i]}"; declaree=0
+    if [ -z "$ref" ] && [ "${iss_statuts[$i]}" = Fait ]; then
+      if [ -z "${iss_branches[$i]}" ]; then
+        [ -z "${rat_deduites[$i]:-}" ] || ref="refs/heads/${rat_deduites[$i]}"
+      elif fusion_nom_sur "${iss_branches[$i]}"; then
+        ref="refs/heads/${iss_branches[$i]}"; noms+=("$ref"); cibles+=("e$i"); declaree=1 # existence à sonder : absente, la fusion se lit dans le fichier
+      fi
+    fi
+    iss_fusion_refs[$i]="$ref"
+    case "${iss_fichiers[$i]}" in *$'\n'*) continue ;; esac
+    if [ -z "$ref" ] || [ "$declaree" -eq 1 ]; then noms+=("$FUSION_REF:${iss_fichiers[$i]}"); cibles+=("f$i"); fi
+  done
+  [ "$utile" -eq 1 ] || return 0
+  fusion_charger
+  if [ "$fus_connue" -eq 0 ]; then
+    constat_ajouter AVIS A13 0 0 backlog "branche develop absente : fusion non vérifiable"; return 0
+  fi
+  [ "${#noms[@]}" -gt 0 ] || return 0
+  k=0
+  while IFS= read -r jeton; do
+    j="${cibles[$k]}"
+    case "$j" in e*) [ "$jeton" = 1 ] || iss_fusion_existe[${j#e}]=0 ;; f*) iss_fusion_fait[${j#f}]="$jeton" ;; esac
+    k=$((k + 1))
+  done < <(fusion_sonder "${noms[@]}")
+}
+
+# besoin_ecart <rang> <n> <fait> <démarrées> <première démarrée> <première non terminée> <première non fusionnée> <fusion inconnue> : l'écart entre le statut du besoin et l'état
+# de ses issues (RG-17), au plus un constat par besoin.
 besoin_ecart() {
-  local statut id
+  local statut id issue
   statut="${bes_statuts[$(($1 - 1))]}"
   constat_neutraliser "${bes_ids[$(($1 - 1))]}"; id="besoin $neutre"
   case "$statut" in
     "À faire"|"En clarification"|Spécifié)
       [ "$4" -eq 0 ] || { constat_neutraliser "${iss_ids[$5]}"; constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : l'issue $neutre est démarrée"; } ;;
+    Fait)
+      if [ "$3" -eq 0 ]; then constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : aucune issue Fait"
+      elif [ -n "$6" ]; then constat_neutraliser "${iss_ids[$6]}"; constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : l'issue $neutre n'est ni Fait ni Abandonnée"
+      elif [ -n "$7" ]; then constat_neutraliser "${iss_ids[$7]}"; constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : la branche de l'issue $neutre n'est pas fusionnée dans develop"
+      fi ;;
   esac
 }
 
-# besoins_coherence : E06 (besoin sans PRD) et, pour les issues contrôlées, E12 (issue sans besoin connu) et l'écart entre chaque besoin et ses issues (E07). Ne fait rien sans tableau
-# des besoins (E02).
+# besoins_coherence : E06 (besoin sans PRD) et, pour les issues contrôlées, E12 (issue sans besoin connu), l'écart entre chaque besoin et ses issues (E07, E08) et A13 (develop
+# absente). Ne fait rien sans tableau des besoins (E02).
 besoins_coherence() {
-  local t a b c d e objet
+  local t a b c d e f g h objet
   [ "$bes_table" -eq 1 ] || return 0
   besoins_prd
   besoins_issues_lire
-  while IFS="$CONSTAT_SEP" read -r t a b c d e; do
+  besoins_fusion_preparer
+  while IFS="$CONSTAT_SEP" read -r t a b c d e f g h; do
     case "$t" in
       X)
         constat_neutraliser "${iss_ids[$a]}"; objet="issue $neutre"
         constat_neutraliser "${iss_besoins[$a]}"
         constat_ajouter ERREUR E12 2 "${iss_rangs[$a]}" "$objet" "besoin « $neutre » inconnu du backlog" ;;
-      S) besoin_ecart "$a" "$b" "$c" "$d" "$e" ;;
+      S) besoin_ecart "$a" "$b" "$c" "$d" "$e" "$f" "$g" "$h" ;;
     esac
-  done < <(besoins_flux | besoins_agreger)
+  done < <(besoins_agreger)
 }

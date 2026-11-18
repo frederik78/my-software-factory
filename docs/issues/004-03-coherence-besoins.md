@@ -3,7 +3,7 @@ id: 004-03
 titre: Cohérence des besoins avec leurs issues
 prd: docs/prd/004-machines-a-etats-statuts.md
 besoin: F-09
-statut: À faire
+statut: En cours
 depend_de: [004-02]
 criteres: [CA-19, CA-20, CA-21, CA-22, CA-23, CA-24, CA-25, CA-26, CA-27]
 branche: feat/004-03-coherence-besoins

@@ -2964,7 +2964,7 @@ rd_f01="$(lire_depot "$depot" factory/README.md)"
 verifier "ca18_factory/VERSION contient $v_f01 (ou une version plus récente, lue par ca27)" 0 "" test "$(lire_depot "$depot" factory/VERSION | head -n1)" = "$v_f01"
 verifier "ca18_le CHANGELOG a une entrée $v_f01" 0 "" contient_motif "$(head -n1 <<<"$cl_f01")" '^## 1\.23\.0$'
 verifier "ca18_l'entrée $v_f01 est la première du CHANGELOG" 0 "" test "$(lire_depot "$depot" factory/CHANGELOG.md | grep -m1 '^## ')" = "## $v_f01"
-for motif in 'scripts/verdict-revue.sh' 'VERDICT:' 'APPROUVÉ' 'CHANGEMENTS DEMANDÉS' 'INCONNU' '0, 1' '64' '200 octets' '1 Mio' 'relance' 'MAX_ITERATIONS_REVUE' 'Pour l'"'"'humain' 'courriel' 'BLOQUANT' 'escalade' 'secrets et identifiants' 'écart avec le PRD' 'tous les rôles' 'AGENTS.md' 'Migration : remplacer `factory/`' 'sans action'; do
+for motif in 'scripts/verdict-revue.sh' 'VERDICT:' 'APPROUVÉ' 'CHANGEMENTS DEMANDÉS' 'INCONNU' 'Codes : 0 valeur valide, 1 `INCONNU`' '64 usage' '200 octets' '1 Mio' 'relance' 'MAX_ITERATIONS_REVUE' 'Pour l'"'"'humain' 'courriel' 'BLOQUANT' 'escalade' 'secrets et identifiants' 'écart avec le PRD' 'tous les rôles' 'AGENTS.md' 'Migration : remplacer `factory/`' 'sans action'; do
   verifier "ca18_entrée $v_f01 du CHANGELOG : « $motif »" 0 "" contient "$cl_f01" "$motif"
 done
 for motif in 'scripts/verdict-revue.sh' 'VERDICT: APPROUVÉ' 'INCONNU' "## Pour l'humain" '**Décision à prendre**' '**Fichiers à lire**' '**Vérification suggérée**' "## Sujets à remonter à l'utilisateur" 'secrets et identifiants' 'authentification et autorisation' 'dépendance et licence' 'déploiement et CI' "contrat d'un service externe" 'écart avec le PRD' "($v_f01)"; do

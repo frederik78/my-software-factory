@@ -3,7 +3,7 @@ id: 004-04
 titre: Lecture seule, coût mesuré et fichiers hostiles
 prd: docs/prd/004-machines-a-etats-statuts.md
 besoin: F-09
-statut: À faire
+statut: En cours
 depend_de: [004-03]
 criteres: [CA-28, CA-29, CA-30, CS-01, CS-02, CS-03, CS-04]
 branche: feat/004-04-lecture-seule-cout-hostiles

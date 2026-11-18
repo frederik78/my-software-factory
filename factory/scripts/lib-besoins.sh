@@ -201,13 +201,21 @@ besoins_prd() {
 # La branche retenue d'une issue dont le statut local n'est pas Fait vient du calcul du statut effectif (iss_refs) ; pour une issue Fait locale, c'est la branche déclarée
 # (existante), sinon la branche déduite (rattachements_charger) ; une branche ambiguë ou absente ne retient rien.
 iss_fusion_refs=(); iss_fusion_existe=(); iss_fusion_fait=()
+
+# besoins_pertinents : les identifiants (un par ligne) des besoins contrôlés En cours, En revue ou Fait, ceux pour lesquels la fusion de leurs issues compte. Assemblés en une fois par
+# l'appelant (des ajouts successifs à une grande chaîne coûtent plus que linéaire sous bash 3.2). Une fonction à part : bash 3.2 lit mal un « case » dans « $( … ) ».
+besoins_pertinents() {
+  local i
+  for i in "${!bes_ids[@]}"; do
+    [ "${bes_etats[$i]}" = controlee ] || continue
+    case "${bes_statuts[$i]}" in "En cours"|"En revue"|Fait) printf '%s\n' "${bes_ids[$i]}" ;; esac
+  done
+}
+
 besoins_fusion_preparer() {
   local i j k pertinents besoin utile=0 noms=() cibles=() jeton ref declaree
   iss_fusion_refs=(); iss_fusion_existe=(); iss_fusion_fait=(); fus_connue=0; fus_refs=""
-  pertinents=$'\n'"$(for i in "${!bes_ids[@]}"; do # un seul assemblage (des ajouts successifs à une grande chaîne coûtent plus que linéaire sous bash 3.2)
-    [ "${bes_etats[$i]}" = controlee ] || continue
-    case "${bes_statuts[$i]}" in "En cours"|"En revue"|Fait) printf '%s\n' "${bes_ids[$i]}" ;; esac
-  done)"$'\n'
+  pertinents=$'\n'"$(besoins_pertinents)"$'\n'
   for i in "${!iss_fichiers[@]}"; do
     iss_fusion_refs+=(""); iss_fusion_existe+=(""); iss_fusion_fait+=("")
     [ "${iss_etats[$i]}" = controlee ] && [ "${iss_effectifs[$i]}" = Fait ] || continue

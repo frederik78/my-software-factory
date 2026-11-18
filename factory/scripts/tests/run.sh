@@ -2999,10 +2999,14 @@ printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
 st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fait'"; st_issue 004-94 ' " Fait "'
 st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucune erreur ; les avis A01 montrent que ces issues sont lues Fait)" 0 <<'TXT'
 AVIS A01 issue 004-91 : Fait sans champ revue renseigné
+AVIS A04 issue 004-91 : Fait sans ligne « FIN-ISSUE OK 004-91 » dans les Notes
 AVIS A01 issue 004-92 : Fait sans champ revue renseigné
+AVIS A04 issue 004-92 : Fait sans ligne « FIN-ISSUE OK 004-92 » dans les Notes
 AVIS A01 issue 004-93 : Fait sans champ revue renseigné
+AVIS A04 issue 004-93 : Fait sans ligne « FIN-ISSUE OK 004-93 » dans les Notes
 AVIS A01 issue 004-94 : Fait sans champ revue renseigné
-STATUTS : 0 erreur(s), 4 avis
+AVIS A04 issue 004-94 : Fait sans ligne « FIN-ISSUE OK 004-94 » dans les Notes
+STATUTS : 0 erreur(s), 8 avis
 TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
@@ -3186,7 +3190,8 @@ ERREUR E14 fichier docs/issues/004-95-lien.md : fichier d'issue illisible (lien 
 $st_droits
 ERREUR E10 issue 004-97 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
 AVIS A01 issue 004-94 : Fait sans champ revue renseigné
-STATUTS : 6 erreur(s), 1 avis
+AVIS A04 issue 004-94 : Fait sans ligne « FIN-ISSUE OK 004-94 » dans les Notes
+STATUTS : 6 erreur(s), 2 avis
 TXT
 else
   ok "ca09_lecture impossible (chmod 000) non éprouvable en tant que root : cas ignoré"
@@ -3252,9 +3257,9 @@ pr_depot() { # pr_depot : st_depot + backlog à un besoin « En cours » + un co
   gd_ commit -q --allow-empty -m init; pr_c="$(git rev-parse --short HEAD)"; pr_cl="$(git rev-parse HEAD)"
   mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md
 }
-pr_issue() { # pr_issue <id> <statut> <revue> <commits> <notes> [depend_de] [branche] : docs/issues/<id>-x.md complet (revue et commits : valeur brute après la clé)
-  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\ndepend_de: [%s]\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\nx\n\n## Notes\n%s\n' \
-    "$1" "$1" "$2" "${6:-}" "${7:-}" "$4" "${3:+ $3}" "$5" > "docs/issues/$1-x.md"
+pr_issue() { # pr_issue <id> <statut> <revue> <commits> <notes> [depend_de] [branche] [corps avant les Notes] : docs/issues/<id>-x.md complet (revue et commits : valeur brute après la clé)
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\ndepend_de: [%s]\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\n%s\n\n## Notes\n%s\n' \
+    "$1" "$1" "$2" "${6:-}" "${7:-}" "$4" "${3:+ $3}" "${8:-x}" "$5" > "docs/issues/$1-x.md"
 }
 PR_OK='- 2026-11-18 : `FIN-ISSUE OK 004-9X abc1234 : 10 tests, 0 échec, 0 ignoré`.'
 pr_ok() { printf -- '- 2026-11-18 : `FIN-ISSUE OK %s abc1234 : 10 tests, 0 échec, 0 ignoré`.' "$1"; } # pr_ok <id> : la ligne de notes de preuve
@@ -3310,6 +3315,42 @@ AVIS A02 issue 004-87 : Fait : fichier de revue introuvable ou illisible (/etc/h
 AVIS A02 issue 004-88 : Fait : fichier de revue introuvable ou illisible (docs/reviews/sub/x.md)
 AVIS A02 issue 004-89 : Fait : fichier de revue introuvable ou illisible (docs/reviews/../../etc/hostname)
 STATUTS : 0 erreur(s), 18 avis
+TXT
+
+
+# ca12 : ligne « FIN-ISSUE OK <id> » dans les Notes
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_fait() { pr_issue "$1" Fait "docs/reviews/revue.md" "[$pr_c]" "$2" "" "" "${3:-x}"; } # pr_fait <id> <notes> [corps avant les Notes] : issue Fait complète sauf les Notes
+pr_fait 004-71 "- 2026-11-18 : une note sans preuve."
+pr_fait 004-72 "$(pr_ok 004-99)"
+pr_fait 004-73 '- 2026-11-18 : `FIN-ISSUE ECHEC 004-73 abc1234 : 1 échec`'
+pr_fait 004-74 "" "$(pr_ok 004-74)"
+pr_fait 004-75 "- \`FIN-ISSUE OK 004-751 abc1234 : 10 tests\`"
+pr_fait 004-76 "- \`FIN-ISSUE OK 004-76\`"
+pr_fait 004-77 "$(pr_ok 004-77)"
+pr_fait 004-78 "FIN-ISSUE OK 004-78 abc1234 : sans puce ni accents graves"
+pr_fait 004-79 "### Détail
+$(pr_ok 004-79)"
+pr_fait 004-80 "- une note
+
+## Suite
+$(pr_ok 004-80)"
+st_cas "ca12_preuves : pas de ligne FIN-ISSUE OK <id> dans les Notes (autre issue, ECHEC, avant les Notes, préfixe d'un autre identifiant, fin de ligne, après la section) = A04 ; la ligne en puce, brute ou sous un sous-titre = aucun avis" 0 <<'TXT'
+AVIS A04 issue 004-71 : Fait sans ligne « FIN-ISSUE OK 004-71 » dans les Notes
+AVIS A04 issue 004-72 : Fait sans ligne « FIN-ISSUE OK 004-72 » dans les Notes
+AVIS A04 issue 004-73 : Fait sans ligne « FIN-ISSUE OK 004-73 » dans les Notes
+AVIS A04 issue 004-74 : Fait sans ligne « FIN-ISSUE OK 004-74 » dans les Notes
+AVIS A04 issue 004-75 : Fait sans ligne « FIN-ISSUE OK 004-75 » dans les Notes
+AVIS A04 issue 004-76 : Fait sans ligne « FIN-ISSUE OK 004-76 » dans les Notes
+AVIS A04 issue 004-80 : Fait sans ligne « FIN-ISSUE OK 004-80 » dans les Notes
+STATUTS : 0 erreur(s), 7 avis
+TXT
+printf -- '---\nid: 004-81\nbesoin: F-01\nstatut: Fait\ndepend_de: []\ncommits: [%s]\nrevue: docs/reviews/revue.md\n---\n\n## Objectif\nx\n' "$pr_c" > docs/issues/004-81-x.md
+rm -f docs/issues/004-7[1-9]-x.md docs/issues/004-80-x.md
+st_cas "ca12_preuves : sans section Notes = A04" 0 <<'TXT'
+AVIS A04 issue 004-81 : Fait sans ligne « FIN-ISSUE OK 004-81 » dans les Notes
+STATUTS : 0 erreur(s), 1 avis
 TXT
 
 echo

@@ -56,21 +56,43 @@ revue_examiner() {
   [ "$2" -eq 0 ] || revue_derniere_ligne "$revue_chemin"
 }
 
-# preuves_fait <rang> <fichier> <id> : avis A01 à A03 d'une issue dont le statut local est Fait (les autres preuves : voir la suite de ce fichier).
+# notes_lire <fichier> <id> : lit la section « ## Notes » du fichier (de son titre au titre suivant de niveau 1 ou 2 ; l'en-tête YAML n'en fait pas partie) et met dans
+#   $notes_fin_ok   1 si une de ses lignes contient « FIN-ISSUE OK <id> » suivi d'une espace (texte littéral, casse comprise), sinon 0 ;
+#   $notes_abandon  1 si une de ses lignes à puce (- * +) contient le mot « Abandonnée », sinon 0.
+# Un seul passage awk en octets (LC_ALL=C) ; l'identifiant arrive par l'environnement (ENVIRON : aucune interprétation des barres obliques inverses), jamais comme motif.
+notes_lire() {
+  local sortie
+  sortie="$(NOTES_ID="$2" LC_ALL=C awk '
+    BEGIN { cible = "FIN-ISSUE OK " ENVIRON["NOTES_ID"] " " }
+    NR == 1 { entete = 1; next }
+    entete { if ($0 == "---") entete = 0; next }
+    /^#[[:space:]]/ || /^##[[:space:]]/ { notes = ($0 ~ /^##[[:space:]]+Notes[[:space:]]*$/); next }
+    notes {
+      if (index($0, cible)) fin = 1
+      if ($0 ~ /^[[:space:]]*[-*+][[:space:]]/ && index($0, "Abandonnée")) abandon = 1
+    }
+    END { printf "%d%d", fin, abandon }' "$1" 2>/dev/null)"
+  notes_fin_ok="${sortie:0:1}"; notes_abandon="${sortie:1:1}"
+  [ -n "$notes_fin_ok" ] || { notes_fin_ok=0; notes_abandon=0; }
+}
+
+# preuves_fait <rang> <fichier> <id> : avis A01 à A04 d'une issue dont le statut local est Fait.
 preuves_fait() {
   local rang="$1" fichier="$2" id="$3" revue objet chemin
   constat_neutraliser "$id"; objet="issue $neutre"
   revue="$(issue_champ "$fichier" revue)"
   if [ -z "$revue" ]; then
     constat_ajouter AVIS A01 2 "$rang" "$objet" "Fait sans champ revue renseigné"
-    return 0
+  else
+    revue_examiner "$revue" 1
+    if [ "$revue_lisible" -eq 0 ]; then
+      constat_neutraliser "${revue_chemin:-$revue}"
+      constat_ajouter AVIS A02 2 "$rang" "$objet" "Fait : fichier de revue introuvable ou illisible ($neutre)"
+    elif [ "$revue_ligne" != "APPROUVÉ" ]; then
+      constat_neutraliser "$revue_chemin"; chemin="$neutre"
+      constat_ajouter AVIS A03 2 "$rang" "$objet" "Fait : la dernière ligne de $chemin n'est pas APPROUVÉ"
+    fi
   fi
-  revue_examiner "$revue" 1
-  if [ "$revue_lisible" -eq 0 ]; then
-    constat_neutraliser "${revue_chemin:-$revue}"
-    constat_ajouter AVIS A02 2 "$rang" "$objet" "Fait : fichier de revue introuvable ou illisible ($neutre)"
-  elif [ "$revue_ligne" != "APPROUVÉ" ]; then
-    constat_neutraliser "$revue_chemin"; chemin="$neutre"
-    constat_ajouter AVIS A03 2 "$rang" "$objet" "Fait : la dernière ligne de $chemin n'est pas APPROUVÉ"
-  fi
+  notes_lire "$fichier" "$id"
+  [ "$notes_fin_ok" -eq 1 ] || constat_ajouter AVIS A04 2 "$rang" "$objet" "Fait sans ligne « FIN-ISSUE OK ${objet#issue } » dans les Notes"
 }

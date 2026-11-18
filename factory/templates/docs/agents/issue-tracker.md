@@ -9,4 +9,4 @@ le dossier `.scratch/` que les skills upstream utilisent par défaut pour un tra
 - Quand une skill dit « publier au tracker » : crée le fichier dans `docs/issues/` (ou `docs/prd/` pour une spec).
 - Quand une skill dit « récupérer le ticket » : lis le fichier ; l'utilisateur donne en général le numéro (« issue 2 »), à rapprocher du PRD en cours.
 - Le statut est le champ `statut:` de l'en-tête. Commentaires et historique : section Notes, une ligne datée chacun.
-- Vocabulaire de triage : `ready-for-agent` = statut `À faire` avec dépendances `Fait`.
+- Vocabulaire de triage : `ready-for-agent` = statut `À faire` avec dépendances `Fait` (ici ou sur leur branche, voir `scripts/etat-issues.sh --prochaine`).

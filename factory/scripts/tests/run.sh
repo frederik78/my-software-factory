@@ -18,6 +18,8 @@ ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
 racine_tmp="$(mktemp -d "${TMPDIR:-/tmp}/factory-tests.XXXXXX")"
 trap 'rm -rf "$racine_tmp"' EXIT
+# Environnement Git isolé : ni configuration globale ou système de l'utilisateur, ni son HOME ; les dépôts de test sont créés sous $racine_tmp.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null HOME="$racine_tmp/home"; mkdir -p "$HOME"
 
 total=0; echecs=0
 ok()  { total=$((total + 1)); printf '  ok   %s\n' "$1"; }
@@ -810,16 +812,16 @@ rm -f dashboard.html; (umask 022 && scripts/dashboard.sh >/dev/null)
 [ "$(droits dashboard.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits dashboard.html)"
 rm -f dashboard.html; (umask 027 && scripts/dashboard.sh >/dev/null)
 [ "$(droits dashboard.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits dashboard.html)"
-# Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
-cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
-printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
+# Génération bloquée (une commande `date` lente, appelée pendant la génération) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
+mkdir -p "$racine_tmp/shim-date"
+printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\nexec "%s" "$@"\n' "$p" "$(command -v date)" > "$racine_tmp/shim-date/date"; chmod +x "$racine_tmp/shim-date/date"
 # Le cas --boucle plus haut est tué par SIGALRM : il a laissé son temporaire 2 fois sur 250 (mesure), par un mécanisme non identifié. À retirer ici, sinon ce cas échoue au hasard.
-rm -f generation-en-cours dashboard.html.*; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+rm -f generation-en-cours dashboard.html.*; PATH="$racine_tmp/shim-date:$PATH" scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
 n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 restes="$(ls dashboard.html.* 2>/dev/null)"
 [ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
-cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours dashboard.html*
+rm -f generation-en-cours dashboard.html*
 
 echo "dashboard.sh : statut lu sur la branche de l'issue"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -2041,9 +2043,8 @@ for v in FACTORY_DOSSIER_TESTS FACTORY_TESTS_BASH_FONCTIONS DOSSIER_TESTS; do
   verifier "ca23_$v isolée de l'environnement appelant" 0 "" contient_motif "$unsets" "(^| )$v( |$)"
 done
 # CA-24 : version 1.21.0, entrée du CHANGELOG (changement et migration), README et guide de mise à jour.
-verifier "ca24_factory/VERSION vaut 1.21.0" 0 "" contient_motif "$(lire_depot "$depot" factory/VERSION | head -n1)" '^1\.21\.0$'
-entree="$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{n++} n==1')"
-verifier "ca24_le CHANGELOG commence par 1.21.0" 0 "" contient_motif "$(head -n1 <<<"$entree")" '^## 1\.21\.0$'
+entree="$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{p = ($0 == "## 1.21.0")} p')" # l'entrée 1.21.0, quelle que soit la version courante
+verifier "ca24_le CHANGELOG a une entrée 1.21.0" 0 "" contient_motif "$(head -n1 <<<"$entree")" '^## 1\.21\.0$'
 for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'Migration : remplacer `factory/`' 'sans action'; do
   verifier "ca24_entrée 1.21.0 du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
 done
@@ -2427,6 +2428,231 @@ apres_boucle="$(av_empreinte)"
 rat_c() { [ "$avant" = "$apres_unique" ] && [ -n "$avant" ] && grep -q 'backlog.md' <<< "$avant" || { printf '%s\n--\n%s\n' "$avant" "$apres_unique"; return 1; }; }; verifier "ca20_génération unique : backlog.md et issues identiques octet pour octet, aucun autre fichier écrit" 0 "" rat_c
 rat_c() { [ "$avant" = "$apres_boucle" ] && [ "$(cat "$racine_tmp/shim/n")" = 2 ] && [ -s "$racine_tmp/boucle.html" ] && grep -q 'à vérifier' "$racine_tmp/boucle.html" || { printf '%s\n--\n%s\n%s\n' "$avant" "$apres_boucle" "$(cat "$racine_tmp/shim/n")"; return 1; }; }; verifier "ca20_boucle arrêtée après deux générations : mêmes empreintes, deux passages, page produite" 0 "" rat_c
 rat_c() { [ -z "$(git status --porcelain)" ]; }; verifier "ca20_arbre git propre après les générations" 0 "" rat_c
+
+echo "dashboard.sh et etat-issues.sh : coût en appels Git, non-régression, documentation et version (PRD 003, issue 003-05)"
+# Un `git` de comptage, placé en tête de PATH le temps d'une commande, consigne chaque appel (une ligne) puis lance le vrai git.
+cout_shim="$racine_tmp/cout-shim"; cout_log="$racine_tmp/cout.log"; mkdir -p "$cout_shim"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\nexec "%s" "$@"\n' "$cout_log" "$(command -v git)" > "$cout_shim/git"; chmod +x "$cout_shim/git"
+cout_appels() { : > "$cout_log"; PATH="$cout_shim:$PATH" "$@" >/dev/null 2>&1; wc -l < "$cout_log" | tr -d ' '; } # cout_appels <commande...> : nombre d'appels git de la commande
+cout_listages() { grep -c 'for-each-ref' "$cout_log"; }                                                       # listages de branches du dernier cout_appels
+cout_depot() { # cout_depot <issues> <branches> <A|B> : dépôt jetable ; chaque issue dépend de la précédente ; A : champ branche: rempli (la branche que B déduit, ou une branche sans correspondance), B : champ vide
+  local n="$1" m="$2" mode="$3" i id champ dep
+  rat_depot
+  i=1; while [ "$i" -le "$n" ]; do
+    id="$(printf '1%02d-01' "$i")"; champ=""; dep=""
+    if [ "$mode" = A ]; then if [ "$i" -le "$m" ]; then champ="feat/$id-x"; else champ="feat/sans-branche-$i"; fi; fi
+    [ "$i" -eq 1 ] || dep="$(printf '1%02d-01' $((i - 1)))"
+    issue_b "$id" "À faire" "$champ" "$dep"; i=$((i + 1))
+  done
+  rat_commit
+  i=1; while [ "$i" -le "$m" ]; do # les branches des issues portent leur statut (Fait ou En cours), les autres sont des branches de remplissage
+    id="$(printf '1%02d-01' "$i")"
+    if [ "$i" -le "$n" ]; then sur_branche "feat/$id-x" "$id" "$([ $((i % 2)) -eq 1 ] && echo Fait || echo "En cours")" ""; else git branch "feat/zz-remplissage-$i"; fi
+    i=$((i + 1))
+  done
+}
+cout_mesure() { # cout_mesure <A|B> <issues> <branches> : appels et listages du dashboard, de --prochaine et du tableau, dans cout_<A|B>_<…>
+  cout_depot "$2" "$3" "$1"
+  eval "cout_$1_dashboard=$(cout_appels scripts/dashboard.sh --sortie "$racine_tmp/cout.html") cout_$1_listages_dashboard=$(cout_listages)"
+  eval "cout_$1_prochaine=$(cout_appels scripts/etat-issues.sh --prochaine) cout_$1_listages_prochaine=$(cout_listages)"
+  eval "cout_$1_tableau=$(cout_appels scripts/etat-issues.sh) cout_$1_listages_tableau=$(cout_listages)"
+}
+cout_compare() { # cout_compare <commande> : (appels de B) − (appels de A) ≤ 1 ; exactement un listage dans B ; aucun dans A (aucune issue à champ vide)
+  local a b la lb
+  eval "a=\$cout_A_$1 b=\$cout_B_$1 la=\$cout_A_listages_$1 lb=\$cout_B_listages_$1"
+  [ $((b - a)) -le 1 ] && [ "$lb" -eq 1 ] && [ "$la" -eq 0 ] || { printf 'A : %s appels, %s listage(s) ; B : %s appels, %s listage(s)\n' "$a" "$la" "$b" "$lb"; return 1; }
+}
+for cfg in "3 1" "3 50" "12 1" "12 50"; do
+  cout_mesure A ${cfg% *} ${cfg#* }; cout_mesure B ${cfg% *} ${cfg#* }
+  printf '  mesure %s issues, %s branches (appels git A -> B) : dashboard %s -> %s, --prochaine %s -> %s, tableau %s -> %s\n' "${cfg% *}" "${cfg#* }" "$cout_A_dashboard" "$cout_B_dashboard" "$cout_A_prochaine" "$cout_B_prochaine" "$cout_A_tableau" "$cout_B_tableau"
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : dashboard, (appels de B) - (appels de A) <= 1 et un seul listage dans B, aucun dans A" 0 "" cout_compare dashboard
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : etat-issues.sh --prochaine seul, différence <= 1 et un seul listage dans B" 0 "" cout_compare prochaine
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : le tableau de etat-issues.sh seul, différence <= 1 et un seul listage dans B" 0 "" cout_compare tableau
+done
+
+# ca24 : non-régression. Dépôt où chaque issue a branche: rempli (existante ou non) ou sans correspondance, aucune issue liée à un besoin, aucune dépendance Fait seulement sur sa branche :
+# la page (de l'encart « En cours » à la fin, sans date de génération, hash de commit masqué) et les sorties de etat-issues.sh sont celles des scripts de 1.21.0, enregistrées avant PRD 003.
+# nr-fonctions-debut
+nr_depot() { # nr_depot : le dépôt de non-régression, dates de commit fixes
+  export GIT_AUTHOR_DATE="2026-01-02T03:04:05Z" GIT_COMMITTER_DATE="2026-01-02T03:04:05Z"
+  rat_depot
+  nr_issue() { printf -- '---\nid: %s\ntitre: T%s\nstatut: %s\nbranche: %s\ndepend_de: [%s]\n---\n\n## Objectif\nObjectif %s.\n' "$1" "$1" "$2" "$3" "${4:-}" "$1" > "docs/issues/$1-x.md"; }
+  nr_issue 201-01 "Fait" ""; nr_issue 201-02 "En cours" "feat/a"; nr_issue 201-03 "À faire" "feat/absente" "201-01"; nr_issue 201-04 "À faire" "" "201-05"
+  nr_issue 201-05 "À faire" ""; nr_issue 201-06 "En revue" "feat/b"; nr_issue 201-07 "Fait" "feat/c"
+  printf '# Backlog\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|\n| F-01 | Premier | P1 | En cours | | |\n' > backlog.md
+  rat_commit
+  printf '\nNotes.\n' >> docs/issues/201-07-x.md; GIT_AUTHOR_DATE="2026-01-03T03:04:05Z" GIT_COMMITTER_DATE="2026-01-03T03:04:05Z" gd_ commit -qam "notes" # 201-07 modifiée plus tard : la colonne Fait la place en tête
+  sur_branche feat/a 201-02 "Fait" "feat/a"; sur_branche feat/b 201-06 "En revue" "feat/b"; sur_branche feat/c 201-07 "Fait" "feat/c"
+  unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
+}
+nr_page() { # nr_page [interpréteur] : partie stable de la page, de l'encart « En cours » à la fin
+  ${1:-bash} scripts/dashboard.sh --sortie "$racine_tmp/nr.html" >/dev/null 2>&1 && awk '/<section id="en-cours">/ { p = 1 } p { print } /<\/main>/ { exit }' "$racine_tmp/nr.html" | sed -E 's/[0-9a-f]{7,40} du /HASH du /'
+}
+nr_tableaux() { scripts/etat-issues.sh; echo "code $?"; scripts/etat-issues.sh --prochaine; echo "code $?"; scripts/etat-issues.sh --statut "À faire"; echo "code $?"; }
+# nr-fonctions-fin
+# Sorties enregistrées avec les scripts de 1.21.0 (avant PRD 003) sur ce dépôt ; l'issue 201-07 est la plus récente de la colonne Fait.
+cat > "$racine_tmp/nr-page-attendue.txt" <<'XEOF'
+<section id="en-cours">
+<h2>En cours</h2>
+<ul>
+<li><strong>201-06</strong> T201-06 <span class="etiquette statut-enrevue">En revue</span></li>
+</ul>
+</section>
+<section id="besoins">
+<h2>Besoins</h2>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-clarification">En clarification (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-specifie">Spécifié (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (1)</h3>
+<div class="carte"><strong>F-01</strong> <span class="titre">Premier</span><span class="detail">P1</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (0)</h3>
+<p class="vide">—</p>
+</div>
+</div>
+</section>
+<section id="issues">
+<h2>Issues</h2>
+<p>Prochaine issue prête : <strong>201-03</strong></p>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (3)</h3>
+<div class="carte prochaine"><strong>201-03</strong> <span class="titre">T201-03</span><span class="marqueur marqueur-prochaine">prochaine</span><span class="detail desc">Objectif 201-03.</span><span class="detail">dépend de : 201-01</span></div>
+<div class="carte bloquee"><strong>201-04</strong> <span class="titre">T201-04</span><span class="marqueur marqueur-bloquee">bloquée</span><span class="detail desc">Objectif 201-04.</span><span class="detail">dépend de : 201-05</span></div>
+<div class="carte"><strong>201-05</strong> <span class="titre">T201-05</span><span class="detail desc">Objectif 201-05.</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>201-06</strong> <span class="titre">T201-06</span><span class="detail desc">Objectif 201-06.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (3)</h3>
+<div class="carte"><strong>201-07</strong> <span class="titre">T201-07</span><span class="detail desc">Objectif 201-07.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+<div class="carte"><strong>201-01</strong> <span class="titre">T201-01</span><span class="detail desc">Objectif 201-01.</span></div>
+<div class="carte"><strong>201-02</strong> <span class="titre">T201-02</span><span class="detail desc">Objectif 201-02.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+</div>
+</div>
+</section>
+<section id="autres-travaux">
+<h2>Autres travaux</h2>
+<p>Aucun autre travail.</p>
+</section>
+</main>
+XEOF
+cat > "$racine_tmp/nr-tableaux-attendus.txt" <<'XEOF'
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 201-01 | T201-01 | Fait | : |  |
+| 201-02 | T201-02 | En cours | : | feat/a |
+| 201-03 | T201-03 | À faire | 201-01 | feat/absente |
+| 201-04 | T201-04 | À faire | 201-05 |  |
+| 201-05 | T201-05 | À faire | : |  |
+| 201-06 | T201-06 | En revue | : | feat/b |
+| 201-07 | T201-07 | Fait | : | feat/c |
+code 0
+201-03
+code 0
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 201-03 | T201-03 | À faire | 201-01 | feat/absente |
+| 201-04 | T201-04 | À faire | 201-05 |  |
+| 201-05 | T201-05 | À faire | : |  |
+code 0
+XEOF
+nr_depot
+nr_page > "$racine_tmp/nr-page.txt"
+nr_tableaux > "$racine_tmp/nr-tableaux.txt" 2>&1
+nr_page /bin/bash > "$racine_tmp/nr-page-bash32.txt"
+verifier "ca24_la page (hors date, durées et hash de commit) est celle de 1.21.0 : branches remplies ou sans correspondance, aucun besoin lié" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page.txt"
+verifier "ca24_etat-issues.sh : tableau, --prochaine, --statut et codes de sortie identiques à 1.21.0" 0 "" diff "$racine_tmp/nr-tableaux-attendus.txt" "$racine_tmp/nr-tableaux.txt"
+verifier "ca24_la page est la même sous /bin/bash (3.2 sur macOS : pas de mapfile, tri de la colonne Fait compris)" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page-bash32.txt"
+
+# ca25 : les cas de CA-01 à CA-24 et CS-01 à CS-06 de PRD 003 figurent dans cette suite (section ci-dessus), nom contenant l'identifiant ; dépôts jetables et environnement Git isolé.
+suite_prd003="$(lire_depot "$depot" factory/scripts/tests/run.sh | awk '/^echo "dashboard.sh et etat-issues.sh : rattachement d.une issue/ { p = 1 } p')"
+for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do
+  verifier "ca25_le cas ca${n}_ de PRD 003 figure dans run.sh" 0 "" contient_motif "$suite_prd003" "^[^#]*[\"']ca${n}_"
+done
+for n in 01 02 03 04 05 06; do
+  verifier "ca25_le cas cs${n}_ de PRD 003 figure dans run.sh" 0 "" contient_motif "$suite_prd003" "^[^#]*[\"']cs${n}_"
+done
+entete_suite="$(lire_depot "$depot" factory/scripts/tests/run.sh | head -n 60)"
+for v in GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM HOME; do
+  verifier "ca25_$v isolé en tête de run.sh (aucune configuration ni dépôt de l'utilisateur lu)" 0 "" contient_motif "$entete_suite" "^export (.* )?$v="
+done
+verifier "ca25_les dépôts de test sont créés sous le dossier temporaire de la suite" 0 "" contient_motif "$entete_suite" 'racine_tmp="\$\(mktemp -d'
+
+# ca26 : documentation (RG-24), chaque motif est cherché dans le passage concerné, jamais dans le fichier entier.
+doc_passage() { lire_depot "$depot" "$1" | awk "$2"; } # doc_passage <fichier> <programme awk>
+doc_motifs() { # doc_motifs <fichier> <programme awk> <motif littéral...> : le passage existe et contient chaque motif
+  local f="$1" doc motif; doc="$(doc_passage "$1" "$2")"; shift 2
+  verifier "ca26_$f : le passage existe" 0 "" test -n "$doc"
+  for motif in "$@"; do verifier "ca26_$f décrit « $motif »" 0 "" contient "$doc" "$motif"; done
+}
+passage_entete_script='/^set -uo pipefail/ { exit } { print }'
+motifs_dashboard=("par convention" "quelconque" "suivi d'un tiret" "prioritaire" "ambig" "empilée sur" "avancement" "à vérifier" "--boucle" "reste à jour")
+doc_motifs factory/scripts/dashboard.sh "$passage_entete_script" "${motifs_dashboard[@]}"
+doc_motifs factory/scripts/etat-issues.sh "$passage_entete_script" "par convention" "ambig" "sur leur branche"
+doc_motifs factory/README.md '/^\| `scripts\/dashboard\.sh` \|/' "${motifs_dashboard[@]}"
+doc_motifs factory/README.md '/^\| `scripts\/dashboard\.sh \[--sortie/' "par convention" "empilée sur" "avancement" "reste à jour"
+doc_motifs factory/README.md '/^\| `scripts\/etat-issues\.sh` \|/' "sur leur branche" "par convention"
+for f in AGENTS.md factory/templates/AGENTS.md; do doc_motifs "$f" '/^- `scripts\/dashboard\.sh/' "par convention" "reste à jour"; done
+for f in docs/issues/README.md factory/templates/docs/issues/README.md; do doc_motifs "$f" '/^## État/ { p = 1 } p' "par convention" "sur leur branche"; done
+for f in docs/agents/issue-tracker.md factory/templates/docs/agents/issue-tracker.md; do doc_motifs "$f" '/ready-for-agent/' "sur leur branche"; done
+for f in factory/README.md docs/issues/README.md factory/templates/docs/issues/README.md; do # l'ancienne règle (dépendance Fait seulement dans le dossier courant) n'est plus décrite
+  verifier "ca26_$f ne décrit plus l'ancienne règle de dépendance" 1 "" contient_motif "$(lire_depot "$depot" "$f")" 'dépendances sont `Fait`, et pas déjà|dépendances `Fait`, pas déjà commencée|dépendance pas `Fait` dans le dossier courant'
+done
+verifier "ca26_docs/issues/README.md et son modèle disent la même chose de l'état" 0 "" test "$(doc_passage docs/issues/README.md '/^## État/ { p = 1 } p')" = "$(doc_passage factory/templates/docs/issues/README.md '/^## État/ { p = 1 } p')"
+
+# ca27 : version suivante libre, CHANGELOG (changement et migration), README et guide de mise à jour.
+version="$(lire_depot "$depot" factory/VERSION | head -n1)"
+changelog="$(lire_depot "$depot" factory/CHANGELOG.md)"
+entree="$(awk '/^## /{n++} n==1' <<<"$changelog")"
+plus_grande() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_grande <a> <b> : a > b (versions x.y.z)
+etiquettes_fautives() { # etiquettes_fautives <dépôt> <version> : étiquettes vX.Y.Z supérieures à la version (une étiquette égale est admise)
+  local e; for e in $(git -C "$1" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do plus_grande "${e#v}" "$2" && echo "$e"; done
+}
+verifier "ca27_factory/VERSION est une version x.y.z" 0 "" contient_motif "$version" '^[0-9]+\.[0-9]+\.[0-9]+$'
+verifier "ca27_le CHANGELOG commence par l'entrée de la version courante" 0 "" contient_motif "$(head -n1 <<<"$entree")" "^## ${version//./\\.}$"
+# Supérieure à toute version déjà livrée : aux autres entrées titrées du CHANGELOG (présent aussi en copie propre) ...
+for titre in $(awk '/^## /{n++; if (n > 1) print $2}' <<<"$changelog"); do
+  verifier "ca27_la version est supérieure à l'entrée $titre du CHANGELOG" 0 "" plus_grande "$version" "$titre"
+done
+# ... et aux étiquettes Git quand le dépôt en a (égalité admise : l'utilisateur étiquette la version livrée). Le garde-fou est éprouvé sur un dépôt jetable.
+etiq="$racine_tmp/etiquettes"; mkdir -p "$etiq"; git -C "$etiq" init -q -b develop .; git -C "$etiq" -c user.name=t -c user.email=t@t commit -q --allow-empty -m x
+git -C "$etiq" tag "v$version"
+verifier "ca27_une étiquette égale à la version n'est pas une faute (la suite reste verte après v$version)" 0 "" test -z "$(etiquettes_fautives "$etiq" "$version")"
+git -C "$etiq" tag v99.0.0
+verifier "ca27_une étiquette supérieure à la version est une faute" 0 "" test "$(etiquettes_fautives "$etiq" "$version")" = "v99.0.0"
+if depot_git "$depot" && [ -n "$(git -C "$depot" tag --list 'v[0-9]*.[0-9]*.[0-9]*')" ]; then
+  verifier "ca27_la version n'est inférieure à aucune étiquette de ce dépôt" 0 "" test -z "$(etiquettes_fautives "$depot" "$version")"
+else
+  ok "ca27_aucune étiquette lisible (copie propre ou clone sans étiquettes) : comparaison aux étiquettes non faite, celle au CHANGELOG fait foi"
+fi
+for motif in 'rattach' 'par convention' 'empilée sur' 'avancement' 'à vérifier' '--boucle' 'Migration : remplacer `factory/`' 'sans action'; do
+  verifier "ca27_entrée du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
+done
+verifier "ca27_factory/README.md mentionne la nouveauté ($version)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "($version)"
+verifier "ca27_factory/UPGRADE.md décrit la migration sans action de $version" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($version)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

@@ -86,11 +86,11 @@ Vocabulaire : **issue démarrée** = statut effectif `En cours`, `En revue` ou `
 - **RG-10 (issue `Fait`, statut local)** Quatre preuves, chacune signalée par un **avis** si elle manque, jamais par une erreur : (a) champ `revue:` non vide (A01) ; (b) un fichier de revue lisible (A02) dont la dernière ligne non vide, une fois retirés le retour chariot et les espaces de fin, est exactement `APPROUVÉ` (A03) ; (c) dans la section `## Notes`, une ligne contenant `FIN-ISSUE OK <id> ` (texte littéral, `<id>` = identifiant exact de l'issue, suivi d'une espace) (A04) ; (d) champ `commits:` non vide (A05) dont chaque identifiant existe dans le dépôt (A06). Une issue terminée avant ce besoin sans ces preuves n'est donc jamais une erreur ; le code de sortie 1 ne vient que des erreurs.
 - **RG-11 (chemin du fichier de revue)** Le chemin est la **première** occurrence dans le champ `revue:` de `docs/reviews/<nom>.md` où `<nom>` ne contient que `[A-Za-z0-9._-]`. Pas d'autre forme : aucun chemin absolu, aucun `..`, aucun sous-dossier. Un champ rempli sans chemin de cette forme équivaut à un fichier introuvable. Un lien symbolique, un fichier de plus de 1 Mio ou un fichier non lisible équivaut à un fichier introuvable. Un fichier de revue est lu seulement par sa dernière ligne.
 - **RG-12 (issue `En revue`)** Si le champ `revue:` ne désigne aucun fichier de revue lisible (RG-11), avis A07 (D-23).
-- **RG-13 (issue démarrée sans branche, dépendances)** Une issue `En cours` ou `En revue` (statut effectif) sans branche retenue (aucune, ou ambiguë selon le PRD 003) : avis A08. Pour une issue qui n'est pas `Fait` ni `Abandonnée` : une dépendance (`depend_de`) `Abandonnée` donne l'avis A09 (la dépendance n'est jamais levée : l'issue reste « bloquée » pour le dashboard et `etat-issues.sh --prochaine`, inchangés ; c'est à l'utilisateur de modifier `depend_de` ; [À CLARIFIER Q-04] lecture retenue : avis, dépendance non levée) ; une dépendance d'identifiant inexistant : avis A10. Une issue `Fait` (local) dont une dépendance n'est ni `Fait` ni `Abandonnée` (statut effectif) : avis A11.
-- **RG-15 (issue `Abandonnée`)** Sa section `## Notes` contient au moins une ligne à puce contenant le mot `Abandonnée` (la raison, datée comme les autres notes) ; sinon erreur E13 [À CLARIFIER Q-06 : le contrôle vérifie la présence du mot, pas la qualité de la raison].
+- **RG-13 (issue démarrée sans branche, dépendances)** Une issue `En cours` ou `En revue` (statut effectif) sans branche retenue (aucune, ou ambiguë selon le PRD 003) : avis A08. Pour une issue qui n'est pas `Fait` ni `Abandonnée` : une dépendance (`depend_de`) `Abandonnée` donne l'avis A09 (la dépendance n'est jamais levée : l'issue reste « bloquée » pour le dashboard et `etat-issues.sh --prochaine`, inchangés ; c'est à l'utilisateur de modifier `depend_de` ; lecture retenue : avis, dépendance non levée) ; une dépendance d'identifiant inexistant : avis A10. Une issue `Fait` (local) dont une dépendance n'est ni `Fait` ni `Abandonnée` (statut effectif) : avis A11.
+- **RG-15 (issue `Abandonnée`)** Sa section `## Notes` contient au moins une ligne à puce contenant le mot `Abandonnée` (la raison, datée comme les autres notes) ; sinon erreur E13.
 
 ### 2.4 État d'un besoin (D-19, D-20)
-- **RG-14 (fusionnée)** La fusion se lit dans Git, relativement à la branche locale `develop` (nom fixe, [À CLARIFIER Q-05]) et non à la branche courante. Une issue `Fait` est **fusionnée** si sa branche retenue (PRD 003 : déclarée existante, ou déduite) est fusionnée dans `develop` (sa pointe en est un ancêtre). Sans branche retenue (branche supprimée après fusion, jamais créée, ou ambiguë), l'issue est fusionnée si son fichier, **tel qu'il est dans `develop`**, porte `statut: Fait`. Si `develop` n'existe pas, la fusion n'est pas vérifiable : avis A13, et la condition de fusion n'est pas reprochée (ni E07 ni E08 de ce chef).
+- **RG-14 (fusionnée)** La fusion se lit dans Git, relativement à la branche locale `develop` (nom fixe,) et non à la branche courante. Une issue `Fait` est **fusionnée** si sa branche retenue (PRD 003 : déclarée existante, ou déduite) est fusionnée dans `develop` (sa pointe en est un ancêtre). Sans branche retenue (branche supprimée après fusion, jamais créée, ou ambiguë), l'issue est fusionnée si son fichier, **tel qu'il est dans `develop`**, porte `statut: Fait`. Si `develop` n'existe pas, la fusion n'est pas vérifiable : avis A13, et la condition de fusion n'est pas reprochée (ni E07 ni E08 de ce chef).
 - **RG-16 (première issue `En cours`)** « Première issue En cours » = au moins une issue démarrée (statut effectif), lu comme dans le PRD 003, donc y compris une issue `En cours` seulement sur sa branche, non encore fusionnée.
 - **RG-17 (cohérence d'un besoin avec ses issues)** Les issues `Abandonnée` sont écartées des comptes. Le contrôle déduit des issues un état implicite (*aucune démarrée*, *démarrée mais pas toutes terminées*, *toutes terminées*, *toutes terminées et fusionnées*), puis, selon le statut du backlog :
 
@@ -103,7 +103,7 @@ Vocabulaire : **issue démarrée** = statut effectif `En cours`, `En revue` ou `
 | `En revue` | toutes les issues ne sont pas terminées (ou aucune issue) | avis (en avance) | A12 |
 | `Fait` | aucune issue `Fait`, ou une issue ni `Fait` ni `Abandonnée`, ou une issue `Fait` non fusionnée | erreur | E08 |
 
-  [À CLARIFIER Q-03 : un statut de besoin *en retard* est une erreur, *en avance* un avis, sauf `Fait` injustifié, erreur.] Un besoin `En clarification` ou `Spécifié` sans issue est normal (avant le découpage). Aucun écart, aucun message, dans tous les autres cas.
+  un statut de besoin *en retard* est une erreur, *en avance* un avis, sauf `Fait` injustifié, erreur. Un besoin `En clarification` ou `Spécifié` sans issue est normal (avant le découpage). Aucun écart, aucun message, dans tous les autres cas.
 - **RG-18 (besoin `Abandonnée`)** La colonne Décisions contient le mot `Abandonn` (début de `Abandonnée`) ; sinon erreur E09. Si une issue du besoin est `À faire`, `En cours` ou `En revue` : avis A15. Un besoin dont toutes les issues sont `Abandonnée` ne peut pas être `Fait` (E08, aucune issue `Fait`) : il est `Abandonnée`.
 - **RG-19 (plusieurs PRD)** Les issues d'un besoin peuvent relever de plusieurs PRD (l'appartenance suit `besoin:`, pas `prd:`). Toutes comptent dans l'état du besoin. Le chemin du PRD d'une issue (`prd:`) qui n'est pas listé dans la colonne PRD du besoin, ou qui désigne un fichier absent : avis A14.
 
@@ -292,7 +292,7 @@ Identifiants au format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les 
 | D-26 | retrait du code mort une fois F-09 fini : listes de statuts, valeurs en dur, prose de transition, tests de la duplication ; garde-fou ; aucun changement visible | RG-32, CA-38 à CA-41, issue 004-06 |
 
 ## 8. Questions
-Lacunes repérées, lecture retenue provisoirement (marquée `[À CLARIFIER Q-xx]` dans le texte) :
+Réponses de l'utilisateur du 2026-11-17 : les six lectures retenues par défaut sont toutes confirmées (recommandation (a) à chaque fois), telles qu'appliquées dans les règles ci-dessus.
 
 - **Q-01** (RG-01, F-09) Une transition illégale (ex. `En cours` vers `Fait` pour une issue) ne se voit pas dans l'état courant. Faut-il une commande de vérification d'un changement prévu ? Lecture retenue : non, la table est la référence écrite et le contrôle ne vérifie que les états.
 - **Q-02** (2.1, D-20) `Abandonnée` est-elle finale, comme `Fait` ? Lecture retenue : oui (final dans les deux machines ; rouvrir = nouvelle issue, ou retour en arrière du besoin sur décision de l'utilisateur).
@@ -301,17 +301,7 @@ Lacunes repérées, lecture retenue provisoirement (marquée `[À CLARIFIER Q-xx
 - **Q-05** (RG-14) Nom de la branche d'intégration. Lecture retenue : `develop`, fixe (aucune clé de configuration ajoutée).
 - **Q-06** (RG-15, RG-18) Contrôle de la raison d'un abandon. Lecture retenue : présence du mot `Abandonnée` dans une note de l'issue (ligne à puce) ou `Abandonn` dans la colonne Décisions du besoin ; absence = erreur ; la qualité n'est pas jugée.
 
-## QUESTIONS
-Aucune décision de fond n'est rouverte ; six lectures provisoires sont à confirmer (toutes retiennent l'option la plus sûre : échec signalé plutôt que silence, rien de plus coûteux, aucun nouveau réglage).
-
-| Q | Besoin | Options | Recommandation |
-|---|---|---|---|
-| Q-01 | F-09 | (a) aucune commande de vérification d'une transition, états seuls ; (b) `scripts/statuts.sh --transition <entité> <de> <vers>` qui répond légale / illégale d'après la table ; (c) (b) appelée par `/deliver` avant chaque changement | (a) maintenant ; (b) plus tard si les oublis persistent |
-| Q-02 | F-09 | (a) `Abandonnée` finale ; (b) réouverture permise vers `À faire` sur décision de l'utilisateur | (a) |
-| Q-03 | F-09 | (a) en retard = erreur, en avance = avis, `Fait` injustifié = erreur ; (b) tout en avis ; (c) tout en erreur | (a) : les deux oublis réels étaient des retards |
-| Q-04 | F-09, F-08 | (a) dépendance `Abandonnée` non levée + avis A09 ; (b) levée (changerait le PRD 003) ; (c) erreur | (a) |
-| Q-05 | F-09 | (a) `develop` fixe ; (b) clé de `.factory.conf` | (a) |
-| Q-06 | F-09 | (a) présence du mot-clé dans les Notes / la colonne Décisions, absence = erreur ; (b) idem en avis ; (c) aucun contrôle | (a) |
+## QUESTIONS : aucune
 
 ## 9. Découpage en issues (indicatif)
 Chaque critère est couvert par exactement une issue ; dépendances : 01, puis 02, puis 03 ; 04 après 03 ; 05 après 04 ; **06 en dernier, après toutes les autres** (01 à 05). Aucune issue ne dépasse 9 critères.

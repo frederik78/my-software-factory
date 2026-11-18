@@ -3,7 +3,7 @@ id: 001-01
 titre: Lecture d'un verdict
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: En revue
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-11, CS-01, CS-02, CS-03]
 branche: feat/001-01-lecture-verdict

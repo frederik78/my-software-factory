@@ -37,16 +37,20 @@ revue_chemin() {
     }')"
 }
 
-# revue_derniere_ligne <fichier> : met dans $revue_ligne la dernière ligne non vide du fichier, sans retour chariot ni espaces de fin.
+# revue_derniere_ligne <fichier> : met dans $revue_ligne la dernière ligne non vide du fichier, sans retour chariot ni espaces de fin (64 octets au plus : une ligne plus longue
+# ne peut pas valoir « APPROUVÉ »), et dans $revue_verdict 1 si sa première ligne a la forme d'une ligne « VERDICT: » (clé seule, la valeur est lue par verdict-revue.sh), sinon 0.
 revue_derniere_ligne() {
-  revue_ligne="$(LC_ALL=C awk '{ sub(/[[:space:]]+$/, "") } $0 != "" { derniere = $0 } END { printf "%s", derniere }' "$1" 2>/dev/null)"
+  local sortie
+  sortie="$(LC_ALL=C awk 'NR == 1 { v = ($0 ~ /^[ \t]*[Vv][Ee][Rr][Dd][Ii][Cc][Tt][ \t]*:/) } { sub(/[[:space:]]+$/, "") } $0 != "" { derniere = substr($0, 1, 64) } END { printf "%d\n%s", v, derniere }' "$1" 2>/dev/null)"
+  revue_verdict="${sortie:0:1}"; revue_ligne="${sortie#?
+}"
 }
 
 # revue_examiner <valeur du champ revue> <lire la dernière ligne : 0|1> : met dans $revue_lisible 1 si le champ désigne un fichier de revue lisible (RG-11), sinon 0 ;
 # $revue_chemin (vide si le champ n'a pas la forme attendue) et, si demandé, $revue_ligne.
 # Un lien symbolique (le fichier ou le dossier docs/reviews), un fichier de plus de 1 Mio ou non lisible équivaut à un fichier introuvable.
 revue_examiner() {
-  revue_lisible=0; revue_ligne=""
+  revue_lisible=0; revue_ligne=""; revue_verdict=0
   revue_chemin "$1"
   [ -n "$revue_chemin" ] || return 0
   [ ! -L docs/reviews ] || return 0
@@ -54,6 +58,19 @@ revue_examiner() {
   [ -z "$motif_refus" ] || return 0
   revue_lisible=1
   [ "$2" -eq 0 ] || revue_derniere_ligne "$revue_chemin"
+}
+
+# revue_approuvee : vrai si le fichier de revue examiné (après revue_examiner ... 1) est approuvé : sa première ligne est un verdict « VERDICT: APPROUVÉ » au sens de
+# verdict-revue.sh (PREUVES_VERDICT_SCRIPT, défini par statuts.sh ; lancé seulement si la première ligne a cette forme, sur un fichier déjà borné : régulier, non lien,
+# au plus 1 Mio), ou, sans verdict lisible (revues d'avant F-01), sa dernière ligne non vide est exactement « APPROUVÉ ». Un verdict CHANGEMENTS DEMANDÉS n'est jamais approuvé.
+revue_approuvee() {
+  local verdict
+  if [ "$revue_verdict" = 1 ]; then
+    verdict="$("$PREUVES_VERDICT_SCRIPT" -- "$revue_chemin" 2>/dev/null)"
+    [ "$verdict" = "APPROUVÉ" ] && return 0
+    [ "$verdict" = "CHANGEMENTS DEMANDÉS" ] && return 1
+  fi
+  [ "$revue_ligne" = "APPROUVÉ" ]
 }
 
 # notes_lire <fichier> <id> : lit la section « ## Notes » du fichier (de son titre au titre suivant de niveau 1 ou 2 ; l'en-tête YAML n'en fait pas partie) et met dans
@@ -138,7 +155,7 @@ preuves_fait() {
     if [ "$revue_lisible" -eq 0 ]; then
       constat_neutraliser "${revue_chemin:-$revue}"
       constat_ajouter AVIS A02 2 "$rang" "$objet" "Fait : fichier de revue introuvable ou illisible ($neutre)"
-    elif [ "$revue_ligne" != "APPROUVÉ" ]; then
+    elif ! revue_approuvee; then
       constat_neutraliser "$revue_chemin"; chemin="$neutre"
       constat_ajouter AVIS A03 2 "$rang" "$objet" "Fait : la dernière ligne de $chemin n'est pas APPROUVÉ"
     fi

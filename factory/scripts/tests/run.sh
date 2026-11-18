@@ -3605,6 +3605,32 @@ pr_depot; pr_issue 004-71 "À faire" "" "[]" ""; pr_issue 004-72 "Abandonnée" "
 pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
 verifier "ca13_sûreté : aucune issue Fait = aucune vérification de commit (pas d'appel cat-file)" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")" = 0
 
+
+
+# ca13 : le wrapper scripts/statuts.sh du dépôt (liens vers factory/scripts/) trouve toutes ses bibliothèques
+"$depot/scripts/statuts.sh" > "$racine_tmp/w.out" 2> "$racine_tmp/w.err"; pr_code=$?
+verifier "ca13_wrapper : scripts/statuts.sh du dépôt réel : code 0 ou 1, rien sur la sortie d'erreur, récapitulatif présent" 0 "" test "$([ "$pr_code" -le 1 ] && echo ok)|$(wc -c < "$racine_tmp/w.err" | tr -d ' ')|$(grep -c '^STATUTS : ' "$racine_tmp/w.out")" = "ok|0|1"
+
+
+# ca11 : revue au format F-01 (VERDICT en première ligne, lecture de verdict-revue.sh) ou ancienne (dernière ligne APPROUVÉ)
+pr_depot
+pr_revue 004-61 'VERDICT: APPROUVÉ\n\n# Revue\nune dernière ligne quelconque\n'
+pr_revue 004-62 'verdict :  approuvé \r\nsuite\r\nfin\r\n'
+pr_revue 004-63 'VERDICT: CHANGEMENTS DEMANDÉS\n\nAPPROUVÉ\n'
+pr_revue 004-64 'VERDICT: APPROUVÉ\nsuite\nVERDICT: APPROUVÉ\n'
+pr_revue 004-65 'VERDICT: APPROUVE\nsuite\n'
+pr_revue 004-66 'VERDICT: INCONNU\nsuite\n'
+pr_revue 004-67 'texte\n\nAPPROUVÉ\n'
+pr_revue 004-68 'VERDICT: CHANGEMENTS DEMANDÉS\n\nVERDICT: APPROUVÉ\n'
+st_cas "ca11_verdict : première ligne VERDICT: APPROUVÉ (casse, espaces, CRLF tolérés) ou dernière ligne APPROUVÉ = aucun avis ; CHANGEMENTS DEMANDÉS, INCONNU, sans accent, deux lignes VERDICT = A03" 0 <<'TXT'
+AVIS A03 issue 004-63 : Fait : la dernière ligne de docs/reviews/004-63.md n'est pas APPROUVÉ
+AVIS A03 issue 004-64 : Fait : la dernière ligne de docs/reviews/004-64.md n'est pas APPROUVÉ
+AVIS A03 issue 004-65 : Fait : la dernière ligne de docs/reviews/004-65.md n'est pas APPROUVÉ
+AVIS A03 issue 004-66 : Fait : la dernière ligne de docs/reviews/004-66.md n'est pas APPROUVÉ
+AVIS A03 issue 004-68 : Fait : la dernière ligne de docs/reviews/004-68.md n'est pas APPROUVÉ
+STATUTS : 0 erreur(s), 5 avis
+TXT
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

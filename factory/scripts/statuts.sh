@@ -22,6 +22,7 @@ cd "$racine" || exit 1
 . "$(dirname "$0")/lib-preuves.sh"
 # shellcheck source=lib-dependances.sh
 . "$(dirname "$0")/lib-dependances.sh"
+PREUVES_VERDICT_SCRIPT="$(dirname "$0")/verdict-revue.sh" # lecture stricte du verdict d'une revue (RG-10 b), jamais dupliquée ici
 
 usage() { echo "Usage : $0 [--table]" >&2; exit 64; }
 

@@ -2997,8 +2997,12 @@ TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
 st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fait'"; st_issue 004-94 ' " Fait "'
-st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucun constat)" 0 <<'TXT'
-STATUTS : 0 erreur(s), 0 avis
+st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucune erreur ; les avis A01 montrent que ces issues sont lues Fait)" 0 <<'TXT'
+AVIS A01 issue 004-91 : Fait sans champ revue renseigné
+AVIS A01 issue 004-92 : Fait sans champ revue renseigné
+AVIS A01 issue 004-93 : Fait sans champ revue renseigné
+AVIS A01 issue 004-94 : Fait sans champ revue renseigné
+STATUTS : 0 erreur(s), 4 avis
 TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
@@ -3181,7 +3185,8 @@ ERREUR E14 fichier docs/issues/004-93-gros.md : fichier d'issue illisible (plus 
 ERREUR E14 fichier docs/issues/004-95-lien.md : fichier d'issue illisible (lien symbolique)
 $st_droits
 ERREUR E10 issue 004-97 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
-STATUTS : 6 erreur(s), 0 avis
+AVIS A01 issue 004-94 : Fait sans champ revue renseigné
+STATUTS : 6 erreur(s), 1 avis
 TXT
 else
   ok "ca09_lecture impossible (chmod 000) non éprouvable en tant que root : cas ignoré"
@@ -3238,6 +3243,74 @@ st_debut=$SECONDS
 perl -e 'alarm 30; exec @ARGV' "$st_bash" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
 verifier "ca07_cout_neutralisation : 20 000 C1, 20 000 U+202E et 20 000 CR dans 3 cellules de backlog et 3 en-têtes d'issue : fini en moins de 30 s (durée $((SECONDS - st_debut)) s), 6 erreurs" 0 "" test "$st_c|$(grep -c '^ERREUR E05 besoin F-0[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(grep -c '^ERREUR E10 issue 004-9[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(tail -1 "$racine_tmp/st.out")" = "1|3|3|STATUTS : 6 erreur(s), 0 avis"
 verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR remplacés par des espaces puis tronqués à 120 caractères" 0 "" test "$(grep -c '« Faitzz »' "$racine_tmp/st.out")|$(grep -cE '« Fait {116}… »' "$racine_tmp/st.out")" = "4|2"
+
+
+echo "statuts.sh : preuves d'une issue, branche retenue, Abandonnée et dépendances (PRD 004, issue 004-02)"
+pr_depot() { # pr_depot : st_depot + backlog à un besoin « En cours » + un commit vide ; $pr_c = son identifiant court, $pr_cl = complet
+  st_depot
+  printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
+  gd_ commit -q --allow-empty -m init; pr_c="$(git rev-parse --short HEAD)"; pr_cl="$(git rev-parse HEAD)"
+  mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md
+}
+pr_issue() { # pr_issue <id> <statut> <revue> <commits> <notes> [depend_de] [branche] : docs/issues/<id>-x.md complet (revue et commits : valeur brute après la clé)
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\ndepend_de: [%s]\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\nx\n\n## Notes\n%s\n' \
+    "$1" "$1" "$2" "${6:-}" "${7:-}" "$4" "${3:+ $3}" "$5" > "docs/issues/$1-x.md"
+}
+PR_OK='- 2026-11-18 : `FIN-ISSUE OK 004-9X abc1234 : 10 tests, 0 échec, 0 ignoré`.'
+pr_ok() { printf -- '- 2026-11-18 : `FIN-ISSUE OK %s abc1234 : 10 tests, 0 échec, 0 ignoré`.' "$1"; } # pr_ok <id> : la ligne de notes de preuve
+
+# ca10 : issue Fait complète = aucun constat, pour chaque forme réelle du champ revue
+pr_depot
+printf 'VERDICT: APPROUVÉ\n\n# Revue\n\nAPPROUVÉ\n' > docs/reviews/004-91.md
+printf 'texte\nAPPROUVÉ\r\n\r\n   \n\n' > docs/reviews/004-92.md
+printf 'texte\n\nAPPROUVÉ   \n' > docs/reviews/004-93.md
+pr_issue 004-91 Fait "docs/reviews/004-91.md" "[$pr_c]" "$(pr_ok 004-91)"
+pr_issue 004-92 Fait "docs/reviews/004-92.md (APPROUVÉ, itération 1/3)" "[$pr_cl]" "$(pr_ok 004-92)"
+pr_issue 004-93 Fait "APPROUVÉ (itération 2 sur 2, docs/reviews/004-93.md)" "[$pr_c, $pr_cl]" "$(pr_ok 004-93)"
+st_cas "ca10_preuves : issue Fait avec revue approuvée (trois formes du champ, lignes vides, retour chariot, espaces de fin), FIN-ISSUE OK et commits existants = aucun constat" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
+# ca11 : revue vide = A01 ; fichier absent, lien symbolique, plus de 1 Mio, forme invalide = A02 ; dernière ligne autre que APPROUVÉ = A03
+pr_depot
+pr_cas() { # pr_cas <id> <chemin ou champ revue> : issue Fait complète sauf le champ revue
+  pr_issue "$1" Fait "$2" "[$pr_c]" "$(pr_ok "$1")"
+}
+pr_revue() { # pr_revue <id> <contenu printf> : fichier docs/reviews/<id>.md ; l'issue <id> le désigne
+  printf "$2" > "docs/reviews/$1.md"; pr_cas "$1" "docs/reviews/$1.md"
+}
+pr_cas 004-81 ""
+pr_cas 004-82 "docs/reviews/absent.md"
+printf 'SECRET\nAPPROUVÉ\n' > "$racine_tmp/cible-revue.md"; ln -s "$racine_tmp/cible-revue.md" docs/reviews/004-83.md; pr_cas 004-83 "docs/reviews/004-83.md"
+{ head -c $((1048577 - 11)) /dev/zero | tr '\0' 'x'; printf '\nAPPROUVÉ\n'; } > docs/reviews/004-84.md; pr_cas 004-84 "docs/reviews/004-84.md"
+{ head -c $((1048576 - 11)) /dev/zero | tr '\0' 'x'; printf '\nAPPROUVÉ\n'; } > docs/reviews/004-85.md; pr_cas 004-85 "docs/reviews/004-85.md"
+verifier "ca11_fichiers de revue de 1 048 577 et 1 048 576 octets créés à la taille exacte" 0 "" test "$(wc -c < docs/reviews/004-84.md | tr -d ' ')|$(wc -c < docs/reviews/004-85.md | tr -d ' ')" = "1048577|1048576"
+pr_cas 004-86 "../x.md"; pr_cas 004-87 "/etc/hostname"; pr_cas 004-88 "docs/reviews/sub/x.md"; pr_cas 004-89 "docs/reviews/../../etc/hostname"
+pr_cas 004-80 "docs/reviews/x.md.bak"; pr_cas 004-79 "/home/u/docs/reviews/004-79.md"; printf 'APPROUVÉ\n' > docs/reviews/004-79.md
+pr_cas 004-78 "revue faite"
+pr_revue 004-71 'texte\nCHANGEMENTS DEMANDÉS\n'; pr_revue 004-72 'texte\napprouvé\n'; pr_revue 004-73 'texte\nAPPROUVÉ.\n'; pr_revue 004-74 'texte\nVERDICT: APPROUVÉ\n'
+pr_revue 004-75 'APPROUVÉ\ntexte\n'; pr_revue 004-76 ''; pr_revue 004-77 '\n  \n\n'
+st_cas "ca11_preuves : revue vide = A01 ; absente, lien symbolique, 1 Mio + 1 octet, ../x.md, chemin absolu, sous-dossier, texte sans chemin = A02 ; dernière ligne autre = A03 ; 1 Mio exactement accepté ; code 0" 0 <<'TXT'
+AVIS A03 issue 004-71 : Fait : la dernière ligne de docs/reviews/004-71.md n'est pas APPROUVÉ
+AVIS A03 issue 004-72 : Fait : la dernière ligne de docs/reviews/004-72.md n'est pas APPROUVÉ
+AVIS A03 issue 004-73 : Fait : la dernière ligne de docs/reviews/004-73.md n'est pas APPROUVÉ
+AVIS A03 issue 004-74 : Fait : la dernière ligne de docs/reviews/004-74.md n'est pas APPROUVÉ
+AVIS A03 issue 004-75 : Fait : la dernière ligne de docs/reviews/004-75.md n'est pas APPROUVÉ
+AVIS A03 issue 004-76 : Fait : la dernière ligne de docs/reviews/004-76.md n'est pas APPROUVÉ
+AVIS A03 issue 004-77 : Fait : la dernière ligne de docs/reviews/004-77.md n'est pas APPROUVÉ
+AVIS A02 issue 004-78 : Fait : fichier de revue introuvable ou illisible (revue faite)
+AVIS A02 issue 004-79 : Fait : fichier de revue introuvable ou illisible (/home/u/docs/reviews/004-79.md)
+AVIS A02 issue 004-80 : Fait : fichier de revue introuvable ou illisible (docs/reviews/x.md.bak)
+AVIS A01 issue 004-81 : Fait sans champ revue renseigné
+AVIS A02 issue 004-82 : Fait : fichier de revue introuvable ou illisible (docs/reviews/absent.md)
+AVIS A02 issue 004-83 : Fait : fichier de revue introuvable ou illisible (docs/reviews/004-83.md)
+AVIS A02 issue 004-84 : Fait : fichier de revue introuvable ou illisible (docs/reviews/004-84.md)
+AVIS A02 issue 004-86 : Fait : fichier de revue introuvable ou illisible (../x.md)
+AVIS A02 issue 004-87 : Fait : fichier de revue introuvable ou illisible (/etc/hostname)
+AVIS A02 issue 004-88 : Fait : fichier de revue introuvable ou illisible (docs/reviews/sub/x.md)
+AVIS A02 issue 004-89 : Fait : fichier de revue introuvable ou illisible (docs/reviews/../../etc/hostname)
+STATUTS : 0 erreur(s), 18 avis
+TXT
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

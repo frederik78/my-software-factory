@@ -16,6 +16,8 @@ cd "$racine" || exit 1
 . "$(dirname "$0")/lib-issues.sh"
 # shellcheck source=lib-constats.sh
 . "$(dirname "$0")/lib-constats.sh"
+# shellcheck source=lib-preuves.sh
+. "$(dirname "$0")/lib-preuves.sh"
 
 usage() { echo "Usage : $0 [--table]" >&2; exit 64; }
 
@@ -37,56 +39,65 @@ afficher_table() {
   done
 }
 
-# Taille maximale (octets) d'un fichier d'issue lu : au-delà, le fichier est refusé (E14). Une issue fait quelques ko.
-ISSUE_OCTETS_MAX=1048576
-
 # issue_illisible <fichier> : met dans $motif_e14 le motif E14 du fichier (lien symbolique, plus de 1 Mio, lecture impossible, en-tête YAML absent ou non fermé), vide s'il est lisible.
-# Le fichier n'est ouvert qu'une fois ces vérifications faites : un lien symbolique n'est jamais suivi, un gros fichier jamais lu.
 issue_illisible() {
-  local taille
-  motif_e14=""
-  if [ -L "$1" ]; then motif_e14="lien symbolique"
-  elif [ ! -f "$1" ] || [ ! -r "$1" ]; then motif_e14="lecture impossible"
-  elif ! taille="$(wc -c < "$1" 2>/dev/null)"; then motif_e14="lecture impossible"
-  elif [ "$((taille + 0))" -gt "$ISSUE_OCTETS_MAX" ]; then motif_e14="plus de 1 Mio"
-  elif ! awk 'NR == 1 { if ($0 != "---") exit 1; next } $0 == "---" { fin = 1; exit } END { exit fin ? 0 : 1 }' "$1" 2>/dev/null; then motif_e14="en-tête YAML absent ou non fermé"
-  fi
+  fichier_motif_refus "$1"; motif_e14="$motif_refus"
+  [ -n "$motif_e14" ] || awk 'NR == 1 { if ($0 != "---") exit 1; next } $0 == "---" { fin = 1; exit } END { exit fin ? 0 : 1 }' "$1" 2>/dev/null \
+    || motif_e14="en-tête YAML absent ou non fermé"
 }
 
-# controle_issues : E14 (fichier illisible), E11 (identifiant absent ou en double), E10 (statut inconnu) pour les fichiers de docs/issues/.
+# Issues de docs/issues/ (une entrée par fichier, dans l'ordre) : tableaux parallèles remplis par controle_issues.
+#   iss_etats : ignoree (E14, E11 absent), lue (id lu), controlee (id unique et statut connu : seules les issues contrôlées reçoivent les autres constats)
+iss_fichiers=(); iss_ids=(); iss_statuts=(); iss_etats=(); iss_rangs=()
+
+# controle_issues : E14 (fichier illisible), E11 (identifiant absent ou en double), E10 (statut inconnu), puis les preuves des issues contrôlées.
 # Un fichier en erreur E14 ou E11 (absent) n'émet pas d'autre constat ; un identifiant en double donne E11 et, si le statut est inconnu, E10 sur le fichier.
 controle_issues() {
   local f id statut rang=0 attendus chemin liste_ids="" doublons i objet double
-  local fichiers=() ids=() statuts=() etats=() rangs=()
+  iss_fichiers=(); iss_ids=(); iss_statuts=(); iss_etats=(); iss_rangs=()
   table_statuts_de issue; attendus="$statuts_de"
   while IFS= read -r f; do
-    rang=$((rang + 1)); fichiers+=("$f"); rangs+=("$rang")
+    rang=$((rang + 1)); iss_fichiers+=("$f"); iss_rangs+=("$rang")
     constat_neutraliser "$f"; chemin="$neutre"
     issue_illisible "$f"
     if [ -n "$motif_e14" ]; then
-      ids+=(""); statuts+=(""); etats+=(ignoree)
+      iss_ids+=(""); iss_statuts+=(""); iss_etats+=(ignoree)
       constat_ajouter ERREUR E14 2 "$rang" "fichier $chemin" "fichier d'issue illisible ($motif_e14)"; continue
     fi
     id="$(issue_champ "$f" id)"; table_nettoyer "$id"; id="$nettoye"
     statut="$(issue_champ "$f" statut)"; table_nettoyer "$statut"; statut="$nettoye" # espaces à l'intérieur de guillemets de bord : « " Fait " » est lu Fait
-    ids+=("$id"); statuts+=("$statut")
+    iss_ids+=("$id"); iss_statuts+=("$statut")
     if [ -z "$id" ]; then
-      etats+=(ignoree); constat_ajouter ERREUR E11 2 "$rang" "fichier $chemin" "identifiant d'issue absent"; continue
+      iss_etats+=(ignoree); constat_ajouter ERREUR E11 2 "$rang" "fichier $chemin" "identifiant d'issue absent"; continue
     fi
-    etats+=(lue); liste_ids="$liste_ids$id"$'\n'
+    iss_etats+=(lue); liste_ids="$liste_ids$id"$'\n'
   done < <(issue_fichiers)
   doublons=$'\n'"$(printf '%s' "$liste_ids" | LC_ALL=C sort | uniq -d)"$'\n'
-  for i in "${!fichiers[@]}"; do
-    [ "${etats[$i]}" = lue ] || continue
-    constat_neutraliser "${ids[$i]}"; id="$neutre"
-    constat_neutraliser "${fichiers[$i]}"; chemin="$neutre"
+  for i in "${!iss_fichiers[@]}"; do
+    [ "${iss_etats[$i]}" = lue ] || continue
+    constat_neutraliser "${iss_ids[$i]}"; id="$neutre"
+    constat_neutraliser "${iss_fichiers[$i]}"; chemin="$neutre"
     objet="issue $id"; double=0
-    case "$doublons" in *$'\n'"${ids[$i]}"$'\n'*) double=1; objet="fichier $chemin" ;; esac # deux fichiers de même id : l'objet est le fichier, pour les distinguer
-    if ! table_statut_connu issue "${statuts[$i]}"; then
-      constat_neutraliser "${statuts[$i]}"
-      constat_ajouter ERREUR E10 2 "${rangs[$i]}" "$objet" "statut inconnu « $neutre » (attendus : $attendus)"
+    case "$doublons" in *$'\n'"${iss_ids[$i]}"$'\n'*) double=1; objet="fichier $chemin" ;; esac # deux fichiers de même id : l'objet est le fichier, pour les distinguer
+    if ! table_statut_connu issue "${iss_statuts[$i]}"; then
+      constat_neutraliser "${iss_statuts[$i]}"
+      constat_ajouter ERREUR E10 2 "${iss_rangs[$i]}" "$objet" "statut inconnu « $neutre » (attendus : $attendus)"
+    elif [ "$double" -eq 0 ]; then
+      iss_etats[$i]=controlee
     fi
-    [ "$double" -eq 0 ] || constat_ajouter ERREUR E11 2 "${rangs[$i]}" "fichier $chemin" "identifiant d'issue en double : $id"
+    [ "$double" -eq 0 ] || constat_ajouter ERREUR E11 2 "${iss_rangs[$i]}" "fichier $chemin" "identifiant d'issue en double : $id"
+  done
+  controle_preuves
+}
+
+# controle_preuves : les preuves de chaque issue contrôlée, selon son statut local (lib-preuves.sh).
+controle_preuves() {
+  local i
+  for i in "${!iss_fichiers[@]}"; do
+    [ "${iss_etats[$i]}" = controlee ] || continue
+    case "${iss_statuts[$i]}" in
+      Fait) preuves_fait "${iss_rangs[$i]}" "${iss_fichiers[$i]}" "${iss_ids[$i]}" ;;
+    esac
   done
 }
 

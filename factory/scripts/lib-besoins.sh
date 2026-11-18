@@ -252,6 +252,8 @@ besoin_ecart() {
         if [ -z "$7" ] && [ "$8" -eq 0 ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)"
         elif [ "$statut" = "En cours" ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait (attendu : En revue)"
         fi
+      elif [ "$statut" = "En revue" ]; then constat_ajouter AVIS A12 1 "$1" "$id" "statut $statut en avance : toutes les issues ne sont pas Fait"
+      elif [ "$4" -eq 0 ]; then constat_ajouter AVIS A12 1 "$1" "$id" "statut $statut en avance : aucune issue démarrée"
       fi ;;
     Fait)
       if [ "$3" -eq 0 ]; then constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : aucune issue Fait"

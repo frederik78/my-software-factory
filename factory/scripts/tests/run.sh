@@ -3328,8 +3328,8 @@ verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR re
 
 
 echo "statuts.sh : preuves d'une issue, branche retenue, Abandonnée et dépendances (PRD 004, issue 004-02)"
-pr_besoin() { # pr_besoin <statut> : le statut du besoin F-01 auquel appartiennent les issues de pr_issue (« En revue » par défaut : toutes les issues Fait, non fusionnées, n'y donnent aucun constat)
-  printf '| F-01 | B | P1 | %s | `docs/prd/p.md` | |\n' "$1" | st_backlog
+pr_besoin() { # pr_besoin <statut> [décisions] : le statut du besoin F-01 auquel appartiennent les issues de pr_issue (« En revue » par défaut : toutes les issues Fait, non fusionnées, n'y donnent aucun constat)
+  printf '| F-01 | B | P1 | %s | `docs/prd/p.md` | %s |\n' "$1" "${2:-}" | st_backlog
 }
 pr_depot() { # pr_depot : st_depot + backlog à un besoin « En revue » + un premier commit ; $pr_c = son identifiant court, $pr_cl = complet
   st_depot
@@ -3495,7 +3495,7 @@ verifier "ca14_issues réelles : 002-01 et 002-03 (revue vide) = avis A01, et ri
 
 
 # ca15 : issue En revue sans fichier de revue lisible = A07
-pr_depot
+pr_depot; pr_besoin "En cours"
 git branch feat/b HEAD
 pr_er() { pr_issue "$1" "${3:-En revue}" "$2" "[]" "" "" feat/b; } # pr_er <id> <revue> [statut] : issue sur la branche feat/b (existante), sans commits ni notes
 pr_er 004-71 ""; pr_er 004-72 "docs/reviews/absent.md"; pr_er 004-75 "docs/reviews/x/../y.md"
@@ -3513,7 +3513,7 @@ TXT
 
 
 # ca16 : issue En cours ou En revue (statut effectif) sans branche retenue = A08
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf 'APPROUVÉ\n' > docs/reviews/revue.md
 pr_enc() { pr_issue "$1" "$2" "docs/reviews/revue.md" "[]" "" "" "${3:-}"; } # pr_enc <id> <statut> [branche de l'en-tête] : issue à l'état indiqué (revue lisible, sans commits)
 pr_enc 004-71 "En cours"; pr_enc 004-72 "En revue" feat/absente
@@ -3531,7 +3531,7 @@ AVIS A08 issue 004-74 : En cours : branche ambiguë : feat/004-74-a, fix/004-74-
 STATUTS : 0 erreur(s), 3 avis
 TXT
 # valeurs hostiles dans les noms de branche : lues comme du texte (CS-02)
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf 'APPROUVÉ\n' > docs/reviews/revue.md
 pr_enc 004-71 "En cours"; git branch 'feat/004-71-$(touch${IFS}marque)'; git branch 'fix/004-71-;touch${IFS}marque'
 st_cas "ca16_branche : noms de branche hostiles dans la liste ambiguë : écrits tels quels, rien n'est exécuté" 0 <<'TXT'
@@ -3542,7 +3542,7 @@ verifier "ca16_branche : le fichier « marque » n'existe pas" 0 "" test ! -e ma
 
 
 # ca16 : un fichier d'issue refusé (lien symbolique) n'est jamais lu pour rattacher les branches (CS-03)
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf -- '---\nid: 004-60\nbranche:\nstatut: Fait\n---\nSECRET\n' > "$racine_tmp/cible-issue.md"
 pr_enc 004-60 "En cours"; git branch feat/004-60-z; ln -s "$racine_tmp/cible-issue.md" docs/issues/004-61-lien.md
 st_cas "ca16_branche : un lien symbolique d'issue (E14) qui porte le même identifiant ne rend pas la branche déduite ambiguë ni absente ; son contenu n'apparaît pas" 1 <<'TXT'
@@ -3552,7 +3552,7 @@ TXT
 
 
 # ca17 : issue Abandonnée = raison écrite dans les Notes (E13) ; jamais promue ni rétrogradée par sa branche
-pr_depot
+pr_depot; pr_besoin Abandonnée Abandonné
 pr_ab() { pr_issue "$1" "Abandonnée" "" "[]" "$2" "" "" "${3:-x}"; } # pr_ab <id> <notes> [corps avant les Notes] : issue Abandonnée
 pr_ab 004-71 "- 2026-11-18 : une note sans raison."
 pr_ab 004-72 "Abandonnée par l'utilisateur, sans puce."
@@ -3588,7 +3588,7 @@ TXT
 
 
 # ca18 : dépendances d'une issue
-pr_depot
+pr_depot; pr_besoin "En cours"
 printf 'APPROUVÉ\n' > docs/reviews/revue.md; git branch feat/b HEAD
 pr_full() { pr_issue "$1" Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok "$1")" "${2:-}" "${3:-}"; } # pr_full <id> [depend_de] [branche] : issue Fait complète
 pr_ab 004-70 "- 2026-11-18 : Abandonnée."
@@ -3627,7 +3627,7 @@ verifier_exact "ca18_dependances : etat-issues --prochaine ne rend pas l'issue d
 scripts/dashboard.sh --sortie "$racine_tmp/ca18.html" >/dev/null 2>&1
 verifier "ca18_dependances : le dashboard marque l'issue bloquée" 0 "bloquée" carte_de 004-71 "$racine_tmp/ca18.html"
 # valeurs hostiles dans depend_de : lues comme du texte
-pr_depot
+pr_depot; pr_besoin "À faire"
 pr_issue 004-71 "À faire" "" "[]" "" '$(touch${IFS}marque)'; pr_issue 004-72 "À faire" "" "[]" "" '*'; pr_issue 004-73 "À faire" "" "[]" "" '--help'; pr_issue 004-74 "À faire" "" "[]" "" "004-7$(printf '\037')1"
 pr_issue 004-75 "À faire" "" "[]" "" '[a-z]'; pr_issue 004-76 "À faire" "" "[]" "" '.*'
 st_cas "ca18_dependances : dépendances hostiles (\$(…), *, --help, 0x1F, [a-z], .*) = A10 avec la valeur neutralisée, jamais un motif ni une commande" 0 <<'TXT'
@@ -3870,6 +3870,56 @@ ERREUR E07 besoin F-01 : statut En cours en retard : toutes les issues sont Fait
 ERREUR E07 besoin F-02 : statut En cours en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)
 ERREUR E07 besoin F-04 : statut En revue en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)
 STATUTS : 3 erreur(s), 0 avis
+TXT
+
+# ca23 : besoin Fait non justifié = E08, premier motif dans l'ordre : aucune issue Fait, puis l'issue ni Fait ni Abandonnée, puis la branche non fusionnée
+bs_depot
+for bs_n in 1 2 3 4 5 6 7 8 9; do printf '| F-0%s | B | P1 | Fait | `docs/prd/p.md` | |\n' "$bs_n"; done | st_backlog
+bs_issue 004-71 Fait F-02 feat/b none; bs_issue 004-72 "À faire" F-02 "" none
+bs_issue 004-73 Fait F-03 feat/b none; bs_issue 004-74 "En cours" F-03 feat/b none
+bs_issue 004-75 Fait F-04 feat/b none; bs_issue 004-76 "En revue" F-04 feat/b none
+bs_issue 004-77 Fait F-05 feat/nf none
+bs_issue 004-78 Fait F-06 feat/b none; bs_issue 004-79 Abandonnée F-06 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-80 Abandonnée F-07 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-81 Fait F-08 feat/nf none; bs_issue 004-82 "À faire" F-08 "" none
+bs_issue 004-83 "À faire" F-09 "" none
+st_cas "ca23_fait : Fait sans issue, avec seulement des issues À faire ou Abandonnée = E08 « aucune issue Fait » ; avec une issue À faire, En cours ou En revue = E08 « l'issue <id> n'est ni Fait ni Abandonnée » ; avec une issue Fait non fusionnée = E08 « la branche de l'issue <id> n'est pas fusionnée dans develop » (le motif de l'issue vient avant celui de la branche) ; issues Fait fusionnées et Abandonnée = aucun constat" 1 <<'TXT'
+ERREUR E08 besoin F-01 : statut Fait non justifié : aucune issue Fait
+ERREUR E08 besoin F-02 : statut Fait non justifié : l'issue 004-72 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-03 : statut Fait non justifié : l'issue 004-74 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-04 : statut Fait non justifié : l'issue 004-76 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-05 : statut Fait non justifié : la branche de l'issue 004-77 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-07 : statut Fait non justifié : aucune issue Fait
+ERREUR E08 besoin F-08 : statut Fait non justifié : l'issue 004-82 n'est ni Fait ni Abandonnée
+ERREUR E08 besoin F-09 : statut Fait non justifié : aucune issue Fait
+STATUTS : 8 erreur(s), 0 avis
+TXT
+
+# ca25 : besoin En cours sans issue démarrée, ou En revue dont les issues ne sont pas toutes Fait = A12 « en avance » (avis, code 0)
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-03 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-04 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-05 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-06 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-07 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-08 | B | P1 | En revue | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-72 "À faire" F-02 "" none
+bs_issue 004-73 Abandonnée F-03 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-75 "En cours" F-05 feat/b none
+bs_issue 004-76 Fait F-06 feat/nf none; bs_issue 004-77 "À faire" F-06 "" none
+bs_issue 004-78 "En cours" F-07 feat/b none
+bs_issue 004-79 Fait F-08 feat/nf none
+st_cas "ca25_avance : En cours sans issue ou sans issue démarrée (À faire, Abandonnée seulement) = A12 « aucune issue démarrée » ; En revue sans issue ou dont une issue n'est pas Fait (En cours, À faire) = A12 « toutes les issues ne sont pas Fait » ; En cours avec une issue démarrée et En revue dont toutes les issues sont Fait = aucun constat ; code 0" 0 <<'TXT'
+AVIS A12 besoin F-01 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-02 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-03 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-04 : statut En revue en avance : toutes les issues ne sont pas Fait
+AVIS A12 besoin F-05 : statut En revue en avance : toutes les issues ne sont pas Fait
+AVIS A12 besoin F-06 : statut En revue en avance : toutes les issues ne sont pas Fait
+STATUTS : 0 erreur(s), 6 avis
 TXT
 
 echo

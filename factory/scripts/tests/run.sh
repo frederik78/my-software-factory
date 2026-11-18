@@ -2848,6 +2848,58 @@ ERREUR E05 besoin F-01 : statut inconnu « Relue » (attendus : $ATTENDUS_B)
 STATUTS : 1 erreur(s), 0 avis
 TXT
 
+# ca06 : lecture du backlog (RG-04) : E01, E02, E03, E04, colonnes repérées par leur nom, tableau non fonctionnel ignoré
+st_depot
+st_issue 004-91 " fait"
+st_cas "ca06_statuts : backlog.md absent = la seule ligne d'erreur est E01, même avec une issue en erreur, puis le récapitulatif, code 1" 1 <<'TXT'
+ERREUR E01 backlog : backlog.md absent ou illisible
+STATUTS : 1 erreur(s), 0 avis
+TXT
+mkdir backlog.md
+st_cas "ca06_statuts : backlog.md qui est un dossier = E01" 1 <<'TXT'
+ERREUR E01 backlog : backlog.md absent ou illisible
+STATUTS : 1 erreur(s), 0 avis
+TXT
+rmdir backlog.md
+printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n' > backlog.md
+st_cas "ca06_statuts : backlog sans tableau reconnu (non fonctionnel, sans colonne PRD) = E02 ; les contrôles des issues restent émis ; le tableau non fonctionnel n'est pas lu" 1 <<TXT
+ERREUR E02 backlog : tableau des besoins introuvable (colonnes ID, Statut, PRD attendues)
+ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
+STATUTS : 2 erreur(s), 0 avis
+TXT
+printf 'Aucun tableau ici.\n' > backlog.md
+st_cas "ca06_statuts : backlog sans aucun tableau = E02" 1 <<TXT
+ERREUR E02 backlog : tableau des besoins introuvable (colonnes ID, Statut, PRD attendues)
+ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
+STATUTS : 2 erreur(s), 0 avis
+TXT
+st_depot
+printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n\n## Besoins fonctionnels\n\n| Besoin | PRD | Décisions | Statut | ID |\n|---|---|---|---|---|\n| B | | | Fait | F-01 |\n| B | | | Bof | F-02 |\n' > backlog.md
+st_cas "ca06_statuts : le tableau non fonctionnel qui précède n'est pas lu ; le premier tableau avec ID, Statut et PRD l'est, colonnes repérées par leur nom (ordre quelconque)" 1 <<TXT
+ERREUR E05 besoin F-02 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Fait |' '| F-03 | B | P1 | Bof | | |' '| F-04 | B | P1 | Fait | | | extra |' | st_backlog
+st_cas "ca06_statuts : ligne dont le nombre de colonnes diffère de l'en-tête = E03 pour elle seule ; les autres lignes sont contrôlées" 1 <<TXT
+ERREUR E03 besoin F-02 : ligne illisible (nombre de colonnes différent de l'en-tête)
+ERREUR E05 besoin F-03 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E03 besoin F-04 : ligne illisible (nombre de colonnes différent de l'en-tête)
+STATUTS : 3 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Fait | | |' '| F-01 | Copie | P1 | Fait | | |' | st_backlog
+st_cas "ca06_statuts : deux lignes de même identifiant = une erreur E04 pour cet identifiant" 1 <<'TXT'
+ERREUR E04 besoin F-01 : identifiant en double dans le backlog
+STATUTS : 1 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | Fait | | |' | st_backlog
+st_cas "ca06_statuts : F-1 et F-10 sont deux identifiants distincts (pas de doublon)" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-01 | B \| avec barre | P1 | À faire | | |' | st_backlog
+st_cas "ca06_statuts : une barre échappée dans une cellule ne change pas le nombre de colonnes" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

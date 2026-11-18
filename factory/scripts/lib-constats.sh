@@ -15,11 +15,14 @@ constats=(); constats_erreurs=0; constats_avis=0
 # Travaille octet par octet (LC_ALL=C local) : le résultat ne dépend pas de la locale de l'appelant et une coupe ne tombe jamais au milieu d'un caractère UTF-8.
 constat_neutraliser() {
   local LC_ALL=C v="$1" i=0 n=0 c trop=0
-  v="${v//$'\r'/ }"; v="${v//$'\n'/ }"; v="${v//$'\t'/ }"
-  case "$v" in *[[:cntrl:]]*) v="$(printf '%s' "$v" | tr -d '\000-\037\177')" ;; esac
-  v="${v//$'\xc2'[$'\x80'-$'\x9f']/}"
-  v="${v//$'\xe2\x80'[$'\x8e'$'\x8f'$'\xaa'-$'\xae']/}"
-  v="${v//$'\xe2\x81'[$'\xa6'-$'\xa9']/}"
+  # Un seul passage de filtres, de coût linéaire (les substitutions « ${v//…/} » de bash 3.2 sont quadratiques : minutes pour une cellule de 1 Mio).
+  # Valeur en ASCII imprimable (cas courant) : rien à faire. Sinon : CR, LF, tabulation -> espace (tr), autres contrôles ASCII retirés (tr),
+  # puis C1 (C2 80 à C2 9F) et contrôles bidirectionnels (E2 80 8E/8F/AA à AE, E2 81 A6 à A9) retirés par awk, octet par octet.
+  case "$v" in
+    *[![:print:]]*)
+      v="$(printf '%s' "$v" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C tr -d '\000-\037\177' \
+        | LC_ALL=C awk 'BEGIN { ORS = "" } { gsub(/\302[\200-\237]|\342\200[\216\217\252-\256]|\342\201[\246-\251]/, ""); print }')" ;;
+  esac
   if [ "${#v}" -gt "$CONSTAT_VALEUR_MAX" ]; then
     # Les octets de suite d'un caractère UTF-8 (0x80 à 0xBF) ne comptent pas ; le 121e caractère marque la coupe. Au plus 4 octets par caractère sont examinés.
     [ "${#v}" -le $((CONSTAT_VALEUR_MAX * 4 + 4)) ] || { v="${v:0:$((CONSTAT_VALEUR_MAX * 4 + 4))}"; trop=1; }

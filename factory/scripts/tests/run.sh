@@ -3041,6 +3041,19 @@ st_neutre_test "ca07_neutralisation : 120 caractères multi-octets (240 octets) 
 st_neutre_test "ca07_neutralisation : C1 (U+009B, U+0085) et contrôles bidirectionnels (U+202E, U+2066, U+200F) retirés, accents et guillemets français intacts" "aébcdÉe«x»fg" "$(printf 'a\xc3\xa9\xc2\x9bb\xc2\x85c\xe2\x80\xaed\xc3\x89\xe2\x81\xa6e\xc2\xabx\xc2\xbb\xe2\x80\x8ffg')"
 verifier "ca07_neutralisation : la coupe sous LC_ALL=C est acceptée par iconv (UTF-8 valide)" 0 "" sh -c 'printf "%s" "$1" | iconv -f UTF-8 -t UTF-8 >/dev/null' _ "$(LC_ALL=C st_neutre st_n "$st_long")"
 
+# Revue 2 : coût de la neutralisation (constat 10) : 20 000 occurrences d'un caractère retiré dans une cellule du backlog et dans un en-tête d'issue, sous le bash 3.2 de macOS quand il existe
+st_repete() { printf "$1%.0s" $(seq 1 20000); } # st_repete <séquence printf> : la séquence répétée 20 000 fois
+st_depot
+{ printf '| F-01 | B | P1 | Fait%szz | | |\n' "$(st_repete '\302\205')"; printf '| F-02 | B | P1 | Fait%szz | | |\n' "$(st_repete '\342\200\256')"; printf '| F-03 | B | P1 | Fait%szz | | |\n' "$(st_repete '\r')"; } | st_backlog
+printf -- '---\nid: 004-91\nstatut: Fait%szz\n---\n' "$(st_repete '\302\205')" > docs/issues/004-91-x.md
+printf -- '---\nid: 004-92\nstatut: Fait%szz\n---\n' "$(st_repete '\342\200\256')" > docs/issues/004-92-x.md
+printf -- '---\nid: 004-93\nstatut: Fait%szz\n---\n' "$(st_repete '\r')" > docs/issues/004-93-x.md
+st_bash=bash; [ -x /bin/bash ] && st_bash=/bin/bash
+st_debut=$SECONDS
+perl -e 'alarm 30; exec @ARGV' "$st_bash" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
+verifier "ca07_cout_neutralisation : 20 000 C1, 20 000 U+202E et 20 000 CR dans 3 cellules de backlog et 3 en-têtes d'issue : fini en moins de 30 s (durée $((SECONDS - st_debut)) s), 6 erreurs" 0 "" test "$st_c|$(grep -c '^ERREUR E05 besoin F-0[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(grep -c '^ERREUR E10 issue 004-9[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(tail -1 "$racine_tmp/st.out")" = "1|3|3|STATUTS : 6 erreur(s), 0 avis"
+verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR remplacés par des espaces puis tronqués à 120 caractères" 0 "" test "$(grep -c '« Faitzz »' "$racine_tmp/st.out")|$(grep -cE '« Fait {116}… »' "$racine_tmp/st.out")" = "4|2"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

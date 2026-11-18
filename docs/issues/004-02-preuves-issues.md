@@ -3,7 +3,7 @@ id: 004-02
 titre: Preuves d'une issue, branche retenue, Abandonnée et dépendances
 prd: docs/prd/004-machines-a-etats-statuts.md
 besoin: F-09
-statut: En cours
+statut: En revue
 depend_de: [004-01]
 criteres: [CA-10, CA-11, CA-12, CA-13, CA-14, CA-15, CA-16, CA-17, CA-18]
 branche: feat/004-02-preuves-issues

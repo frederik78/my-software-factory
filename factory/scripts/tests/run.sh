@@ -2038,7 +2038,8 @@ verifier "ca05_aucun_argument : 64 et usage" 64 "Usage" "$verdict"
 verifier "ca05_plusieurs_arguments : 64 et usage" 64 "Usage" "$verdict" "$dv/ok.md" "$dv/ko.md"
 verifier "ca05_option_inconnue : 64 et usage" 64 "Usage" "$verdict" --inconnue
 [ -z "$("$verdict" 2>/dev/null)" ] && ok "ca05_usage_sur_sortie_erreur : rien sur la sortie standard" || ko "ca05_usage_sur_sortie_erreur" "sortie standard non vide"
-verdict_cas "ca11_une_seule_ligne_sur_ligne_longue : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/ancienne.md"
+{ printf 'VERDICT: APPROUVÉ'; head -c 100000 /dev/zero | tr '\0' 'x'; printf '\n'; } > "$dv/ligne-longue.md"
+verdict_cas "ca11_une_seule_ligne_sur_ligne_longue : INCONNU, valeur valide suivie de 100000 caractères" 1 "INCONNU" "ligne VERDICT" "$dv/ligne-longue.md"
 printf 'x$(touch marque)\n`touch marque`\n; rm -rf x\n' > "$dv/hostile.md"
 printf 'VERDICT: APPROUVÉ; touch marque\n' > "$dv/injection.md"
 printf 'VERDICT: $(touch marque)\n' > "$dv/subst.md"
@@ -2062,8 +2063,35 @@ for f in controle longue binaire; do
   verdict_cas "cs03_fichier_hostile_$f : INCONNU, code 1, une ligne d'erreur sans le contenu" 1 "INCONNU" "^verdict-revue : .{0,200}$" "$dv/$f.md"
   taille="$("$verdict" "$dv/$f.md" 2>&1 >/dev/null | wc -c | tr -d ' ')"
   [ "$taille" -lt 200 ] && ok "cs03_erreur_bornee_$f : $taille octets" || ko "cs03_erreur_bornee_$f" "$taille octets"
-  "$verdict" "$dv/$f.md" 2>&1 >/dev/null | LC_ALL=C grep -q '[^[:print:]]' && ko "cs03_erreur_sans_controle_$f" "caractère de contrôle" || ok "cs03_erreur_sans_controle_$f : aucun caractère de contrôle"
 done
+# Octets NUL dans la première ligne : la substitution de commande les supprimerait, une valeur falsifiée deviendrait valide.
+printf 'VERDICT: APPR\0OUVÉ\n' > "$dv/nul-milieu.md"
+printf 'VERDICT:\0 APPROUVÉ\n' > "$dv/nul-apres-deux-points.md"
+printf 'VERDICT: APPROUVÉ\0\n' > "$dv/nul-fin.md"
+printf 'VERDICT: CHANGEMENTS\0 DEMANDÉS\n' > "$dv/nul-changements.md"
+for f in nul-milieu nul-apres-deux-points nul-fin nul-changements; do
+  verdict_cas "cs03_nul_premiere_ligne_$f : INCONNU, code 1, sans recopier le contenu" 1 "INCONNU" "^verdict-revue : .{0,200}$" "$dv/$f.md"
+done
+# Sortie d'erreur capturée dans une variable (un pipeline sous pipefail vaut 1 même quand grep trouve un caractère de contrôle).
+for f in controle longue binaire nul-milieu; do
+  erreur="$("$verdict" "$dv/$f.md" 2>&1 >/dev/null)"
+  if printf '%s' "$erreur" | LC_ALL=C grep -q '[[:cntrl:]]'; then ko "cs03_erreur_sans_controle_$f" "caractère de contrôle"; else ok "cs03_erreur_sans_controle_$f : aucun caractère de contrôle"; fi
+done
+# Chemins : lien symbolique, répertoire, fichier illisible, chemin hostile.
+ln -sf ok.md "$dv/lien.md"
+verdict_cas "cs02_lien_symbolique : suivi, verdict lu" 0 "APPROUVÉ" "" "$dv/lien.md"
+mkdir -p "$dv/repertoire.md"
+verdict_cas "ca04_repertoire : INCONNU, code 1" 1 "INCONNU" "absent ou illisible" "$dv/repertoire.md"
+printf 'VERDICT: APPROUVÉ\n' > "$dv/illisible.md"; chmod 000 "$dv/illisible.md"
+if [ "$(id -u)" = 0 ]; then
+  ok "ca04_fichier_illisible : ignoré, root lit un fichier de mode 000"
+else
+  verdict_cas "ca04_fichier_illisible : INCONNU, code 1" 1 "INCONNU" "absent ou illisible" "$dv/illisible.md"
+fi
+chmod 600 "$dv/illisible.md"
+mkdir -p "$dv/h"; printf 'VERDICT: APPROUVÉ\n' > "$dv/h/-x"
+( cd "$dv/h" && verdict_cas "cs02_chemin_hostile_tiret_double_tiret : lu après --" 0 "APPROUVÉ" "" "-x" -- )
+( cd "$dv/h" && verifier "cs02_chemin_hostile_tiret_prefixe : ./-x lu" 0 "^APPROUVÉ$" "$verdict" ./-x )
 
 echo "ce dépôt : dossier de tests bash"
 cd "$depot" || exit 1

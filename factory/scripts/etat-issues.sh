@@ -2,7 +2,8 @@
 # État des issues de docs/issues/ lu directement dans leur en-tête (remplace un index tenu à la main, qui dériverait).
 #
 # Usage : scripts/etat-issues.sh [--statut "À faire"]     (tableau Markdown, une ligne par issue)
-#         scripts/etat-issues.sh --prochaine              (id de la première issue « À faire », ici et sur sa branche locale, dont toutes les dépendances sont « Fait » ici)
+#         scripts/etat-issues.sh --prochaine              (id de la première issue dont le statut effectif est « À faire » et dont toutes les dépendances sont levées,
+#                                                          c'est-à-dire « Fait » ici ou sur leur branche retenue, déclarée ou déduite ; le tableau garde le statut local)
 # Code de sortie : 0 ; en mode --prochaine : 1 s'il n'y a aucune issue prête.
 set -uo pipefail
 
@@ -27,9 +28,19 @@ while IFS= read -r f; do
 done < <(issue_fichiers)
 rattachements_charger
 
-statut_de() { # statut_de <id>
+# Statut effectif (branche retenue comprise) de l'issue de rang i, calculé une fois (variable globale, pas de sous-shell : la mémoire serait perdue).
+effectifs=()
+effectif_de_rang() { # effectif_de_rang <rang> : met le résultat dans $effectif
+  if [ -z "${effectifs[$1]+x}" ]; then
+    if [ "${statuts[$1]}" = "Fait" ]; then effectifs[$1]="Fait" # le plus avancé du cycle : aucune lecture de branche
+    else effectifs[$1]="$(issue_statut_effectif "${fichiers[$1]}")"; fi
+  fi
+  effectif="${effectifs[$1]}"
+}
+statut_effectif_de() { # statut_effectif_de <id> : met le statut effectif de l'issue d'identifiant <id> dans $effectif (vide si elle n'existe pas)
   local i
-  for i in "${!ids[@]}"; do [ "${ids[$i]}" = "$1" ] && { printf '%s' "${statuts[$i]}"; return; }; done
+  effectif=""
+  for i in "${!ids[@]}"; do [ "${ids[$i]}" = "$1" ] && { effectif_de_rang "$i"; return; }; done
 }
 
 if [ "$mode" = "prochaine" ]; then
@@ -37,9 +48,9 @@ if [ "$mode" = "prochaine" ]; then
     [ "${statuts[$i]}" = "À faire" ] || continue
     pret=1
     while IFS= read -r dep; do
-      [ -n "$dep" ] && [ "$(statut_de "$dep")" != "Fait" ] && pret=0
+      if [ -n "$dep" ]; then statut_effectif_de "$dep"; [ "$effectif" = "Fait" ] || pret=0; fi
     done < <(issue_liste "${fichiers[$i]}" depend_de)
-    [ "$(issue_statut_effectif "${fichiers[$i]}")" = "À faire" ] || pret=0
+    effectif_de_rang "$i"; [ "$effectif" = "À faire" ] || pret=0
     if [ "$pret" -eq 1 ]; then echo "${ids[$i]}"; exit 0; fi
   done
   exit 1

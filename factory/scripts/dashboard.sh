@@ -2,8 +2,10 @@
 # Dashboard : page HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
 # Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. Style : Pico CSS classless embarqué (factory/assets/pico.classless.min.css, sans url()), aucune ressource externe. La page se rafraîchit seule (balise meta).
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
-# Le statut d'une issue est le plus avancé de celui du dossier courant et de celui de sa branche locale (champ « branche » de l'en-tête), avec le dernier commit de la branche sur la carte.
-# Une dépendance ne compte que `Fait` dans le dossier courant : une issue finie sur sa branche, pas encore fusionnée, bloque encore les suivantes.
+# Le statut d'une issue est le plus avancé de celui du dossier courant et de celui du même fichier sur sa branche retenue (champ « branche » de l'en-tête, sinon branche déduite
+# par convention de nommage), avec le dernier commit de la branche sur la carte. Le fichier lu sur la branche est borné en taille, jamais un lien symbolique suivi.
+# Une dépendance est levée dès que son statut effectif est `Fait`, même sur une branche non fusionnée : l'issue suivante porte alors « empilée sur <branche> » (et non « bloquée »).
+# La prochaine issue prête est celle de etat-issues.sh --prochaine (même règle).
 # Chaque Kanban défile dans un viewport (70vh, en-têtes fixes) ; la colonne « Fait » va de la plus récente à la moins récente (date du dernier commit du fichier de l'issue).
 # Descriptif des cartes : premier paragraphe de « ## Objectif » (issue), colonne « Décisions » du backlog (besoin) ; rien si vide.
 # Bandeau « Agents actifs » : lu dans <git-common-dir>/factory-agents.log, écrit par les hooks de l'outil d'agents (pour Claude Code :
@@ -141,11 +143,12 @@ mention_rattachement() { # mention_rattachement <fichier> : « branche : <nom> (
   b="$(issue_branches_ambigues "$1")"
   [ -z "$b" ] || printf 'branche ambiguë : %s' "$b"
 }
-issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif SEP date (epoch) SEP mention de rattachement », dans l'ordre des fichiers
-  local f deps
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif SEP date (epoch) SEP mention de rattachement SEP branche retenue », dans l'ordre des fichiers
+  local f deps ref
   while IFS= read -r f; do
+    ref="$(issue_ref_branche "$f")" # une fois par issue : statut effectif, dernier commit et branche retenue en dépendent
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")" "$sep" "$(issue_date "$f")" "$sep" "$(mention_rattachement "$f")"
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f" "$ref")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f" "$ref")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")" "$sep" "$(issue_date "$f")" "$sep" "$(mention_rattachement "$f")" "$sep" "${ref#refs/heads/}"
   done < <(issue_fichiers)
 }
 
@@ -159,32 +162,43 @@ carte_besoin() { # carte_besoin <ligne de besoins_backlog>
   printf '</div>\n'
 }
 
-# Contexte des cartes d'issues, rempli par generer : issue prête (etat-issues.sh --prochaine) et statut local de chaque id.
-prochaine=""; ids_issues=(); statuts_lus=()
-statut_issue() { # statut_issue <id> : statut local, vide si l'issue n'existe pas
+# Contexte des cartes d'issues, rempli par generer : issue prête (etat-issues.sh --prochaine) et, par identifiant, statut effectif, statut local et branche retenue.
+prochaine=""; ids_issues=(); statuts_effectifs=(); statuts_lus=(); branches_retenues=()
+rang_issue() { # rang_issue <id> : rang de l'issue dans les tableaux ci-dessus ; code 1 si elle n'existe pas
   local i=0
   while [ "$i" -lt "${#ids_issues[@]}" ]; do
-    [ "${ids_issues[$i]}" = "$1" ] && { printf '%s' "${statuts_lus[$i]}"; return; }
+    [ "${ids_issues[$i]}" = "$1" ] && { printf '%s' "$i"; return 0; }
     i=$((i + 1))
   done
-}
-bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est À faire et qu'une dépendance n'est pas Fait
-  local dep
-  [ "$1" = "À faire" ] || return 1
-  while IFS= read -r dep; do
-    [ -n "$dep" ] && [ "$(statut_issue "$dep")" != "Fait" ] && return 0
-  done < <(printf '%s\n' "$2" | tr ',' '\n' | sed 's/^ *//; s/ *$//')
   return 1
 }
+# etat_dependances <statut effectif> <dépendances « a, b »> : écrit « bloquee » ou « empilee <branches, séparées par « , »> » ou rien.
+# Une issue À faire est bloquée dès qu'une dépendance n'est pas levée (statut effectif autre que Fait, ou identifiant inexistant) ; sinon, une dépendance Fait
+# seulement sur sa branche (statut local différent de Fait) la rend « empilée sur » cette branche (noms sans doublon, ordre des dépendances).
+etat_dependances() {
+  local dep r empilee=""
+  [ "$1" = "À faire" ] || return 0
+  while IFS= read -r dep; do
+    [ -n "$dep" ] || continue
+    r="$(rang_issue "$dep")" || { echo bloquee; return 0; }
+    [ "${statuts_effectifs[$r]}" = "Fait" ] || { echo bloquee; return 0; }
+    if [ "${statuts_lus[$r]}" != "Fait" ] && [ -n "${branches_retenues[$r]}" ]; then
+      case ", $empilee, " in *", ${branches_retenues[$r]}, "*) ;; *) empilee="${empilee:+$empilee, }${branches_retenues[$r]}" ;; esac
+    fi
+  done < <(printf '%s\n' "$2" | tr ',' '\n' | sed 's/^ *//; s/ *$//')
+  [ -z "$empilee" ] || echo "empilee $empilee"
+}
 carte_issue() { # carte_issue <ligne de issues_dossier>
-  local id titre statut deps besoin commit branche objectif mention signal marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif _ mention <<< "$1"
+  local id titre statut deps besoin commit branche objectif mention signal dependances marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif _ mention _ <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
-  if bloquee "$statut" "$deps"; then
-    etats="$etats bloquee"; marques="$marques"'<span class="marqueur marqueur-bloquee">bloquée</span>'
-  fi
+  dependances="$(etat_dependances "$statut" "$deps")"
+  case "$dependances" in
+    bloquee) etats="$etats bloquee"; marques="$marques"'<span class="marqueur marqueur-bloquee">bloquée</span>' ;;
+    empilee*) marques="$marques<span class=\"marqueur marqueur-empilee\">empilée sur $(echappe "${dependances#empilee }")</span>" ;;
+  esac
   printf '<div class="carte%s"><strong>%s</strong> <span class="titre">%s</span>%s' "$etats" "$(echappe "$id")" "$(echappe "$titre")" "$marques"
   [ -z "$objectif" ] || printf '<span class="detail desc">%s</span>' "$(echappe "$objectif")"
   [ -z "$besoin" ] || printf '<span class="detail">%s</span>' "$(echappe "$besoin")"
@@ -360,7 +374,7 @@ palette() { # palette <clair|sombre> : variables CSS des couleurs de la page (le
 --fond: #f3f4f6; --texte: #222; --discret: #555; --vide: #9ca3af;
 --bord: #d1d5db; --bord-doux: #e5e7eb; --carte: #fff; --colonne: #f9fafb; --bord-gauche: #9ca3af;
 --ombre-a: .05; --ombre-b: .08; --ombre-c: .04;
---prochaine: #2563eb; --bloquee: #dc2626; --marqueur-texte: #fff;
+--prochaine: #2563eb; --bloquee: #dc2626; --empilee: #7c3aed; --marqueur-texte: #fff;
 --st-texte: #222; --st-afaire: #e5e7eb; --st-clarification: #fde68a; --st-specifie: #bfdbfe; --st-encours: #fdba74;
 --st-enrevue: #ddd6fe; --st-fait: #bbf7d0; --st-inconnu: #fecaca;
 --agent-actif: #166534; --agent-sans-nouvelles: #92400e;
@@ -370,7 +384,7 @@ CSS
 --fond: #111827; --texte: #e5e7eb; --discret: #9ca3af; --vide: #6b7280;
 --bord: #374151; --bord-doux: #2d3748; --carte: #1f2937; --colonne: #172033; --bord-gauche: #6b7280;
 --ombre-a: .3; --ombre-b: .4; --ombre-c: .3;
---prochaine: #2563eb; --bloquee: #dc2626; --marqueur-texte: #fff;
+--prochaine: #2563eb; --bloquee: #dc2626; --empilee: #7c3aed; --marqueur-texte: #fff;
 --st-texte: #f9fafb; --st-afaire: #374151; --st-clarification: #854d0e; --st-specifie: #1e40af; --st-encours: #9a3412;
 --st-enrevue: #5b21b6; --st-fait: #166534; --st-inconnu: #991b1b;
 --agent-actif: #4ade80; --agent-sans-nouvelles: #fbbf24;
@@ -389,16 +403,16 @@ palettes() {
 }
 
 generer() { # page complète sur la sortie standard
-  local b i id statut_local maintenant
+  local b i id statut_local statut_effectif retenue maintenant
   maintenant="$(date +%s)"
   rattachements_charger # une seule lecture des branches locales par génération, avant tout sous-shell qui lit les rattachements
   i="$(issues_dossier)"; b="$(besoins_dates "$(besoins_backlog)" "$i")"
   prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
-  ids_issues=(); statuts_lus=()
   signaux_worktrees "$maintenant"
-  while IFS="$sep" read -r id _ _ _ _ _ statut_local _; do
+  ids_issues=(); statuts_effectifs=(); statuts_lus=(); branches_retenues=()
+  while IFS="$sep" read -r id _ statut_effectif _ _ _ statut_local _ _ _ _ retenue; do
     [ -n "$id" ] || continue
-    ids_issues+=("$id"); statuts_lus+=("$statut_local")
+    ids_issues+=("$id"); statuts_effectifs+=("$statut_effectif"); statuts_lus+=("$statut_local"); branches_retenues+=("$retenue")
   done <<< "$i"
   cat <<HTML
 <!DOCTYPE html>
@@ -427,7 +441,7 @@ section ul { padding-left: 0; list-style: none; } section li { margin: 0; paddin
 .carte { background: var(--carte); border: 1px solid var(--bord); border-left: 4px solid var(--bord-gauche); border-radius: .3rem; margin: .5rem; padding: .4rem .5rem; overflow-wrap: anywhere; break-inside: avoid; }
 .carte.prochaine { border-left-color: var(--prochaine); } .carte.bloquee { border-left-color: var(--bloquee); }
 .marqueur { display: inline-block; margin-left: .3rem; padding: 0 .4rem; border-radius: .6rem; font-size: .75rem; color: var(--marqueur-texte); }
-.marqueur-prochaine { background: var(--prochaine); } .marqueur-bloquee { background: var(--bloquee); }
+.marqueur-prochaine { background: var(--prochaine); } .marqueur-bloquee { background: var(--bloquee); } .marqueur-empilee { background: var(--empilee); }
 .detail.desc { color: var(--texte); margin-top: .2rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .detail.desc:hover { -webkit-line-clamp: unset; }
 .detail { display: block; font-size: .85rem; color: var(--discret); }
 .vide { margin: .5rem; text-align: center; color: var(--vide); }

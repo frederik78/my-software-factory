@@ -155,14 +155,28 @@ issue_ref_branche() {
   printf '%s' "$ref"
 }
 
-# issue_statut_effectif <fichier> : le plus avancé dans le cycle du statut local et de celui de la branche de l'issue.
-# Branche absente, fichier absent sur la branche ou statut inconnu d'un côté : le statut local.
+# Taille maximale (octets) du fichier d'issue lu sur une branche : au-delà, le fichier est écarté (statut local). Une issue fait quelques ko.
+ISSUE_BRANCHE_OCTETS_MAX=65536
+
+# issue_statut_distant <ref> <fichier> : statut du fichier de l'issue (MÊME chemin que le local) sur la branche, rien s'il est absent, trop grand
+# ou sans en-tête. Un lien symbolique n'est jamais suivi : git show rend le chemin cible comme texte, qui n'a pas d'en-tête. Contenu non fiable : lu comme du texte.
+issue_statut_distant() {
+  local LC_ALL=C contenu
+  contenu="$(git show "$1:./$2" -- 2>/dev/null | head -c $((ISSUE_BRANCHE_OCTETS_MAX + 1)); printf x)"
+  contenu="${contenu%x}"
+  [ "${#contenu}" -le "$ISSUE_BRANCHE_OCTETS_MAX" ] || return 0
+  issue_champ /dev/stdin statut <<< "$contenu"
+}
+
+# issue_statut_effectif <fichier> [<ref>] : le plus avancé dans le cycle du statut local et de celui de la branche retenue de l'issue.
+# Branche absente, fichier absent ou illisible sur la branche, statut hors cycle d'un côté : le statut local.
+# <ref> (refs/heads/<nom> ou vide) évite de recalculer la branche retenue quand l'appelant l'a déjà.
 issue_statut_effectif() {
   local local_ ref distant r_local r_distant
   local_="$(issue_champ "$1" statut)"
-  ref="$(issue_ref_branche "$1")"
+  ref="${2-$(issue_ref_branche "$1")}"
   if [ -n "$ref" ]; then
-    distant="$(git show "$ref:./$1" -- 2>/dev/null | issue_champ /dev/stdin statut)"
+    distant="$(issue_statut_distant "$ref" "$1")"
     if r_local="$(issue_rang_statut "$local_")" && r_distant="$(issue_rang_statut "$distant")" && [ "$r_distant" -gt "$r_local" ]; then
       local_="$distant"
     fi
@@ -170,10 +184,10 @@ issue_statut_effectif() {
   printf '%s' "$local_"
 }
 
-# issue_dernier_commit <fichier> : « <hash court> du <date> » du dernier commit de la branche de l'issue, vide sans branche.
+# issue_dernier_commit <fichier> [<ref>] : « <hash court> du <date> » du dernier commit de la branche de l'issue, vide sans branche.
 issue_dernier_commit() {
   local ref
-  ref="$(issue_ref_branche "$1")"
+  ref="${2-$(issue_ref_branche "$1")}"
   [ -z "$ref" ] || git log -1 --date=short --format='%h du %ad' "$ref" -- 2>/dev/null
 }
 

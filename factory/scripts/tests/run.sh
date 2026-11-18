@@ -865,7 +865,7 @@ carte_de 002-01 "$sortie_b" | grep -qF "dernier commit : $attendu_a" && ok "bran
 [ "$(colonne_de 002-07 "$sortie_b")" = "À faire" ] && [ "$(colonne_de 002-08 "$sortie_b")" = "À faire" ] && [ "$(colonne_de 002-09 "$sortie_b")" = "À faire" ] && ! carte_de 002-09 "$sortie_b" | grep -q 'dernier commit' && ok "espaces, option ou intervalle dans le nom : statut local" || ko "noms invalides"
 [ ! -e pwn1 ] && [ ! -e pwn2 ] && [ ! -e pwn3 ] && [ ! -e '=pwn3' ] && ok "cs_ nom de branche hostile : rien n'est exécuté" || ko "cs_ exécution depuis un nom de branche"
 ! grep -q 'alert' "$sortie_b" && ! grep -Eq '<script|<b>' "$sortie_b" && ok "cs_ nom de branche hostile : aucun HTML injecté" || ko "cs_ HTML injecté"
-carte_de 002-11 "$sortie_b" | grep -q 'marqueur-bloquee' && ok "dépendance Fait sur sa branche seule, pas fusionnée : reste bloquée" || ko "dépendance non fusionnée" "$(carte_de 002-11 "$sortie_b")"
+carte_de 002-11 "$sortie_b" | grep -qF '<span class="marqueur marqueur-empilee">empilée sur feat/f</span>' && ! carte_de 002-11 "$sortie_b" | grep -q 'bloquée' && ok "dépendance Fait sur sa branche seule, pas fusionnée : levée, « empilée sur feat/f » et non bloquée (ancienne règle : bloquée)" || ko "dépendance non fusionnée" "$(carte_de 002-11 "$sortie_b")"
 verifier_exact "etat-issues --prochaine : une issue En cours sur sa branche n'est pas prête" 0 "002-02" scripts/etat-issues.sh --prochaine
 git worktree add -q "$racine_tmp/wt-classique" -b wt-classique >/dev/null 2>&1
 "$racine_tmp/wt-classique/scripts/dashboard.sh" --sortie "$racine_tmp/wt.html" >/dev/null 2>&1
@@ -2189,6 +2189,108 @@ rat_c() { [ "$rat_code" -eq 0 ] && [ -s "$racine_tmp/rat.html" ] && [ "$(grep -c
 : > "$COMPTE_GIT"; PATH="$racine_tmp/bin-compte:$PATH" scripts/etat-issues.sh >/dev/null 2>&1
 rat_c() { [ "$(grep -c 'for-each-ref' "$COMPTE_GIT")" -eq 1 ] || { printf '%s\n' "$(grep -c 'for-each-ref' "$COMPTE_GIT") listages"; return 1; }; }; verifier "cs05_le listage des branches locales est unique par exécution (etat-issues.sh, 500 branches, 12 issues)" 0 "" rat_c
 unset COMPTE_GIT
+
+echo "dashboard.sh et etat-issues.sh : statut effectif, dépendance levée et prochaine issue prête (PRD 003, issue 003-02)"
+se_branche_ajout() { # se_branche_ajout <branche existante> <id> <statut> <branche de l'en-tête> : ajoute l'issue sur une branche qui existe déjà
+  git worktree add -q "$racine_tmp/wt-aj-$2" "$1" >/dev/null 2>&1
+  DOSSIER_B="$racine_tmp/wt-aj-$2/docs/issues" issue_b "$2" "$3" "$4"
+  gd_ -C "$racine_tmp/wt-aj-$2" add -A; gd_ -C "$racine_tmp/wt-aj-$2" commit -qm "ajout $2"
+  git worktree remove --force "$racine_tmp/wt-aj-$2"
+}
+se_lignes() { # se_lignes <ids...> : colonne de chaque issue, « id=colonne », sur une ligne
+  local i; for i in "$@"; do printf '%s=%s ' "$i" "$(rat_col "$i")"; done
+}
+
+# ca10 : le statut effectif, branche déclarée ou déduite
+rat_depot
+issue_b 010-01 "À faire" "feat/a"; issue_b 010-02 "À faire" ""; issue_b 010-03 "Fait" ""; issue_b 010-04 "À faire" ""
+issue_b 010-05 "À faire" ""; issue_b 010-06 "À faire" ""; issue_b 010-07 "À faire" ""; issue_b 010-08 "Abandonnée" ""
+rat_commit
+sur_branche feat/a 010-01 "En cours" "feat/a"; sur_branche feat/010-02-x 010-02 "En revue" ""; sur_branche feat/010-03-x 010-03 "À faire" ""
+git branch feat/010-04-x; git worktree add -q "$racine_tmp/wt-se4" feat/010-04-x >/dev/null 2>&1; git -C "$racine_tmp/wt-se4" rm -q docs/issues/010-04-x.md; gd_ -C "$racine_tmp/wt-se4" commit -qm retire; git worktree remove --force "$racine_tmp/wt-se4"
+sur_branche feat/010-05-x 010-05 "Abandonnée" ""; sur_branche feat/010-06-x 010-06 "Texte libre" ""; sur_branche feat/010-07-x 010-07 "" ""; sur_branche feat/010-08-x 010-08 "Fait" ""
+rat_page
+rat_c() { [ "$(se_lignes 010-01 010-02)" = "010-01=En cours 010-02=En revue " ] || { se_lignes 010-01 010-02; return 1; }; }; verifier "ca10_le plus avancé du local et de la branche, branche déclarée (010-01) ou déduite (010-02)" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-03)" = "010-03=Fait " ] || { se_lignes 010-03; return 1; }; }; verifier "ca10_branche en retard (local Fait, branche À faire) : le local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-04)" = "010-04=À faire " ] || { se_lignes 010-04; return 1; }; }; verifier "ca10_fichier d'issue absent sur la branche : le local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-05 010-06 010-07)" = "010-05=À faire 010-06=À faire 010-07=À faire " ] || { se_lignes 010-05 010-06 010-07; return 1; }; }; verifier "ca10_statut de la branche hors cycle (Abandonnée, texte libre, vide) : le local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-08)" = "010-08=(autre) " ] || { se_lignes 010-08; return 1; }; }; verifier "ca10_statut local hors cycle : le local, même si la branche est Fait" 0 "" rat_c
+
+# ca11, ca13, ca14 : dépendance levée sur branche, mention « empilée sur », prochaine issue prête
+rat_depot
+issue_b 002-03 "À faire" "feat/shared"; issue_b 002-04 "Fait" ""; issue_b 002-05 "À faire" ""
+issue_b 002-06 "À faire" "" "002-05"; issue_b 002-07 "À faire" "" "002-05, 002-03"; issue_b 002-08 "À faire" "" "002-04"
+issue_b 002-09 "À faire" "feat/shared"; issue_b 002-10 "À faire" "" "002-03, 002-09"
+rat_commit
+sur_branche feat/shared 002-03 "Fait" "feat/shared"; se_branche_ajout feat/shared 002-09 "Fait" "feat/shared"; sur_branche feat/002-05-x 002-05 "Fait" ""
+rat_page
+se_empilee() { rat_carte "$1" | grep -qF "<span class=\"marqueur marqueur-empilee\">empilée sur $2</span>" && ! rat_carte "$1" | grep -q 'bloquée'; }
+rat_c() { se_empilee 002-06 feat/002-05-x || { rat_carte 002-06; return 1; }; }; verifier "ca11_dépendance Fait sur sa branche déduite : « empilée sur feat/002-05-x », pas bloquée" 0 "" rat_c
+rat_c() { se_empilee 002-07 "feat/002-05-x, feat/shared" || { rat_carte 002-07; return 1; }; }; verifier "ca11_deux dépendances sur branche (déduite puis déclarée) : branches séparées par « , », ordre des dépendances" 0 "" rat_c
+rat_c() { se_empilee 002-10 feat/shared || { rat_carte 002-10; return 1; }; }; verifier "ca11_deux dépendances sur la même branche déclarée : nom sans doublon" 0 "" rat_c
+rat_c() { ! rat_carte 002-08 | grep -q 'empilée\|bloquée' || { rat_carte 002-08; return 1; }; }; verifier "ca11_toutes les dépendances Fait en local : ni empilée ni bloquée" 0 "" rat_c
+verifier_exact "ca13_etat-issues --prochaine : première issue À faire dont toutes les dépendances sont levées (002-06), code 0" 0 "002-06" scripts/etat-issues.sh --prochaine
+rat_c() { [ "$(grep -o 'Prochaine issue prête : <strong>[^<]*' "$racine_tmp/rat.html" | sed 's/.*<strong>//')" = "$(scripts/etat-issues.sh --prochaine)" ] && rat_carte 002-06 | grep -q 'class="carte prochaine' && [ "$(grep -c 'class="carte prochaine' "$racine_tmp/rat.html")" -eq 1 ] || { grep -o 'Prochaine issue prête[^/]*' "$racine_tmp/rat.html"; return 1; }; }; verifier "ca14_dashboard : ligne « Prochaine issue prête » et carte marquée = etat-issues.sh --prochaine" 0 "" rat_c
+
+# ca12, ca13, ca14 : dépendances non levées
+rat_depot
+issue_b 004-01 "À faire" "" "999-99"; issue_b 004-02 "En cours" ""; issue_b 004-03 "En revue" ""; issue_b 004-04 "Abandonnée" ""
+issue_b 004-05 "À faire" "" "999-99"; issue_b 004-06 "À faire" ""
+issue_b 004-11 "À faire" "" "004-01"; issue_b 004-12 "À faire" "" "004-02"; issue_b 004-13 "À faire" "" "004-03"; issue_b 004-14 "À faire" "" "004-04"
+issue_b 004-15 "À faire" "" "999-98"; issue_b 004-16 "À faire" "" "004-05"; issue_b 004-17 "À faire" "" "004-06, 004-02"
+rat_commit
+sur_branche feat/004-05-a 004-05 "Fait" ""; sur_branche fix/004-05-b 004-05 "Fait" ""; sur_branche feat/004-06-x 004-06 "Fait" ""
+rat_page
+tout=1; for n in 11 12 13 14 15 16 17; do rat_carte "004-$n" | grep -q 'marqueur-bloquee' && ! rat_carte "004-$n" | grep -q 'empilée' || { tout=0; rat_carte "004-$n"; }; done
+rat_c() { [ "$tout" -eq 1 ] || return 1; }; verifier "ca12_dépendance À faire, En cours, En revue, hors cycle, inexistante ou Fait mais ambiguë : bloquée, jamais empilée" 0 "" rat_c
+rat_c() { rat_carte 004-17 | grep -q 'marqueur-bloquee' && ! rat_carte 004-17 | grep -q 'empilée'; }; verifier "ca12_deux dépendances dont une seule levée : bloquée" 0 "" rat_c
+verifier_exact "ca13_etat-issues --prochaine sans issue prête : code 1 et rien affiché" 1 "" scripts/etat-issues.sh --prochaine
+rat_c() { grep -qF 'Aucune issue prête.' "$racine_tmp/rat.html" && [ "$(grep -c 'class="carte prochaine' "$racine_tmp/rat.html")" -eq 0 ]; }; verifier "ca14_dashboard : « Aucune issue prête. » et aucune carte marquée quand etat-issues.sh rend le code 1" 0 "" rat_c
+
+# ca15 : tableau d'etat-issues, colonne Branche enrichie, statut local
+rat_depot
+issue_b 005-01 "À faire" ""; issue_b 005-02 "À faire" "feat/decl"; issue_b 005-03 "À faire" ""; issue_b 005-04 "À faire" ""; issue_b 005-05 "Fait" ""
+rat_commit
+sur_branche feat/005-01-x 005-01 "Fait" ""; sur_branche feat/decl 005-02 "Fait" "feat/decl"; git branch feat/005-03-a; git branch fix/005-03-b
+tableau="$(scripts/etat-issues.sh)"
+rat_c() { [ "$tableau" = "| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 005-01 | T005-01 | À faire | : | feat/005-01-x (déduite) |
+| 005-02 | T005-02 | À faire | : | feat/decl |
+| 005-03 | T005-03 | À faire | : | ambiguë : feat/005-03-a, fix/005-03-b |
+| 005-04 | T005-04 | À faire | : |  |
+| 005-05 | T005-05 | Fait | : |  |" ] || { printf '%s\n' "$tableau"; return 1; }; }; verifier "ca15_branche déduite, déclarée, ambiguë, sans branche : colonne Branche enrichie, Statut local, mêmes colonnes" 0 "" rat_c
+rat_c() { [ "$(scripts/etat-issues.sh --statut "À faire" | grep -c '^| 005-')" -eq 4 ] && [ "$(scripts/etat-issues.sh --statut Fait | grep -c '^| 005-')" -eq 1 ] && scripts/etat-issues.sh --statut Fait | grep -q '^| 005-05 '; }; verifier "ca15_le filtre --statut reste sur le statut local (005-01, Fait sur sa branche, reste À faire)" 0 "" rat_c
+
+# cs06 : fichier d'issue sur la branche : lien symbolique, très grand, sans « --- »
+rat_depot
+mkdir -p "$racine_tmp/hors-depot"; printf -- '---\nid: 006-01\ntitre: LECTURE-EXTERIEURE\nstatut: Fait\n---\n' > "$racine_tmp/hors-depot/ext.md"
+issue_b 006-01 "À faire" ""; issue_b 006-02 "À faire" ""; issue_b 006-03 "À faire" ""; issue_b 006-04 "À faire" ""; issue_b 006-05 "À faire" ""
+issue_b 006-11 "À faire" "" "006-01"
+rat_commit
+sur_branche feat/006-01-x 006-01 "Fait" ""; git worktree add -q "$racine_tmp/wt-ln" feat/006-01-x >/dev/null 2>&1
+rm "$racine_tmp/wt-ln/docs/issues/006-01-x.md"; ln -s "$racine_tmp/hors-depot/ext.md" "$racine_tmp/wt-ln/docs/issues/006-01-x.md"; gd_ -C "$racine_tmp/wt-ln" add -A; gd_ -C "$racine_tmp/wt-ln" commit -qm lien; git worktree remove --force "$racine_tmp/wt-ln"
+se_entete="$(printf -- '---\nid: 006-0%s\ntitre: T006-0%s\nbesoin: F-01\nstatut: Fait\nbranche: \ndepend_de: []\n---\n' 2 2)"
+git branch feat/006-02-x; git worktree add -q "$racine_tmp/wt-gr" feat/006-02-x >/dev/null 2>&1
+{ printf '%s\n' "$se_entete"; head -c 2000000 /dev/zero | tr '\0' 'a'; } > "$racine_tmp/wt-gr/docs/issues/006-02-x.md"; gd_ -C "$racine_tmp/wt-gr" add -A; gd_ -C "$racine_tmp/wt-gr" commit -qm grand; git worktree remove --force "$racine_tmp/wt-gr"
+git branch feat/006-03-x; git worktree add -q "$racine_tmp/wt-sg" feat/006-03-x >/dev/null 2>&1
+printf 'id: 006-03\nstatut: Fait\nbranche: \n' > "$racine_tmp/wt-sg/docs/issues/006-03-x.md"; gd_ -C "$racine_tmp/wt-sg" add -A; gd_ -C "$racine_tmp/wt-sg" commit -qm sans-tirets; git worktree remove --force "$racine_tmp/wt-sg"
+# bornes : un fichier d'exactement 65536 octets est lu, 65537 octets est écarté
+se_taille() { # se_taille <id> <octets> : écrit sur la branche feat/006-0N-x un fichier « Fait » de cette taille exacte
+  git branch "feat/$1-x"; git worktree add -q "$racine_tmp/wt-t$1" "feat/$1-x" >/dev/null 2>&1
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: Fait\nbranche: \ndepend_de: []\n---\n' "$1" "$1" > "$racine_tmp/wt-t$1/docs/issues/$1-x.md"
+  head -c $(( $2 - $(wc -c < "$racine_tmp/wt-t$1/docs/issues/$1-x.md") )) /dev/zero | tr '\0' 'a' >> "$racine_tmp/wt-t$1/docs/issues/$1-x.md"
+  gd_ -C "$racine_tmp/wt-t$1" add -A; gd_ -C "$racine_tmp/wt-t$1" commit -qm taille; git worktree remove --force "$racine_tmp/wt-t$1"
+}
+se_taille 006-04 65536; se_taille 006-05 65537
+rat_page; rat_code=$?
+rat_c() { [ "$rat_code" -eq 0 ] && [ "$(se_lignes 006-01)" = "006-01=À faire " ] && ! grep -q 'LECTURE-EXTERIEURE' "$racine_tmp/rat.html" || { se_lignes 006-01; return 1; }; }; verifier "cs06_lien symbolique vers un fichier hors dépôt contenant statut: Fait : statut local, contenu ciblé absent de la page" 0 "" rat_c
+rat_c() { [ "$(git show feat/006-01-x:docs/issues/006-01-x.md)" = "$racine_tmp/hors-depot/ext.md" ]; }; verifier "cs06_fixture : git show d'un blob lié rend le chemin cible, jamais le contenu" 0 "" rat_c
+rat_c() { [ "$(se_lignes 006-02)" = "006-02=À faire " ]; }; verifier "cs06_fichier de 2 Mo dont l'en-tête dit Fait : statut local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 006-03)" = "006-03=À faire " ]; }; verifier "cs06_en-tête sans « --- » : statut local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 006-04 006-05)" = "006-04=Fait 006-05=À faire " ] || { se_lignes 006-04 006-05; return 1; }; }; verifier "cs06_borne : 65536 octets lus, 65537 octets écartés" 0 "" rat_c
+rat_c() { rat_carte 006-11 | grep -q 'marqueur-bloquee' && ! rat_carte 006-11 | grep -q 'empilée'; }; verifier "cs06_dépendance sur l'issue au lien symbolique : reste bloquée" 0 "" rat_c
+verifier_exact "cs06_etat-issues --prochaine : 006-01 (lien symbolique, statut local À faire) est prête, 006-11 qui en dépend ne l'est pas" 0 "006-01" scripts/etat-issues.sh --prochaine
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

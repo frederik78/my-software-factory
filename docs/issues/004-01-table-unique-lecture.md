@@ -3,7 +3,7 @@ id: 004-01
 titre: Table unique des statuts et lecture du backlog et des en-têtes
 prd: docs/prd/004-machines-a-etats-statuts.md
 besoin: F-09
-statut: À faire
+statut: En cours
 depend_de: [003-05]
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CA-07, CA-08, CA-09]
 branche: feat/004-01-table-unique-lecture

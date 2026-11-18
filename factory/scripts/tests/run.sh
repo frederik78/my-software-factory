@@ -2292,6 +2292,26 @@ rat_c() { [ "$(se_lignes 006-04 006-05)" = "006-04=Fait 006-05=À faire " ] || {
 rat_c() { rat_carte 006-11 | grep -q 'marqueur-bloquee' && ! rat_carte 006-11 | grep -q 'empilée'; }; verifier "cs06_dépendance sur l'issue au lien symbolique : reste bloquée" 0 "" rat_c
 verifier_exact "cs06_etat-issues --prochaine : 006-01 (lien symbolique, statut local À faire) est prête, 006-11 qui en dépend ne l'est pas" 0 "006-01" scripts/etat-issues.sh --prochaine
 
+echo "dashboard.sh : signaux de worktree et sorties sûres pour une branche déduite (PRD 003, issue 003-03)"
+sw_worktree() { # sw_worktree <nom court> <branche> : worktree sur cette branche (créée depuis HEAD si elle n'existe pas)
+  git worktree add -q "$racine_tmp/wt-sw-$1" "$2" >/dev/null 2>&1 || git worktree add -q "$racine_tmp/wt-sw-$1" -b "$2" >/dev/null 2>&1
+}
+sw_autres() { awk '/<section id="autres-travaux">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "$racine_tmp/rat.html"; }
+sw_encours() { awk '/<section id="en-cours">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "$racine_tmp/rat.html"; }
+
+# ca21, ca22 : worktrees d'une branche déduite, d'une branche ambiguë et d'un travail sans issue
+rat_depot
+issue_b 031-01 "En cours" ""; issue_b 031-02 "En cours" ""; issue_b 031-03 "En cours" "feat/decl"
+rat_commit
+sw_worktree d1 feat/031-01-x; sw_worktree a1 feat/031-02-a; sw_worktree a2 fix/031-02-b; sw_worktree zz feat/zz-autre; sw_worktree dc feat/decl; sw_worktree mn main
+printf 'a\n' > "$racine_tmp/wt-sw-d1/a.txt"; printf 'b\n' > "$racine_tmp/wt-sw-d1/b.txt"
+printf 'a\n' > "$racine_tmp/wt-sw-a1/a.txt"
+rat_page
+rat_c() { sw_autres | grep -qF '<strong>feat/zz-autre</strong>' && ! sw_autres | grep -qF 'feat/031-01-x' && ! sw_autres | grep -qF 'feat/decl' && ! sw_autres | grep -qF '<strong>develop</strong>' && ! sw_autres | grep -qF '<strong>main</strong>'; }; verifier "ca21_Autres travaux : la branche déduite (et la déclarée) n'y figure plus, develop et main restent exclus, un travail sans issue y reste" 0 "" rat_c
+rat_c() { sw_autres | grep -qF '<strong>feat/031-02-a</strong>' && sw_autres | grep -qF '<strong>fix/031-02-b</strong>'; }; verifier "ca21_Autres travaux : une branche ambiguë portée par un worktree y figure" 0 "" rat_c
+rat_c() { rat_carte 031-01 | grep -qF '<span class="detail signal">2 fichiers non commités · activité il y a moins d'"'"'1 min</span>' && sw_encours | grep -F '031-01' | grep -qF '<span class="signal">2 fichiers non commités · activité il y a moins d'"'"'1 min</span>'; }; verifier "ca22_branche déduite : la carte et l'encart En cours affichent le signal du worktree" 0 "" rat_c
+rat_c() { ! rat_carte 031-02 | grep -q 'signal' && ! sw_encours | grep -F '031-02' | grep -q 'signal'; }; verifier "ca22_branche ambiguë : aucun signal sur la carte ni dans l'encart En cours" 0 "" rat_c
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

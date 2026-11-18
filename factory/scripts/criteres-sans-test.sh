@@ -7,6 +7,7 @@
 # Déclarations reconnues (une seule ligne, commençant par la déclaration, éventuellement précédée d'annotations et de modificateurs) :
 #   .java .kt          class Ca10Test ; void ca10_x( ; fun ca10_x( ; fun `CA-10 x`( ; @DisplayName("CA-10 x")
 #   .py                def test_ca10 ; async def test_ca10 ; class TestCa10
+#   .sh                verifier "ca10_x" … ; verdict_cas "cs01_x" … (appel en début de ligne, premier argument entre guillemets " ou ')
 #   .js .jsx .mjs .cjs .ts .tsx .mts .cts
 #                      it(, test(, describe( et leurs formes .each, .only, .concurrent, avec leur titre entre ' " ou `
 # Rien d'autre ne compte : commentaire, docstring, message d'assertion, chaîne quelconque, autre type de fichier.
@@ -17,7 +18,23 @@
 #
 # Usage : scripts/criteres-sans-test.sh <issue>        <issue> = chemin du fichier, ou id (ex. 001-03)
 #         scripts/criteres-sans-test.sh --tous         toutes les issues dont le statut n'est pas « À faire »
-# Variable : DOSSIER_TESTS (défaut : le premier dossier existant parmi src/test, tests, test)
+# Forme du test bash (fichiers .sh seulement, jamais exécutés) : une ligne qui COMMENCE par le nom d'une fonction de test suivi de son titre entre guillemets,
+#   par exemple `verifier "ca10_x" 0 "" commande` ; le premier argument entre " ou ' est le titre, il doit contenir l'identifiant du critère. Rien d'autre ne compte :
+#   appel en milieu de ligne, argument sans guillemets, commentaire, définition `verifier() {`, texte d'un document ici (<<EOF).
+# Deux clés de configuration (lib-config.sh ; le fichier n'est jamais exécuté ni sourcé) :
+#   DOSSIER_TESTS : dossier des tests, chemin relatif à la racine du dépôt (fin-issue.sh refuse un chemin absolu ou contenant « .. »). Défaut : détection du premier
+#     dossier existant parmi src/test, tests, test. Un dossier configuré absent : message, code 64, sans repli. La valeur est un chemin, jamais une option.
+#   TESTS_BASH_FONCTIONS : noms des fonctions de test bash, séparés par des espaces (1 à 20 noms, [A-Za-z_][A-Za-z0-9_]*, 64 caractères au plus).
+#     Défaut : verifier verdict_cas. Elle REMPLACE le défaut ; validée avant toute lecture des tests (invalide : message sur stderr, code 64).
+#   Ordre de priorité, du plus fort au plus faible : variable d'environnement (DOSSIER_TESTS pour le dossier seulement, vide = ignorée), FACTORY_<CLÉ> (FACTORY_DOSSIER_TESTS, FACTORY_TESTS_BASH_FONCTIONS), .factory.local.conf
+#   (non versionné), .factory.conf, défaut. Pour DOSSIER_TESTS, une valeur vide dans FACTORY_DOSSIER_TESTS, .factory.local.conf ou .factory.conf impose la détection du dossier ;
+#   pour TESTS_BASH_FONCTIONS, une valeur vide (quelle que soit la source) est invalide : message, code 64.
+#   Dans fin-issue.sh, le contrôle s'exécute dans une extraction du commit : seul le .factory.conf commité compte (jamais .factory.local.conf), les variables d'environnement
+#   s'appliquent. Valeur effective : scripts/config-factory.sh.
+# Limites connues de la lecture des fichiers bash : en cas de doute le script signale MANQUE plutôt qu'un faux OK (détection prudente des documents ici et des guillemets :
+#   un faux MANQUE se corrige en simplifiant l'écriture du test). Faux OK rares restants, constatés par essai : un guillemet échappé hors chaîne (x=\" ) avant un
+#   document ici sur la même ligne ; une chaîne répartie sur plusieurs lignes et fermée sur la ligne qui ouvre un document ici (le texte du document est alors lu comme des appels).
+#   Le contenu d'un test n'est pas lu : un appel vide ou jamais exécuté répond OK.
 # Une issue sans AUCUN critère est une erreur (jamais un « tout couvert » silencieux).
 # Code de sortie : 0 si tout est couvert, 1 sinon, 64 en cas d'erreur d'usage.
 set -uo pipefail
@@ -26,16 +43,25 @@ racine="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$(dirname "$0")/lib-issues.sh"
-tests="${DOSSIER_TESTS:-}"
+# shellcheck source=lib-config.sh
+. "$(dirname "$0")/lib-config.sh"
+# Fonctions de test bash : validées d'abord (RG-12). Les noms ne contiennent que [A-Za-z0-9_] : l'alternance construite ici est littérale.
+noms_fonctions="$(config_tests_bash_fonctions)" || exit 64
+fonctions_bash="$(printf '%s' "$noms_fonctions" | tr '\n' '|')"
+# Dossier configuré (config_dossier_tests) : introuvable = erreur, jamais de repli sur la détection. Rien de configuré : détection.
+tests="$(config_dossier_tests)" || exit 64
 if [ -z "$tests" ]; then
   for d in src/test tests test; do [ -d "$d" ] && { tests="$d"; break; }; done
   tests="${tests:-src/test}"
 fi
 
 if [ ! -d "$tests" ]; then
-  echo "Dossier de tests introuvable : $tests" >&2
+  # La valeur est une donnée non fiable (variable, .factory.conf d'un dépôt cloné) : retours à la ligne, tabulations et caractères de contrôle neutralisés à l'affichage.
+  echo "Dossier de tests introuvable : $(printf '%s' "$tests" | tr '\r\n\t' '   ' | tr -d '[:cntrl:]')" >&2
   exit 64
 fi
+# La valeur est un chemin, jamais une option de find : un chemin relatif qui commence par « - » est préfixé par « ./ ».
+case "$tests" in -*) tests="./$tests" ;; esac
 
 # noms_de_tests : un nom ou un titre de test par ligne. Chaque motif s'ancre en début de ligne : un commentaire ne peut donc pas correspondre.
 # sed plutôt que grep pour ne garder que le nom : le reste de la ligne (message d'assertion, commentaire final) ne compte pas.
@@ -62,6 +88,60 @@ noms_de_tests() {
   } | LC_ALL=C sed -E 's/^[Tt]est//'
 }
 
+# Programme awk : copie les fichiers reçus sans les lignes d'un document ici (<<MOT, <<'MOT', <<"MOT", <<\MOT, <<$'MOT', <<-MOT : de la ligne qui suit
+# l'ouverture jusqu'à la ligne du délimiteur final incluse ; pour <<-, le délimiteur peut être précédé de tabulations). La ligne
+# d'ouverture est gardée : elle peut être un vrai appel. Lecture seule, rien n'est évalué. CRLF toléré. <<< (chaîne ici) n'ouvre rien.
+read -r -d '' sans_documents_ici <<'AWK'
+# dans_chaine(texte) : vrai si la fin de texte se trouve à l'intérieur d'une chaîne entre guillemets " ou ' non refermée.
+function dans_chaine(texte,    i, c, q) {
+  q = ""
+  for (i = 1; i <= length(texte); i++) {
+    c = substr(texte, i, 1)
+    if (q == "" && (c == "\"" || c == "'")) q = c
+    else if (q == "\"" && c == "\\") i++
+    else if (c == q) q = ""
+  }
+  return q != ""
+}
+FNR == 1 { nb = 0; cur = 1 }
+{ ligne = $0; sub(/\r$/, "", ligne) }
+cur <= nb {
+  if (tabs[cur]) sub(/^\t+/, "", ligne)
+  if (ligne == delim[cur]) cur++
+  next
+}
+{
+  print
+  # Tous les documents ouverts sur la ligne (<<A <<B) sont mis en file et se referment dans l'ordre.
+  # Un << dans une chaîne entre guillemets (titre d'un test, par exemple) n'ouvre rien, sauf si la ligne contient $( ou ` avant lui.
+  nb = 0; cur = 1; reste = ligne; decalage = 0
+  while (match(reste, /(^|[^<])<<-?[ \t]*(\\|\$?["'])?[A-Za-z_][A-Za-z0-9_]*["']?/)) {
+    mot = substr(reste, RSTART, RLENGTH)
+    fin = RSTART + RLENGTH
+    avant = substr(ligne, 1, decalage + RSTART)
+    # Dans le doute on ouvre : un $( ou une apostrophe inverse avant le << peut faire de ce << du code (out="$(cat <<EOF").
+    en_chaine = dans_chaine(avant) && avant !~ /\$\(|`/
+    decalage += fin - 1
+    reste = substr(reste, fin)
+    if (en_chaine) continue
+    sub(/^[^<]*<</, "", mot)
+    nb++
+    tabs[nb] = (substr(mot, 1, 1) == "-")
+    gsub(/^-?[ \t]*(\\|\$?["'])?|["']$/, "", mot)
+    delim[nb] = mot
+  }
+}
+AWK
+
+# noms_de_tests_bash : le premier argument de chaque appel `fonction "texte …"` en début de ligne des .sh, hors documents ici, un par ligne.
+# Seul ce premier argument entre guillemets (" ou ') compte. Un commentaire, la ligne de définition `verifier() {`, un argument sans
+# guillemets, un appel en milieu de ligne ne correspondent pas. Lecture seule : le contenu n'est jamais évalué ni exécuté.
+noms_de_tests_bash() {
+  find "$tests" -type f -name '*.sh' -exec env LC_ALL=C awk "$sans_documents_ici" {} + | LC_ALL=C sed -nE \
+    -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+\"([^\"]*)\".*/\2/p" \
+    -e "s/^[[:space:]]*(${fonctions_bash})[[:space:]]+'([^']*)'.*/\2/p"
+}
+
 fichiers_issues=()
 case "${1:-}" in
   "") echo "Usage : $0 <issue|--tous>" >&2; exit 64 ;;
@@ -83,6 +163,7 @@ if [ "${#fichiers_issues[@]}" -eq 0 ]; then
 fi
 
 noms="$(noms_de_tests)"
+noms_bash="$(noms_de_tests_bash)"
 echec=0
 for issue in "${fichiers_issues[@]}"; do
   criteres=()
@@ -99,7 +180,8 @@ for issue in "${fichiers_issues[@]}"; do
   fi
   sans=()
   for c in "${criteres[@]}"; do
-    if ! grep -iEq "$(critere_motif "$c")" <<< "$noms"; then
+    # Autres langages : l'identifiant figure n'importe où dans le nom ; bash : il COMMENCE le premier argument (RG-03).
+    if ! grep -iEq "$(critere_motif "$c")" <<< "$noms" && ! grep -iEq "$(critere_motif_debut "$c")" <<< "$noms_bash"; then
       sans+=("$c")
     fi
   done

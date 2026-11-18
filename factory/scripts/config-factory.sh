@@ -24,6 +24,7 @@ defaut() { # defaut <clé> : valeur par défaut d'une clé connue
     AGENTS_SILENCE_MINUTES) echo "$AGENTS_SILENCE_MINUTES_DEFAUT" ;;
     AGENTS_RETRAIT_MINUTES) echo "$AGENTS_RETRAIT_MINUTES_DEFAUT" ;;
     DASHBOARD_THEME) echo "$DASHBOARD_THEME_DEFAUT" ;;
+    TESTS_BASH_FONCTIONS) echo "$TESTS_BASH_FONCTIONS_DEFAUT" ;;
     *) echo "" ;;
   esac
 }
@@ -40,7 +41,10 @@ limite() { # limite <clé> : valeur de la clé, entier >= 1, sinon code 64
 
 case "${1:-}" in
   "")
-    for cle in $CONFIG_CLES; do printf '%s=%s\n' "$cle" "$(config_valeur "$cle" "$(defaut "$cle")")"; done ;;
+    for cle in $CONFIG_CLES; do
+      if [ "$cle" = DOSSIER_TESTS ]; then valeur="$(config_dossier_tests)"; else valeur="$(config_valeur "$cle" "$(defaut "$cle")")"; fi
+      printf '%s=%s\n' "$cle" "$valeur"
+    done ;;
   --max-iterations) [ $# -eq 1 ] || usage; limite MAX_ITERATIONS_REVUE ;;
   --max-criteres) [ $# -eq 1 ] || usage; limite MAX_CRITERES_ISSUE ;;
   *) usage ;;

@@ -2,8 +2,17 @@
 # Dashboard : page HTML statique en Kanban : besoins du backlog.md et issues de docs/issues/, une colonne par statut, une carte par élément.
 # Aucun appel à un modèle, aucune dépendance (bash, awk, sed) ; pas de JavaScript. Style : Pico CSS classless embarqué (factory/assets/pico.classless.min.css, sans url()), aucune ressource externe. La page se rafraîchit seule (balise meta).
 # Tout texte lu dans les fichiers est échappé HTML avant d'être écrit (&, <, >, ", ').
-# Le statut d'une issue est le plus avancé de celui du dossier courant et de celui de sa branche locale (champ « branche » de l'en-tête), avec le dernier commit de la branche sur la carte.
-# Une dépendance ne compte que `Fait` dans le dossier courant : une issue finie sur sa branche, pas encore fusionnée, bloque encore les suivantes.
+# Rattachement d'une issue à sa branche : le champ « branche » de l'en-tête, s'il est rempli, est prioritaire (même s'il nomme une branche absente : statut du dossier courant, sans déduction).
+# Champ vide : rattachement par convention de nommage à la branche LOCALE `<type>/<id>-<suffixe>` : type quelconque (un seul segment : feat, fix, docs, refactor…), identifiant de l'issue (champ « id »)
+# suivi d'un tiret, suffixe non vide. La carte indique « branche : <nom> (déduite) ». Plusieurs branches conviennent : aucune n'est retenue, la carte porte « branche ambiguë : <liste> »
+# (l'identifiant le plus long l'emporte ; pas de déduction si l'identifiant est absent, invalide ou partagé). Les noms de branche sont des données non fiables : échappés, jamais exécutés.
+# Le statut d'une issue est le plus avancé de celui du dossier courant et de celui du même fichier sur sa branche retenue, avec le dernier commit de la branche sur la carte.
+# Le fichier lu sur la branche est borné en taille, jamais un lien symbolique suivi. Les signaux Git des worktrees suivent la même branche retenue.
+# Une dépendance est levée dès que son statut effectif est `Fait`, même sur une branche non fusionnée : l'issue suivante porte alors « empilée sur <branche> » (et non « bloquée »).
+# La prochaine issue prête suit la même règle que etat-issues.sh --prochaine, calculée sans relancer ce script (les branches locales sont lues une seule fois par génération).
+# Avancement des besoins : la carte d'un besoin affiche le compte de ses issues par statut effectif (« 5/6 Fait · 1 En cours ») et « à vérifier : <motif> » si le statut du backlog diverge ;
+# backlog.md et les fichiers d'issue ne sont jamais modifiés, la seule écriture est le fichier de sortie.
+# La page ne reste à jour que si --boucle <secondes> tourne (sinon une seule génération) : lancez-le et laissez-le tourner.
 # Chaque Kanban défile dans un viewport (70vh, en-têtes fixes) ; la colonne « Fait » va de la plus récente à la moins récente (date du dernier commit du fichier de l'issue).
 # Descriptif des cartes : premier paragraphe de « ## Objectif » (issue), colonne « Décisions » du backlog (besoin) ; rien si vide.
 # Bandeau « Agents actifs » : lu dans <git-common-dir>/factory-agents.log, écrit par les hooks de l'outil d'agents (pour Claude Code :
@@ -11,8 +20,8 @@
 #   debut<TAB>epoch<TAB>agent_id<TAB>rôle<TAB>chemin du journal de l'agent | description<TAB>epoch<TAB>agent_id<TAB>texte | fin<TAB>epoch<TAB>agent_id
 # Un agent avec debut sans fin est affiché ; dernière preuve = le plus récent du début et de la date de modification de son journal.
 # Au-delà de AGENTS_SILENCE_MINUTES sans preuve : « sans nouvelles » ; au-delà de AGENTS_RETRAIT_MINUTES : retiré (configuration, voir lib-config.sh).
-# Signaux Git de chaque worktree, sur l'issue de même branche : fichiers non commités et dernière activité (commit ou fichier modifié).
-# Encart « Autres travaux » (après les issues) : une ligne par worktree dont la branche n'est le champ « branche » d'aucune issue, hors develop, main et HEAD détaché,
+# Signaux Git de chaque worktree, sur l'issue dont la branche retenue (déclarée ou déduite) est la sienne : fichiers non commités et dernière activité (commit ou fichier modifié).
+# Encart « Autres travaux » (après les issues) : une ligne par worktree dont la branche n'est la branche retenue d'aucune issue (une branche ambiguë y reste), hors develop, main et HEAD détaché,
 # dans l'ordre de git worktree list : branche, puis le même signal (mêmes appels git, aucun de plus) ; « Aucun autre travail. » sinon.
 # Limites : une preuve d'activité, pas un état ; un agent arrêté sans hook de fin reste affiché « sans nouvelles » jusqu'au retrait.
 # L'âge d'activité d'un worktree ne voit pas la modification d'un fichier existant dans un dossier entièrement non suivi : git status ne le
@@ -134,56 +143,127 @@ besoins_dates() { # besoins_dates <lignes de besoins_backlog> <lignes de issues_
     printf '%s%s%s\n' "$ligne" "$sep" "$d"
   done <<< "$1"
 }
-issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche SEP objectif SEP date (epoch) », dans l'ordre des fichiers
-  local f deps
+mention_rattachement() { # mention_rattachement <fichier> : « branche : <nom> (déduite) » ou « branche ambiguë : <liste> » ; vide pour une branche déclarée ou aucune
+  local b
+  b="$(issue_branche_deduite "$1")"
+  if [ -n "$b" ]; then printf 'branche : %s (déduite)' "$b"; return; fi
+  b="$(issue_branches_ambigues "$1")"
+  [ -z "$b" ] || printf 'branche ambiguë : %s' "$b"
+}
+issues_dossier() { # lignes « id SEP titre SEP statut effectif SEP dépendances SEP besoin (F-xx) SEP dernier commit de la branche SEP statut local SEP branche déclarée (réservée : plus lue, rangs stables, nettoyage F-09) SEP objectif SEP date (epoch) SEP mention de rattachement SEP branche retenue », dans l'ordre des fichiers
+  local f deps ref
   while IFS= read -r f; do
+    ref="$(issue_ref_branche "$f")" # une fois par issue : statut effectif, dernier commit et branche retenue en dépendent
     deps="$(issue_liste "$f" depend_de | paste -sd, - | sed 's/,/, /g')"
-    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")" "$sep" "$(issue_date "$f")"
+    printf '%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n' "$(issue_champ "$f" id)" "$sep" "$(issue_champ "$f" titre)" "$sep" "$(issue_statut_effectif "$f" "$ref")" "$sep" "$deps" "$sep" "$(issue_champ "$f" besoin)" "$sep" "$(issue_dernier_commit "$f" "$ref")" "$sep" "$(issue_champ "$f" statut)" "$sep" "$(issue_champ "$f" branche)" "$sep" "$(issue_objectif "$f")" "$sep" "$(issue_date "$f")" "$sep" "$(mention_rattachement "$f")" "$sep" "${ref#refs/heads/}"
   done < <(issue_fichiers)
 }
 
+# Besoin de chaque issue, rempli par generer (même rang que ids_issues et statuts_effectifs) ; le besoin d'une issue est comparé en texte littéral (RG-16).
+besoins_issues=()
+# avancement_besoin <id du besoin> : écrit « <f>/<n> Fait · <k> <statut>… » (RG-16) puis, sur la ligne suivante, le motif de divergence (RG-17) si le statut du backlog
+# <statut du backlog> diverge ; rien pour un besoin sans issue. Les statuts hors cycle sont comptés comme « non Fait » (Q-13). Le dashboard n'écrit jamais dans backlog.md (RG-18).
+avancement_besoin() { # avancement_besoin <id du besoin> <statut du backlog>
+  local i=0 n=0 fait=0 afaire=0 encours=0 enrevue=0 s k ligne="" motif="" autres=() comptes=()
+  while [ "$i" -lt "${#ids_issues[@]}" ]; do
+    if [ "${besoins_issues[$i]}" = "$1" ]; then
+      s="${statuts_effectifs[$i]}"; n=$((n + 1))
+      case "$s" in
+        "Fait") fait=$((fait + 1)) ;;
+        "À faire") afaire=$((afaire + 1)) ;;
+        "En cours") encours=$((encours + 1)) ;;
+        "En revue") enrevue=$((enrevue + 1)) ;;
+        *)
+          k=0; while [ "$k" -lt "${#autres[@]}" ] && [ "${autres[$k]}" != "$s" ]; do k=$((k + 1)); done
+          if [ "$k" -eq "${#autres[@]}" ]; then autres+=("$s"); comptes+=(1); else comptes[$k]=$((comptes[k] + 1)); fi ;;
+      esac
+    fi
+    i=$((i + 1))
+  done
+  [ "$n" -gt 0 ] || return 0
+  ligne="$fait/$n Fait"
+  [ "$afaire" -eq 0 ] || ligne="$ligne · $afaire À faire"
+  [ "$encours" -eq 0 ] || ligne="$ligne · $encours En cours"
+  [ "$enrevue" -eq 0 ] || ligne="$ligne · $enrevue En revue"
+  k=0; while [ "$k" -lt "${#autres[@]}" ]; do ligne="$ligne · ${comptes[$k]} ${autres[$k]}"; k=$((k + 1)); done
+  case "$2" in
+    "À faire"|"En clarification"|"Spécifié") [ $((encours + enrevue + fait)) -eq 0 ] || motif="des issues sont déjà démarrées" ;;
+    "En cours")
+      if [ "$fait" -eq "$n" ]; then motif="toutes les issues sont Fait"
+      elif [ "$afaire" -eq "$n" ]; then motif="aucune issue démarrée"; fi ;;
+    "En revue") [ "$afaire" -ne "$n" ] || motif="aucune issue démarrée" ;;
+    "Fait") if [ "$fait" -lt "$n" ]; then if [ $((n - fait)) -eq 1 ]; then motif="1 issue non Fait"; else motif="$((n - fait)) issues non Fait"; fi; fi ;;
+  esac
+  printf '%s\n%s\n' "$ligne" "$motif"
+}
+
 carte_besoin() { # carte_besoin <ligne de besoins_backlog>
-  local id libelle priorite statut prd decisions
+  local id libelle priorite statut prd decisions avancement motif
   IFS="$sep" read -r id libelle priorite statut prd decisions _ <<< "$1"
+  { IFS= read -r avancement; IFS= read -r motif; } < <(avancement_besoin "$id" "$statut")
   printf '<div class="carte"><strong>%s</strong> <span class="titre">%s</span>' "$(echappe "$id")" "$(echappe "$libelle")"
   [ -z "$priorite" ] || printf '<span class="detail">%s</span>' "$(echappe "$priorite")"
+  [ -z "$avancement" ] || printf '<span class="detail">%s</span>' "$(echappe "$avancement")"
+  [ -z "$motif" ] || printf '<span class="detail">à vérifier : %s</span>' "$(echappe "$motif")"
   [ -z "$prd" ] || printf '<span class="detail">PRD : %s</span>' "$(echappe "$prd")"
   [ -z "$decisions" ] || printf '<span class="detail desc">%s</span>' "$(echappe "$decisions")"
   printf '</div>\n'
 }
 
-# Contexte des cartes d'issues, rempli par generer : issue prête (etat-issues.sh --prochaine) et statut local de chaque id.
-prochaine=""; ids_issues=(); statuts_lus=()
-statut_issue() { # statut_issue <id> : statut local, vide si l'issue n'existe pas
+# Contexte des cartes d'issues, rempli par generer : issue prête (prochaine_issue) et, par identifiant, statut effectif, statut local et branche retenue.
+prochaine=""; ids_issues=(); statuts_effectifs=(); statuts_lus=(); branches_retenues=()
+rang_issue() { # rang_issue <id> : rang de l'issue dans les tableaux ci-dessus ; code 1 si elle n'existe pas
   local i=0
   while [ "$i" -lt "${#ids_issues[@]}" ]; do
-    [ "${ids_issues[$i]}" = "$1" ] && { printf '%s' "${statuts_lus[$i]}"; return; }
+    [ "${ids_issues[$i]}" = "$1" ] && { printf '%s' "$i"; return 0; }
     i=$((i + 1))
   done
-}
-bloquee() { # bloquee <statut> <dépendances « a, b »> : vrai si l'issue est À faire et qu'une dépendance n'est pas Fait
-  local dep
-  [ "$1" = "À faire" ] || return 1
-  while IFS= read -r dep; do
-    [ -n "$dep" ] && [ "$(statut_issue "$dep")" != "Fait" ] && return 0
-  done < <(printf '%s\n' "$2" | tr ',' '\n' | sed 's/^ *//; s/ *$//')
   return 1
 }
+# etat_dependances <statut effectif> <dépendances « a, b »> : écrit « bloquee » ou « empilee <branches, séparées par « , »> » ou rien.
+# Une issue À faire est bloquée dès qu'une dépendance n'est pas levée (statut effectif autre que Fait, ou identifiant inexistant) ; sinon, une dépendance Fait
+# seulement sur sa branche (statut local différent de Fait) la rend « empilée sur » cette branche (noms sans doublon, ordre des dépendances).
+etat_dependances() {
+  local dep r empilee=""
+  [ "$1" = "À faire" ] || return 0
+  while IFS= read -r dep; do
+    [ -n "$dep" ] || continue
+    r="$(rang_issue "$dep")" || { echo bloquee; return 0; }
+    [ "${statuts_effectifs[$r]}" = "Fait" ] || { echo bloquee; return 0; }
+    if [ "${statuts_lus[$r]}" != "Fait" ] && [ -n "${branches_retenues[$r]}" ]; then
+      case ", $empilee, " in *", ${branches_retenues[$r]}, "*) ;; *) empilee="${empilee:+$empilee, }${branches_retenues[$r]}" ;; esac
+    fi
+  done < <(printf '%s\n' "$2" | tr ',' '\n' | sed 's/^ *//; s/ *$//')
+  [ -z "$empilee" ] || echo "empilee $empilee"
+}
+# prochaine_issue <lignes de issues_dossier> : identifiant de la première issue (ordre des fichiers) dont le statut effectif est « À faire » et dont aucune dépendance n'est bloquante (RG-14).
+# Même règle que etat-issues.sh --prochaine (CA-14 les compare), calculée ici sur les statuts déjà lus : lancer ce script relirait les branches locales (RG-21 : une seule lecture par génération).
+# Règle dupliquée dans etat-issues.sh (--prochaine) : modifier les deux ensemble ; garde : ca14.
+prochaine_issue() {
+  local id statut deps
+  while IFS="$sep" read -r id _ statut deps _; do
+    [ "$statut" = "À faire" ] || continue
+    [ "$(etat_dependances "$statut" "$deps")" = bloquee ] || { printf '%s' "$id"; return; }
+  done <<< "$1"
+}
 carte_issue() { # carte_issue <ligne de issues_dossier>
-  local id titre statut deps besoin commit branche objectif signal marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif _ <<< "$1"
+  local id titre statut deps besoin commit objectif mention retenue signal dependances marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin commit _ _ objectif _ mention retenue <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
-  if bloquee "$statut" "$deps"; then
-    etats="$etats bloquee"; marques="$marques"'<span class="marqueur marqueur-bloquee">bloquée</span>'
-  fi
+  dependances="$(etat_dependances "$statut" "$deps")"
+  case "$dependances" in
+    bloquee) etats="$etats bloquee"; marques="$marques"'<span class="marqueur marqueur-bloquee">bloquée</span>' ;;
+    empilee*) marques="$marques<span class=\"marqueur marqueur-empilee\">empilée sur $(echappe "${dependances#empilee }")</span>" ;;
+  esac
   printf '<div class="carte%s"><strong>%s</strong> <span class="titre">%s</span>%s' "$etats" "$(echappe "$id")" "$(echappe "$titre")" "$marques"
   [ -z "$objectif" ] || printf '<span class="detail desc">%s</span>' "$(echappe "$objectif")"
   [ -z "$besoin" ] || printf '<span class="detail">%s</span>' "$(echappe "$besoin")"
   [ -z "$deps" ] || printf '<span class="detail">dépend de : %s</span>' "$(echappe "$deps")"
+  [ -z "$mention" ] || printf '<span class="detail">%s</span>' "$(echappe "$mention")"
   [ -z "$commit" ] || printf '<span class="detail">dernier commit : %s</span>' "$(echappe "$commit")"
-  signal="$(signal_branche "$branche")"
+  signal="$(signal_branche "$retenue")"
   [ -z "$signal" ] || printf '<span class="detail signal">%s</span>' "$signal"
   printf '</div>\n'
 }
@@ -284,7 +364,7 @@ dans_colonne() { # dans_colonne <statut lu> <colonne> <statuts du cycle...> : la
 }
 kanban() { # kanban <lignes> <rang du statut> <rang de la date> <fonction de carte> <statuts du cycle...> : une colonne par statut, plus « (autre) » si besoin
   local lignes="$1" rang="$2" rang_date="$3" carte="$4"; shift 4
-  local ligne s i n d autre=0; local -a ordre=()
+  local ligne s i n d rang_trie autre=0; local -a ordre=()
   local -a liste=() statuts_liste=() colonnes=("$@")
   while IFS= read -r ligne; do
     [ -n "$ligne" ] || continue
@@ -301,7 +381,8 @@ kanban() { # kanban <lignes> <rang du statut> <rang de la date> <fonction de car
     i=0; ordre=()
     while [ "$i" -lt "${#liste[@]}" ]; do dans_colonne "${statuts_liste[$i]}" "$s" "$@" && ordre+=("$i"); i=$((i + 1)); done
     if [ "$s" = "Fait" ] && [ "${#ordre[@]}" -gt 1 ]; then # la plus récente d'abord ; à date égale, l'ordre d'origine
-      mapfile -t ordre < <(for i in "${ordre[@]}"; do d="$(printf '%s' "${liste[$i]}" | cut -d "$sep" -f "$rang_date")"; printf '%s %s\n' "${d:-0}" "$i"; done | sort -s -k1,1nr | cut -d' ' -f2)
+      rang_trie="$(for i in "${ordre[@]}"; do d="$(printf '%s' "${liste[$i]}" | cut -d "$sep" -f "$rang_date")"; printf '%s %s\n' "${d:-0}" "$i"; done | sort -s -k1,1nr | cut -d' ' -f2)"
+      ordre=(); while IFS= read -r i; do ordre+=("$i"); done <<< "$rang_trie" # bash 3.2 (macOS) n'a pas mapfile
     fi
     for i in ${ordre[@]+"${ordre[@]}"}; do "$carte" "${liste[$i]}"; done
     [ "$n" -gt 0 ] || printf '<p class="vide">—</p>\n'
@@ -311,13 +392,13 @@ kanban() { # kanban <lignes> <rang du statut> <rang de la date> <fonction de car
 }
 
 encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cours et En revue, ou « Aucune issue en cours. »
-  local id titre statut branche signal n=0
+  local id titre statut retenue signal n=0
   printf '<section id="en-cours">\n<h2>En cours</h2>\n'
-  while IFS="$sep" read -r id titre statut _ _ _ _ branche _; do
+  while IFS="$sep" read -r id titre statut _ _ _ _ _ _ _ _ retenue; do
     parmi "$statut" "En cours" "En revue" || continue
     [ "$n" -gt 0 ] || printf '<ul>\n'
     n=$((n + 1))
-    signal="$(signal_branche "$branche")"
+    signal="$(signal_branche "$retenue")"
     printf '<li><strong>%s</strong> %s <span class="etiquette statut-%s">%s</span>%s</li>\n' "$(echappe "$id")" "$(echappe "$titre")" "$(classe "$statut")" "$(echappe "$statut")" "${signal:+ <span class=\"signal\">$signal</span>}"
   done <<< "$1"
   if [ "$n" -gt 0 ]; then printf '</ul>\n'; else printf '<p>Aucune issue en cours.</p>\n'; fi
@@ -325,12 +406,12 @@ encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cou
 }
 
 encart_autres_travaux() { # encart_autres_travaux <lignes de issues_dossier> : worktrees dont la branche n'est celle d'aucune issue (ni develop ni main), ou « Aucun autre travail. »
-  local ligne branche i=0 n=0 b
+  local ligne retenue i=0 n=0 b
   local -a branches_issues=()
   while IFS= read -r ligne; do
     [ -n "$ligne" ] || continue
-    IFS="$sep" read -r _ _ _ _ _ _ _ branche _ <<< "$ligne"
-    [ -z "$branche" ] || branches_issues+=("$branche")
+    IFS="$sep" read -r _ _ _ _ _ _ _ _ _ _ _ retenue <<< "$ligne"
+    [ -z "$retenue" ] || branches_issues+=("$retenue")
   done <<< "$1"
   printf '<section id="autres-travaux">\n<h2>Autres travaux</h2>\n'
   while [ "$i" -lt "${#wt_branches[@]}" ]; do # ordre de git worktree list, signaux déjà calculés par signaux_worktrees
@@ -352,7 +433,7 @@ palette() { # palette <clair|sombre> : variables CSS des couleurs de la page (le
 --fond: #f3f4f6; --texte: #222; --discret: #555; --vide: #9ca3af;
 --bord: #d1d5db; --bord-doux: #e5e7eb; --carte: #fff; --colonne: #f9fafb; --bord-gauche: #9ca3af;
 --ombre-a: .05; --ombre-b: .08; --ombre-c: .04;
---prochaine: #2563eb; --bloquee: #dc2626; --marqueur-texte: #fff;
+--prochaine: #2563eb; --bloquee: #dc2626; --empilee: #7c3aed; --marqueur-texte: #fff;
 --st-texte: #222; --st-afaire: #e5e7eb; --st-clarification: #fde68a; --st-specifie: #bfdbfe; --st-encours: #fdba74;
 --st-enrevue: #ddd6fe; --st-fait: #bbf7d0; --st-inconnu: #fecaca;
 --agent-actif: #166534; --agent-sans-nouvelles: #92400e;
@@ -362,7 +443,7 @@ CSS
 --fond: #111827; --texte: #e5e7eb; --discret: #9ca3af; --vide: #6b7280;
 --bord: #374151; --bord-doux: #2d3748; --carte: #1f2937; --colonne: #172033; --bord-gauche: #6b7280;
 --ombre-a: .3; --ombre-b: .4; --ombre-c: .3;
---prochaine: #2563eb; --bloquee: #dc2626; --marqueur-texte: #fff;
+--prochaine: #2563eb; --bloquee: #dc2626; --empilee: #7c3aed; --marqueur-texte: #fff;
 --st-texte: #f9fafb; --st-afaire: #374151; --st-clarification: #854d0e; --st-specifie: #1e40af; --st-encours: #9a3412;
 --st-enrevue: #5b21b6; --st-fait: #166534; --st-inconnu: #991b1b;
 --agent-actif: #4ade80; --agent-sans-nouvelles: #fbbf24;
@@ -381,16 +462,17 @@ palettes() {
 }
 
 generer() { # page complète sur la sortie standard
-  local b i id statut_local maintenant
+  local b i id statut_local statut_effectif besoin_issue retenue maintenant
   maintenant="$(date +%s)"
+  rattachements_charger # une seule lecture des branches locales par génération, avant tout sous-shell qui lit les rattachements
   i="$(issues_dossier)"; b="$(besoins_dates "$(besoins_backlog)" "$i")"
-  prochaine="$("$dossier_scripts/etat-issues.sh" --prochaine 2>/dev/null)"
-  ids_issues=(); statuts_lus=()
   signaux_worktrees "$maintenant"
-  while IFS="$sep" read -r id _ _ _ _ _ statut_local _; do
+  ids_issues=(); statuts_effectifs=(); statuts_lus=(); branches_retenues=(); besoins_issues=()
+  while IFS="$sep" read -r id _ statut_effectif _ besoin_issue _ statut_local _ _ _ _ retenue; do
     [ -n "$id" ] || continue
-    ids_issues+=("$id"); statuts_lus+=("$statut_local")
+    ids_issues+=("$id"); statuts_effectifs+=("$statut_effectif"); statuts_lus+=("$statut_local"); branches_retenues+=("$retenue"); besoins_issues+=("$besoin_issue")
   done <<< "$i"
+  prochaine="$(prochaine_issue "$i")"
   cat <<HTML
 <!DOCTYPE html>
 <html lang="fr"$html_theme>
@@ -418,7 +500,7 @@ section ul { padding-left: 0; list-style: none; } section li { margin: 0; paddin
 .carte { background: var(--carte); border: 1px solid var(--bord); border-left: 4px solid var(--bord-gauche); border-radius: .3rem; margin: .5rem; padding: .4rem .5rem; overflow-wrap: anywhere; break-inside: avoid; }
 .carte.prochaine { border-left-color: var(--prochaine); } .carte.bloquee { border-left-color: var(--bloquee); }
 .marqueur { display: inline-block; margin-left: .3rem; padding: 0 .4rem; border-radius: .6rem; font-size: .75rem; color: var(--marqueur-texte); }
-.marqueur-prochaine { background: var(--prochaine); } .marqueur-bloquee { background: var(--bloquee); }
+.marqueur-prochaine { background: var(--prochaine); } .marqueur-bloquee { background: var(--bloquee); } .marqueur-empilee { background: var(--empilee); }
 .detail.desc { color: var(--texte); margin-top: .2rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .detail.desc:hover { -webkit-line-clamp: unset; }
 .detail { display: block; font-size: .85rem; color: var(--discret); }
 .vide { margin: .5rem; text-align: center; color: var(--vide); }

@@ -5,7 +5,7 @@ recoupe avec le dépôt (`git log`, `git status`, `scripts/verify-clean.sh`). Un
 preuve est un échec de mission : il sera relancé.
 
 Règles
-- Court : 60 lignes au plus pour le développeur, 80 pour le reviewer. Le détail est dans les commits et les tests, pas dans le rapport.
+- Court : 60 lignes au plus pour le développeur, 100 pour le reviewer (bloc « En clair » compris). Le détail est dans les commits et les tests, pas dans le rapport.
 - Factuel : chaque affirmation chiffrée vient d'une commande que tu as lancée ; cite la commande. N'écris jamais « tout passe » sans nombre.
 - Distingue ce que tu as **vérifié** de ce que tu **supposes** ou **n'as pas pu faire**. Un point non fait est listé, jamais omis.
 - Aucune donnée sensible (jeton, clé, données réelles de l'utilisateur).
@@ -32,6 +32,9 @@ Règles
 ## Preuve avant / après
 - État AVANT (sortie du test qui échoue, mesure, capture) et état APRÈS, avec la commande qui les produit. Quand rien n'est visible, des chiffres (ex. temps de chargement 815 ms -> 61 ms).
   Pour un critère déjà couvert par le RED/GREEN des tests, nomme le test et colle la ligne de sortie. « Aucune » est une réponse acceptable seulement pour un changement sans comportement observable (documentation, refactor couvert).
+
+## Réponse à la revue
+Seulement après une revue : une ligne par constat ouvert du « Suivi des constats » de `docs/reviews/<id>.md` (numéro, gravité) : corrigé (commit, test RED puis GREEN) / non corrigé (raison). « Première itération » sinon.
 
 ## Décisions et écarts
 - Choix de conception faits seul (une ligne chacun, avec la raison).
@@ -63,6 +66,15 @@ Une ligne par fichier ajouté ou modifié qui joue un rôle couvert par la réf�
 ## Rapport du reviewer
 
 ```
+## En clair
+Pour un lecteur sans contexte (qui n'a lu ni l'issue, ni le PRD, ni la conversation). Pas de jargon non expliqué, aucun identifiant nu.
+- **Issue** : ce qu'elle ajoute, en une ou deux phrases, et à quoi cela sert.
+- **Verdict** : APPROUVÉ ou CHANGEMENTS DEMANDÉS, la raison en une phrase, et ce qui se passe ensuite.
+- **Critères** : tableau `Critère | Ce qu'il exige, en clair | Test présent et suffisant ?` (un CA/CS n'est jamais cité sans son sens).
+- **Constats** : une phrase chacun sur ce que cela change pour l'utilisateur, sans `fichier:ligne` (ils sont plus bas).
+- **Mutations** (si faites) : une phrase d'explication (on casse volontairement un garde-fou dans une copie jetable ; un test qui reste vert ne protège rien),
+  puis le tableau `Ce qu'on a cassé | Ce que cela vérifie | Résultat (tuée = bien protégé, survivante = test à renforcer)`.
+
 ## Verdict
 APPROUVÉ | CHANGEMENTS DEMANDÉS (+ une phrase)
 

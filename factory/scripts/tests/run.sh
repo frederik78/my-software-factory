@@ -12,12 +12,14 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
 racine_tmp="$(mktemp -d "${TMPDIR:-/tmp}/factory-tests.XXXXXX")"
 trap 'rm -rf "$racine_tmp"' EXIT
+# Environnement Git isolé : ni configuration globale ou système de l'utilisateur, ni son HOME ; les dépôts de test sont créés sous $racine_tmp.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null HOME="$racine_tmp/home"; mkdir -p "$HOME"
 
 total=0; echecs=0
 ok()  { total=$((total + 1)); printf '  ok   %s\n' "$1"; }
@@ -291,6 +293,378 @@ void ca100_x() {
 void xca10_x() {
 EOF
 
+echo "criteres-sans-test.sh : tests bash"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+issue_id "$p" 002-01 "En cours" docs/prd/002-m.md "[CA-10]" "[]"
+issue_id "$p" 002-02 "En cours" docs/prd/002-m.md "[CA-10, CS-01]" "[]"
+# verdict_cas <description> <code attendu> <fichier de tests> [issue] : le contenu du fichier vient de l'entrée standard.
+# Attention : ce helper porte le nom d'une fonction de test reconnue par défaut (TESTS_BASH_FONCTIONS) ; ses appels ci-dessous sont donc des déclarations
+# de test pour le contrôle lui-même. Voulu (le dépôt se contrôle avec ses propres cas) ; sa ligne de définition n'est pas reconnue (pas de guillemet après le nom).
+verdict_cas() {
+  local iss="${4:-002-01}"
+  rm -rf src/test; mkdir -p "$(dirname "src/test/$3")"; cat > "src/test/$3"
+  if [ "$2" -eq 0 ]; then verifier "$1" 0 "^OK " scripts/criteres-sans-test.sh "$iss"
+  else verifier "$1" 1 "^MANQUE " scripts/criteres-sans-test.sh "$iss"; fi
+}
+verdict_cas "ca01_verifier avec identifiant entre guillemets couvre CA-10" 0 t.sh <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca01_verdict_cas couvre CS-01" 0 t.sh 002-02 <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+verdict_cas "cs01_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca02_autre fonction ok ignorée" 1 t.sh <<'XEOF'
+ok "ca10_x"
+XEOF
+verdict_cas "ca02_echo ignoré" 1 t.sh <<'XEOF'
+echo "ca10_x"
+XEOF
+verdict_cas "ca02_argument sans guillemets ignoré" 1 t.sh <<'XEOF'
+verifier ca10_x 0 "OK" cmd
+XEOF
+verdict_cas "ca02_ligne de définition ignorée" 1 t.sh <<'XEOF'
+verifier() {
+  local ca10_x=1
+}
+XEOF
+verdict_cas "ca04_commentaire non indenté ignoré" 1 t.sh <<'XEOF'
+# verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca04_commentaire indenté ignoré" 1 t.sh <<'XEOF'
+    # verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca05_identifiant dans un texte qui ne commence pas par lui" 1 t.sh <<'XEOF'
+verifier "voir ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca05_identifiant dans un autre argument que le premier" 1 t.sh <<'XEOF'
+verifier "autre" 0 "ca10_x"
+XEOF
+verdict_cas "ca05_identifiant seulement dans un commentaire final" 1 t.sh <<'XEOF'
+verifier "autre" 0 "OK" cmd # ca10
+XEOF
+verdict_cas "ca05_appel en milieu de ligne" 1 t.sh <<'XEOF'
+rm -rf d; verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_document ici <<'EOF' ignoré" 1 t.sh <<'XEOF'
+cat > f <<'EOF'
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<EOF ignoré" 1 t.sh <<'XEOF'
+cat > f <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<\"EOF\" ignoré" 1 t.sh <<'XEOF'
+cat > f <<"EOF"
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<-EOF à délimiteur indenté par tabulation ignoré" 1 t.sh < <(printf 'cat > f <<-EOF\n\tverifier "ca10_x" 0 "OK" cmd\n\tEOF\n')
+verdict_cas "ca06_deux documents ici sur une ligne : le corps du second est ignoré" 1 t.sh <<'XEOF'
+cat <<A <<B
+x
+A
+verifier "ca10_x" 0 "OK" cmd
+B
+XEOF
+verdict_cas "ca06_deux documents ici sur une ligne : l'appel après les deux est couvert" 0 t.sh <<'XEOF'
+cat <<A <<B
+x
+A
+y
+B
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_document ici <<\EOF ignoré" 1 t.sh <<'XEOF'
+cat <<\EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_document ici <<$'EOF' ignoré" 1 t.sh <<'XEOF'
+cat <<$'EOF'
+verifier "ca10_x" 0 "OK" cmd
+EOF
+XEOF
+verdict_cas "ca06_fins de ligne CRLF : délimiteur reconnu, l'appel suivant est couvert" 0 t.sh < <(printf 'cat <<EOF\r\nverifier "cs01_y" 0\r\nEOF\r\nverifier "ca10_x" 0 "OK" cmd\r\n')
+verdict_cas "ca06_chaîne ici <<< n'ouvre pas de document" 0 t.sh <<'XEOF'
+cat <<< "x"
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_<< dans une chaîne entre guillemets n'ouvre pas de document" 0 t.sh <<'XEOF'
+verifier "cs01_x <<\EOF y" 0 "OK" cmd
+verifier 'cs01_z <<EOF' 0 "OK" cmd
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_document ici ouvert dans une substitution de commande entre guillemets ignoré" 1 t.sh <<'XEOF'
+out="$(cat <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+)"
+XEOF
+verdict_cas "ca06_document ici ouvert dans des apostrophes inverses entre guillemets ignoré" 1 t.sh <<'XEOF'
+out="`cat <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+`"
+XEOF
+verdict_cas "ca06_document ici ouvert dans une substitution de commande sans guillemets ignoré" 1 t.sh <<'XEOF'
+out=$(cat <<EOF
+verifier "ca10_x" 0 "OK" cmd
+EOF
+)
+XEOF
+verdict_cas "ca06_après une substitution de commande entre guillemets refermée, l'appel suivant est couvert" 0 t.sh <<'XEOF'
+out="$(cat <<EOF
+x
+EOF
+)"
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_limite assumée : substitution puis chevrons doubles dans la même chaîne ouvre un document (faux MANQUE, sens sûr)" 1 t.sh <<'XEOF'
+verifier "cs01_x $(date) <<EOF" 0 "OK" cmd
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_le même appel après le délimiteur final est couvert" 0 t.sh <<'XEOF'
+cat > f <<'EOF'
+verifier "ca10_x" 0 "OK" cmd
+EOF
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca06_après un <<-EOF à tabulation, l'appel suivant est couvert" 0 t.sh < <(printf 'cat > f <<-EOF\n\tverifier "cs01_y" 0\n\tEOF\nverifier "ca10_x" 0 "OK" cmd\n')
+verdict_cas "ca06_ouverture sur la ligne d'un appel : l'appel compte, le corps non" 0 t.sh <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd <<EOF
+verifier "cs01_y" 0
+EOF
+XEOF
+verdict_cas "ca07_CA-10 couvert par « CA-10 x »" 0 t.sh <<'XEOF'
+verifier "CA-10 x" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_CA-10 couvert par ca_10" 0 t.sh <<'XEOF'
+verifier "ca_10" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_CA-10 couvert par « CA 10 »" 0 t.sh <<'XEOF'
+verifier "CA 10" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_CA-10 couvert par Ca010" 0 t.sh <<'XEOF'
+verifier "Ca010" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_ca1_x ne couvre pas CA-10" 1 t.sh <<'XEOF'
+verifier "ca1_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_ca100_x ne couvre pas CA-10" 1 t.sh <<'XEOF'
+verifier "ca100_x" 0 "OK" cmd
+XEOF
+issue_id "$p" 002-07 "En cours" docs/prd/002-m.md "[CA-1]" "[]"
+verdict_cas "ca07_ca10_x ne couvre pas CA-1" 1 t.sh 002-07 <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca07_ca1_x couvre CA-1" 0 t.sh 002-07 <<'XEOF'
+verifier "ca1_x" 0 "OK" cmd
+XEOF
+verdict_cas "ca08_dossier sans appel reconnu : MANQUE sans erreur" 1 t.sh <<'XEOF'
+echo rien
+XEOF
+rm -rf src/test; mkdir -p src/test/sous/profond
+printf 'verifier "ca10_x" 0 "OK" cmd\n' > src/test/a.sh
+printf 'verdict_cas "cs01_y" 0 "OK" cmd\n' > src/test/sous/profond/b.sh
+printf 'verifier "ca11_z" 0 "OK" cmd\n' > src/test/n.md; printf 'verifier "ca11_z" 0 "OK" cmd\n' > src/test/n.txt; printf 'verifier "ca11_z" 0 "OK" cmd\n' > src/test/n.bash
+issue_id "$p" 002-03 "En cours" docs/prd/002-m.md "[CA-10, CS-01]" "[]"
+issue_id "$p" 002-04 "En cours" docs/prd/002-m.md "[CA-11]" "[]"
+verifier "ca09_union des .sh et sous-dossiers" 0 "^OK " scripts/criteres-sans-test.sh 002-03
+verifier "ca09_.md .txt .bash ignorés" 1 "^MANQUE .*CA-11" scripts/criteres-sans-test.sh 002-04
+rm -rf src/test; mkdir -p src/test
+printf '@Test void ca10_x() {}\n' > src/test/A.java; printf 'verifier "cs01_y" 0 "OK" cmd\n' > src/test/t.sh
+verifier "ca18_Java et .sh cohabitent" 0 "^OK " scripts/criteres-sans-test.sh 002-03
+verdict_cas "ca01_guillemets simples : verifier 'ca10_x'" 0 t.sh <<'XEOF'
+verifier 'ca10_x' 0 "OK" cmd
+XEOF
+verdict_cas "ca01_guillemets simples : verdict_cas 'cs01_x'" 0 t.sh 002-02 <<'XEOF'
+verifier "ca10_x" 0 "OK" cmd
+verdict_cas 'cs01_x' 0 "OK" cmd
+XEOF
+# Projet jetable NEUF : l'état « avant » est pris avant tout appel du contrôle (sinon un fichier qu'il aurait écrit y figurerait déjà).
+p="$(nouveau_projet)"; cd "$p" || exit 1
+issue_id "$p" 002-03 "En cours" docs/prd/002-m.md "[CA-10, CS-01]" "[]"
+printf 'verifier "ca10_x" $(touch marque)\n$(touch marque)\n`touch marque`\n; touch marque\nverifier "cs01_y" `touch marque`\n' > src/test/t.sh
+printf 'x: $(touch marque)\n' > .factory.conf
+chmod -x src/test/t.sh
+avant="$(find . -path ./.git -prune -o -print | LC_ALL=C sort | xargs cksum 2>&1)"
+verifier "cs01_contenu hostile : critères couverts" 0 "^OK " scripts/criteres-sans-test.sh 002-03
+[ ! -e marque ] && ok "cs01_aucune commande du contenu exécutée (pas de fichier marque)" || ko "cs01_fichier marque créé" "marque existe"
+apres="$(find . -path ./.git -prune -o -print | LC_ALL=C sort | xargs cksum 2>&1)"
+verifier "cs05_aucun fichier créé ni modifié par le contrôle" 0 "" test "$avant" = "$apres"
+rm -rf src/test; mkdir -p src/test
+printf '@Test void ca10_x() {}\n' > src/test/A.java; printf 'def test_ca11_x():\n    pass\n' > src/test/t.py
+printf '@Test fun ca12_x() {}\n' > src/test/K.kt; printf "it('CA-13 x', () => {});\n" > src/test/a.test.js
+issue_id "$p" 002-05 "En cours" docs/prd/002-m.md "[CA-10, CA-11, CA-12, CA-13]" "[]"
+verifier "ca17_Java, Python, Kotlin, JS/TS : résultat inchangé" 0 "^OK +002-05-x.md: 4 critère\(s\), tous couverts$" scripts/criteres-sans-test.sh 002-05
+rm -f .factory.conf
+
+echo "criteres-sans-test.sh : clé TESTS_BASH_FONCTIONS (liste des fonctions de test bash)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+issue_id "$p" 002-01 "En cours" docs/prd/002-m.md "[CA-10]" "[]"
+mkdir -p src/test
+# Message attendu, écrit en littéral (source indépendante du code) ; la valeur refusée n'y est jamais recopiée.
+invalide_f="TESTS_BASH_FONCTIONS invalide : 1 à 20 noms séparés par des espaces, chacun de 64 caractères au plus parmi A-Z a-z 0-9 _ et ne commençant pas par un chiffre (voir .factory.conf, .factory.local.conf, FACTORY_TESTS_BASH_FONCTIONS)."
+printf 'cas "ca10_x" 0\n' > src/test/t.sh
+verifier "ca03_TESTS_BASH_FONCTIONS=cas : la ligne cas couvre CA-10" 0 "^OK " env FACTORY_TESTS_BASH_FONCTIONS=cas scripts/criteres-sans-test.sh 002-01
+printf 'verifier "ca10_x" 0\n' > src/test/t.sh
+verifier "ca03_la liste remplace le défaut : verifier ne couvre plus (MANQUE)" 1 "^MANQUE " env FACTORY_TESTS_BASH_FONCTIONS=cas scripts/criteres-sans-test.sh 002-01
+verifier "ca03_sans clé : défaut inchangé" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+
+# Valeur refusée : code 64, message exact, et l'erreur précède toute lecture des tests (le dossier de tests absent n'est pas signalé).
+refuse_f() { # refuse_f <description> <valeur>
+  verifier_exact "$1" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS="$2" DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-01
+}
+# Les cas ci-dessous passent par refuse_f (message exact) ; une déclaration `verifier` littérale par critère le rend visible du contrôle des critères.
+verifier "ca14_liste vide : code 64 et message TESTS_BASH_FONCTIONS invalide" 64 "^TESTS_BASH_FONCTIONS invalide" env FACTORY_TESTS_BASH_FONCTIONS= DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-01
+refuse_f "ca14_liste vide refusée" ""
+refuse_f "ca14_espaces seuls refusés" "   "
+for v in a-b a.b 1a -a 'a;b' '$(x)' 'a*' "$(printf 'a%.0s' $(seq 65))" "$(printf 'n%s ' $(seq 21))"; do refuse_f "ca14_valeur refusée : ${v:0:20}" "$v"; done
+accepte_f() { printf 'cas "ca10_x" 0\n' > src/test/t.sh; verifier "$1" 0 "^OK " env FACTORY_TESTS_BASH_FONCTIONS="$2" scripts/criteres-sans-test.sh 002-01; }
+printf 'cas "ca10_x" 0\n' > src/test/t.sh
+accepte_f "ca14_borne : nom de 64 caractères accepté" "cas $(printf 'a%.0s' $(seq 64))"
+accepte_f "ca14_borne : 20 noms acceptés" "cas $(printf 'n%s ' $(seq 19))"
+accepte_f "ca14_espaces multiples et de bord tolérés" "  cas   verifier "
+
+# Priorité : variable > .factory.local.conf > .factory.conf > défaut.
+rm -f .factory.conf .factory.local.conf
+printf 'TESTS_BASH_FONCTIONS=confv\n' > .factory.conf
+printf 'confv "ca10_x" 0\n' > src/test/t.sh
+verifier "ca15_.factory.conf lu" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+printf 'TESTS_BASH_FONCTIONS=conflocal\n' > .factory.local.conf
+verifier "ca15_.factory.local.conf l'emporte sur .factory.conf" 1 "^MANQUE " scripts/criteres-sans-test.sh 002-01
+printf 'conflocal "ca10_x" 0\n' > src/test/t.sh
+verifier "ca15_.factory.local.conf lu" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+printf 'cvar "ca10_x" 0\n' > src/test/t.sh
+verifier "ca15_la variable l'emporte sur les deux fichiers" 0 "^OK " env FACTORY_TESTS_BASH_FONCTIONS=cvar scripts/criteres-sans-test.sh 002-01
+verifier_exact "ca15_variable vide : l'emporte aussi, donc refusée" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS= scripts/criteres-sans-test.sh 002-01
+rm -f .factory.local.conf; printf 'TESTS_BASH_FONCTIONS=\n' > .factory.conf
+verifier_exact "ca15_valeur vide dans .factory.conf : refusée" 64 "$invalide_f" scripts/criteres-sans-test.sh 002-01
+rm -f .factory.conf
+
+# Valeurs hostiles : jamais exécutées, jamais prises pour un motif.
+printf 'verifier "ca10_x" 0\n' > src/test/t.sh
+for v in 'verifier;touch marque' '$(touch marque)' '`touch marque`' '.*' 'a|b' 'a b;c' '-x' "$(printf 'verifier\ntouch marque')" "$(printf 'verifier\ttouch')" 'é'; do
+  refuse_f "cs02_valeur hostile refusée : $(printf '%s' "$v" | tr '\n\t' '  ')" "$v"
+done
+verifier "cs02_valeur « verifier;touch marque » : code 64, message TESTS_BASH_FONCTIONS invalide" 64 "^TESTS_BASH_FONCTIONS invalide" env FACTORY_TESTS_BASH_FONCTIONS='verifier;touch marque' scripts/criteres-sans-test.sh 002-01
+[ ! -e marque ] && ok "cs02_aucune commande de la valeur exécutée (pas de fichier marque)" || ko "cs02_fichier marque créé" "marque existe"
+# Le motif .* est refusé comme les autres (liste ci-dessus) : code 64 et message seul, aucune ligne OK ni MANQUE, donc jamais un critère couvert.
+verifier_exact "cs02_valeur avec saut de ligne final refusée (rien n'est rogné)" 64 "$invalide_f" env FACTORY_TESTS_BASH_FONCTIONS="$(printf 'verifier\n.')" scripts/criteres-sans-test.sh 002-01
+
+# Fichier de configuration : jamais sourcé ni évalué, clés inconnues ignorées.
+printf 'AUTRE=`touch marque`\nDOSSIER_TESTS=\nTESTS_BASH_FONCTIONS=verifier\n' > .factory.conf
+verifier "cs04_.factory.conf hostile : lu sans exécution, clés inconnues ignorées" 0 "^OK " scripts/criteres-sans-test.sh 002-01
+printf 'DOSSIER_TESTS=$(touch marque)\n' > .factory.conf
+verifier_exact "cs04_DOSSIER_TESTS=\$(touch marque) : lu comme un chemin introuvable (64), jamais évalué" 64 'Dossier de tests introuvable : $(touch marque)' scripts/criteres-sans-test.sh 002-01
+[ ! -e marque ] && ok "cs04_aucune commande du fichier exécutée (pas de fichier marque)" || ko "cs04_fichier marque créé" "marque existe"
+printf 'TESTS_BASH_FONCTIONS=$(touch marque)\n' > .factory.conf
+verifier_exact "cs04_valeur de la clé elle-même : refusée, jamais évaluée" 64 "$invalide_f" scripts/criteres-sans-test.sh 002-01
+printf 'TESTS_BASH_FONCTIONS=verifier;touch marque\n' > .factory.local.conf
+verifier_exact "cs04_idem dans .factory.local.conf (point-virgule)" 64 "$invalide_f" scripts/criteres-sans-test.sh 002-01
+[ ! -e marque ] && ok "cs04_toujours pas de fichier marque" || ko "cs04_fichier marque créé" "marque existe"
+rm -f .factory.conf .factory.local.conf
+
+# Caractères de contrôle : le message tient sur une seule ligne, sans séquence d'échappement ni retour chariot.
+esc_f="$(printf 'ver\033[31mifier\r\rFAUX')"
+sortie_f="$(env FACTORY_TESTS_BASH_FONCTIONS="$esc_f" scripts/criteres-sans-test.sh 002-01 2>&1 >/dev/null)"
+[ "$sortie_f" = "$invalide_f" ] && [ "$(printf '%s\n' "$sortie_f" | wc -l | tr -d ' ')" = 1 ] && ok "cs06_séquence d'échappement et retours chariot : message exact sur une ligne" || ko "cs06_message" "$(printf '%s' "$sortie_f" | od -c | head -3)"
+verifier "cs06_valeur avec séquence d'échappement : message sans caractère de contrôle, sur une ligne" 64 "^TESTS_BASH_FONCTIONS invalide[^[:cntrl:]]*$" env FACTORY_TESTS_BASH_FONCTIONS="$esc_f" scripts/criteres-sans-test.sh 002-01
+printf '%s' "$sortie_f" | LC_ALL=C grep -q "[[:cntrl:]]" && ko "cs06_caractère de contrôle brut dans le message" "$(printf '%s' "$sortie_f" | od -c | head -3)" || ok "cs06_aucun caractère de contrôle brut dans le message"
+sortie_f="$(printf 'TESTS_BASH_FONCTIONS=ab\033[31mc\r\n' > .factory.conf; scripts/criteres-sans-test.sh 002-01 2>&1 >/dev/null)"
+[ "$sortie_f" = "$invalide_f" ] && ok "cs06_séquence d'échappement dans .factory.conf : message exact" || ko "cs06_fichier" "$(printf '%s' "$sortie_f" | od -c | head -3)"
+rm -f .factory.conf
+
+echo "criteres-sans-test.sh : clé DOSSIER_TESTS (dossier des tests)"
+p="$(nouveau_projet)"; cd "$p" || exit 1
+# Cinq dossiers, chacun couvrant UN critère différent : la ligne MANQUE (littérale, source indépendante du code) dit lequel a été lu.
+issue_id "$p" 002-11 "En cours" docs/prd/002-m.md "[CA-10, CA-11, CA-12, CA-13, CA-14]" "[]"
+for d in da:ca10 db:ca11 dc:ca12 dd:ca13 src/test:ca14; do mkdir -p "${d%%:*}"; printf 'verifier "%s_x" 0 "OK" cmd\n' "${d##*:}" > "${d%%:*}/t.sh"; done
+manque_f() { # manque_f <critère lu> : ligne attendue quand seul ce critère est couvert
+  local c lus=""
+  for c in CA-10 CA-11 CA-12 CA-13 CA-14; do [ "$c" = "$1" ] || lus="$lus $c"; done
+  printf 'MANQUE 002-11-x.md: 4/5 sans test :%s' "$lus"
+}
+rm -f .factory.conf .factory.local.conf
+printf 'DOSSIER_TESTS=dd\n' > .factory.conf
+verifier "ca10_DOSSIER_TESTS dans .factory.conf : ce dossier est lu (pas src/test)" 1 "^$(manque_f CA-13)$" env scripts/criteres-sans-test.sh 002-11
+# Les cinq sources sont toutes renseignées ; on retire la plus forte une à une.
+printf 'DOSSIER_TESTS=dc\n' > .factory.local.conf
+verifier "ca11_cinq sources : la variable DOSSIER_TESTS l'emporte" 1 "^$(manque_f CA-10)$" env DOSSIER_TESTS=da FACTORY_DOSSIER_TESTS=db scripts/criteres-sans-test.sh 002-11
+verifier "ca11_sans la variable : FACTORY_DOSSIER_TESTS l'emporte" 1 "^$(manque_f CA-11)$" env FACTORY_DOSSIER_TESTS=db scripts/criteres-sans-test.sh 002-11
+verifier "ca11_sans FACTORY_DOSSIER_TESTS : .factory.local.conf l'emporte" 1 "^$(manque_f CA-12)$" env scripts/criteres-sans-test.sh 002-11
+rm -f .factory.local.conf
+verifier "ca11_sans .factory.local.conf : .factory.conf l'emporte" 1 "^$(manque_f CA-13)$" env scripts/criteres-sans-test.sh 002-11
+rm -f .factory.conf
+verifier "ca11_sans .factory.conf : détection automatique (src/test)" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=dd\n' > .factory.conf; printf 'DOSSIER_TESTS=dc\n' > .factory.local.conf
+verifier "ca11_variable DOSSIER_TESTS vide = non définie : la source suivante s'applique" 1 "^$(manque_f CA-11)$" env DOSSIER_TESTS= FACTORY_DOSSIER_TESTS=db scripts/criteres-sans-test.sh 002-11
+verifier "ca11_FACTORY_DOSSIER_TESTS vide (définie) : détection, pas la valeur des fichiers" 1 "^$(manque_f CA-14)$" env FACTORY_DOSSIER_TESTS= scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=\n' > .factory.local.conf
+verifier "ca11_DOSSIER_TESTS= vide dans .factory.local.conf : détection, pas .factory.conf" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=\n' > .factory.conf; rm -f .factory.local.conf
+verifier "ca11_DOSSIER_TESTS= vide dans .factory.conf : détection, pas d'erreur" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
+rm -f .factory.conf
+
+# Détection automatique inchangée : src/test, puis tests, puis test.
+rm -rf src; mkdir -p tests test
+printf 'verifier "ca10_x" 0 "OK" cmd\n' > tests/t.sh; printf 'verifier "ca11_x" 0 "OK" cmd\n' > test/t.sh
+verifier "ca12_sans configuration : tests avant test" 1 "^$(manque_f CA-10)$" env scripts/criteres-sans-test.sh 002-11
+mkdir -p src/test; printf 'verifier "ca14_x" 0 "OK" cmd\n' > src/test/t.sh
+verifier "ca12_sans configuration : src/test avant tests" 1 "^$(manque_f CA-14)$" env scripts/criteres-sans-test.sh 002-11
+rm -rf src tests
+verifier "ca12_sans configuration : test en dernier" 1 "^$(manque_f CA-11)$" env scripts/criteres-sans-test.sh 002-11
+
+# Dossier configuré absent : introuvable, code 64, jamais de repli sur la détection (test existe ici).
+absent_f="Dossier de tests introuvable : absent"
+verifier "ca13_variable DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "^$absent_f$" env DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
+verifier "ca13_FACTORY_DOSSIER_TESTS vers un dossier absent : 64, sans repli" 64 "^$absent_f$" env FACTORY_DOSSIER_TESTS=absent scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=absent\n' > .factory.local.conf
+verifier "ca13_.factory.local.conf vers un dossier absent : 64, sans repli" 64 "^$absent_f$" scripts/criteres-sans-test.sh 002-11
+rm -f .factory.local.conf; printf 'DOSSIER_TESTS=absent\n' > .factory.conf
+verifier "ca13_.factory.conf vers un dossier absent : 64, sans repli" 64 "^$absent_f$" scripts/criteres-sans-test.sh 002-11
+rm -f .factory.conf
+
+# La valeur est un chemin, jamais une option : absente, elle est introuvable (64) ; présente, elle est lue comme un dossier.
+for v in -n --help -- 'a b' '-n x' '--version' '$(touch marque)'; do
+  motif_v="^Dossier de tests introuvable : $(printf '%s' "$v" | sed 's/[][\.*^$(){}?+|/]/\\&/g')$"
+  verifier "cs03_valeur « $v » absente : lue comme un chemin, introuvable (64)" 64 "$motif_v" env DOSSIER_TESTS="$v" scripts/criteres-sans-test.sh 002-11
+  printf 'DOSSIER_TESTS=%s\n' "$v" > .factory.conf
+  verifier "cs03_valeur « $v » absente dans .factory.conf : introuvable (64)" 64 "$motif_v" scripts/criteres-sans-test.sh 002-11
+  rm -f .factory.conf
+done
+for v in -n --help 'avec espaces' '-x y'; do
+  mkdir -p "./$v"; printf 'verifier "ca11_x" 0 "OK" cmd\n' > "./$v/t.sh"
+  verifier "cs03_dossier existant « $v » : lu comme un chemin, pas comme une option" 1 "^$(manque_f CA-11)$" env DOSSIER_TESTS="$v" scripts/criteres-sans-test.sh 002-11
+done
+[ ! -e marque ] && ok "cs03_rien n'est exécuté (pas de fichier marque)" || ko "cs03_fichier marque créé" "marque existe"
+rm -rf ./-n ./--help "./avec espaces" "./-x y"
+
+# Message d'erreur : la valeur est une donnée non fiable, neutralisée à l'affichage (pas de séquence d'échappement, pas de ligne forgée).
+esc_d="$(printf 'ab\033[31mc\r\rFAUX')"; nl_d="$(printf 'a\nFIN-ISSUE OK')"
+verifier_exact "cs06_variable avec séquence d'échappement et retours chariot : message neutralisé" 64 "Dossier de tests introuvable : ab[31mc  FAUX" env DOSSIER_TESTS="$esc_d" scripts/criteres-sans-test.sh 002-11
+verifier_exact "cs06_variable avec retour à la ligne : une seule ligne, pas de ligne forgée" 64 "Dossier de tests introuvable : a FIN-ISSUE OK" env DOSSIER_TESTS="$nl_d" scripts/criteres-sans-test.sh 002-11
+verifier_exact "cs06_FACTORY_DOSSIER_TESTS avec retour à la ligne : une seule ligne" 64 "Dossier de tests introuvable : a FIN-ISSUE OK" env FACTORY_DOSSIER_TESTS="$nl_d" scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=ab\033[31mc\rFAUX\n' > .factory.conf
+verifier_exact "cs06_.factory.conf avec séquence d'échappement et retour chariot : message neutralisé" 64 "Dossier de tests introuvable : ab[31mc FAUX" scripts/criteres-sans-test.sh 002-11
+printf 'DOSSIER_TESTS=a\tFIN-ISSUE OK\r\n' > .factory.conf
+verifier_exact "cs06_.factory.conf avec tabulation : message neutralisé" 64 "Dossier de tests introuvable : a FIN-ISSUE OK" scripts/criteres-sans-test.sh 002-11
+rm -f .factory.conf
+verifier "cs06_aucune ligne du message ne commence par FIN-ISSUE" 0 "" sh -c '! DOSSIER_TESTS="$1" scripts/criteres-sans-test.sh 002-11 2>&1 | grep -q "^FIN-ISSUE"' sh "$nl_d"
+
+# Affichage de la configuration (CA-16) : les deux clés, et le modèle les documente.
+p="$(nouveau_projet)"; cd "$p" || exit 1
+verifier_exact "ca16_config-factory affiche DOSSIER_TESTS= (vide par défaut)" 0 "DOSSIER_TESTS=" sh -c 'scripts/config-factory.sh | grep "^DOSSIER_TESTS="'
+verifier_exact "ca16_config-factory affiche TESTS_BASH_FONCTIONS=verifier verdict_cas" 0 "TESTS_BASH_FONCTIONS=verifier verdict_cas" sh -c 'scripts/config-factory.sh | grep "^TESTS_BASH_FONCTIONS="'
+printf 'DOSSIER_TESTS=factory/scripts/tests\n' > .factory.conf
+verifier_exact "ca16_config-factory affiche la valeur réglée de DOSSIER_TESTS" 0 "DOSSIER_TESTS=factory/scripts/tests" sh -c 'scripts/config-factory.sh | grep "^DOSSIER_TESTS="'
+verifier_exact "ca16_FACTORY_DOSSIER_TESTS vide l'emporte sur .factory.conf (affichage)" 0 "DOSSIER_TESTS=" sh -c 'FACTORY_DOSSIER_TESTS= scripts/config-factory.sh | grep "^DOSSIER_TESTS="'
+rm -f .factory.conf
+verifier "ca16_le modèle .factory.conf documente DOSSIER_TESTS" 0 "" grep -Eq '^DOSSIER_TESTS=' "$factory/templates/.factory.conf"
+verifier "ca16_le modèle .factory.conf documente TESTS_BASH_FONCTIONS" 0 "" grep -Eq '^TESTS_BASH_FONCTIONS=verifier verdict_cas$' "$factory/templates/.factory.conf"
+
 echo "etat-issues.sh"
 p="$(nouveau_projet)"; cd "$p" || exit 1
 issue_id "$p" 001-01 "Fait" docs/prd/001-m.md "[CA-01]" "[]"
@@ -438,16 +812,16 @@ rm -f dashboard.html; (umask 022 && scripts/dashboard.sh >/dev/null)
 [ "$(droits dashboard.html)" = "-rw-r--r--" ] && ok "page lisible selon l'umask (022 : -rw-r--r--, pas 0600)" || ko "page lisible selon l'umask 022" "$(droits dashboard.html)"
 rm -f dashboard.html; (umask 027 && scripts/dashboard.sh >/dev/null)
 [ "$(droits dashboard.html)" = "-rw-r-----" ] && ok "droits de la page tirés de l'umask (027 : -rw-r-----)" || ko "page selon l'umask 027" "$(droits dashboard.html)"
-# Génération bloquée (etat-issues.sh lent) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
-cp factory/scripts/etat-issues.sh "$racine_tmp/etat-issues.sh.orig"
-printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\n' "$p" > factory/scripts/etat-issues.sh
+# Génération bloquée (une commande `date` lente, appelée pendant la génération) puis interrompue par un signal : le fichier temporaire ne doit pas rester.
+mkdir -p "$racine_tmp/shim-date"
+printf '#!/bin/sh\ntouch "%s/generation-en-cours"\nsleep 2\nexec "%s" "$@"\n' "$p" "$(command -v date)" > "$racine_tmp/shim-date/date"; chmod +x "$racine_tmp/shim-date/date"
 # Le cas --boucle plus haut est tué par SIGALRM : il a laissé son temporaire 2 fois sur 250 (mesure), par un mécanisme non identifié. À retirer ici, sinon ce cas échoue au hasard.
-rm -f generation-en-cours dashboard.html.*; scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
+rm -f generation-en-cours dashboard.html.*; PATH="$racine_tmp/shim-date:$PATH" scripts/dashboard.sh --boucle 1 >/dev/null 2>&1 & pid=$!
 n=0; while [ ! -e generation-en-cours ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 kill -TERM "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 restes="$(ls dashboard.html.* 2>/dev/null)"
 [ -e generation-en-cours ] && [ -z "$restes" ] && ok "interruption pendant la génération : aucun fichier temporaire résiduel" || ko "fichier temporaire résiduel après interruption" "$restes"
-cp "$racine_tmp/etat-issues.sh.orig" factory/scripts/etat-issues.sh; rm -f generation-en-cours dashboard.html*
+rm -f generation-en-cours dashboard.html*
 
 echo "dashboard.sh : statut lu sur la branche de l'issue"
 p="$(nouveau_projet)"; cd "$p" || exit 1
@@ -493,7 +867,7 @@ carte_de 002-01 "$sortie_b" | grep -qF "dernier commit : $attendu_a" && ok "bran
 [ "$(colonne_de 002-07 "$sortie_b")" = "À faire" ] && [ "$(colonne_de 002-08 "$sortie_b")" = "À faire" ] && [ "$(colonne_de 002-09 "$sortie_b")" = "À faire" ] && ! carte_de 002-09 "$sortie_b" | grep -q 'dernier commit' && ok "espaces, option ou intervalle dans le nom : statut local" || ko "noms invalides"
 [ ! -e pwn1 ] && [ ! -e pwn2 ] && [ ! -e pwn3 ] && [ ! -e '=pwn3' ] && ok "cs_ nom de branche hostile : rien n'est exécuté" || ko "cs_ exécution depuis un nom de branche"
 ! grep -q 'alert' "$sortie_b" && ! grep -Eq '<script|<b>' "$sortie_b" && ok "cs_ nom de branche hostile : aucun HTML injecté" || ko "cs_ HTML injecté"
-carte_de 002-11 "$sortie_b" | grep -q 'marqueur-bloquee' && ok "dépendance Fait sur sa branche seule, pas fusionnée : reste bloquée" || ko "dépendance non fusionnée" "$(carte_de 002-11 "$sortie_b")"
+carte_de 002-11 "$sortie_b" | grep -qF '<span class="marqueur marqueur-empilee">empilée sur feat/f</span>' && ! carte_de 002-11 "$sortie_b" | grep -q 'bloquée' && ok "dépendance Fait sur sa branche seule, pas fusionnée : levée, « empilée sur feat/f » et non bloquée (ancienne règle : bloquée)" || ko "dépendance non fusionnée" "$(carte_de 002-11 "$sortie_b")"
 verifier_exact "etat-issues --prochaine : une issue En cours sur sa branche n'est pas prête" 0 "002-02" scripts/etat-issues.sh --prochaine
 git worktree add -q "$racine_tmp/wt-classique" -b wt-classique >/dev/null 2>&1
 "$racine_tmp/wt-classique/scripts/dashboard.sh" --sortie "$racine_tmp/wt.html" >/dev/null 2>&1
@@ -855,6 +1229,37 @@ fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 verifier "fin-issue : DOSSIER_TESTS absolu refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="$p/src/test" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS avec .. refusé" 64 "FIN-ISSUE ECHEC : DOSSIER_TESTS" env DOSSIER_TESTS="src/../../x" scripts/fin-issue.sh 001-01
 verifier "fin-issue : DOSSIER_TESTS relatif admis" 0 "FIN-ISSUE OK" env DOSSIER_TESTS="src/test" scripts/fin-issue.sh 001-01
+# Configuration lue dans l'extraction de HEAD (F-05) : dossier de tests bash réglé par .factory.conf commité.
+commit_tout() { git add -A >/dev/null; git -c user.name=t -c user.email=t@t commit -qm "etat $RANDOM" --allow-empty; }
+git rm -q -f src/test/A.java; mkdir -p tests-bash autre; printf 'verifier "ca10_x" 0 "" true\n' > tests-bash/run.sh; printf 'rien\n' > autre/LISEZMOI
+printf 'args.txt\n.factory.local.conf\n' > .gitignore; printf 'DOSSIER_TESTS=tests-bash\n' > .factory.conf; commit_tout
+verifier "ca19_dossier réglé par .factory.conf : issue couverte = FIN-ISSUE OK" 0 "FIN-ISSUE OK 001-01 " scripts/fin-issue.sh 001-01
+verifier "ca19_critère sans cas = ECHEC critère sans test" 1 "FIN-ISSUE ECHEC : .*critère sans test" scripts/fin-issue.sh 001-02
+verifier_exact "ca19_la raison « critère sans test » est absente du succès" 0 "" sh -c 'scripts/fin-issue.sh 001-01 2>&1 | grep "critère sans test"; true'
+printf 'DOSSIER_TESTS=autre\n' > .factory.local.conf
+verifier "ca25_.factory.local.conf non versionné ignoré dans l'extraction" 0 "FIN-ISSUE OK 001-01 " scripts/fin-issue.sh 001-01
+/bin/rm -f .factory.local.conf
+verifier "ca25_FACTORY_DOSSIER_TESTS s'applique dans l'extraction" 1 "FIN-ISSUE ECHEC : .*critère sans test" env FACTORY_DOSSIER_TESTS=autre scripts/fin-issue.sh 001-01
+REFUS="FIN-ISSUE ECHEC : DOSSIER_TESTS doit être un chemin relatif"
+for mauvais in "$p/tests-bash" .. ../x a/../b x/..; do
+  etiquette="${mauvais#"$p"/}"; [ "$etiquette" != "tests-bash" ] || etiquette="chemin absolu"
+  verifier "ca20_variable DOSSIER_TESTS=$etiquette refusée, sans build" 64 "^$REFUS" env DOSSIER_TESTS="$mauvais" scripts/fin-issue.sh 001-01
+  verifier "ca20_FACTORY_DOSSIER_TESTS=$etiquette refusée" 64 "^$REFUS" env FACTORY_DOSSIER_TESTS="$mauvais" scripts/fin-issue.sh 001-01
+  printf 'DOSSIER_TESTS=%s\n' "$mauvais" > .factory.local.conf
+  verifier "ca20_.factory.local.conf DOSSIER_TESTS=$etiquette refusé" 64 "^$REFUS" scripts/fin-issue.sh 001-01
+  /bin/rm -f .factory.local.conf
+  printf 'DOSSIER_TESTS=%s\n' "$mauvais" > .factory.conf; commit_tout
+  verifier "ca20_.factory.conf DOSSIER_TESTS=$etiquette refusé" 64 "^$REFUS" scripts/fin-issue.sh 001-01
+  printf 'DOSSIER_TESTS=tests-bash\n' > .factory.conf; commit_tout
+done
+# Le refus précède le build : un build qui laisserait une trace n'est pas lancé.
+fin_projet "touch '$p/build-lance.txt'; echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
+printf 'DOSSIER_TESTS=../x\n' > .factory.conf; commit_tout
+verifier "ca20_aucun build lancé avant le refus" 64 "^$REFUS" scripts/fin-issue.sh 001-01
+[ ! -e build-lance.txt ] && ok "ca20_build non lancé (aucune trace)" || ko "ca20_build non lancé" "build-lance.txt existe"
+/bin/rm -f build-lance.txt
+git rm -q -f -r tests-bash autre .factory.conf; printf 'args.txt\n' > .gitignore; commit_tout
+fin_projet "echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
 # Plusieurs types de résumé : un seul serait lu, les ignorés ou échecs des autres se perdraient.
 MELANGE='FIN-ISSUE ECHEC : nombre de tests ignorés illisible dans le résumé \(« plusieurs types de résumé'
 M_OK="echo '[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0'"
@@ -1434,7 +1839,9 @@ FIN_ISSUE_ARGUMENTS=
 FIN_ISSUE_IGNORES_AUTORISES=
 AGENTS_SILENCE_MINUTES=5
 AGENTS_RETRAIT_MINUTES=60
-DASHBOARD_THEME=clair" scripts/config-factory.sh
+DASHBOARD_THEME=clair
+TESTS_BASH_FONCTIONS=verifier verdict_cas
+DOSSIER_TESTS=" scripts/config-factory.sh
 verifier "option inconnue = 64 et usage" 64 "^Usage" scripts/config-factory.sh --bidon
 printf 'NOTIFICATION_DESTINATAIRE=commun@example.com\nNOTIFICATION_COMMANDE=sendmail -oi\n' >> .factory.conf; printf 'NOTIFICATION_DESTINATAIRE=\n' > .factory.local.conf
 out="$(scripts/config-factory.sh)"; printf '%s\n' "$out" | grep -qx 'NOTIFICATION_DESTINATAIRE=' && ok "valeur vide dans .factory.local.conf : efface la valeur de .factory.conf (désactivation locale)" || ko "valeur vide locale prioritaire" "$(scripts/config-factory.sh | tr '\n' '|')"
@@ -1657,6 +2064,655 @@ for f in controle longue binaire; do
   [ "$taille" -lt 200 ] && ok "cs03_erreur_bornee_$f : $taille octets" || ko "cs03_erreur_bornee_$f" "$taille octets"
   "$verdict" "$dv/$f.md" 2>&1 >/dev/null | LC_ALL=C grep -q '[^[:print:]]' && ko "cs03_erreur_sans_controle_$f" "caractère de contrôle" || ok "cs03_erreur_sans_controle_$f : aucun caractère de contrôle"
 done
+
+echo "ce dépôt : dossier de tests bash"
+cd "$depot" || exit 1
+lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/tests' && ok "ca21_.factory.conf règle DOSSIER_TESTS=factory/scripts/tests" || ko "ca21_.factory.conf ne règle pas DOSSIER_TESTS=factory/scripts/tests"
+verifier "ca21_criteres-sans-test.sh sur une issue de ce dépôt = OK" 0 "^OK " env -u DOSSIER_TESTS -u FACTORY_DOSSIER_TESTS scripts/criteres-sans-test.sh 002-05
+
+echo "F-05 : documentation, version et cas réunis (CA-22 à CA-24)"
+contient() { grep -qiF -e "$2" <<<"$1"; }     # contient <texte> <chaîne littérale> (sans tenir compte de la casse)
+contient_motif() { grep -qE -e "$2" <<<"$1"; } # contient_motif <texte> <motif grep -E>
+# CA-22 : forme du test bash, deux clés, défauts et priorité, dans les endroits où un utilisateur les cherche.
+# Chaque motif est cherché dans le PASSAGE concerné (de sa phrase d'ancrage à sa fin), jamais dans le fichier entier : un mot présent ailleurs ne suffit pas.
+passage_entete='/^# Forme du test bash/{p=1} /^# Limites connues/{p=0} p'
+passage_puce='/^- \*\*Tests bash\*\*/{p=1; print; next} p && /^  /{print; next} {p=0}'
+passage_commande='/^- `scripts\/criteres-sans-test.sh/{p=1; print; next} p && /^  /{print; next} {p=0}'
+passage_modele='/^# Traçabilité critères -> tests/{p=1} p'
+for ancre in "factory/scripts/criteres-sans-test.sh|$passage_entete" "factory/README.md|$passage_puce" "AGENTS.md|$passage_commande" "factory/templates/AGENTS.md|$passage_commande" "factory/templates/.factory.conf|$passage_modele"; do
+  f="${ancre%%|*}"; doc="$(lire_depot "$depot" "$f" | awk "${ancre#*|}")"
+  verifier "ca22_$f : le passage existe" 0 "" test -n "$doc"
+  for motif in 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'FACTORY_DOSSIER_TESTS' 'verifier "' 'verdict_cas' 'priorité'; do
+    verifier "ca22_$f décrit « $motif »" 0 "" contient "$doc" "$motif"
+  done
+  if [ "$f" = factory/scripts/criteres-sans-test.sh ]; then # l'en-tête précise l'effet d'une valeur vide, différent pour chaque clé
+    verifier "ca22_$f : TESTS_BASH_FONCTIONS vide = invalide" 0 "" contient "$doc" 'une valeur vide (quelle que soit la source) est invalide'
+  fi
+  if [ "$f" = factory/templates/.factory.conf ]; then # le modèle porte aussi les lignes de clés, avec leurs défauts
+    verifier "ca22_$f : ligne de clé DOSSIER_TESTS=" 0 "" contient_motif "$doc" '^DOSSIER_TESTS='
+    verifier "ca22_$f : ligne de clé TESTS_BASH_FONCTIONS=verifier verdict_cas" 0 "" contient_motif "$doc" '^TESTS_BASH_FONCTIONS=verifier verdict_cas$'
+  fi
+done
+# CA-23 : tous les cas de CA-01 à CA-20 et CA-25 figurent dans cette suite, leur nom contient l'identifiant ; variables isolées en tête.
+suite="$(lire_depot "$depot" factory/scripts/tests/run.sh)"
+for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 25; do
+  verifier "ca23_le cas ca${n}_ figure dans run.sh" 0 "" contient_motif "$suite" "^[^#]*[\"']ca${n}_"
+done
+unsets="$(grep -E '^unset ' <<<"$suite")"
+for v in FACTORY_DOSSIER_TESTS FACTORY_TESTS_BASH_FONCTIONS DOSSIER_TESTS; do
+  verifier "ca23_$v isolée de l'environnement appelant" 0 "" contient_motif "$unsets" "(^| )$v( |$)"
+done
+# CA-24 : version 1.21.0, entrée du CHANGELOG (changement et migration), README et guide de mise à jour.
+entree="$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{p = ($0 == "## 1.21.0")} p')" # l'entrée 1.21.0, quelle que soit la version courante
+verifier "ca24_le CHANGELOG a une entrée 1.21.0" 0 "" contient_motif "$(head -n1 <<<"$entree")" '^## 1\.21\.0$'
+for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'Migration : remplacer `factory/`' 'sans action'; do
+  verifier "ca24_entrée 1.21.0 du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
+done
+for f in factory/README.md factory/UPGRADE.md; do
+  doc="$(lire_depot "$depot" "$f")"
+  for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS'; do
+    verifier "ca24_$f mentionne « $motif »" 0 "" contient "$doc" "$motif"
+  done
+done
+
+echo "dashboard.sh et etat-issues.sh : rattachement d'une issue à sa branche par convention (PRD 003)"
+rat_depot() { # rat_depot : dépôt git jetable (branche develop, un commit sans issue), on s'y place ; les issues s'écrivent avec issue_b / rat_issue puis rat_commit
+  p="$(nouveau_projet)"; cd "$p" || exit 1
+  git init -q -b develop .; printf 'dashboard.html\n' > .gitignore; rm -f docs/issues/[0-9]*.md
+}
+rat_issue() { # rat_issue <nom de fichier> <ligne « id: … » ou vide> <statut> <branche> : issue au fichier et à l'identifiant choisis
+  printf -- '---\n%s\ntitre: T%s\nstatut: %s\nbranche: %s\ndepend_de: []\n---\n' "$2" "$1" "$3" "$4" > "docs/issues/$1.md"
+}
+rat_commit() { gd_ add -A; gd_ commit -qm "issues"; }
+rat_page() { scripts/dashboard.sh --sortie "$racine_tmp/rat.html" >"$racine_tmp/rat.out" 2>"$racine_tmp/rat.err"; }
+rat_carte() { carte_de "$1" "$racine_tmp/rat.html"; }
+rat_col() { colonne_de "$1" "$racine_tmp/rat.html"; }
+rat_detail() { rat_carte "$1" | grep -qF "<span class=\"detail\">$2</span>"; } # rat_detail <id> <texte échappé> : la carte porte cette ligne de détail
+rat_sans_mention() { ! rat_carte "$1" | grep -q 'déduite\|ambiguë\|dernier commit'; }
+
+# ca01 : branche déduite quand le champ est vide
+rat_depot
+issue_b 002-02 "À faire" ""; rat_commit
+sur_branche feat/002-02-x 002-02 "Fait" ""
+rat_page
+rat_c() { [ "$(rat_col 002-02)" = "Fait" ] && rat_detail 002-02 "branche : feat/002-02-x (déduite)" && rat_detail 002-02 "dernier commit : $(git log -1 --format='%h' feat/002-02-x) du $(git log -1 --format='%cs' feat/002-02-x)" || { printf '%s\n' "$(rat_col 002-02) | $(rat_carte 002-02)"; return 1; }; }; verifier "ca01_champ vide : la branche feat/002-02-x est déduite (colonne Fait, mention, dernier commit)" 0 "" rat_c
+verifier "ca01_etat-issues : colonne Branche « feat/002-02-x (déduite) », statut local conservé" 0 '^\| 002-02 \| T002-02 \| À faire \| : \| feat/002-02-x \(déduite\) \|$' scripts/etat-issues.sh
+
+# ca02 : tout type de branche
+rat_depot
+n=0; for t in fix docs refactor test build hotfix zz; do n=$((n + 1)); issue_b "003-0$n" "À faire" ""; done
+rat_commit
+n=0; for t in fix docs refactor test build hotfix zz; do n=$((n + 1)); git branch "$t/003-0$n-x"; done
+rat_page
+tout=1; n=0; for t in fix docs refactor test build hotfix zz; do n=$((n + 1)); rat_detail "003-0$n" "branche : $t/003-0$n-x (déduite)" || tout=0; done
+rat_c() { [ "$tout" -eq 1 ] || { printf '%s\n' "$(grep -c 'déduite' "$racine_tmp/rat.html") déduites"; return 1; }; }; verifier "ca02_fix, docs, refactor, test, build, hotfix et zz : chaque branche est rattachée à son issue" 0 "" rat_c
+
+# ca03 : le champ rempli l'emporte ; une branche déclarée par A n'est pas déduite pour B
+rat_depot
+issue_b 002-02 "À faire" "feat/a"; issue_b 002-03 "À faire" "feat/002-04-z"; issue_b 002-04 "À faire" ""; rat_commit
+sur_branche feat/a 002-02 "En cours" "feat/a"; git branch feat/002-02-b; git branch feat/002-04-z
+rat_page
+rat_c() { [ "$(rat_col 002-02)" = "En cours" ] && rat_detail 002-02 "dernier commit : $(git log -1 --format='%h' feat/a) du $(git log -1 --format='%cs' feat/a)" && ! rat_carte 002-02 | grep -q 'déduite\|ambiguë' || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "ca03_champ rempli et existant : feat/a retenue, sans « déduite » ni ambiguïté malgré feat/002-02-b" 0 "" rat_c
+rat_c() { rat_sans_mention 002-04 || { printf '%s\n' "$(rat_carte 002-04)"; return 1; }; }; verifier "ca03_branche déclarée par 002-03 : jamais déduite pour 002-04" 0 "" rat_c
+
+# ca04 : champ rempli invalide ou absent ; branche déduite supprimée
+rat_depot
+n=0; for b in "feat/absente" "-x" "a..b"; do n=$((n + 1)); issue_b "004-0$n" "À faire" "$b"; done
+rat_commit
+n=0; for b in 1 2 3; do n=$((n + 1)); git branch "feat/004-0$n-x"; done
+rat_page; rat_code=$?
+n=0; tout=1; for b in 1 2 3; do n=$((n + 1)); [ "$(rat_col "004-0$n")" = "À faire" ] && rat_sans_mention "004-0$n" || tout=0; done
+rat_c() { [ "$tout" -eq 1 ] && [ ! -s "$racine_tmp/rat.err" ] || { printf '%s\n' "$(rat_carte 004-01) | $(cat "$racine_tmp/rat.err")"; return 1; }; }; verifier "ca04_champ rempli absent ou invalide : statut local, aucune déduction, aucun message" 0 "" rat_c
+rat_depot
+issue_b 002-02 "À faire" ""; rat_commit
+sur_branche feat/002-02-x 002-02 "Fait" ""
+rat_page; premier="$(rat_col 002-02)"
+git update-ref -d refs/heads/feat/002-02-x; rat_page
+rat_c() { [ "$premier" = "Fait" ] && [ "$(rat_col 002-02)" = "À faire" ] && rat_sans_mention 002-02 && [ ! -s "$racine_tmp/rat.err" ] || { printf '%s\n' "$premier | $(rat_col 002-02) | $(cat "$racine_tmp/rat.err")"; return 1; }; }; verifier "ca04_branche déduite supprimée entre deux générations : statut local, sans message" 0 "" rat_c
+
+# ca05 : deux branches pour une issue
+rat_depot
+issue_b 002-02 "À faire" ""; issue_b 002-03 "À faire" ""; rat_commit
+sur_branche fix/002-02-y 002-02 "Fait" ""; sur_branche feat/002-02-x 002-02 "Fait" ""
+git branch feat/002-03-a; git branch feat/002-03-Z
+rat_page
+rat_c() { [ "$(rat_col 002-02)" = "À faire" ] && rat_detail 002-02 "branche ambiguë : feat/002-02-x, fix/002-02-y" && ! rat_carte 002-02 | grep -q 'dernier commit\|déduite' || { printf '%s\n' "$(rat_col 002-02) | $(rat_carte 002-02)"; return 1; }; }; verifier "ca05_deux branches : aucune retenue (statut local, pas de commit), « branche ambiguë : » triée" 0 "" rat_c
+rat_c() { rat_detail 002-03 "branche ambiguë : feat/002-03-Z, feat/002-03-a" || { printf '%s\n' "$(rat_carte 002-03)"; return 1; }; }; verifier "ca05_tri par ordre d'octets (Z avant a)" 0 "" rat_c
+verifier "ca05_etat-issues : colonne Branche « ambiguë : feat/002-02-x, fix/002-02-y » ; Statut local" 0 '^\| 002-02 \| T002-02 \| À faire \| : \| ambiguë : feat/002-02-x, fix/002-02-y \|$' scripts/etat-issues.sh
+
+# ca06 : l'identifiant doit être suivi d'un tiret
+rat_depot
+issue_b 002-1 "À faire" ""; issue_b 002-10 "À faire" ""; rat_commit
+for b in feat/002-10-x feat/002-1 feat/002-1- feat/002-11-x; do git branch "$b"; done
+rat_page
+rat_c() { rat_detail 002-10 "branche : feat/002-10-x (déduite)" && rat_sans_mention 002-1 || { printf '%s\n' "$(rat_carte 002-10) | $(rat_carte 002-1)"; return 1; }; }; verifier "ca06_002-10 reçoit feat/002-10-x seulement ; 002-1 n'a aucune branche (002-1, 002-1-, 002-11-x ignorées)" 0 "" rat_c
+git branch feat/002-1-x; rat_page
+rat_c() { rat_detail 002-1 "branche : feat/002-1-x (déduite)" && rat_detail 002-10 "branche : feat/002-10-x (déduite)" || { printf '%s\n' "$(rat_carte 002-1)"; return 1; }; }; verifier "ca06_feat/002-1-x est celle de 002-1" 0 "" rat_c
+
+# ca07 : forme du nom, branches locales seulement
+rat_depot
+issue_b 002-02 "À faire" ""; rat_commit
+git branch 002-02-x; git branch a/b/002-02-x; git branch refs/tags/002-02-x; git branch feat/002-02-z/y
+git tag feat/002-02-t; git update-ref refs/remotes/origin/feat/002-02-r HEAD
+rat_page
+rat_c() { rat_sans_mention 002-02 || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "ca07_sans type, deux segments, refs/tags/…, étiquette et branche de suivi distant : aucun retenu" 0 "" rat_c
+git branch origin/002-02-x; rat_page
+rat_c() { rat_detail 002-02 "branche : origin/002-02-x (déduite)" || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "ca07_la branche locale origin/002-02-x est retenue (le type est un segment quelconque)" 0 "" rat_c
+
+# ca08 : identifiants inutilisables
+rat_depot
+rat_issue 01-absent "" "À faire" ""; rat_issue 02-vide "id:" "À faire" ""; rat_issue 03-etoile "id: 0*" "À faire" ""; rat_issue 04-point "id: 002.02" "À faire" ""
+rat_issue 05-espace "id: a b" "À faire" ""; rat_issue 06-motif "id: .*" "À faire" ""; rat_issue 07-partage "id: 002-02" "À faire" ""; rat_issue 08-partage "id: 002-02" "À faire" ""; rat_issue 09-hostile "id: a;b" "À faire" ""
+rat_commit
+for b in feat/002-02-x feat/002x02-x feat/0-x "feat/a;b-x"; do git branch "$b"; done
+rat_page; rat_code=$?
+rat_c() { [ "$rat_code" -eq 0 ] && [ "$(grep -c '<div class="carte' "$racine_tmp/rat.html")" -eq 9 ] && [ ! -s "$racine_tmp/rat.err" ] && ! grep -q 'déduite\|ambiguë' "$racine_tmp/rat.html" || { printf '%s\n' "code $rat_code | $(cat "$racine_tmp/rat.err") | $(grep -c 'déduite\|ambiguë' "$racine_tmp/rat.html")"; return 1; }; }; verifier "ca08_id absent, vide, 0*, 002.02, a b, .*, ou partagé : aucune déduction, ni erreur ni message, page générée" 0 "" rat_c
+verifier "ca08_etat-issues : aucune déduction pour ces identifiants, sans erreur (9 issues)" 0 "" scripts/etat-issues.sh
+rat_c() { [ "$(scripts/etat-issues.sh | grep -c '^| ')" -eq 10 ] && ! scripts/etat-issues.sh | grep -q 'déduite\|ambiguë' || { printf '%s\n' "$(scripts/etat-issues.sh | head -12 | tr '\n' '|')"; return 1; }; }; verifier "ca08_etat-issues : colonne Branche vide pour ces identifiants" 0 "" rat_c
+
+# ca09 : l'identifiant le plus long l'emporte
+rat_depot
+rat_issue 01-courte "id: 002-01" "À faire" ""; rat_issue 02-longue "id: 002-01-b" "À faire" ""; rat_commit # la courte vient en premier : un choix « premier trouvé » échouerait
+git branch feat/002-01-b-x; rat_page
+rat_c() { rat_detail 002-01-b "branche : feat/002-01-b-x (déduite)" && rat_sans_mention 002-01 || { printf '%s\n' "$(rat_carte 002-01-b) | $(rat_carte 002-01)"; return 1; }; }; verifier "ca09_feat/002-01-b-x est celle de 002-01-b seulement (002-01 sans branche, pas d'ambiguïté)" 0 "" rat_c
+git branch feat/002-01-x; rat_page
+rat_c() { rat_detail 002-01 "branche : feat/002-01-x (déduite)" && rat_detail 002-01-b "branche : feat/002-01-b-x (déduite)" || { printf '%s\n' "$(rat_carte 002-01)"; return 1; }; }; verifier "ca09_feat/002-01-x reste celle de 002-01" 0 "" rat_c
+
+# cs03 : un nom n'est jamais lu comme option, révision ou étiquette
+rat_depot
+printf 'a\n' > a.txt; gd_ add -A; gd_ commit -qm "un"; printf 'b\n' > b.txt; gd_ add -A; gd_ commit -qm "deux"
+git tag tg-seul
+n=0; for b in "-x" "--help" "HEAD" 'develop^' "main..develop" '@{1}' "tg-seul"; do n=$((n + 1)); issue_b "005-0$n" "À faire" "$b"; done
+issue_b 002-02 "À faire" ""; rat_commit
+rat_page
+tout=1; n=0; for b in 1 2 3 4 5 6 7; do n=$((n + 1)); [ "$(rat_col "005-0$n")" = "À faire" ] && rat_sans_mention "005-0$n" || tout=0; done
+rat_c() { [ "$tout" -eq 1 ] || { printf '%s\n' "$(rat_carte 005-03)"; return 1; }; }; verifier "cs03_branche: -x, --help, HEAD, develop^, main..develop, @{1}, étiquette seule : statut local, aucune branche retenue" 0 "" rat_c
+anc="$(git rev-parse HEAD~1)"; git tag feat/002-02-x "$anc"; git branch feat/002-02-x HEAD 2>/dev/null; rat_page
+rat_c() { rat_detail 002-02 "dernier commit : $(git log -1 --format='%h' refs/heads/feat/002-02-x) du $(git log -1 --format='%cs' refs/heads/feat/002-02-x)" || { printf '%s\n' "$(rat_carte 002-02)"; return 1; }; }; verifier "cs03_étiquette et branche de même nom : c'est la branche qui est lue" 0 "" rat_c
+
+# cs05 : 500 branches, une trop longue
+rat_depot
+n=0; while [ "$n" -lt 12 ]; do n=$((n + 1)); issue_b "$(printf '006-%02d' "$n")" "À faire" ""; done
+rat_commit
+sha="$(git rev-parse HEAD)"; remplissage="$(printf 'a%.0s' $(seq 1 190))"
+{
+  printf '# pack-refs with: peeled fully-peeled \n'
+  n=0; while [ "$n" -lt 10 ]; do n=$((n + 1)); printf '%s refs/heads/feat/006-%02d-x\n' "$sha" "$n"; done
+  printf '%s refs/heads/feat/006-11-%s\n' "$sha" "$(printf '%s' "$remplissage" | cut -c1-188)"
+  printf '%s refs/heads/feat/006-12-%s\n' "$sha" "$(printf '%s' "$remplissage" | cut -c1-189)"
+  n=0; while [ "$n" -lt 488 ]; do n=$((n + 1)); printf '%s refs/heads/zz/remplissage-%d\n' "$sha" "$n"; done
+} > .git/packed-refs
+rat_c() { [ "$(git for-each-ref refs/heads | wc -l | tr -d ' ')" -ge 500 ] && [ "$(git for-each-ref --format='%(refname:short)' refs/heads/feat/006-11-* refs/heads/feat/006-12-* | awk '{ print length($0) }' | paste -sd, -)" = "200,201" ] || { printf '%s\n' "$(git for-each-ref refs/heads | wc -l)"; return 1; }; }; verifier "cs05_fixture : au moins 500 branches, dont deux noms de 200 et 201 caractères" 0 "" rat_c
+mkdir -p "$racine_tmp/bin-compte"; printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$COMPTE_GIT"\nexec "%s" "$@"\n' "$(command -v git)" > "$racine_tmp/bin-compte/git"; chmod +x "$racine_tmp/bin-compte/git"
+export COMPTE_GIT="$racine_tmp/compte-git.log"; : > "$COMPTE_GIT"
+PATH="$racine_tmp/bin-compte:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/rat.html" >"$racine_tmp/rat.out" 2>"$racine_tmp/rat.err"; rat_code=$?
+rat_c() { [ "$rat_code" -eq 0 ] && [ -s "$racine_tmp/rat.html" ] && [ "$(grep -c 'déduite' "$racine_tmp/rat.html")" -eq 11 ] && rat_sans_mention 006-12 && rat_detail 006-11 "branche : feat/006-11-$(printf '%s' "$remplissage" | cut -c1-188) (déduite)" || { printf '%s\n' "code $rat_code | $(grep -c 'déduite' "$racine_tmp/rat.html") déduites"; return 1; }; }; verifier "cs05_500 branches : page produite, la branche de 200 caractères est déduite, celle de 201 est ignorée" 0 "" rat_c
+: > "$COMPTE_GIT"; PATH="$racine_tmp/bin-compte:$PATH" scripts/etat-issues.sh >/dev/null 2>&1
+rat_c() { [ "$(grep -c 'for-each-ref' "$COMPTE_GIT")" -eq 1 ] || { printf '%s\n' "$(grep -c 'for-each-ref' "$COMPTE_GIT") listages"; return 1; }; }; verifier "cs05_le listage des branches locales est unique par exécution (etat-issues.sh, 500 branches, 12 issues)" 0 "" rat_c
+unset COMPTE_GIT
+
+echo "dashboard.sh et etat-issues.sh : statut effectif, dépendance levée et prochaine issue prête (PRD 003, issue 003-02)"
+se_branche_ajout() { # se_branche_ajout <branche existante> <id> <statut> <branche de l'en-tête> : ajoute l'issue sur une branche qui existe déjà
+  git worktree add -q "$racine_tmp/wt-aj-$2" "$1" >/dev/null 2>&1
+  DOSSIER_B="$racine_tmp/wt-aj-$2/docs/issues" issue_b "$2" "$3" "$4"
+  gd_ -C "$racine_tmp/wt-aj-$2" add -A; gd_ -C "$racine_tmp/wt-aj-$2" commit -qm "ajout $2"
+  git worktree remove --force "$racine_tmp/wt-aj-$2"
+}
+se_lignes() { # se_lignes <ids...> : colonne de chaque issue, « id=colonne », sur une ligne
+  local i; for i in "$@"; do printf '%s=%s ' "$i" "$(rat_col "$i")"; done
+}
+
+# ca10 : le statut effectif, branche déclarée ou déduite
+rat_depot
+issue_b 010-01 "À faire" "feat/a"; issue_b 010-02 "À faire" ""; issue_b 010-03 "Fait" ""; issue_b 010-04 "À faire" ""
+issue_b 010-05 "À faire" ""; issue_b 010-06 "À faire" ""; issue_b 010-07 "À faire" ""; issue_b 010-08 "Abandonnée" ""
+rat_commit
+sur_branche feat/a 010-01 "En cours" "feat/a"; sur_branche feat/010-02-x 010-02 "En revue" ""; sur_branche feat/010-03-x 010-03 "À faire" ""
+git branch feat/010-04-x; git worktree add -q "$racine_tmp/wt-se4" feat/010-04-x >/dev/null 2>&1; git -C "$racine_tmp/wt-se4" rm -q docs/issues/010-04-x.md; gd_ -C "$racine_tmp/wt-se4" commit -qm retire; git worktree remove --force "$racine_tmp/wt-se4"
+sur_branche feat/010-05-x 010-05 "Abandonnée" ""; sur_branche feat/010-06-x 010-06 "Texte libre" ""; sur_branche feat/010-07-x 010-07 "" ""; sur_branche feat/010-08-x 010-08 "Fait" ""
+rat_page
+rat_c() { [ "$(se_lignes 010-01 010-02)" = "010-01=En cours 010-02=En revue " ] || { se_lignes 010-01 010-02; return 1; }; }; verifier "ca10_le plus avancé du local et de la branche, branche déclarée (010-01) ou déduite (010-02)" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-03)" = "010-03=Fait " ] || { se_lignes 010-03; return 1; }; }; verifier "ca10_branche en retard (local Fait, branche À faire) : le local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-04)" = "010-04=À faire " ] || { se_lignes 010-04; return 1; }; }; verifier "ca10_fichier d'issue absent sur la branche : le local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-05 010-06 010-07)" = "010-05=À faire 010-06=À faire 010-07=À faire " ] || { se_lignes 010-05 010-06 010-07; return 1; }; }; verifier "ca10_statut de la branche hors cycle (Abandonnée, texte libre, vide) : le local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 010-08)" = "010-08=(autre) " ] || { se_lignes 010-08; return 1; }; }; verifier "ca10_statut local hors cycle : le local, même si la branche est Fait" 0 "" rat_c
+
+# ca11, ca13, ca14 : dépendance levée sur branche, mention « empilée sur », prochaine issue prête
+rat_depot
+issue_b 002-03 "À faire" "feat/shared"; issue_b 002-04 "Fait" ""; issue_b 002-05 "À faire" ""
+issue_b 002-06 "À faire" "" "002-05"; issue_b 002-07 "À faire" "" "002-05, 002-03"; issue_b 002-08 "À faire" "" "002-04"
+issue_b 002-09 "À faire" "feat/shared"; issue_b 002-10 "À faire" "" "002-03, 002-09"
+rat_commit
+sur_branche feat/shared 002-03 "Fait" "feat/shared"; se_branche_ajout feat/shared 002-09 "Fait" "feat/shared"; sur_branche feat/002-05-x 002-05 "Fait" ""
+rat_page
+se_empilee() { rat_carte "$1" | grep -qF "<span class=\"marqueur marqueur-empilee\">empilée sur $2</span>" && ! rat_carte "$1" | grep -q 'bloquée'; }
+rat_c() { se_empilee 002-06 feat/002-05-x || { rat_carte 002-06; return 1; }; }; verifier "ca11_dépendance Fait sur sa branche déduite : « empilée sur feat/002-05-x », pas bloquée" 0 "" rat_c
+rat_c() { se_empilee 002-07 "feat/002-05-x, feat/shared" || { rat_carte 002-07; return 1; }; }; verifier "ca11_deux dépendances sur branche (déduite puis déclarée) : branches séparées par « , », ordre des dépendances" 0 "" rat_c
+rat_c() { se_empilee 002-10 feat/shared || { rat_carte 002-10; return 1; }; }; verifier "ca11_deux dépendances sur la même branche déclarée : nom sans doublon" 0 "" rat_c
+rat_c() { ! rat_carte 002-08 | grep -q 'empilée\|bloquée' || { rat_carte 002-08; return 1; }; }; verifier "ca11_toutes les dépendances Fait en local : ni empilée ni bloquée" 0 "" rat_c
+verifier_exact "ca13_etat-issues --prochaine : première issue À faire dont toutes les dépendances sont levées (002-06), code 0" 0 "002-06" scripts/etat-issues.sh --prochaine
+rat_c() { [ "$(grep -o 'Prochaine issue prête : <strong>[^<]*' "$racine_tmp/rat.html" | sed 's/.*<strong>//')" = "$(scripts/etat-issues.sh --prochaine)" ] && rat_carte 002-06 | grep -q 'class="carte prochaine' && [ "$(grep -c 'class="carte prochaine' "$racine_tmp/rat.html")" -eq 1 ] || { grep -o 'Prochaine issue prête[^/]*' "$racine_tmp/rat.html"; return 1; }; }; verifier "ca14_dashboard : ligne « Prochaine issue prête » et carte marquée = etat-issues.sh --prochaine" 0 "" rat_c
+
+# ca12, ca13, ca14 : dépendances non levées
+rat_depot
+issue_b 004-01 "À faire" "" "999-99"; issue_b 004-02 "En cours" ""; issue_b 004-03 "En revue" ""; issue_b 004-04 "Abandonnée" ""
+issue_b 004-05 "À faire" "" "999-99"; issue_b 004-06 "À faire" ""
+issue_b 004-11 "À faire" "" "004-01"; issue_b 004-12 "À faire" "" "004-02"; issue_b 004-13 "À faire" "" "004-03"; issue_b 004-14 "À faire" "" "004-04"
+issue_b 004-15 "À faire" "" "999-98"; issue_b 004-16 "À faire" "" "004-05"; issue_b 004-17 "À faire" "" "004-06, 004-02"
+rat_commit
+sur_branche feat/004-05-a 004-05 "Fait" ""; sur_branche fix/004-05-b 004-05 "Fait" ""; sur_branche feat/004-06-x 004-06 "Fait" ""
+rat_page
+tout=1; for n in 11 12 13 14 15 16 17; do rat_carte "004-$n" | grep -q 'marqueur-bloquee' && ! rat_carte "004-$n" | grep -q 'empilée' || { tout=0; rat_carte "004-$n"; }; done
+rat_c() { [ "$tout" -eq 1 ] || return 1; }; verifier "ca12_dépendance À faire, En cours, En revue, hors cycle, inexistante ou Fait mais ambiguë : bloquée, jamais empilée" 0 "" rat_c
+rat_c() { rat_carte 004-17 | grep -q 'marqueur-bloquee' && ! rat_carte 004-17 | grep -q 'empilée'; }; verifier "ca12_deux dépendances dont une seule levée : bloquée" 0 "" rat_c
+verifier_exact "ca13_etat-issues --prochaine sans issue prête : code 1 et rien affiché" 1 "" scripts/etat-issues.sh --prochaine
+rat_c() { grep -qF 'Aucune issue prête.' "$racine_tmp/rat.html" && [ "$(grep -c 'class="carte prochaine' "$racine_tmp/rat.html")" -eq 0 ]; }; verifier "ca14_dashboard : « Aucune issue prête. » et aucune carte marquée quand etat-issues.sh rend le code 1" 0 "" rat_c
+
+# ca15 : tableau d'etat-issues, colonne Branche enrichie, statut local
+rat_depot
+issue_b 005-01 "À faire" ""; issue_b 005-02 "À faire" "feat/decl"; issue_b 005-03 "À faire" ""; issue_b 005-04 "À faire" ""; issue_b 005-05 "Fait" ""
+rat_commit
+sur_branche feat/005-01-x 005-01 "Fait" ""; sur_branche feat/decl 005-02 "Fait" "feat/decl"; git branch feat/005-03-a; git branch fix/005-03-b
+tableau="$(scripts/etat-issues.sh)"
+rat_c() { [ "$tableau" = "| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 005-01 | T005-01 | À faire | : | feat/005-01-x (déduite) |
+| 005-02 | T005-02 | À faire | : | feat/decl |
+| 005-03 | T005-03 | À faire | : | ambiguë : feat/005-03-a, fix/005-03-b |
+| 005-04 | T005-04 | À faire | : |  |
+| 005-05 | T005-05 | Fait | : |  |" ] || { printf '%s\n' "$tableau"; return 1; }; }; verifier "ca15_branche déduite, déclarée, ambiguë, sans branche : colonne Branche enrichie, Statut local, mêmes colonnes" 0 "" rat_c
+rat_c() { [ "$(scripts/etat-issues.sh --statut "À faire" | grep -c '^| 005-')" -eq 4 ] && [ "$(scripts/etat-issues.sh --statut Fait | grep -c '^| 005-')" -eq 1 ] && scripts/etat-issues.sh --statut Fait | grep -q '^| 005-05 '; }; verifier "ca15_le filtre --statut reste sur le statut local (005-01, Fait sur sa branche, reste À faire)" 0 "" rat_c
+
+# cs06 : fichier d'issue sur la branche : lien symbolique, très grand, sans « --- »
+rat_depot
+mkdir -p "$racine_tmp/hors-depot"; printf -- '---\nid: 006-01\ntitre: LECTURE-EXTERIEURE\nstatut: Fait\n---\n' > "$racine_tmp/hors-depot/ext.md"
+issue_b 006-01 "À faire" ""; issue_b 006-02 "À faire" ""; issue_b 006-03 "À faire" ""; issue_b 006-04 "À faire" ""; issue_b 006-05 "À faire" ""
+issue_b 006-11 "À faire" "" "006-01"
+rat_commit
+sur_branche feat/006-01-x 006-01 "Fait" ""; git worktree add -q "$racine_tmp/wt-ln" feat/006-01-x >/dev/null 2>&1
+rm "$racine_tmp/wt-ln/docs/issues/006-01-x.md"; ln -s "$racine_tmp/hors-depot/ext.md" "$racine_tmp/wt-ln/docs/issues/006-01-x.md"; gd_ -C "$racine_tmp/wt-ln" add -A; gd_ -C "$racine_tmp/wt-ln" commit -qm lien; git worktree remove --force "$racine_tmp/wt-ln"
+se_entete="$(printf -- '---\nid: 006-0%s\ntitre: T006-0%s\nbesoin: F-01\nstatut: Fait\nbranche: \ndepend_de: []\n---\n' 2 2)"
+git branch feat/006-02-x; git worktree add -q "$racine_tmp/wt-gr" feat/006-02-x >/dev/null 2>&1
+{ printf '%s\n' "$se_entete"; head -c 2000000 /dev/zero | tr '\0' 'a'; } > "$racine_tmp/wt-gr/docs/issues/006-02-x.md"; gd_ -C "$racine_tmp/wt-gr" add -A; gd_ -C "$racine_tmp/wt-gr" commit -qm grand; git worktree remove --force "$racine_tmp/wt-gr"
+git branch feat/006-03-x; git worktree add -q "$racine_tmp/wt-sg" feat/006-03-x >/dev/null 2>&1
+printf 'id: 006-03\nstatut: Fait\nbranche: \n' > "$racine_tmp/wt-sg/docs/issues/006-03-x.md"; gd_ -C "$racine_tmp/wt-sg" add -A; gd_ -C "$racine_tmp/wt-sg" commit -qm sans-tirets; git worktree remove --force "$racine_tmp/wt-sg"
+# bornes : un fichier d'exactement 65536 octets est lu, 65537 octets est écarté
+se_taille() { # se_taille <id> <octets> : écrit sur la branche feat/006-0N-x un fichier « Fait » de cette taille exacte
+  git branch "feat/$1-x"; git worktree add -q "$racine_tmp/wt-t$1" "feat/$1-x" >/dev/null 2>&1
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: Fait\nbranche: \ndepend_de: []\n---\n' "$1" "$1" > "$racine_tmp/wt-t$1/docs/issues/$1-x.md"
+  head -c $(( $2 - $(wc -c < "$racine_tmp/wt-t$1/docs/issues/$1-x.md") )) /dev/zero | tr '\0' 'a' >> "$racine_tmp/wt-t$1/docs/issues/$1-x.md"
+  gd_ -C "$racine_tmp/wt-t$1" add -A; gd_ -C "$racine_tmp/wt-t$1" commit -qm taille; git worktree remove --force "$racine_tmp/wt-t$1"
+}
+se_taille 006-04 65536; se_taille 006-05 65537
+rat_page; rat_code=$?
+rat_c() { [ "$rat_code" -eq 0 ] && [ "$(se_lignes 006-01)" = "006-01=À faire " ] && ! grep -q 'LECTURE-EXTERIEURE' "$racine_tmp/rat.html" || { se_lignes 006-01; return 1; }; }; verifier "cs06_lien symbolique vers un fichier hors dépôt contenant statut: Fait : statut local, contenu ciblé absent de la page" 0 "" rat_c
+rat_c() { [ "$(git show feat/006-01-x:docs/issues/006-01-x.md)" = "$racine_tmp/hors-depot/ext.md" ]; }; verifier "cs06_fixture : git show d'un blob lié rend le chemin cible, jamais le contenu" 0 "" rat_c
+rat_c() { [ "$(se_lignes 006-02)" = "006-02=À faire " ]; }; verifier "cs06_fichier de 2 Mo dont l'en-tête dit Fait : statut local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 006-03)" = "006-03=À faire " ]; }; verifier "cs06_en-tête sans « --- » : statut local" 0 "" rat_c
+rat_c() { [ "$(se_lignes 006-04 006-05)" = "006-04=Fait 006-05=À faire " ] || { se_lignes 006-04 006-05; return 1; }; }; verifier "cs06_borne : 65536 octets lus, 65537 octets écartés" 0 "" rat_c
+rat_c() { rat_carte 006-11 | grep -q 'marqueur-bloquee' && ! rat_carte 006-11 | grep -q 'empilée'; }; verifier "cs06_dépendance sur l'issue au lien symbolique : reste bloquée" 0 "" rat_c
+verifier_exact "cs06_etat-issues --prochaine : 006-01 (lien symbolique, statut local À faire) est prête, 006-11 qui en dépend ne l'est pas" 0 "006-01" scripts/etat-issues.sh --prochaine
+
+echo "dashboard.sh : signaux de worktree et sorties sûres pour une branche déduite (PRD 003, issue 003-03)"
+sw_worktree() { # sw_worktree <nom court> <branche> : worktree sur cette branche (créée depuis HEAD si elle n'existe pas)
+  git worktree add -q "$racine_tmp/wt-sw-$1" "$2" >/dev/null 2>&1 || git worktree add -q "$racine_tmp/wt-sw-$1" -b "$2" >/dev/null 2>&1
+}
+sw_autres() { awk '/<section id="autres-travaux">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "$racine_tmp/rat.html"; }
+sw_encours() { awk '/<section id="en-cours">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "$racine_tmp/rat.html"; }
+
+# ca21, ca22 : worktrees d'une branche déduite, d'une branche ambiguë et d'un travail sans issue
+rat_depot
+issue_b 031-01 "En cours" ""; issue_b 031-02 "En cours" ""; issue_b 031-03 "En cours" "feat/decl"
+rat_commit
+sw_worktree d1 feat/031-01-x; sw_worktree a1 feat/031-02-a; sw_worktree a2 fix/031-02-b; sw_worktree zz feat/zz-autre; sw_worktree dc feat/decl; sw_worktree mn main
+printf 'a\n' > "$racine_tmp/wt-sw-d1/a.txt"; printf 'b\n' > "$racine_tmp/wt-sw-d1/b.txt"
+printf 'a\n' > "$racine_tmp/wt-sw-a1/a.txt"
+rat_page
+rat_c() { sw_autres | grep -qF '<strong>feat/zz-autre</strong>' && ! sw_autres | grep -qF 'feat/031-01-x' && ! sw_autres | grep -qF 'feat/decl' && ! sw_autres | grep -qF '<strong>develop</strong>' && ! sw_autres | grep -qF '<strong>main</strong>'; }; verifier "ca21_Autres travaux : la branche déduite (et la déclarée) n'y figure plus, develop et main restent exclus, un travail sans issue y reste" 0 "" rat_c
+rat_c() { sw_autres | grep -qF '<strong>feat/031-02-a</strong>' && sw_autres | grep -qF '<strong>fix/031-02-b</strong>'; }; verifier "ca21_Autres travaux : une branche ambiguë portée par un worktree y figure" 0 "" rat_c
+rat_c() { rat_carte 031-01 | grep -qF '<span class="detail signal">2 fichiers non commités · activité il y a moins d'"'"'1 min</span>' && sw_encours | grep -F '031-01' | grep -qF '<span class="signal">2 fichiers non commités · activité il y a moins d'"'"'1 min</span>'; }; verifier "ca22_branche déduite : la carte et l'encart En cours affichent le signal du worktree" 0 "" rat_c
+rat_c() { ! rat_carte 031-02 | grep -q 'signal' && ! sw_encours | grep -F '031-02' | grep -q 'signal'; }; verifier "ca22_branche ambiguë : aucun signal sur la carte ni dans l'encart En cours" 0 "" rat_c
+
+# cs01, cs02, cs04 : noms de branche et identifiants hostiles (HTML, commandes), puis dépôt intact. Aucune commande du contenu ne doit créer « marque ».
+rat_depot
+HB1='feat/034-01-<img-src=x-onerror=alert(1)>'; HB2a='feat/034-02-"><script>alert(1)<script>'; HB2b="fix/034-02-&amp;'"; HB4='feat/<b>x&y'"'"'</b>'; HZZ='zz/<i>"q"&'
+C1='feat/035-01-$(touch${IFS}marque)'; C2='feat/035-02-;touch${IFS}marque'; C3='feat/035-03-`touch${IFS}marque`'; C4='feat/035-04-|a&&b'
+issue_b 034-01 "À faire" ""; issue_b 034-02 "En cours" ""; issue_b 034-03 "À faire" "" "034-01"; issue_b 034-04 "À faire" "$HB4"
+issue_b 035-01 "À faire" ""; issue_b 035-02 "À faire" ""; issue_b 035-03 "À faire" ""; issue_b 035-04 "À faire" ""
+issue_b 'a;b' "À faire" ""; issue_b '$(touch${IFS}marque)' "À faire" ""
+rat_commit
+sur_branche "$HB1" 034-01 "Fait" ""; git branch "$HB2a"; git branch "$HB2b"; sur_branche "$HB4" 034-04 "En cours" "$HB4"
+sur_branche "$C1" 035-01 "Fait" ""; sur_branche "$C2" 035-02 "Fait" ""; sur_branche "$C3" 035-03 "Fait" ""; sur_branche "$C4" 035-04 "Fait" ""
+git branch 'feat/a;b-x'; git branch 'feat/$(touch${IFS}marque)-x'
+n=0; for b in "$HB1" "$HB2a" "$HB2b" "$HB4" "$HZZ" "$C1" "$C2" "$C3" "$C4"; do n=$((n + 1)); sw_worktree "h$n" "$b"; printf 'x\n' > "$racine_tmp/wt-sw-h$n/nouveau.txt"; done
+touch -t "$(date_t $(( $(date +%s) + 60 )))" f-develop.txt 2>/dev/null; touch -t "$(date_t $(( $(date +%s) + 60 )))" .gitignore "$racine_tmp/wt-sw-h1/docs/issues/034-01-x.md" # index périmé : un git status ordinaire le réécrirait
+cd "$racine_tmp" && rm -rf marque; cd - >/dev/null || exit 1
+sw_instantane() { # sw_instantane : empreinte de tout ce qui peut changer (dépôt .git entier, arbres de travail, liste des worktrees, refs, index)
+  { git for-each-ref; git worktree list --porcelain; git ls-files -s
+    find .git "$racine_tmp"/wt-sw-* -type f ! -name '*.html' -print0 2>/dev/null | sort -z | xargs -0 cksum
+    find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 cksum; } 2>&1 | cksum
+}
+sw_avant="$(sw_instantane)"; sw_index_avant="$(cksum < .git/index)"
+rat_page; rat_code=$?
+cs_tableau="$(scripts/etat-issues.sh 2>&1)"; cs_code_t=$?; cs_prochaine="$(scripts/etat-issues.sh --prochaine 2>&1)"; scripts/etat-issues.sh --statut "À faire" >/dev/null 2>&1
+sw_apres="$(sw_instantane)"
+rat_c() { [ "$rat_code" -eq 0 ] && [ -s "$racine_tmp/rat.html" ] && ! grep -qF '<img' "$racine_tmp/rat.html" && ! grep -qF '<script' "$racine_tmp/rat.html" && ! grep -qF '<b>' "$racine_tmp/rat.html" && ! grep -qF '</b>' "$racine_tmp/rat.html" && ! grep -qF '<i>' "$racine_tmp/rat.html" && ! grep -qF "&amp;'" "$racine_tmp/rat.html" || { printf 'code %s\n' "$rat_code"; return 1; }; }; verifier "cs01_aucune balise issue d'un nom de branche n'apparaît brute dans la page" 0 "" rat_c
+rat_c() { rat_carte 034-01 | grep -qF '<span class="detail">branche : feat/034-01-&lt;img-src=x-onerror=alert(1)&gt; (déduite)</span>'; }; verifier "cs01_branche déduite hostile : échappée dans la mention de la carte" 0 "" rat_c
+rat_c() { rat_carte 034-02 | grep -qF '<span class="detail">branche ambiguë : feat/034-02-&quot;&gt;&lt;script&gt;alert(1)&lt;script&gt;, fix/034-02-&amp;amp;&#39;</span>'; }; verifier "cs01_branches ambiguës hostiles : échappées, triées par ordre d'octets" 0 "" rat_c
+rat_c() { rat_carte 034-03 | grep -qF '<span class="marqueur marqueur-empilee">empilée sur feat/034-01-&lt;img-src=x-onerror=alert(1)&gt;</span>'; }; verifier "cs01_empilée sur une branche hostile : échappée dans le marqueur" 0 "" rat_c
+rat_c() { sw_autres | grep -qF '<li><strong>zz/&lt;i&gt;&quot;q&quot;&amp;</strong> ' && sw_autres | grep -qF '<li><strong>feat/034-02-&quot;&gt;&lt;script&gt;alert(1)&lt;script&gt;</strong> ' && sw_autres | grep -qF "<li><strong>fix/034-02-&amp;amp;&#39;</strong> " && ! sw_autres | grep -qF 'x&amp;y'; }; verifier "cs01_Autres travaux : noms hostiles échappés (branche non retenue, ambiguë), branche déclarée hostile absente" 0 "" rat_c
+rat_c() { [ ! -e "$racine_tmp/marque" ] && [ ! -e marque ] && [ -z "$(find "$racine_tmp" -name marque -print -quit)" ]; }; verifier "cs02_noms et identifiants \$(…), ;, backtick, | : le dashboard n'exécute rien (aucun fichier « marque »)" 0 "" rat_c
+rat_c() { [ "$cs_code_t" -eq 0 ] && [ ! -e marque ] && [ -z "$(find "$racine_tmp" -name marque -print -quit)" ] && printf '%s\n' "$cs_tableau" | grep -qF '| feat/035-01-$(touch${IFS}marque) (déduite) |' && printf '%s\n' "$cs_tableau" | grep -qF '| feat/035-02-;touch${IFS}marque (déduite) |' && printf '%s\n' "$cs_tableau" | grep -qF '| feat/035-04-|a&&b (déduite) |' && [ "$cs_prochaine" = 034-03 ] || { printf '%s\n' "$cs_tableau" "$cs_prochaine"; return 1; }; }; verifier "cs02_etat-issues.sh : rien n'est exécuté, les noms valides sont affichés comme du texte" 0 "" rat_c
+rat_c() { rat_carte 035-01 | grep -qF 'branche : feat/035-01-$(touch${IFS}marque) (déduite)' && rat_carte 035-02 | grep -qF 'branche : feat/035-02-;touch${IFS}marque (déduite)' && rat_carte 035-03 | grep -qF 'branche : feat/035-03-`touch${IFS}marque` (déduite)' && rat_carte 035-04 | grep -qF 'branche : feat/035-04-|a&amp;&amp;b (déduite)' && ! rat_carte 'a;b' | grep -q 'déduite' && [ "$(rat_col 035-01)" = "Fait" ]; }; verifier "cs02_noms valides traités comme du texte dans la page (statut lu sur la branche compris) ; identifiants hostiles sans déduction" 0 "" rat_c
+rat_c() { [ "$sw_apres" = "$sw_avant" ] && [ "$(cksum < .git/index)" = "$sw_index_avant" ] && [ -z "$(find .git "$racine_tmp"/wt-sw-* -name '*.lock' -print -quit 2>/dev/null)" ]; }; verifier "cs04_refs, index, arbres de travail et liste des worktrees identiques avant et après (dashboard et etat-issues.sh), aucun verrou" 0 "" rat_c
+
+echo "dashboard.sh : avancement des besoins et alerte de divergence (PRD 003, issue 003-04)"
+av_issue() { # av_issue <id> <besoin> <statut> [branche] : issue rattachée au besoin donné (vide = aucune)
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nstatut: %s\nbranche: %s\ndepend_de: []\n---\n' "$1" "$1" "$2" "$3" "${4:-}" > "docs/issues/$1-x.md"
+}
+av_backlog() { # av_backlog <statuts « id=statut »...> : backlog.md aux besoins donnés
+  local b; { printf '# Backlog\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|\n'
+  for b in "$@"; do printf '| %s | Besoin %s | P1 | %s | | |\n' "${b%%=*}" "${b%%=*}" "${b#*=}"; done; } > backlog.md
+}
+av_col() { awk -v id="<strong>$1</strong>" '/<section id="besoins"/ { s = 1 } /<section id="issues"/ { s = 0 } s && /<h3/ { c = $0; sub(/<\/h3>.*/, "", c); sub(/.*>/, "", c); sub(/ \([0-9]+\)$/, "", c) } s && /class="carte/ && index($0, id) { print c; exit }' "$racine_tmp/rat.html"; }
+av_detail() { rat_carte "$1" | grep -qF "<span class=\"detail\">$2</span>"; } # av_detail <besoin> <texte échappé>
+av_sans_avancement() { ! rat_carte "$1" | grep -q 'Fait\|à vérifier'; }
+
+# ca16 : compte par statut effectif
+rat_depot
+av_backlog "F-05=En cours" "F-06=À faire" "F-07=En revue" "F-08=En cours" "F-09=En cours"
+for n in 1 2 3 4; do av_issue "005-0$n" F-05 "Fait"; done
+av_issue 005-05 F-05 "À faire"; av_issue 005-06 F-05 "En cours"
+av_issue 006-01 F-06 "À faire"; av_issue 006-02 F-06 "À faire"
+av_issue 007-01 F-07 "En revue"; av_issue 007-02 F-07 "Fait"; av_issue 007-03 F-07 "Abandonnée"
+av_issue 008-01 F-08 "Zeta"; av_issue 008-02 F-08 "Abandonnée"; av_issue 008-03 F-08 "À faire"; av_issue 008-04 F-08 "Zeta"
+av_issue 009-01 F-09 "<i>x</i>"
+rat_commit
+sur_branche feat/005-05-x 005-05 "Fait" ""
+rat_page
+rat_c() { av_detail F-05 "5/6 Fait · 1 En cours" || { rat_carte F-05; return 1; }; }; verifier "ca16_5 Fait sur 6 dont un Fait seulement sur sa branche, 1 En cours : « 5/6 Fait · 1 En cours »" 0 "" rat_c
+rat_c() { av_detail F-06 "0/2 Fait · 2 À faire" || { rat_carte F-06; return 1; }; }; verifier "ca16_2 À faire : « 0/2 Fait · 2 À faire »" 0 "" rat_c
+rat_c() { av_detail F-07 "1/3 Fait · 1 En revue · 1 Abandonnée" || { rat_carte F-07; return 1; }; }; verifier "ca16_En revue, Fait et Abandonnée : cycle d'abord, statut hors cycle ensuite" 0 "" rat_c
+rat_c() { av_detail F-08 "0/4 Fait · 1 À faire · 2 Zeta · 1 Abandonnée" || { rat_carte F-08; return 1; }; }; verifier "ca16_statuts hors cycle dans l'ordre d'apparition, à zéro omis" 0 "" rat_c
+rat_c() { av_detail F-09 "0/1 Fait · 1 &lt;i&gt;x&lt;/i&gt;" && ! rat_carte F-09 | grep -qF '<i>'; }; verifier "ca16_statut hostile échappé dans le compte" 0 "" rat_c
+
+# ca17 : besoin sans issue, issue orpheline, identifiants voisins
+rat_depot
+av_backlog "F-01=Fait" "F-1=En cours" "F-10=À faire" "F-02=En cours"
+av_issue 001-01 F-1 "Fait"; av_issue 001-02 F-10 "À faire"; av_issue 001-03 F-10 "À faire"; av_issue 001-04 "" "Fait"; av_issue 001-05 F-99 "Fait"
+rat_commit
+rat_page; rat_code=$?
+rat_c() { av_sans_avancement F-01 && av_sans_avancement F-02; }; verifier "ca17_besoin sans issue : ni compte ni « à vérifier » (même au statut Fait)" 0 "" rat_c
+rat_c() { [ "$rat_code" -eq 0 ] && [ ! -s "$racine_tmp/rat.err" ] && [ "$(grep -c '<span class="detail">[0-9]*/[0-9]* Fait' "$racine_tmp/rat.html")" -eq 2 ]; }; verifier "ca17_issue sans besoin ou liée à un besoin absent : page générée, comptée nulle part" 0 "" rat_c
+rat_c() { av_detail F-1 "1/1 Fait" && av_detail F-10 "0/2 Fait · 2 À faire"; }; verifier "ca17_F-1 et F-10 : les issues de l'un ne sont pas comptées pour l'autre" 0 "" rat_c
+
+# ca18 : chaque ligne du tableau de divergence
+rat_depot
+av_backlog "G-01=En cours" "G-02=En cours" "G-03=En revue" "G-04=Fait" "G-05=Fait" "G-06=Spécifié" "G-07=À faire" "G-08=En clarification"
+av_issue 011-01 G-01 "Fait"; av_issue 011-02 G-01 "Fait"
+av_issue 012-01 G-02 "À faire"; av_issue 013-01 G-03 "À faire"; av_issue 013-02 G-03 "À faire"
+av_issue 014-01 G-04 "Fait"; av_issue 014-02 G-04 "À faire"
+av_issue 015-01 G-05 "Fait"; av_issue 015-02 G-05 "En cours"; av_issue 015-03 G-05 "Abandonnée"
+av_issue 016-01 G-06 "En cours"; av_issue 017-01 G-07 "Fait"; av_issue 018-01 G-08 "En revue"
+rat_commit; rat_page
+av_motif() { # av_motif <besoin> <statut du backlog> <motif>
+  [ "$(av_col "$1")" = "$2" ] && av_detail "$1" "à vérifier : $3" || { av_col "$1"; rat_carte "$1"; return 1; }
+}
+rat_c() { av_motif G-01 "En cours" "toutes les issues sont Fait"; }; verifier "ca18_En cours avec toutes les issues Fait : « toutes les issues sont Fait »" 0 "" rat_c
+rat_c() { av_motif G-02 "En cours" "aucune issue démarrée" && av_motif G-03 "En revue" "aucune issue démarrée"; }; verifier "ca18_En cours ou En revue avec toutes À faire : « aucune issue démarrée »" 0 "" rat_c
+rat_c() { av_motif G-04 "Fait" "1 issue non Fait"; }; verifier "ca18_Fait avec 1 issue non Fait : « 1 issue non Fait »" 0 "" rat_c
+rat_c() { av_motif G-05 "Fait" "2 issues non Fait"; }; verifier "ca18_Fait avec 2 issues non Fait dont une hors cycle : « 2 issues non Fait »" 0 "" rat_c
+rat_c() { av_motif G-06 "Spécifié" "des issues sont déjà démarrées" && av_motif G-07 "À faire" "des issues sont déjà démarrées" && av_motif G-08 "En clarification" "des issues sont déjà démarrées"; }; verifier "ca18_À faire, En clarification ou Spécifié avec une issue démarrée : « des issues sont déjà démarrées »" 0 "" rat_c
+
+# ca19 : pas de divergence
+rat_depot
+av_backlog "H-01=En cours" "H-02=En revue" "H-03=Fait" "H-04=Spécifié" "H-05=Abandonnée" "H-06=En cours"
+av_issue 021-01 H-01 "En cours"; av_issue 022-01 H-02 "Fait"; av_issue 023-01 H-03 "Fait"; av_issue 024-01 H-04 "À faire"
+av_issue 025-01 H-05 "À faire"; av_issue 026-01 H-06 "Fait"; av_issue 026-02 H-06 "À faire"
+rat_commit; rat_page
+rat_c() { local b; for b in H-01 H-02 H-03 H-04 H-05 H-06; do ! rat_carte "$b" | grep -q 'à vérifier' || { rat_carte "$b"; return 1; }; done; }; verifier "ca19_aucune mention « à vérifier » hors des lignes du tableau (dont En revue tout Fait et statut hors cycle)" 0 "" rat_c
+rat_c() { av_detail H-02 "1/1 Fait" && av_detail H-05 "0/1 Fait · 1 À faire"; }; verifier "ca19_le compte reste affiché sans divergence" 0 "" rat_c
+
+# ca20 : backlog.md et issues intacts, seule la sortie est écrite
+rat_depot
+av_backlog "F-01=Fait" "F-02=En cours"
+av_issue 001-01 F-01 "À faire"; av_issue 001-02 F-02 "Fait"
+rat_commit
+av_empreinte() { find . -path ./.git -prune -o -type f -print | sort | while IFS= read -r f; do cksum "$f"; done; }
+avant="$(av_empreinte)"
+rat_page; apres_unique="$(av_empreinte)"
+mkdir -p "$racine_tmp/shim"
+printf '#!/bin/sh\nn=$(cat "%s/shim/n" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > "%s/shim/n"\n[ "$n" -lt 2 ] || kill -TERM $PPID\n' "$racine_tmp" "$racine_tmp" > "$racine_tmp/shim/sleep"; chmod +x "$racine_tmp/shim/sleep"
+PATH="$racine_tmp/shim:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/boucle.html" --boucle 1 >/dev/null 2>&1; code_boucle=$?
+apres_boucle="$(av_empreinte)"
+rat_c() { [ "$avant" = "$apres_unique" ] && [ -n "$avant" ] && grep -q 'backlog.md' <<< "$avant" || { printf '%s\n--\n%s\n' "$avant" "$apres_unique"; return 1; }; }; verifier "ca20_génération unique : backlog.md et issues identiques octet pour octet, aucun autre fichier écrit" 0 "" rat_c
+rat_c() { [ "$avant" = "$apres_boucle" ] && [ "$(cat "$racine_tmp/shim/n")" = 2 ] && [ -s "$racine_tmp/boucle.html" ] && grep -q 'à vérifier' "$racine_tmp/boucle.html" || { printf '%s\n--\n%s\n%s\n' "$avant" "$apres_boucle" "$(cat "$racine_tmp/shim/n")"; return 1; }; }; verifier "ca20_boucle arrêtée après deux générations : mêmes empreintes, deux passages, page produite" 0 "" rat_c
+rat_c() { [ -z "$(git status --porcelain)" ]; }; verifier "ca20_arbre git propre après les générations" 0 "" rat_c
+
+echo "dashboard.sh et etat-issues.sh : coût en appels Git, non-régression, documentation et version (PRD 003, issue 003-05)"
+# Un `git` de comptage, placé en tête de PATH le temps d'une commande, consigne chaque appel (une ligne) puis lance le vrai git.
+cout_shim="$racine_tmp/cout-shim"; cout_log="$racine_tmp/cout.log"; mkdir -p "$cout_shim"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\nexec "%s" "$@"\n' "$cout_log" "$(command -v git)" > "$cout_shim/git"; chmod +x "$cout_shim/git"
+cout_appels() { : > "$cout_log"; PATH="$cout_shim:$PATH" "$@" >/dev/null 2>&1; wc -l < "$cout_log" | tr -d ' '; } # cout_appels <commande...> : nombre d'appels git de la commande
+cout_listages() { grep -c 'for-each-ref' "$cout_log"; }                                                       # listages de branches du dernier cout_appels
+cout_depot() { # cout_depot <issues> <branches> <A|B> : dépôt jetable ; chaque issue dépend de la précédente ; A : champ branche: rempli (la branche que B déduit, ou une branche sans correspondance), B : champ vide
+  local n="$1" m="$2" mode="$3" i id champ dep
+  rat_depot
+  i=1; while [ "$i" -le "$n" ]; do
+    id="$(printf '1%02d-01' "$i")"; champ=""; dep=""
+    if [ "$mode" = A ]; then if [ "$i" -le "$m" ]; then champ="feat/$id-x"; else champ="feat/sans-branche-$i"; fi; fi
+    [ "$i" -eq 1 ] || dep="$(printf '1%02d-01' $((i - 1)))"
+    issue_b "$id" "À faire" "$champ" "$dep"; i=$((i + 1))
+  done
+  rat_commit
+  i=1; while [ "$i" -le "$m" ]; do # les branches des issues portent leur statut (Fait ou En cours), les autres sont des branches de remplissage
+    id="$(printf '1%02d-01' "$i")"
+    if [ "$i" -le "$n" ]; then sur_branche "feat/$id-x" "$id" "$([ $((i % 2)) -eq 1 ] && echo Fait || echo "En cours")" ""; else git branch "feat/zz-remplissage-$i"; fi
+    i=$((i + 1))
+  done
+}
+cout_mesure() { # cout_mesure <A|B> <issues> <branches> : appels et listages du dashboard, de --prochaine et du tableau, dans cout_<A|B>_<…>
+  cout_depot "$2" "$3" "$1"
+  eval "cout_$1_dashboard=$(cout_appels scripts/dashboard.sh --sortie "$racine_tmp/cout.html") cout_$1_listages_dashboard=$(cout_listages)"
+  eval "cout_$1_prochaine=$(cout_appels scripts/etat-issues.sh --prochaine) cout_$1_listages_prochaine=$(cout_listages)"
+  eval "cout_$1_tableau=$(cout_appels scripts/etat-issues.sh) cout_$1_listages_tableau=$(cout_listages)"
+}
+cout_compare() { # cout_compare <commande> : (appels de B) − (appels de A) ≤ 1 ; exactement un listage dans B ; aucun dans A (aucune issue à champ vide)
+  local a b la lb
+  eval "a=\$cout_A_$1 b=\$cout_B_$1 la=\$cout_A_listages_$1 lb=\$cout_B_listages_$1"
+  [ $((b - a)) -le 1 ] && [ "$lb" -eq 1 ] && [ "$la" -eq 0 ] || { printf 'A : %s appels, %s listage(s) ; B : %s appels, %s listage(s)\n' "$a" "$la" "$b" "$lb"; return 1; }
+}
+for cfg in "3 1" "3 50" "12 1" "12 50"; do
+  cout_mesure A ${cfg% *} ${cfg#* }; cout_mesure B ${cfg% *} ${cfg#* }
+  printf '  mesure %s issues, %s branches (appels git A -> B) : dashboard %s -> %s, --prochaine %s -> %s, tableau %s -> %s\n' "${cfg% *}" "${cfg#* }" "$cout_A_dashboard" "$cout_B_dashboard" "$cout_A_prochaine" "$cout_B_prochaine" "$cout_A_tableau" "$cout_B_tableau"
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : dashboard, (appels de B) - (appels de A) <= 1 et un seul listage dans B, aucun dans A" 0 "" cout_compare dashboard
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : etat-issues.sh --prochaine seul, différence <= 1 et un seul listage dans B" 0 "" cout_compare prochaine
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : le tableau de etat-issues.sh seul, différence <= 1 et un seul listage dans B" 0 "" cout_compare tableau
+done
+
+# ca24 : non-régression. Dépôt où chaque issue a branche: rempli (existante ou non) ou sans correspondance, aucune issue liée à un besoin, aucune dépendance Fait seulement sur sa branche :
+# la page (de l'encart « En cours » à la fin, sans date de génération, hash de commit masqué) et les sorties de etat-issues.sh sont celles des scripts de 1.21.0, enregistrées avant PRD 003.
+# nr-fonctions-debut
+nr_depot() { # nr_depot : le dépôt de non-régression, dates de commit fixes
+  export GIT_AUTHOR_DATE="2026-01-02T03:04:05Z" GIT_COMMITTER_DATE="2026-01-02T03:04:05Z"
+  rat_depot
+  nr_issue() { printf -- '---\nid: %s\ntitre: T%s\nstatut: %s\nbranche: %s\ndepend_de: [%s]\n---\n\n## Objectif\nObjectif %s.\n' "$1" "$1" "$2" "$3" "${4:-}" "$1" > "docs/issues/$1-x.md"; }
+  nr_issue 201-01 "Fait" ""; nr_issue 201-02 "En cours" "feat/a"; nr_issue 201-03 "À faire" "feat/absente" "201-01"; nr_issue 201-04 "À faire" "" "201-05"
+  nr_issue 201-05 "À faire" ""; nr_issue 201-06 "En revue" "feat/b"; nr_issue 201-07 "Fait" "feat/c"
+  printf '# Backlog\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|\n| F-01 | Premier | P1 | En cours | | |\n' > backlog.md
+  rat_commit
+  printf '\nNotes.\n' >> docs/issues/201-07-x.md; GIT_AUTHOR_DATE="2026-01-03T03:04:05Z" GIT_COMMITTER_DATE="2026-01-03T03:04:05Z" gd_ commit -qam "notes" # 201-07 modifiée plus tard : la colonne Fait la place en tête
+  sur_branche feat/a 201-02 "Fait" "feat/a"; sur_branche feat/b 201-06 "En revue" "feat/b"; sur_branche feat/c 201-07 "Fait" "feat/c"
+  unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
+}
+nr_page() { # nr_page [interpréteur] : partie stable de la page, de l'encart « En cours » à la fin
+  ${1:-bash} scripts/dashboard.sh --sortie "$racine_tmp/nr.html" >/dev/null 2>&1 && awk '/<section id="en-cours">/ { p = 1 } p { print } /<\/main>/ { exit }' "$racine_tmp/nr.html" | sed -E 's/[0-9a-f]{7,40} du /HASH du /'
+}
+nr_tableaux() { scripts/etat-issues.sh; echo "code $?"; scripts/etat-issues.sh --prochaine; echo "code $?"; scripts/etat-issues.sh --statut "À faire"; echo "code $?"; }
+# nr-fonctions-fin
+# Sorties enregistrées avec les scripts de 1.21.0 (avant PRD 003) sur ce dépôt ; l'issue 201-07 est la plus récente de la colonne Fait.
+cat > "$racine_tmp/nr-page-attendue.txt" <<'XEOF'
+<section id="en-cours">
+<h2>En cours</h2>
+<ul>
+<li><strong>201-06</strong> T201-06 <span class="etiquette statut-enrevue">En revue</span></li>
+</ul>
+</section>
+<section id="besoins">
+<h2>Besoins</h2>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-clarification">En clarification (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-specifie">Spécifié (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (1)</h3>
+<div class="carte"><strong>F-01</strong> <span class="titre">Premier</span><span class="detail">P1</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (0)</h3>
+<p class="vide">—</p>
+</div>
+</div>
+</section>
+<section id="issues">
+<h2>Issues</h2>
+<p>Prochaine issue prête : <strong>201-03</strong></p>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (3)</h3>
+<div class="carte prochaine"><strong>201-03</strong> <span class="titre">T201-03</span><span class="marqueur marqueur-prochaine">prochaine</span><span class="detail desc">Objectif 201-03.</span><span class="detail">dépend de : 201-01</span></div>
+<div class="carte bloquee"><strong>201-04</strong> <span class="titre">T201-04</span><span class="marqueur marqueur-bloquee">bloquée</span><span class="detail desc">Objectif 201-04.</span><span class="detail">dépend de : 201-05</span></div>
+<div class="carte"><strong>201-05</strong> <span class="titre">T201-05</span><span class="detail desc">Objectif 201-05.</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>201-06</strong> <span class="titre">T201-06</span><span class="detail desc">Objectif 201-06.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (3)</h3>
+<div class="carte"><strong>201-07</strong> <span class="titre">T201-07</span><span class="detail desc">Objectif 201-07.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+<div class="carte"><strong>201-01</strong> <span class="titre">T201-01</span><span class="detail desc">Objectif 201-01.</span></div>
+<div class="carte"><strong>201-02</strong> <span class="titre">T201-02</span><span class="detail desc">Objectif 201-02.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+</div>
+</div>
+</section>
+<section id="autres-travaux">
+<h2>Autres travaux</h2>
+<p>Aucun autre travail.</p>
+</section>
+</main>
+XEOF
+cat > "$racine_tmp/nr-tableaux-attendus.txt" <<'XEOF'
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 201-01 | T201-01 | Fait | : |  |
+| 201-02 | T201-02 | En cours | : | feat/a |
+| 201-03 | T201-03 | À faire | 201-01 | feat/absente |
+| 201-04 | T201-04 | À faire | 201-05 |  |
+| 201-05 | T201-05 | À faire | : |  |
+| 201-06 | T201-06 | En revue | : | feat/b |
+| 201-07 | T201-07 | Fait | : | feat/c |
+code 0
+201-03
+code 0
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 201-03 | T201-03 | À faire | 201-01 | feat/absente |
+| 201-04 | T201-04 | À faire | 201-05 |  |
+| 201-05 | T201-05 | À faire | : |  |
+code 0
+XEOF
+nr_depot
+nr_page > "$racine_tmp/nr-page.txt"
+nr_tableaux > "$racine_tmp/nr-tableaux.txt" 2>&1
+nr_page /bin/bash > "$racine_tmp/nr-page-bash32.txt"
+verifier "ca24_la page (hors date, durées et hash de commit) est celle de 1.21.0 : branches remplies ou sans correspondance, aucun besoin lié" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page.txt"
+verifier "ca24_etat-issues.sh : tableau, --prochaine, --statut et codes de sortie identiques à 1.21.0" 0 "" diff "$racine_tmp/nr-tableaux-attendus.txt" "$racine_tmp/nr-tableaux.txt"
+verifier "ca24_la page est la même sous /bin/bash (3.2 sur macOS : pas de mapfile, tri de la colonne Fait compris)" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page-bash32.txt"
+
+# ca25 : les cas de CA-01 à CA-24 et CS-01 à CS-06 de PRD 003 figurent dans cette suite (section ci-dessus), nom contenant l'identifiant ; dépôts jetables et environnement Git isolé.
+suite_prd003="$(lire_depot "$depot" factory/scripts/tests/run.sh | awk '/^echo "dashboard.sh et etat-issues.sh : rattachement d.une issue/ { p = 1 } p')"
+for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do
+  verifier "ca25_le cas ca${n}_ de PRD 003 figure dans run.sh" 0 "" contient_motif "$suite_prd003" "^[^#]*[\"']ca${n}_"
+done
+for n in 01 02 03 04 05 06; do
+  verifier "ca25_le cas cs${n}_ de PRD 003 figure dans run.sh" 0 "" contient_motif "$suite_prd003" "^[^#]*[\"']cs${n}_"
+done
+entete_suite="$(lire_depot "$depot" factory/scripts/tests/run.sh | head -n 60)"
+for v in GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM HOME; do
+  verifier "ca25_$v isolé en tête de run.sh (aucune configuration ni dépôt de l'utilisateur lu)" 0 "" contient_motif "$entete_suite" "^export (.* )?$v="
+done
+verifier "ca25_les dépôts de test sont créés sous le dossier temporaire de la suite" 0 "" contient_motif "$entete_suite" 'racine_tmp="\$\(mktemp -d'
+
+# ca26 : documentation (RG-24), chaque motif est cherché dans le passage concerné, jamais dans le fichier entier.
+doc_passage() { lire_depot "$depot" "$1" | awk "$2"; } # doc_passage <fichier> <programme awk>
+doc_motifs() { # doc_motifs <fichier> <programme awk> <motif littéral...> : le passage existe et contient chaque motif
+  local f="$1" doc motif; doc="$(doc_passage "$1" "$2")"; shift 2
+  verifier "ca26_$f : le passage existe" 0 "" test -n "$doc"
+  for motif in "$@"; do verifier "ca26_$f décrit « $motif »" 0 "" contient "$doc" "$motif"; done
+}
+passage_entete_script='/^set -uo pipefail/ { exit } { print }'
+motifs_dashboard=("par convention" "quelconque" "suivi d'un tiret" "prioritaire" "ambig" "empilée sur" "avancement" "à vérifier" "--boucle" "reste à jour")
+doc_motifs factory/scripts/dashboard.sh "$passage_entete_script" "${motifs_dashboard[@]}"
+doc_motifs factory/scripts/etat-issues.sh "$passage_entete_script" "par convention" "ambig" "sur leur branche"
+doc_motifs factory/README.md '/^\| `scripts\/dashboard\.sh` \|/' "${motifs_dashboard[@]}"
+doc_motifs factory/README.md '/^\| `scripts\/dashboard\.sh \[--sortie/' "par convention" "empilée sur" "avancement" "reste à jour"
+doc_motifs factory/README.md '/^\| `scripts\/etat-issues\.sh` \|/' "sur leur branche" "par convention"
+for f in AGENTS.md factory/templates/AGENTS.md; do doc_motifs "$f" '/^- `scripts\/dashboard\.sh/' "par convention" "reste à jour"; done
+for f in docs/issues/README.md factory/templates/docs/issues/README.md; do doc_motifs "$f" '/^## État/ { p = 1 } p' "par convention" "sur leur branche"; done
+for f in docs/agents/issue-tracker.md factory/templates/docs/agents/issue-tracker.md; do doc_motifs "$f" '/ready-for-agent/' "sur leur branche"; done
+for f in factory/README.md docs/issues/README.md factory/templates/docs/issues/README.md; do # l'ancienne règle (dépendance Fait seulement dans le dossier courant) n'est plus décrite
+  verifier "ca26_$f ne décrit plus l'ancienne règle de dépendance" 1 "" contient_motif "$(lire_depot "$depot" "$f")" 'dépendances sont `Fait`, et pas déjà|dépendances `Fait`, pas déjà commencée|dépendance pas `Fait` dans le dossier courant'
+done
+verifier "ca26_docs/issues/README.md et son modèle disent la même chose de l'état" 0 "" test "$(doc_passage docs/issues/README.md '/^## État/ { p = 1 } p')" = "$(doc_passage factory/templates/docs/issues/README.md '/^## État/ { p = 1 } p')"
+
+# ca27 : version suivante libre, CHANGELOG (changement et migration), README et guide de mise à jour.
+version="$(lire_depot "$depot" factory/VERSION | head -n1)"
+changelog="$(lire_depot "$depot" factory/CHANGELOG.md)"
+entree="$(awk '/^## /{n++} n==1' <<<"$changelog")"
+plus_grande() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_grande <a> <b> : a > b (versions x.y.z)
+etiquettes_fautives() { # etiquettes_fautives <dépôt> <version> : étiquettes vX.Y.Z supérieures à la version (une étiquette égale est admise)
+  local e; for e in $(git -C "$1" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do plus_grande "${e#v}" "$2" && echo "$e"; done
+}
+verifier "ca27_factory/VERSION est une version x.y.z" 0 "" contient_motif "$version" '^[0-9]+\.[0-9]+\.[0-9]+$'
+verifier "ca27_le CHANGELOG commence par l'entrée de la version courante" 0 "" contient_motif "$(head -n1 <<<"$entree")" "^## ${version//./\\.}$"
+# Supérieure à toute version déjà livrée : aux autres entrées titrées du CHANGELOG (présent aussi en copie propre) ...
+for titre in $(awk '/^## /{n++; if (n > 1) print $2}' <<<"$changelog"); do
+  verifier "ca27_la version est supérieure à l'entrée $titre du CHANGELOG" 0 "" plus_grande "$version" "$titre"
+done
+# ... et aux étiquettes Git quand le dépôt en a (égalité admise : l'utilisateur étiquette la version livrée). Le garde-fou est éprouvé sur un dépôt jetable.
+etiq="$racine_tmp/etiquettes"; mkdir -p "$etiq"; git -C "$etiq" init -q -b develop .; git -C "$etiq" -c user.name=t -c user.email=t@t commit -q --allow-empty -m x
+git -C "$etiq" tag "v$version"
+verifier "ca27_une étiquette égale à la version n'est pas une faute (la suite reste verte après v$version)" 0 "" test -z "$(etiquettes_fautives "$etiq" "$version")"
+git -C "$etiq" tag v99.0.0
+verifier "ca27_une étiquette supérieure à la version est une faute" 0 "" test "$(etiquettes_fautives "$etiq" "$version")" = "v99.0.0"
+if depot_git "$depot" && [ -n "$(git -C "$depot" tag --list 'v[0-9]*.[0-9]*.[0-9]*')" ]; then
+  verifier "ca27_la version n'est inférieure à aucune étiquette de ce dépôt" 0 "" test -z "$(etiquettes_fautives "$depot" "$version")"
+else
+  ok "ca27_aucune étiquette lisible (copie propre ou clone sans étiquettes) : comparaison aux étiquettes non faite, celle au CHANGELOG fait foi"
+fi
+for motif in 'rattach' 'par convention' 'empilée sur' 'avancement' 'à vérifier' '--boucle' 'Migration : remplacer `factory/`' 'sans action'; do
+  verifier "ca27_entrée du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
+done
+verifier "ca27_factory/README.md mentionne la nouveauté ($version)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "($version)"
+verifier "ca27_factory/UPGRADE.md décrit la migration sans action de $version" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($version)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

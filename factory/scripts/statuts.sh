@@ -2,7 +2,9 @@
 # Statuts des besoins (backlog.md) et des issues (docs/issues/) : table unique et contrôle en lecture seule (PRD 004).
 #
 # Usage : scripts/statuts.sh            contrôle de l'état courant : statuts inconnus (E05 besoin, E10 issue), backlog illisible (E01, E02, E03, E04),
-#                                       fichiers d'issue illisibles (E14) ou sans identifiant (E11) ; les autres contrôles du PRD 004 viennent avec les issues suivantes
+#                                       fichiers d'issue illisibles (E14) ou sans identifiant (E11), preuves d'une issue (A01 à A07 : revue, FIN-ISSUE OK, commits ;
+#                                       lib-preuves.sh), branche retenue d'une issue démarrée (A08), raison d'une issue Abandonnée (E13), dépendances (A09 à A11) ;
+#                                       les contrôles des besoins (PRD 004, 004-03) viennent avec l'issue suivante
 #         scripts/statuts.sh --table    affiche les statuts (dans l'ordre) et les transitions légales (de, vers, déclencheur, preuve) de chaque entité ; code 0
 # Sortie : une ligne par constat « <ERREUR|AVIS> <CODE> <objet> : <texte> » (erreurs avant avis, puis objet, puis code), puis « STATUTS : <e> erreur(s), <a> avis ».
 # Les valeurs lues dans les fichiers sont des données : jamais évaluées, neutralisées dans les messages (lib-constats.sh). Aucun fichier n'est écrit.

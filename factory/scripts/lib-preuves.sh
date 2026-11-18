@@ -44,12 +44,12 @@ revue_derniere_ligne() {
 
 # revue_examiner <valeur du champ revue> <lire la dernière ligne : 0|1> : met dans $revue_lisible 1 si le champ désigne un fichier de revue lisible (RG-11), sinon 0 ;
 # $revue_chemin (vide si le champ n'a pas la forme attendue) et, si demandé, $revue_ligne.
-# Un lien symbolique (le fichier, docs ou docs/reviews), un fichier de plus de 1 Mio ou non lisible équivaut à un fichier introuvable.
+# Un lien symbolique (le fichier ou le dossier docs/reviews), un fichier de plus de 1 Mio ou non lisible équivaut à un fichier introuvable.
 revue_examiner() {
   revue_lisible=0; revue_ligne=""
   revue_chemin "$1"
   [ -n "$revue_chemin" ] || return 0
-  [ ! -L docs ] && [ ! -L docs/reviews ] || return 0
+  [ ! -L docs/reviews ] || return 0
   fichier_motif_refus "$revue_chemin"
   [ -z "$motif_refus" ] || return 0
   revue_lisible=1

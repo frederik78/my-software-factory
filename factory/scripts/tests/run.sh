@@ -3382,6 +3382,7 @@ pr_commits 004-77 "[$pr_c]"; pr_commits 004-78 "[abcdef]"; pr_commits 004-79 "[$
   - $pr_cl
   - deadbee2"
 pr_commits 004-81 "[0000001]"; pr_commits 004-82 ""
+pr_commits 004-83 "[abcdefg]"; pr_commits 004-84 '[$(touch${IFS}marque)]'; pr_commits 004-85 "[--output=x1234]"
 pr_shim_git
 PATH="$racine_tmp/shim:$PATH" st_cas "ca13_preuves : commits: vide = A05 ; hexadécimal absent, non hexadécimal, 6 ou 41 caractères, nom de branche = A06 ; commit existant (court, complet, majuscules) = aucun avis" 0 <<TXT
 AVIS A05 issue 004-71 : Fait sans commit déclaré
@@ -3394,7 +3395,10 @@ AVIS A06 issue 004-78 : commit déclaré introuvable : abcdef
 AVIS A06 issue 004-80 : commit déclaré introuvable : deadbee2
 AVIS A06 issue 004-81 : commit déclaré introuvable : 0000001
 AVIS A05 issue 004-82 : Fait sans commit déclaré
-STATUTS : 0 erreur(s), 10 avis
+AVIS A06 issue 004-83 : commit déclaré introuvable : abcdefg
+AVIS A06 issue 004-84 : commit déclaré introuvable : \$(touch\${IFS}marque)
+AVIS A06 issue 004-85 : commit déclaré introuvable : --output=x1234
+STATUTS : 0 erreur(s), 13 avis
 TXT
 verifier "ca13_preuves : une seule vérification groupée par Git (cat-file), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
 verifier "ca13_preuves : seules des valeurs hexadécimales de 7 à 40 caractères parviennent à Git (zzz, \$(x), --help, 41 caractères : aucun appel sur ces valeurs)" 0 "" test "$(grep -c . "$racine_tmp/git.stdin")|$(grep -vc '^[0-9a-f]\{7,40\}$' "$racine_tmp/git.stdin")" = "6|0"
@@ -3523,6 +3527,8 @@ pr_issue 004-84 "À faire" "" "[]" "" "004-7"
 pr_full 004-85 "004-86"; pr_full 004-86
 pr_full 004-87 "004-80" # dépendance À faire en local mais Fait sur sa branche (statut effectif) : terminée
 pr_issue 004-88 "À faire" "" "[]" "" "004-89"; pr_ab 004-89 "- 2026-11-18 : Abandonnée."; sed -i.bak 's/^branche:.*/branche: feat\/g/' docs/issues/004-89-x.md; rm docs/issues/004-89-x.md.bak; sur_branche feat/g 004-89 "Fait" feat/g # Abandonnée en local, Fait sur sa branche : reste Abandonnée
+pr_issue 004-90 "À faire" "" "[]" "" "004-99" feat/h; sur_branche feat/h 004-90 "Fait" feat/h # Fait sur sa branche (statut effectif) : une dépendance inconnue ne lui est pas reprochée
+pr_issue 004-91 "Abandonnée" "" "[]" "- Abandonnée" "004-99" # Abandonnée : aucune dépendance contrôlée
 st_cas "ca18_dependances : dépendance Abandonnée d'une issue À faire, En cours ou En revue = A09 ; inexistante = A10 (et 004-7 n'est pas 004-70) ; Fait avec une dépendance En cours = A11 ; Fait avec une dépendance Abandonnée ou inexistante, dépendance Fait sur sa branche, dépendance d'une issue en E10 = aucun avis" 1 <<'TXT'
 ERREUR E10 issue 004-83 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
 AVIS A09 issue 004-71 : dépend de l'issue Abandonnée 004-70

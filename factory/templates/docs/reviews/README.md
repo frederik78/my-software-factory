@@ -9,7 +9,7 @@ Le fichier d'une issue porte, en tête, un tableau tenu par l'orchestrateur : `#
 
 ## Lire une revue sans contexte
 Chaque itération s'ouvre par un bloc « En clair » (l'issue, le verdict, le sens de chaque critère, les constats, les mutations). Le reste est le détail technique.
-- **Verdict** : `APPROUVÉ` (rien de bloquant, l'issue peut avancer) ou `CHANGEMENTS DEMANDÉS` (corrections à faire, puis nouvelle revue).
+- **Verdict** : première ligne de chaque rapport, `VERDICT: APPROUVÉ` ou `VERDICT: CHANGEMENTS DEMANDÉS` (lue par `scripts/verdict-revue.sh`, reprise dans la section `## Verdict`) ; `APPROUVÉ` (rien de bloquant, l'issue peut avancer) ou `CHANGEMENTS DEMANDÉS` (corrections à faire, puis nouvelle revue).
 - **BLOQUANT** : empêche la livraison (défaut grave, vulnérabilité OWASP avérée). **IMPORTANT** : à corriger avant d'approuver. **MINEUR** : amélioration, consignée sans bloquer.
 - **CA-xx / CS-xx** : critère d'acceptation (comportement attendu) / critère de sécurité, définis dans le PRD de l'issue.
 - **RED / GREEN** : le test échoue avant le code (RED), puis réussit après (GREEN) ; preuve que le test vérifie vraiment quelque chose.

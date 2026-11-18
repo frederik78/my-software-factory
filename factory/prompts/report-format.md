@@ -65,18 +65,22 @@ Une ligne par fichier ajouté ou modifié qui joue un rôle couvert par la réf�
 
 ## Rapport du reviewer
 
+La **première ligne du rapport du reviewer** est exactement `VERDICT: APPROUVÉ` ou `VERDICT: CHANGEMENTS DEMANDÉS` (mot-clé, deux-points, une espace, l'une des deux valeurs seules), avant tout titre, sans ligne vide ni texte au-dessus. La session la lit avec `scripts/verdict-revue.sh` ; tout autre contenu en première ligne donne `INCONNU` et le rapport est redemandé. La section `## Verdict` reprend la même valeur, suivie d'une phrase.
+
 ```
+VERDICT: APPROUVÉ|CHANGEMENTS DEMANDÉS
+
 ## En clair
 Pour un lecteur sans contexte (qui n'a lu ni l'issue, ni le PRD, ni la conversation). Pas de jargon non expliqué, aucun identifiant nu.
 - **Issue** : ce qu'elle ajoute, en une ou deux phrases, et à quoi cela sert.
-- **Verdict** : APPROUVÉ ou CHANGEMENTS DEMANDÉS, la raison en une phrase, et ce qui se passe ensuite.
+- **Verdict** : la valeur de la ligne `VERDICT:`, la raison en une phrase, et ce qui se passe ensuite.
 - **Critères** : tableau `Critère | Ce qu'il exige, en clair | Test présent et suffisant ?` (un CA/CS n'est jamais cité sans son sens).
 - **Constats** : une phrase chacun sur ce que cela change pour l'utilisateur, sans `fichier:ligne` (ils sont plus bas).
 - **Mutations** (si faites) : une phrase d'explication (on casse volontairement un garde-fou dans une copie jetable ; un test qui reste vert ne protège rien),
   puis le tableau `Ce qu'on a cassé | Ce que cela vérifie | Résultat (tuée = bien protégé, survivante = test à renforcer)`.
 
 ## Verdict
-APPROUVÉ | CHANGEMENTS DEMANDÉS (+ une phrase)
+APPROUVÉ | CHANGEMENTS DEMANDÉS (même valeur que la ligne `VERDICT:`, puis une phrase)
 
 ## Build
 - Commande, résultat chiffré (tests, analyse statique si elle existe), copie propre utilisée : oui/non.
@@ -99,4 +103,4 @@ Une ligne par point : corrigé / non corrigé / partiellement, avec la preuve (t
 PRD, backlog, ADR, AGENTS.md : passages à mettre à jour, sans les modifier toi-même.
 ```
 
-L'orchestrateur sauvegarde le rapport du reviewer tel quel dans `docs/reviews/<id-issue>.md` (une section par itération).
+L'orchestrateur lit d'abord la première ligne (`scripts/verdict-revue.sh`, voir la skill `deliver`), puis sauvegarde le rapport du reviewer tel quel dans `docs/reviews/<id-issue>.md` (une section par itération).

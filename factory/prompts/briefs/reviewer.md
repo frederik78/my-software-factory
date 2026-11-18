@@ -22,5 +22,5 @@ Mutations : seulement les garde-fous nouveaux ou modifiés de la passe, 8 au plu
 Build : scripts/verify-clean.sh (copie propre) ; rapporte les nombres. Ne lance pas le build directement dans le dépôt.
 Règles : factory/prompts/code-reviewer.md et skill owasp-check ; toute vulnérabilité OWASP avérée est BLOQUANTE.
 
-Rapport : factory/prompts/report-format.md (section reviewer), 80 lignes au plus, avec fichier:ligne et un scénario d'échec concret pour chaque constat.
+Rapport : factory/prompts/report-format.md (section reviewer), 80 lignes au plus, dont la première ligne est exactement `VERDICT: APPROUVÉ|CHANGEMENTS DEMANDÉS` (une des deux valeurs, rien au-dessus ; `## Verdict` reprend la même valeur), avec fichier:ligne et un scénario d'échec concret pour chaque constat.
 ```

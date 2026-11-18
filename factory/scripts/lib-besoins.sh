@@ -86,3 +86,60 @@ controle_besoins() {
     bes_etats+=("$etat")
   done < <(besoins_lire)
 }
+
+# --- Cohérence des besoins avec leurs issues (RG-05, RG-09, RG-17) -------------------------------------------------------------------------------
+# Suppose les tableaux d'issues de statuts.sh (iss_fichiers, iss_ids, iss_rangs, iss_etats, iss_statuts, iss_effectifs, iss_refs) remplis par controle_issues.
+# Valeurs lues de l'en-tête de chaque issue contrôlée (indice des tableaux d'issues) : besoin et prd, sans espaces de bord.
+iss_besoins=(); iss_prds=()
+
+# besoins_issues_lire : remplit iss_besoins et iss_prds (un passage awk par issue contrôlée).
+besoins_issues_lire() {
+  local i out b p
+  iss_besoins=(); iss_prds=()
+  for i in "${!iss_fichiers[@]}"; do
+    iss_besoins+=(""); iss_prds+=("")
+    [ "${iss_etats[$i]}" = controlee ] || continue
+    out="$(issue_champs "${iss_fichiers[$i]}" besoin prd)"
+    case "$out" in *$'\n'*) b="${out%%$'\n'*}"; p="${out#*$'\n'}" ;; *) b="$out"; p="" ;; esac
+    table_nettoyer "$b"; iss_besoins[$i]="$nettoye"
+    table_nettoyer "$p"; iss_prds[$i]="$nettoye"
+  done
+}
+
+# besoins_flux : le flux d'entrée de besoins_agreger, une ligne par enregistrement, champs séparés par CONSTAT_SEP :
+#   K <id>                       identifiant d'une ligne du tableau (lisible ou non)
+#   I <indice> <besoin>          issue contrôlée (indice dans les tableaux d'issues) ; un besoin qui contient CONSTAT_SEP est envoyé vide (il ne peut désigner aucune ligne)
+besoins_flux() {
+  local i
+  for i in "${!bes_ids[@]}"; do printf 'K%s%s\n' "$CONSTAT_SEP" "${bes_ids[$i]}"; done
+  for i in "${!iss_fichiers[@]}"; do
+    [ "${iss_etats[$i]}" = controlee ] || continue
+    case "${iss_besoins[$i]}" in
+      *"$CONSTAT_SEP"*) printf 'I%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" ;;
+      *) printf 'I%s%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" "${iss_besoins[$i]}" ;;
+    esac
+  done
+}
+
+# besoins_agreger : lit le flux de besoins_flux et rapproche les issues des besoins en un seul passage (coût linéaire ; les valeurs sont des clés de tableau, jamais des motifs).
+# Écrit, séparés par CONSTAT_SEP : « X <indice> » pour une issue dont le besoin n'est l'identifiant d'aucune ligne du tableau.
+besoins_agreger() {
+  LC_ALL=C awk 'BEGIN { FS = OFS = "\037" }
+    $1 == "K" { connu[$2] = 1; next }
+    $1 == "I" { if (!($3 in connu)) print "X", $2 }'
+}
+
+# besoins_coherence : E12 (issue sans besoin connu). Ne fait rien sans tableau des besoins (E02).
+besoins_coherence() {
+  local t a objet
+  [ "$bes_table" -eq 1 ] || return 0
+  besoins_issues_lire
+  while IFS="$CONSTAT_SEP" read -r t a; do
+    case "$t" in
+      X)
+        constat_neutraliser "${iss_ids[$a]}"; objet="issue $neutre"
+        constat_neutraliser "${iss_besoins[$a]}"
+        constat_ajouter ERREUR E12 2 "${iss_rangs[$a]}" "$objet" "besoin « $neutre » inconnu du backlog" ;;
+    esac
+  done < <(besoins_flux | besoins_agreger)
+}

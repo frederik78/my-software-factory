@@ -179,7 +179,7 @@ controle() {
   if [ ! -f backlog.md ] || [ ! -r backlog.md ]; then
     constat_ajouter ERREUR E01 0 0 backlog "backlog.md absent ou illisible"
   else
-    controle_besoins; controle_issues
+    controle_besoins; controle_issues; besoins_coherence
   fi
   constats_rendre
 }

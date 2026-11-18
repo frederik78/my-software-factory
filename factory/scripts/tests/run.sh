@@ -3226,7 +3226,7 @@ STATUTS : 5 erreur(s), 0 avis
 TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
-printf -- '---\nid: 004-1\nstatut: À faire\n---\n' > docs/issues/004-1-x.md; printf -- '---\nid: 004-10\nstatut: À faire\n---\n' > docs/issues/004-10-x.md
+printf -- '---\nid: 004-1\nbesoin: F-01\nstatut: À faire\n---\n' > docs/issues/004-1-x.md; printf -- '---\nid: 004-10\nbesoin: F-01\nstatut: À faire\n---\n' > docs/issues/004-10-x.md
 st_cas "ca08_statuts : 004-1 et 004-10 sont deux identifiants distincts" 0 <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
@@ -3245,10 +3245,10 @@ TXT
 
 # ca09 : fichier d'issue illisible = E14, ignoré ; le contenu du fichier visé n'est reproduit nulle part
 st_depot
-printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf '| F-01 | B | P1 | En revue | | |\n' | st_backlog
 printf 'id: 004-91\nstatut: Fait\n---\n' > docs/issues/004-91-ouvre.md
 printf -- '---\nid: 004-92\nstatut: Fait\n' > docs/issues/004-92-ferme.md
-st_entete="$(printf -- '---\nid: 004-93\nstatut: Fait\n---\n')"
+st_entete="$(printf -- '---\nid: 004-93\nbesoin: F-01\nstatut: Fait\n---\n')"
 { printf '%s\n' "$st_entete"; head -c $((1048577 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-93-gros.md
 { printf '%s\n' "$st_entete" | sed 's/004-93/004-94/'; head -c $((1048576 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-94-limite.md
 printf -- '---\nid: SECRET-ID\nstatut: SECRET-CONTENU\n---\n' > cible-secrete.md; ln -s ../../cible-secrete.md docs/issues/004-95-lien.md
@@ -3481,6 +3481,9 @@ pr_reel() { # pr_reel <dossier> : chemins des fichiers 001-* à 003-* du dossier
   if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD "$1/"; else (cd "$depot" && ls "$1"/*); fi | grep -E "^$1/00[123]-"
 }
 for pr_f in $(pr_reel docs/issues) $(pr_reel docs/reviews); do lire_depot "$depot" "$pr_f" > "$pr_f"; done
+# leurs besoins (F-01, F-05, F-08) et PRD, dans un état cohérent avec des issues terminées et non fusionnées : « En revue »
+for pr_f in 001-verdict-revue 002-criteres-tests-bash 003-dashboard-a-jour; do lire_depot "$depot" "docs/prd/$pr_f.md" > "docs/prd/$pr_f.md"; done
+printf '%s\n' '| F-01 | B | P1 | En revue | `docs/prd/001-verdict-revue.md` | |' '| F-05 | B | P1 | En revue | `docs/prd/002-criteres-tests-bash.md` | |' '| F-08 | B | P1 | En revue | `docs/prd/003-dashboard-a-jour.md` | |' | st_backlog
 scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; pr_code=$?
 verifier "ca14_issues réelles 001-01 à 003-05 : copiées dans un dépôt jetable (17 issues)" 0 "" test "$(ls docs/issues/00[123]-*.md | wc -l | tr -d ' ')" = 17
 verifier "ca14_issues réelles : aucune erreur, le code de sortie est celui des seules erreurs (0), avis présents" 0 "" test "$pr_code|$(grep -c '^ERREUR' "$racine_tmp/st.out")|$(grep -Ec '^STATUTS : 0 erreur\(s\), [1-9][0-9]* avis$' "$racine_tmp/st.out")|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|0|1|0"
@@ -3712,6 +3715,41 @@ done
 verifier "ca19_wrapper : chaque factory/scripts/lib-*.sh a son lien scripts/lib-*.sh (manquants :${bs_manquants:- aucun})" 0 "" test -z "$bs_manquants"
 "$depot/scripts/statuts.sh" > "$racine_tmp/w.out" 2> "$racine_tmp/w.err"; bs_code=$?
 verifier "ca19_wrapper : scripts/statuts.sh du dépôt réel lance le contrôle des besoins : code 0 ou 1, rien sur la sortie d'erreur, récapitulatif présent" 0 "" test "$([ "$bs_code" -le 1 ] && echo ok)|$(wc -c < "$racine_tmp/w.err" | tr -d ' ')|$(grep -c '^STATUTS : ' "$racine_tmp/w.out")" = "ok|0|1"
+
+# Assistants de la section : dépôt jetable (branche develop, un commit), backlog, issues complètes. $bs_c = identifiant court du premier commit.
+bs_depot() { # bs_depot : st_depot + dossiers docs/prd (p.md, q.md) et docs/reviews (revue.md approuvée) + un premier commit sur develop
+  st_depot
+  mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md; printf '# PRD\n' > docs/prd/q.md; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+  : > docs/issues/.gitkeep; gd_ add -A; gd_ commit -q -m init; bs_c="$(git rev-parse --short HEAD)"
+}
+bs_issue() { # bs_issue <id> <statut> <besoin> [branche] [prd] [notes] : docs/issues/<id>-x.md ; une issue Fait reçoit une revue approuvée, un commit et sa ligne FIN-ISSUE OK
+  local revue="" commits="[]" notes="${6:-}"
+  if [ "$2" = Fait ]; then revue=" docs/reviews/revue.md"; commits="[$bs_c]"; notes="- \`FIN-ISSUE OK $1 abc1234 : 1 test\`${notes:+
+$notes}"; fi
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nprd: %s\nstatut: %s\ndepend_de: []\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\nx\n\n## Notes\n%s\n' \
+    "$1" "$1" "$3" "${5:-docs/prd/p.md}" "$2" "${4:-}" "$commits" "$revue" "$notes" > "docs/issues/$1-x.md"
+}
+
+# ca19 : issue sans besoin connu = E12, comptée pour aucun besoin
+bs_depot
+printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | À faire | | |' '| F-02 | B | P1 | Spécifié | `docs/prd/p.md` | |' | st_backlog
+git branch feat/b
+bs_issue 004-71 "En cours" "" feat/b; bs_issue 004-72 "En cours" "F-99" feat/b; bs_issue 004-73 "En cours" "F-02, F-1" feat/b; bs_issue 004-74 "À faire" "F-1"; bs_issue 004-75 "À faire" "F-10"
+bs_issue 004-76 "En cours" "F-0" feat/b; bs_issue 004-77 "En cours" "f-02" feat/b; bs_issue 004-78 "À faire" '"F-1"'
+bs_issue 004-79 "En cours" "F-02$(printf '\037')x" feat/b; bs_issue 004-80 "En cours" '*' feat/b; bs_issue 004-81 "En cours" '.*' feat/b; bs_issue 004-82 "En cours" '$(touch${IFS}marque)' feat/b
+st_cas "ca19_besoin : besoin vide, absent du backlog (F-99, F-0, f-02) ou à plusieurs valeurs = E12 (valeur entre guillemets, vide comprise), l'issue n'est comptée pour aucun besoin (F-02 Spécifié ne reçoit pas d'E07) ; F-1 et F-10 sont deux besoins distincts ; guillemets de bord retirés" 1 <<'TXT'
+ERREUR E12 issue 004-71 : besoin «  » inconnu du backlog
+ERREUR E12 issue 004-72 : besoin « F-99 » inconnu du backlog
+ERREUR E12 issue 004-73 : besoin « F-02, F-1 » inconnu du backlog
+ERREUR E12 issue 004-76 : besoin « F-0 » inconnu du backlog
+ERREUR E12 issue 004-77 : besoin « f-02 » inconnu du backlog
+ERREUR E12 issue 004-79 : besoin « F-02x » inconnu du backlog
+ERREUR E12 issue 004-80 : besoin « * » inconnu du backlog
+ERREUR E12 issue 004-81 : besoin « .* » inconnu du backlog
+ERREUR E12 issue 004-82 : besoin « $(touch${IFS}marque) » inconnu du backlog
+STATUTS : 9 erreur(s), 0 avis
+TXT
+verifier "ca19_besoin : valeurs hostiles ($(…), *, .*, 0x1F) lues comme du texte : le fichier « marque » n'existe pas" 0 "" test ! -e marque
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

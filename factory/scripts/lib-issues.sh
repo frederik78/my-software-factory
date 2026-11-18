@@ -16,6 +16,19 @@ issue_champ() {
   ' "$1"
 }
 
+# issue_champs <fichier> <clé>... : comme issue_champ pour plusieurs clés en un seul passage : une ligne par clé, dans l'ordre demandé (vide si la clé est absente).
+issue_champs() {
+  local fichier="$1"; shift
+  awk -v ks="$*" '
+    BEGIN { n = split(ks, cle, " ") }
+    NR == 1 { if ($0 != "---") exit; next }
+    $0 == "---" { exit }
+    { for (i = 1; i <= n; i++) if (!(i in val) && index($0, cle[i] ":") == 1) {
+        v = $0; sub("^" cle[i] ":[[:space:]]*", "", v); gsub(/^["'\'']|["'\'']$/, "", v); sub(/[[:space:]]+$/, "", v); val[i] = v } }
+    END { for (i = 1; i <= n; i++) print val[i] }
+  ' "$fichier"
+}
+
 # issue_liste <fichier> <clé> : éléments de la liste, un par ligne (forme en ligne ou en tirets).
 issue_liste() {
   awk -v k="$2" '

@@ -103,4 +103,4 @@ Une ligne par point : corrigé / non corrigé / partiellement, avec la preuve (t
 PRD, backlog, ADR, AGENTS.md : passages à mettre à jour, sans les modifier toi-même.
 ```
 
-L'orchestrateur lit d'abord la première ligne (`scripts/verdict-revue.sh`, voir la skill `deliver`), puis sauvegarde le rapport du reviewer tel quel dans `docs/reviews/<id-issue>.md` (une section par itération).
+L'orchestrateur lit d'abord la première ligne (`scripts/verdict-revue.sh`, voir la skill `deliver`), puis sauvegarde le rapport du reviewer tel quel dans `docs/reviews/<id-issue>.md` (une section par itération). Si l'issue reste bloquée après `MAX_ITERATIONS_REVUE` revues, la session ajoute à la fin de la section de la dernière itération une section `## Pour l'humain` (carte en trois rubriques), écrite par la session, jamais par le reviewer.

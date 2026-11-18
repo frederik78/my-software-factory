@@ -3553,6 +3553,48 @@ STATUTS : 0 erreur(s), 6 avis
 TXT
 verifier "ca18_dependances : le fichier « marque » n'existe pas" 0 "" test ! -e marque
 
+
+# Sûreté des preuves : valeurs hostiles, dossier de revues en lien symbolique, fichiers spéciaux, nombre d'appels Git
+pr_depot
+pr_cas 004-71 "$(printf 'a\rERREUR E13 issue 004-71 : forgé\tx\033[31m')"
+pr_cas 004-72 "$(printf 'x%.0s' $(seq 1 130))"
+pr_cas 004-73 '$(touch${IFS}marque)'
+pr_issue 004-74 Fait "" "[$(printf '1\033[31m2\rERREUR E13 forgé')]" "$(pr_ok 004-74)"
+st_cas "ca11_sûreté :  champ revue et commit à caractères de contrôle, retour chariot ou 130 caractères : une seule ligne par constat, neutralisés, tronqués à 120 caractères, rien de forgé" 0 <<TXT
+AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (a ERREUR E13 issue 004-71 : forgé x[31m)
+AVIS A02 issue 004-72 : Fait : fichier de revue introuvable ou illisible ($(printf 'x%.0s' $(seq 1 120))…)
+AVIS A02 issue 004-73 : Fait : fichier de revue introuvable ou illisible (\$(touch\${IFS}marque))
+AVIS A01 issue 004-74 : Fait sans champ revue renseigné
+AVIS A06 issue 004-74 : commit déclaré introuvable : 1[31m2 ERREUR E13 forgé
+STATUTS : 0 erreur(s), 5 avis
+TXT
+verifier "ca13_sûreté : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+pr_depot
+mkdir "$racine_tmp/hors-revues"; printf 'SECRET\nAPPROUVÉ\n' > "$racine_tmp/hors-revues/004-71.md"; rm -rf docs/reviews; ln -s "$racine_tmp/hors-revues" docs/reviews
+pr_cas 004-71 "docs/reviews/004-71.md"
+st_cas "ca11_sûreté : docs/reviews en lien symbolique : le fichier de revue vers l'extérieur n'est pas lu (A02), son contenu n'apparaît nulle part" 0 <<'TXT'
+AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/004-71.md)
+STATUTS : 0 erreur(s), 1 avis
+TXT
+verifier "ca11_sûreté : SECRET absent des sorties" 0 "" test "$(cat "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -c SECRET)" = 0
+pr_depot
+mkdir docs/reviews/d.md; mkfifo docs/reviews/p.md; pr_cas 004-71 "docs/reviews/d.md"; pr_cas 004-72 "docs/reviews/p.md"
+perl -e 'alarm 20; exec @ARGV' scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; pr_code=$?
+verifier "ca11_sûreté : un dossier ou un tube nommé x.md n'est pas un fichier de revue (A02), sans blocage (alarme 20 s)" 0 "" test "$pr_code|$(grep -c '^AVIS A02 ' "$racine_tmp/st.out")|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|2|0"
+
+# nombre d'appels Git : un seul appel groupé pour les commits, quel que soit le nombre d'issues ; aucun appel de vérification sans issue Fait
+pr_compte() { # pr_compte <nombre d'issues Fait> : crée n issues Fait complètes (branche vide) et compte les appels Git de statuts.sh
+  pr_depot; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+  local k; for k in $(seq 1 "$1"); do pr_full "$(printf '004-%02d' "$k")"; done
+  pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"
+  wc -l < "$racine_tmp/git.args" | tr -d ' '
+}
+pr_n3="$(pr_compte 3)"; pr_n30="$(pr_compte 30)"
+verifier "ca13_sûreté : appels Git de statuts.sh identiques pour 3 et 30 issues Fait avec commits ($pr_n3 et $pr_n30), au plus 2 (lecture des branches, vérification groupée)" 0 "" test "$pr_n3|$pr_n30" = "2|2"
+pr_depot; pr_issue 004-71 "À faire" "" "[]" ""; pr_issue 004-72 "Abandonnée" "" "[]" "- Abandonnée"
+pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
+verifier "ca13_sûreté : aucune issue Fait = aucune vérification de commit (pas d'appel cat-file)" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")" = 0
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

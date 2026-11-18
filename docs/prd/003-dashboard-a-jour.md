@@ -162,14 +162,15 @@ Identifiants au format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les 
 | Q-08 | D-17 : un seul appel Git de listage, plafond ≤ 1 appel de plus, compteur dans un test | RG-21, CA-23, CS-05 |
 
 ## 8. Questions
-Choix retenus provisoirement par défaut (le plus sûr), à confirmer. Les marques `[À CLARIFIER Q-xx]` ne sont pas insérées dans le texte : la lecture retenue est celle des règles ci-dessus.
+Réponses de l'utilisateur du 2026-11-17 : les cinq choix proposés (recommandation (a) ou 200) sont confirmés, tels qu'appliqués dans les règles ci-dessus.
 
-## QUESTIONS
-- **Q-09** (F-08, RG-06) Une branche dont le nom commence par les identifiants de deux issues (`002-01` et `002-01-b`). Options : (a) identifiant le plus long (retenu) ; (b) ambiguïté pour les deux ; (c) ne pas traiter (les identifiants du projet sont `<prd>-<nn>`). Recommandation : (a).
-- **Q-10** (F-08, RG-07) Identifiant partagé par plusieurs issues. Options : (a) aucune déduction pour elles (retenu) ; (b) première issue seule ; (c) erreur. Recommandation : (a).
-- **Q-11** (F-08, RG-14, RG-15) `etat-issues.sh` : (a) `--prochaine` utilise le statut effectif des dépendances, le tableau reste sur le statut local avec la colonne `Branche` enrichie (retenu) ; (b) en plus, la colonne `Statut` et `--statut` passent au statut effectif ; (c) `etat-issues.sh` inchangé (le dashboard et lui divergeraient). Recommandation : (a), (b) pouvant suivre dans un besoin à part.
-- **Q-12** (F-08, RG-08) Bornes de nom de branche : 200 caractères au plus, au-delà ignoré. Options : 200 (retenu) ; 255 ; aucune borne. Recommandation : 200.
-- **Q-13** (F-08, RG-17) Issues hors cycle (par exemple `Abandonnée`, F-04) : (a) comptées dans l'avancement et traitées comme « non Fait » pour le motif d'un besoin `Fait` (retenu, signale à tort un besoin dont une issue est abandonnée) ; (b) ignorées pour la divergence ; (c) hors décision, attendre F-04. Recommandation : (a) jusqu'à F-04.
+- **Q-09** (RG-06) Nom de branche commençant par deux identifiants (`002-01` et `002-01-b`) : l'identifiant le plus long l'emporte. Confirmé.
+- **Q-10** (RG-07) Identifiant partagé par plusieurs issues : aucune déduction pour elles. Confirmé.
+- **Q-11** (RG-14, RG-15) `etat-issues.sh` : `--prochaine` en statut effectif des dépendances ; le tableau garde le statut local, seule la colonne `Branche` est enrichie. Confirmé.
+- **Q-12** (RG-08) Nom de branche : 200 caractères au plus, au-delà ignoré. Confirmé.
+- **Q-13** (RG-17) Statuts hors cycle (`Abandonnée`, F-04) : comptés, traités comme « non Fait » pour un besoin `Fait`, jusqu'à F-04. Confirmé.
+
+## QUESTIONS : aucune
 
 ## 9. Découpage en issues (indicatif)
 Chaque critère est couvert par exactement une issue ; dépendances : 01, puis 02, puis 03 et 04 (indépendantes entre elles), 05 en dernier.

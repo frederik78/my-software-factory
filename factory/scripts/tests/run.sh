@@ -2619,7 +2619,7 @@ for f in AGENTS.md factory/templates/AGENTS.md; do doc_motifs "$f" '/^- `scripts
 for f in docs/issues/README.md factory/templates/docs/issues/README.md; do doc_motifs "$f" '/^## État/ { p = 1 } p' "par convention" "sur leur branche"; done
 for f in docs/agents/issue-tracker.md factory/templates/docs/agents/issue-tracker.md; do doc_motifs "$f" '/ready-for-agent/' "sur leur branche"; done
 for f in factory/README.md docs/issues/README.md factory/templates/docs/issues/README.md; do # l'ancienne règle (dépendance Fait seulement dans le dossier courant) n'est plus décrite
-  verifier "ca26_$f ne décrit plus l'ancienne règle de dépendance" 1 "" contient_motif "$(lire_depot "$depot" "$f")" 'pas déjà commencée sur sa branche|dépendance pas `Fait` dans le dossier courant|dépendances sont `Fait`, et pas'
+  verifier "ca26_$f ne décrit plus l'ancienne règle de dépendance" 1 "" contient_motif "$(lire_depot "$depot" "$f")" 'dépendances sont `Fait`, et pas déjà|dépendances `Fait`, pas déjà commencée|dépendance pas `Fait` dans le dossier courant'
 done
 verifier "ca26_docs/issues/README.md et son modèle disent la même chose de l'état" 0 "" test "$(doc_passage docs/issues/README.md '/^## État/ { p = 1 } p')" = "$(doc_passage factory/templates/docs/issues/README.md '/^## État/ { p = 1 } p')"
 

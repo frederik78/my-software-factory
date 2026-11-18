@@ -2428,6 +2428,47 @@ rat_c() { [ "$avant" = "$apres_unique" ] && [ -n "$avant" ] && grep -q 'backlog.
 rat_c() { [ "$avant" = "$apres_boucle" ] && [ "$(cat "$racine_tmp/shim/n")" = 2 ] && [ -s "$racine_tmp/boucle.html" ] && grep -q 'à vérifier' "$racine_tmp/boucle.html" || { printf '%s\n--\n%s\n%s\n' "$avant" "$apres_boucle" "$(cat "$racine_tmp/shim/n")"; return 1; }; }; verifier "ca20_boucle arrêtée après deux générations : mêmes empreintes, deux passages, page produite" 0 "" rat_c
 rat_c() { [ -z "$(git status --porcelain)" ]; }; verifier "ca20_arbre git propre après les générations" 0 "" rat_c
 
+echo "dashboard.sh et etat-issues.sh : coût en appels Git, non-régression, documentation et version (PRD 003, issue 003-05)"
+# Un `git` de comptage, placé en tête de PATH le temps d'une commande, consigne chaque appel (une ligne) puis lance le vrai git.
+cout_shim="$racine_tmp/cout-shim"; cout_log="$racine_tmp/cout.log"; mkdir -p "$cout_shim"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\nexec "%s" "$@"\n' "$cout_log" "$(command -v git)" > "$cout_shim/git"; chmod +x "$cout_shim/git"
+cout_appels() { : > "$cout_log"; PATH="$cout_shim:$PATH" "$@" >/dev/null 2>&1; wc -l < "$cout_log" | tr -d ' '; } # cout_appels <commande...> : nombre d'appels git de la commande
+cout_listages() { grep -c 'for-each-ref' "$cout_log"; }                                                       # listages de branches du dernier cout_appels
+cout_depot() { # cout_depot <issues> <branches> <A|B> : dépôt jetable ; chaque issue dépend de la précédente ; A : champ branche: rempli (la branche que B déduit, ou une branche sans correspondance), B : champ vide
+  local n="$1" m="$2" mode="$3" i id champ dep
+  rat_depot
+  i=1; while [ "$i" -le "$n" ]; do
+    id="$(printf '1%02d-01' "$i")"; champ=""; dep=""
+    if [ "$mode" = A ]; then if [ "$i" -le "$m" ]; then champ="feat/$id-x"; else champ="feat/sans-branche-$i"; fi; fi
+    [ "$i" -eq 1 ] || dep="$(printf '1%02d-01' $((i - 1)))"
+    issue_b "$id" "À faire" "$champ" "$dep"; i=$((i + 1))
+  done
+  rat_commit
+  i=1; while [ "$i" -le "$m" ]; do # les branches des issues portent leur statut (Fait ou En cours), les autres sont des branches de remplissage
+    id="$(printf '1%02d-01' "$i")"
+    if [ "$i" -le "$n" ]; then sur_branche "feat/$id-x" "$id" "$([ $((i % 2)) -eq 1 ] && echo Fait || echo "En cours")" ""; else git branch "feat/zz-remplissage-$i"; fi
+    i=$((i + 1))
+  done
+}
+cout_mesure() { # cout_mesure <A|B> <issues> <branches> : appels et listages du dashboard, de --prochaine et du tableau, dans cout_<A|B>_<…>
+  cout_depot "$2" "$3" "$1"
+  eval "cout_$1_dashboard=$(cout_appels scripts/dashboard.sh --sortie "$racine_tmp/cout.html") cout_$1_listages_dashboard=$(cout_listages)"
+  eval "cout_$1_prochaine=$(cout_appels scripts/etat-issues.sh --prochaine) cout_$1_listages_prochaine=$(cout_listages)"
+  eval "cout_$1_tableau=$(cout_appels scripts/etat-issues.sh) cout_$1_listages_tableau=$(cout_listages)"
+}
+cout_compare() { # cout_compare <commande> : (appels de B) − (appels de A) ≤ 1 ; exactement un listage dans B ; aucun dans A (aucune issue à champ vide)
+  local a b la lb
+  eval "a=\$cout_A_$1 b=\$cout_B_$1 la=\$cout_A_listages_$1 lb=\$cout_B_listages_$1"
+  [ $((b - a)) -le 1 ] && [ "$lb" -eq 1 ] && [ "$la" -eq 0 ] || { printf 'A : %s appels, %s listage(s) ; B : %s appels, %s listage(s)\n' "$a" "$la" "$b" "$lb"; return 1; }
+}
+for cfg in "3 1" "3 50" "12 1" "12 50"; do
+  cout_mesure A ${cfg% *} ${cfg#* }; cout_mesure B ${cfg% *} ${cfg#* }
+  printf '  mesure %s issues, %s branches (appels git A -> B) : dashboard %s -> %s, --prochaine %s -> %s, tableau %s -> %s\n' "${cfg% *}" "${cfg#* }" "$cout_A_dashboard" "$cout_B_dashboard" "$cout_A_prochaine" "$cout_B_prochaine" "$cout_A_tableau" "$cout_B_tableau"
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : dashboard, (appels de B) - (appels de A) <= 1 et un seul listage dans B, aucun dans A" 0 "" cout_compare dashboard
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : etat-issues.sh --prochaine seul, différence <= 1 et un seul listage dans B" 0 "" cout_compare prochaine
+  verifier "ca23_${cfg% *} issues, ${cfg#* } branches : le tableau de etat-issues.sh seul, différence <= 1 et un seul listage dans B" 0 "" cout_compare tableau
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

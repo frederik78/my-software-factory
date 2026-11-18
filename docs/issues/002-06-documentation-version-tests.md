@@ -3,7 +3,7 @@ id: 002-06
 titre: Documentation, version 1.21.0 et tests réunis
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: En revue
+statut: En cours
 depend_de: [002-02, 002-05]
 criteres: [CA-22, CA-23, CA-24]
 branche: feat/002-06-documentation-version-tests

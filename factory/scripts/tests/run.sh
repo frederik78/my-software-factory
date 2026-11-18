@@ -3702,6 +3702,17 @@ AVIS A03 issue 004-68 : Fait : la dernière ligne de docs/reviews/004-68.md n'es
 STATUTS : 0 erreur(s), 5 avis
 TXT
 
+
+echo "statuts.sh : cohérence des besoins avec leurs issues (PRD 004, issue 004-03)"
+# ca19 : chaque bibliothèque de factory/scripts a son lien dans scripts/ (le wrapper scripts/statuts.sh les source toutes) ; le wrapper du dépôt réel les trouve
+bs_manquants=""
+for bs_lib in "$factory"/scripts/lib-*.sh; do
+  [ -L "$depot/scripts/$(basename "$bs_lib")" ] && [ -f "$depot/scripts/$(basename "$bs_lib")" ] || bs_manquants="$bs_manquants $(basename "$bs_lib")"
+done
+verifier "ca19_wrapper : chaque factory/scripts/lib-*.sh a son lien scripts/lib-*.sh (manquants :${bs_manquants:- aucun})" 0 "" test -z "$bs_manquants"
+"$depot/scripts/statuts.sh" > "$racine_tmp/w.out" 2> "$racine_tmp/w.err"; bs_code=$?
+verifier "ca19_wrapper : scripts/statuts.sh du dépôt réel lance le contrôle des besoins : code 0 ou 1, rien sur la sortie d'erreur, récapitulatif présent" 0 "" test "$([ "$bs_code" -le 1 ] && echo ok)|$(wc -c < "$racine_tmp/w.err" | tr -d ' ')|$(grep -c '^STATUTS : ' "$racine_tmp/w.out")" = "ok|0|1"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

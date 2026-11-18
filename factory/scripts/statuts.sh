@@ -22,6 +22,8 @@ cd "$racine" || exit 1
 . "$(dirname "$0")/lib-preuves.sh"
 # shellcheck source=lib-dependances.sh
 . "$(dirname "$0")/lib-dependances.sh"
+# shellcheck source=lib-besoins.sh
+. "$(dirname "$0")/lib-besoins.sh"
 PREUVES_VERDICT_SCRIPT="$(dirname "$0")/verdict-revue.sh" # lecture stricte du verdict d'une revue (RG-10 b), jamais dupliquée ici
 
 usage() { echo "Usage : $0 [--table]" >&2; exit 64; }
@@ -170,68 +172,6 @@ controle_dependances() {
   while IFS="$CONSTAT_SEP" read -r rang dep etat; do
     dependance_signaler "$rang" "${iss_ids[$rang]}" "$dep" "$etat"
   done < <(printf '%s\n' "${flux[@]}" | dependances_resoudre)
-}
-
-# besoins_lire : lit le premier tableau de backlog.md dont l'en-tête a les colonnes ID, Statut et PRD (RG-04), colonnes repérées par leur nom, cellules sans espaces de bord,
-# « \| » = barre littérale. Une ligne par enregistrement, champs séparés par CONSTAT_SEP :
-#   N                           aucun tableau reconnu
-#   L <id>                      ligne dont le nombre de colonnes diffère de l'en-tête
-#   R <id> <statut> <doublon>   ligne lisible ; doublon = 1 sur la première ligne d'un identifiant qui revient
-# Une ligne sans identifiant n'est pas un besoin (comme dans le dashboard). Les valeurs ne sont qu'imprimées : jamais évaluées ni utilisées comme motif.
-besoins_lire() {
-  awk -v OFS="$CONSTAT_SEP" '
-    function trim(x) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", x); return x }
-    function cellules(ligne,   k) {
-      gsub(/\037/, "\357\277\275", ligne) # 0x1F est le séparateur des enregistrements : une cellule qui en contient ne peut pas passer pour valide (U+FFFD à la place)
-      gsub(/\\\|/, "\001", ligne)
-      sub(/^[[:space:]]*\|/, "", ligne); sub(/\|[[:space:]]*$/, "", ligne)
-      nc = split(ligne, c, "|")
-      for (k = 1; k <= nc; k++) { c[k] = trim(c[k]); gsub(/\001/, "|", c[k]) }
-    }
-    etat == 1 && $0 !~ /^[[:space:]]*\|/ { exit }
-    $0 ~ /^[[:space:]]*\|/ {
-      cellules($0)
-      if (etat == 0) {
-        ii = 0; is = 0; ip = 0
-        for (k = 1; k <= nc; k++) { if (c[k] == "ID") ii = k; if (c[k] == "Statut") is = k; if (c[k] == "PRD") ip = k }
-        if (ii && is && ip) { etat = 1; ncol = nc }
-        next
-      }
-      sep = 1; for (k = 1; k <= nc; k++) if (c[k] !~ /^:?-+:?$/) sep = 0
-      if (sep) next
-      id = (ii <= nc ? c[ii] : ""); if (id == "") next
-      n++; rtype[n] = (nc == ncol ? "R" : "L"); rid[n] = id; rst[n] = (is <= nc ? c[is] : "")
-      if (nc == ncol) fois[id]++
-    }
-    END {
-      if (etat == 0) { print "N"; exit }
-      for (k = 1; k <= n; k++) {
-        if (rtype[k] == "L") { print "L", rid[k]; continue }
-        dup = (fois[rid[k]] > 1 && !(rid[k] in vu)) ? 1 : 0; vu[rid[k]] = 1
-        print "R", rid[k], rst[k], dup
-      }
-    }
-  ' backlog.md
-}
-
-# controle_besoins : E02 (aucun tableau), E03 (ligne illisible), E04 (identifiant en double), E05 (statut inconnu) pour les besoins de backlog.md.
-controle_besoins() {
-  local typ id statut dup rang=0 attendus
-  table_statuts_de besoin; attendus="$statuts_de"
-  while IFS="$CONSTAT_SEP" read -r typ id statut dup; do
-    if [ "$typ" = N ]; then
-      constat_ajouter ERREUR E02 0 0 backlog "tableau des besoins introuvable (colonnes ID, Statut, PRD attendues)"; continue
-    fi
-    rang=$((rang + 1))
-    constat_neutraliser "$id"; id="$neutre"
-    if [ "$typ" = L ]; then
-      constat_ajouter ERREUR E03 1 "$rang" "besoin $id" "ligne illisible (nombre de colonnes différent de l'en-tête)"; continue
-    fi
-    [ "$dup" != 1 ] || constat_ajouter ERREUR E04 1 "$rang" "besoin $id" "identifiant en double dans le backlog"
-    table_statut_connu besoin "$statut" && continue
-    constat_neutraliser "$statut"
-    constat_ajouter ERREUR E05 1 "$rang" "besoin $id" "statut inconnu « $neutre » (attendus : $attendus)"
-  done < <(besoins_lire)
 }
 
 # controle : backlog.md absent ou illisible = la seule erreur est E01 ; sinon les besoins puis les issues.

@@ -5,7 +5,7 @@
 - Deux clés de configuration (`.factory.conf`, `.factory.local.conf`, variables `FACTORY_<CLÉ>`) : `DOSSIER_TESTS` (dossier des tests ; la variable `DOSSIER_TESTS` sans préfixe garde la priorité la plus haute ; défaut : détection de `src/test`, `tests`, `test`) et `TESTS_BASH_FONCTIONS` (noms des fonctions de test, défaut `verifier verdict_cas`). Un dossier configuré absent ou une liste invalide : code 64.
 - `fin-issue.sh` lit la configuration du commit contrôlé (`.factory.conf` commité, jamais `.factory.local.conf`) et refuse un `DOSSIER_TESTS` absolu ou contenant `..` (code 64, sans build).
 - Nouveauté, aucun changement de comportement incompatible : sans les nouvelles clés, la détection du dossier de tests et la reconnaissance des tests Java, Kotlin, Python et Node restent celles de 1.20.1.
-- Migration : remplacer `factory/`. Sans action si la configuration reste inchangée ; pour reconnaître des tests bash, ajouter `DOSSIER_TESTS` et, au besoin, `TESTS_BASH_FONCTIONS` à `.factory.conf` (voir `factory/UPGRADE.md`).
+- Migration : remplacer `factory/` ; sans action si la configuration reste inchangée. Pour reconnaître des tests bash, ajouter `DOSSIER_TESTS` et, au besoin, `TESTS_BASH_FONCTIONS` à `.factory.conf` (voir `factory/UPGRADE.md`).
 
 ## 1.20.1
 - `dashboard.sh` : un Kanban qui grossit ne rallonge plus la page. Chaque Kanban tient dans un viewport de 70 % de la hauteur de la fenêtre, avec ascenseurs vertical et horizontal, et les en-têtes de colonnes restent visibles pendant le défilement. À l'impression, la page s'étend comme avant.

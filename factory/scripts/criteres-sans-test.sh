@@ -26,7 +26,7 @@
 #     dossier existant parmi src/test, tests, test. Un dossier configuré absent : message, code 64, sans repli. La valeur est un chemin, jamais une option.
 #   TESTS_BASH_FONCTIONS : noms des fonctions de test bash, séparés par des espaces (1 à 20 noms, [A-Za-z_][A-Za-z0-9_]*, 64 caractères au plus).
 #     Défaut : verifier verdict_cas. Elle REMPLACE le défaut ; validée avant toute lecture des tests (invalide : message sur stderr, code 64).
-#   Priorité, du plus fort au plus faible : variable d'environnement (DOSSIER_TESTS pour le dossier seulement, vide = ignorée), FACTORY_<CLÉ>, .factory.local.conf
+#   Ordre de priorité, du plus fort au plus faible : variable d'environnement (DOSSIER_TESTS pour le dossier seulement, vide = ignorée), FACTORY_<CLÉ> (FACTORY_DOSSIER_TESTS, FACTORY_TESTS_BASH_FONCTIONS), .factory.local.conf
 #   (non versionné), .factory.conf, défaut. Une valeur vide dans FACTORY_<CLÉ>, .factory.local.conf ou .factory.conf impose le défaut (détection du dossier).
 #   Dans fin-issue.sh, le contrôle s'exécute dans une extraction du commit : seul le .factory.conf commité compte (jamais .factory.local.conf), les variables d'environnement
 #   s'appliquent. Valeur effective : scripts/config-factory.sh.

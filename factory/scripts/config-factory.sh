@@ -41,7 +41,10 @@ limite() { # limite <clé> : valeur de la clé, entier >= 1, sinon code 64
 
 case "${1:-}" in
   "")
-    for cle in $CONFIG_CLES; do printf '%s=%s\n' "$cle" "$(config_valeur "$cle" "$(defaut "$cle")")"; done ;;
+    for cle in $CONFIG_CLES; do
+      if [ "$cle" = DOSSIER_TESTS ]; then valeur="$(config_dossier_tests)"; else valeur="$(config_valeur "$cle" "$(defaut "$cle")")"; fi
+      printf '%s=%s\n' "$cle" "$valeur"
+    done ;;
   --max-iterations) [ $# -eq 1 ] || usage; limite MAX_ITERATIONS_REVUE ;;
   --max-criteres) [ $# -eq 1 ] || usage; limite MAX_CRITERES_ISSUE ;;
   *) usage ;;

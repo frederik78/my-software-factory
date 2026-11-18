@@ -2628,8 +2628,8 @@ version="$(lire_depot "$depot" factory/VERSION | head -n1)"
 changelog="$(lire_depot "$depot" factory/CHANGELOG.md)"
 entree="$(awk '/^## /{n++} n==1' <<<"$changelog")"
 plus_grande() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_grande <a> <b> : a > b (versions x.y.z)
-etiquettes_fautives() { # etiquettes_fautives <dépôt> <version> : étiquettes vX.Y.Z NON dépassées par la version (strict : une étiquette égale est fautive)
-  local e; for e in $(git -C "$1" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do plus_grande "$2" "${e#v}" || echo "$e"; done
+etiquettes_fautives() { # etiquettes_fautives <dépôt> <version> : étiquettes vX.Y.Z supérieures à la version (une étiquette égale est admise)
+  local e; for e in $(git -C "$1" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do plus_grande "${e#v}" "$2" && echo "$e"; done
 }
 verifier "ca27_factory/VERSION est une version x.y.z" 0 "" contient_motif "$version" '^[0-9]+\.[0-9]+\.[0-9]+$'
 verifier "ca27_le CHANGELOG commence par l'entrée de la version courante" 0 "" contient_motif "$(head -n1 <<<"$entree")" "^## ${version//./\\.}$"

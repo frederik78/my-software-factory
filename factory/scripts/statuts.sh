@@ -18,6 +18,8 @@ cd "$racine" || exit 1
 . "$(dirname "$0")/lib-constats.sh"
 # shellcheck source=lib-preuves.sh
 . "$(dirname "$0")/lib-preuves.sh"
+# shellcheck source=lib-dependances.sh
+. "$(dirname "$0")/lib-dependances.sh"
 
 usage() { echo "Usage : $0 [--table]" >&2; exit 64; }
 
@@ -89,6 +91,7 @@ controle_issues() {
   done
   controle_preuves
   preuves_commits_verifier
+  controle_dependances
 }
 
 # issues_effectifs_calculer : branche retenue (iss_refs : refs/heads/<nom>, vide si aucune) et statut effectif (iss_effectifs) de chaque issue contrôlée, comme le dashboard (PRD 003).
@@ -122,6 +125,48 @@ controle_preuves() {
       Abandonnée) preuves_abandon "${iss_rangs[$i]}" "${iss_fichiers[$i]}" "${iss_ids[$i]}" ;;
     esac
   done
+}
+
+# dependance_signaler <rang> <id de l'issue> <dépendance> <état> : A09 (dépendance Abandonnée), A10 (dépendance inconnue) ou A11 (issue Fait dont une dépendance n'est pas terminée).
+# <état> : S<statut effectif de la dépendance>, U (identifiant inutilisable, aucun avis : l'erreur E10 ou E11 le dit déjà) ou X (aucune issue de cet identifiant).
+dependance_signaler() {
+  local objet dep
+  constat_neutraliser "$2"; objet="issue $neutre"
+  constat_neutraliser "$3"; dep="$neutre"
+  if [ "${iss_statuts[$1]}" = Fait ]; then # une issue Fait n'a d'avis que A11 ; une dépendance inconnue, Fait ou Abandonnée ne lui est pas reprochée
+    case "$4" in SFait|SAbandonnée|U|X) ;; S*) constat_ajouter AVIS A11 2 "${iss_rangs[$1]}" "$objet" "Fait alors que la dépendance $dep n'est pas terminée" ;; esac
+  else
+    case "$4" in
+      X) constat_ajouter AVIS A10 2 "${iss_rangs[$1]}" "$objet" "dépend de $dep, issue inconnue" ;;
+      SAbandonnée) constat_ajouter AVIS A09 2 "${iss_rangs[$1]}" "$objet" "dépend de l'issue Abandonnée $dep" ;;
+    esac
+  fi
+}
+
+# controle_dependances : A09, A10, A11 (RG-13). Concerne les issues Fait (statut local) et celles dont le statut effectif n'est ni Fait ni Abandonnée ; les dépendances sont
+# résolues en un seul passage (dependances_resoudre) sur le statut effectif des issues contrôlées. Une dépendance n'est jamais levée par ces avis (comportement du dashboard inchangé).
+controle_dependances() {
+  local i dep flux=() rang etat
+  for i in "${!iss_fichiers[@]}"; do
+    case "${iss_ids[$i]}" in *"$CONSTAT_SEP"*|'') continue ;; esac
+    if [ "${iss_etats[$i]}" = controlee ]; then flux+=("I$CONSTAT_SEP${iss_ids[$i]}$CONSTAT_SEP${iss_effectifs[$i]}")
+    elif [ "${iss_etats[$i]}" = lue ]; then flux+=("U$CONSTAT_SEP${iss_ids[$i]}")
+    fi
+  done
+  for i in "${!iss_fichiers[@]}"; do
+    [ "${iss_etats[$i]}" = controlee ] || continue
+    [ "${iss_statuts[$i]}" = Fait ] || case "${iss_effectifs[$i]}" in Fait|Abandonnée) continue ;; esac
+    while IFS= read -r dep; do
+      case "$dep" in
+        *"$CONSTAT_SEP"*) dependance_signaler "$i" "${iss_ids[$i]}" "$dep" X ;; # ne peut pas désigner une issue : jamais transmis au séparateur de flux
+        *) flux+=("D$CONSTAT_SEP$i$CONSTAT_SEP$dep") ;;
+      esac
+    done < <(issue_liste "${iss_fichiers[$i]}" depend_de)
+  done
+  [ "${#flux[@]}" -gt 0 ] || return 0
+  while IFS="$CONSTAT_SEP" read -r rang dep etat; do
+    dependance_signaler "$rang" "${iss_ids[$rang]}" "$dep" "$etat"
+  done < <(printf '%s\n' "${flux[@]}" | dependances_resoudre)
 }
 
 # besoins_lire : lit le premier tableau de backlog.md dont l'en-tête a les colonnes ID, Statut et PRD (RG-04), colonnes repérées par leur nom, cellules sans espaces de bord,

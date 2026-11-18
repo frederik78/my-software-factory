@@ -3503,6 +3503,56 @@ st_cas "ca17_abandonnee : Abandonnée avec sa raison et Fait complet : aucun con
 STATUTS : 0 erreur(s), 0 avis
 TXT
 
+
+# ca18 : dépendances d'une issue
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md; git branch feat/b HEAD
+pr_full() { pr_issue "$1" Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok "$1")" "${2:-}" "${3:-}"; } # pr_full <id> [depend_de] [branche] : issue Fait complète
+pr_ab 004-70 "- 2026-11-18 : Abandonnée."
+pr_issue 004-71 "À faire" "" "[]" "" "004-70"
+pr_issue 004-72 "En cours" "" "[]" "" "004-70" feat/b
+pr_issue 004-73 "En revue" docs/reviews/revue.md "[]" "" "004-70" feat/b
+pr_issue 004-74 "À faire" "" "[]" "" "004-99"
+pr_full 004-75 "004-76"; pr_issue 004-76 "En cours" "" "[]" "" "" feat/b
+pr_full 004-77 "004-70"; pr_full 004-78 "004-99"
+pr_issue 004-79 "À faire" "" "[]" "" "004-80"; pr_issue 004-80 "À faire" "" "[]" "" "" feat/c; sur_branche feat/c 004-80 "Fait" feat/c
+pr_issue 004-81 "À faire" "" "[]" "" "004-70, 004-99"
+pr_issue 004-82 "À faire" "" "[]" "" "004-83"; pr_issue 004-83 "Bof" "" "[]" "" ""
+pr_issue 004-84 "À faire" "" "[]" "" "004-7"
+pr_full 004-85 "004-86"; pr_full 004-86
+st_cas "ca18_dependances : dépendance Abandonnée d'une issue À faire, En cours ou En revue = A09 ; inexistante = A10 (et 004-7 n'est pas 004-70) ; Fait avec une dépendance En cours = A11 ; Fait avec une dépendance Abandonnée ou inexistante, dépendance Fait sur sa branche, dépendance d'une issue en E10 = aucun avis" 1 <<'TXT'
+ERREUR E10 issue 004-83 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
+AVIS A09 issue 004-71 : dépend de l'issue Abandonnée 004-70
+AVIS A09 issue 004-72 : dépend de l'issue Abandonnée 004-70
+AVIS A09 issue 004-73 : dépend de l'issue Abandonnée 004-70
+AVIS A10 issue 004-74 : dépend de 004-99, issue inconnue
+AVIS A11 issue 004-75 : Fait alors que la dépendance 004-76 n'est pas terminée
+AVIS A09 issue 004-81 : dépend de l'issue Abandonnée 004-70
+AVIS A10 issue 004-81 : dépend de 004-99, issue inconnue
+AVIS A10 issue 004-84 : dépend de 004-7, issue inconnue
+STATUTS : 1 erreur(s), 8 avis
+TXT
+# la dépendance Abandonnée n'est pas levée : etat-issues --prochaine ne rend pas l'issue, le dashboard la marque bloquée (comportement inchangé)
+pr_depot
+pr_ab 004-70 "- 2026-11-18 : Abandonnée."; pr_issue 004-71 "À faire" "" "[]" "" "004-70"
+verifier_exact "ca18_dependances : etat-issues --prochaine ne rend pas l'issue dont la dépendance est Abandonnée (code 1, rien d'écrit)" 1 "" scripts/etat-issues.sh --prochaine
+scripts/dashboard.sh --sortie "$racine_tmp/ca18.html" >/dev/null 2>&1
+verifier "ca18_dependances : le dashboard marque l'issue bloquée" 0 "bloquée" carte_de 004-71 "$racine_tmp/ca18.html"
+# valeurs hostiles dans depend_de : lues comme du texte
+pr_depot
+pr_issue 004-71 "À faire" "" "[]" "" '$(touch${IFS}marque)'; pr_issue 004-72 "À faire" "" "[]" "" '*'; pr_issue 004-73 "À faire" "" "[]" "" '--help'; pr_issue 004-74 "À faire" "" "[]" "" "004-7$(printf '\037')1"
+pr_issue 004-75 "À faire" "" "[]" "" '[a-z]'; pr_issue 004-76 "À faire" "" "[]" "" '.*'
+st_cas "ca18_dependances : dépendances hostiles (\$(…), *, --help, 0x1F, [a-z], .*) = A10 avec la valeur neutralisée, jamais un motif ni une commande" 0 <<'TXT'
+AVIS A10 issue 004-71 : dépend de $(touch${IFS}marque), issue inconnue
+AVIS A10 issue 004-72 : dépend de *, issue inconnue
+AVIS A10 issue 004-73 : dépend de --help, issue inconnue
+AVIS A10 issue 004-74 : dépend de 004-71, issue inconnue
+AVIS A10 issue 004-75 : dépend de [a-z], issue inconnue
+AVIS A10 issue 004-76 : dépend de .*, issue inconnue
+STATUTS : 0 erreur(s), 6 avis
+TXT
+verifier "ca18_dependances : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

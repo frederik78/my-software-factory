@@ -238,6 +238,7 @@ etat_dependances() {
 }
 # prochaine_issue <lignes de issues_dossier> : identifiant de la première issue (ordre des fichiers) dont le statut effectif est « À faire » et dont aucune dépendance n'est bloquante (RG-14).
 # Même règle que etat-issues.sh --prochaine (CA-14 les compare), calculée ici sur les statuts déjà lus : lancer ce script relirait les branches locales (RG-21 : une seule lecture par génération).
+# Règle dupliquée dans etat-issues.sh (--prochaine) : modifier les deux ensemble ; garde : ca14.
 prochaine_issue() {
   local id statut deps
   while IFS="$sep" read -r id _ statut deps _; do

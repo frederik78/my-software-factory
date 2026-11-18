@@ -45,6 +45,7 @@ statut_effectif_de() { # statut_effectif_de <id> : met le statut effectif de l'i
   for i in "${!ids[@]}"; do [ "${ids[$i]}" = "$1" ] && { effectif_de_rang "$i"; return; }; done
 }
 
+# Règle de la prochaine issue prête dupliquée dans dashboard.sh (prochaine_issue) : modifier les deux ensemble ; garde : ca14.
 if [ "$mode" = "prochaine" ]; then
   for i in "${!ids[@]}"; do
     [ "${statuts[$i]}" = "À faire" ] || continue

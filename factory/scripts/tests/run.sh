@@ -3328,9 +3328,12 @@ verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR re
 
 
 echo "statuts.sh : preuves d'une issue, branche retenue, Abandonnée et dépendances (PRD 004, issue 004-02)"
-pr_depot() { # pr_depot : st_depot + backlog à un besoin « En cours » + un premier commit ; $pr_c = son identifiant court, $pr_cl = complet
+pr_besoin() { # pr_besoin <statut> : le statut du besoin F-01 auquel appartiennent les issues de pr_issue (« En revue » par défaut : toutes les issues Fait, non fusionnées, n'y donnent aucun constat)
+  printf '| F-01 | B | P1 | %s | `docs/prd/p.md` | |\n' "$1" | st_backlog
+}
+pr_depot() { # pr_depot : st_depot + backlog à un besoin « En revue » + un premier commit ; $pr_c = son identifiant court, $pr_cl = complet
   st_depot
-  printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
+  pr_besoin "En revue"
   mkdir -p docs/issues; : > docs/issues/.gitkeep; gd_ add docs/issues/.gitkeep; gd_ commit -q -m init # le dossier des issues existe dans les branches créées ensuite
   pr_c="$(git rev-parse --short HEAD)"; pr_cl="$(git rev-parse HEAD)"
   mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md
@@ -3728,6 +3731,7 @@ bs_depot() { # bs_depot : st_depot + dossiers docs/prd (p.md, q.md) et docs/revi
 bs_issue() { # bs_issue <id> <statut> <besoin> [branche] [prd : « none » = vide] [notes] : docs/issues/<id>-x.md ; une issue Fait reçoit une revue approuvée, un commit et sa ligne FIN-ISSUE OK
   local revue="" commits="[]" notes="${6:-}" prd="${5:-docs/prd/p.md}"
   [ "$prd" != none ] || prd=""
+  [ "$2" != "En revue" ] || revue=" docs/reviews/revue.md"
   if [ "$2" = Fait ]; then revue=" docs/reviews/revue.md"; commits="[$bs_c]"; notes="- \`FIN-ISSUE OK $1 abc1234 : 1 test\`${notes:+
 $notes}"; fi
   printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nprd: %s\nstatut: %s\ndepend_de: []\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\nx\n\n## Notes\n%s\n' \
@@ -3844,6 +3848,28 @@ bs_depot
 printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none; git branch -m develop trunk
 st_cas "ca24_fusion : develop absente sans issue Fait à vérifier = pas de lecture de la fusion, donc pas d'A13" 0 <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
+TXT
+
+# ca22 : besoin En cours ou En revue dont toutes les issues (hors Abandonnée) sont Fait
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/p.md` | |' \
+  '| F-03 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-04 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-05 | B | P1 | En revue | `docs/prd/p.md` | |' \
+  '| F-06 | B | P1 | En cours | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 Fait F-01 feat/nf none; bs_issue 004-72 Abandonnée F-01 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-73 Fait F-02 feat/b none
+bs_issue 004-74 Fait F-03 feat/nf none
+bs_issue 004-75 Fait F-04 feat/b none; bs_issue 004-76 Abandonnée F-04 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-77 Fait F-05 feat/b none; bs_issue 004-78 Fait F-05 feat/nf none
+bs_issue 004-79 Fait F-06 feat/b none; bs_issue 004-80 "En cours" F-06 feat/b none
+st_cas "ca22_retard : En cours dont toutes les issues sont Fait non fusionnées = E07 « attendu : En revue » ; toutes fusionnées dans develop (En cours ou En revue) = E07 « attendu : Fait » ; En revue avec des issues Fait non fusionnées (toutes, ou une seule) = aucun constat ; issues Abandonnée écartées ; En cours avec une issue encore En cours = aucun constat" 1 <<'TXT'
+ERREUR E07 besoin F-01 : statut En cours en retard : toutes les issues sont Fait (attendu : En revue)
+ERREUR E07 besoin F-02 : statut En cours en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)
+ERREUR E07 besoin F-04 : statut En revue en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)
+STATUTS : 3 erreur(s), 0 avis
 TXT
 
 echo

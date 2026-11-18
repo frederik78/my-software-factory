@@ -247,6 +247,12 @@ besoin_ecart() {
   case "$statut" in
     "À faire"|"En clarification"|Spécifié)
       [ "$4" -eq 0 ] || { constat_neutraliser "${iss_ids[$5]}"; constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : l'issue $neutre est démarrée"; } ;;
+    "En cours"|"En revue")
+      if [ "$2" -gt 0 ] && [ "$3" -eq "$2" ]; then # toutes les issues (hors Abandonnée) sont Fait
+        if [ -z "$7" ] && [ "$8" -eq 0 ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)"
+        elif [ "$statut" = "En cours" ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait (attendu : En revue)"
+        fi
+      fi ;;
     Fait)
       if [ "$3" -eq 0 ]; then constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : aucune issue Fait"
       elif [ -n "$6" ]; then constat_neutraliser "${iss_ids[$6]}"; constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : l'issue $neutre n'est ni Fait ni Abandonnée"

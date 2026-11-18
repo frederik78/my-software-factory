@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 1.21.0
+- `criteres-sans-test.sh`, donc `fin-issue.sh` : reconnaissance des tests bash. Dans les fichiers `.sh` du dossier de tests, une ligne qui commence par `verifier "ca10_x" …` ou `verdict_cas "cs01_x" …` (premier argument entre guillemets) déclare un test pour le critère nommé par son titre ; le texte d'un document ici (`<<EOF`), un commentaire ou un appel en milieu de ligne ne compte pas. Aucun fichier n'est exécuté ; en cas de doute le script signale MANQUE plutôt qu'un faux OK (limites connues dans l'en-tête du script).
+- Deux clés de configuration (`.factory.conf`, `.factory.local.conf`, variables `FACTORY_<CLÉ>`) : `DOSSIER_TESTS` (dossier des tests ; la variable `DOSSIER_TESTS` sans préfixe garde la priorité la plus haute ; défaut : détection de `src/test`, `tests`, `test`) et `TESTS_BASH_FONCTIONS` (noms des fonctions de test, défaut `verifier verdict_cas`). Un dossier configuré absent ou une liste invalide : code 64.
+- `fin-issue.sh` lit la configuration du commit contrôlé (`.factory.conf` commité, jamais `.factory.local.conf`) et refuse un `DOSSIER_TESTS` absolu ou contenant `..` (code 64, sans build).
+- Nouveauté, aucun changement de comportement incompatible : sans les nouvelles clés, la détection du dossier de tests et la reconnaissance des tests Java, Kotlin, Python et Node restent celles de 1.20.1.
+- Migration : remplacer `factory/`. Sans action si la configuration reste inchangée ; pour reconnaître des tests bash, ajouter `DOSSIER_TESTS` et, au besoin, `TESTS_BASH_FONCTIONS` à `.factory.conf` (voir `factory/UPGRADE.md`).
+
 ## 1.20.1
 - `dashboard.sh` : un Kanban qui grossit ne rallonge plus la page. Chaque Kanban tient dans un viewport de 70 % de la hauteur de la fenêtre, avec ascenseurs vertical et horizontal, et les en-têtes de colonnes restent visibles pendant le défilement. À l'impression, la page s'étend comme avant.
 - Colonne « Fait » triée de la plus récente à la moins récente : date du dernier commit du fichier de l'issue (à défaut, sa date de modification) ; pour un besoin, date de sa dernière issue. À date égale, l'ordre d'origine. Les autres colonnes gardent l'ordre des fichiers.

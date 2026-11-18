@@ -18,10 +18,22 @@
 #
 # Usage : scripts/criteres-sans-test.sh <issue>        <issue> = chemin du fichier, ou id (ex. 001-03)
 #         scripts/criteres-sans-test.sh --tous         toutes les issues dont le statut n'est pas « À faire »
-# Dossier de tests : DOSSIER_TESTS (variable, puis FACTORY_DOSSIER_TESTS, .factory.local.conf, .factory.conf) ; sinon le premier dossier existant
-#   parmi src/test, tests, test. Un dossier configuré absent : message, code 64, sans repli. La valeur est un chemin, jamais une option.
-# Configuration (lib-config.sh, jamais exécutée) : TESTS_BASH_FONCTIONS = noms des fonctions de test bash, séparés par des espaces (défaut : verifier verdict_cas).
-#   Elle REMPLACE le défaut ; validée avant toute lecture des tests (invalide : message sur stderr, code 64).
+# Forme du test bash (fichiers .sh seulement, jamais exécutés) : une ligne qui COMMENCE par le nom d'une fonction de test suivi de son titre entre guillemets,
+#   par exemple `verifier "ca10_x" 0 "" commande` ; le premier argument entre " ou ' est le titre, il doit contenir l'identifiant du critère. Rien d'autre ne compte :
+#   appel en milieu de ligne, argument sans guillemets, commentaire, définition `verifier() {`, texte d'un document ici (<<EOF).
+# Deux clés de configuration (lib-config.sh ; le fichier n'est jamais exécuté ni sourcé) :
+#   DOSSIER_TESTS : dossier des tests, chemin relatif à la racine du dépôt (fin-issue.sh refuse un chemin absolu ou contenant « .. »). Défaut : détection du premier
+#     dossier existant parmi src/test, tests, test. Un dossier configuré absent : message, code 64, sans repli. La valeur est un chemin, jamais une option.
+#   TESTS_BASH_FONCTIONS : noms des fonctions de test bash, séparés par des espaces (1 à 20 noms, [A-Za-z_][A-Za-z0-9_]*, 64 caractères au plus).
+#     Défaut : verifier verdict_cas. Elle REMPLACE le défaut ; validée avant toute lecture des tests (invalide : message sur stderr, code 64).
+#   Priorité, du plus fort au plus faible : variable d'environnement (DOSSIER_TESTS pour le dossier seulement, vide = ignorée), FACTORY_<CLÉ>, .factory.local.conf
+#   (non versionné), .factory.conf, défaut. Une valeur vide dans FACTORY_<CLÉ>, .factory.local.conf ou .factory.conf impose le défaut (détection du dossier).
+#   Dans fin-issue.sh, le contrôle s'exécute dans une extraction du commit : seul le .factory.conf commité compte (jamais .factory.local.conf), les variables d'environnement
+#   s'appliquent. Valeur effective : scripts/config-factory.sh.
+# Limites connues de la lecture des fichiers bash : en cas de doute le script signale MANQUE plutôt qu'un faux OK (détection prudente des documents ici et des guillemets :
+#   un faux MANQUE se corrige en simplifiant l'écriture du test). Faux OK rares restants, constatés par essai : un guillemet échappé hors chaîne (x=\" ) avant un
+#   document ici sur la même ligne ; une chaîne répartie sur plusieurs lignes et fermée sur la ligne qui ouvre un document ici (le texte du document est alors lu comme des appels).
+#   Le contenu d'un test n'est pas lu : un appel vide ou jamais exécuté répond OK.
 # Une issue sans AUCUN critère est une erreur (jamais un « tout couvert » silencieux).
 # Code de sortie : 0 si tout est couvert, 1 sinon, 64 en cas d'erreur d'usage.
 set -uo pipefail

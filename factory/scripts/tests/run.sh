@@ -2627,16 +2627,26 @@ verifier "ca26_docs/issues/README.md et son modèle disent la même chose de l'�
 version="$(lire_depot "$depot" factory/VERSION | head -n1)"
 changelog="$(lire_depot "$depot" factory/CHANGELOG.md)"
 entree="$(awk '/^## /{n++} n==1' <<<"$changelog")"
-precedente="$(awk '/^## /{n++; if (n==2) { sub(/^## /, ""); print; exit }}' <<<"$changelog")"
 plus_grande() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_grande <a> <b> : a > b (versions x.y.z)
+etiquettes_fautives() { # etiquettes_fautives <dépôt> <version> : étiquettes vX.Y.Z NON dépassées par la version (strict : une étiquette égale est fautive)
+  local e; for e in $(git -C "$1" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do plus_grande "$2" "${e#v}" || echo "$e"; done
+}
 verifier "ca27_factory/VERSION est une version x.y.z" 0 "" contient_motif "$version" '^[0-9]+\.[0-9]+\.[0-9]+$'
-verifier "ca27_factory/VERSION vaut 1.22.0 (la suivante libre : F-01 réserve 1.22.0 dans son PRD mais n'est pas livré, D-14)" 0 "" contient_motif "$version" '^1\.22\.0$'
 verifier "ca27_le CHANGELOG commence par l'entrée de la version courante" 0 "" contient_motif "$(head -n1 <<<"$entree")" "^## ${version//./\\.}$"
-verifier "ca27_la version est supérieure à l'entrée précédente du CHANGELOG ($precedente)" 0 "" plus_grande "$version" "$precedente"
-if depot_git "$depot"; then # supérieure à toute version déjà étiquetée
-  for etiquette in $(git -C "$depot" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do
-    verifier "ca27_la version est supérieure à l'étiquette $etiquette" 0 "" plus_grande "$version" "${etiquette#v}"
-  done
+# Supérieure à toute version déjà livrée : aux autres entrées titrées du CHANGELOG (présent aussi en copie propre) ...
+for titre in $(awk '/^## /{n++; if (n > 1) print $2}' <<<"$changelog"); do
+  verifier "ca27_la version est supérieure à l'entrée $titre du CHANGELOG" 0 "" plus_grande "$version" "$titre"
+done
+# ... et aux étiquettes Git quand le dépôt en a (égalité admise : l'utilisateur étiquette la version livrée). Le garde-fou est éprouvé sur un dépôt jetable.
+etiq="$racine_tmp/etiquettes"; mkdir -p "$etiq"; git -C "$etiq" init -q -b develop .; git -C "$etiq" -c user.name=t -c user.email=t@t commit -q --allow-empty -m x
+git -C "$etiq" tag "v$version"
+verifier "ca27_une étiquette égale à la version n'est pas une faute (la suite reste verte après v$version)" 0 "" test -z "$(etiquettes_fautives "$etiq" "$version")"
+git -C "$etiq" tag v99.0.0
+verifier "ca27_une étiquette supérieure à la version est une faute" 0 "" test "$(etiquettes_fautives "$etiq" "$version")" = "v99.0.0"
+if depot_git "$depot" && [ -n "$(git -C "$depot" tag --list 'v[0-9]*.[0-9]*.[0-9]*')" ]; then
+  verifier "ca27_la version n'est inférieure à aucune étiquette de ce dépôt" 0 "" test -z "$(etiquettes_fautives "$depot" "$version")"
+else
+  ok "ca27_aucune étiquette lisible (copie propre ou clone sans étiquettes) : comparaison aux étiquettes non faite, celle au CHANGELOG fait foi"
 fi
 for motif in 'rattach' 'par convention' 'empilée sur' 'avancement' 'à vérifier' '--boucle' 'Migration : remplacer `factory/`' 'sans action'; do
   verifier "ca27_entrée du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"

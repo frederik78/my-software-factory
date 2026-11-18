@@ -54,9 +54,9 @@ issue_illisible() {
 }
 
 # controle_issues : E14 (fichier illisible), E11 (identifiant absent ou en double), E10 (statut inconnu) pour les fichiers de docs/issues/.
-# Un fichier en erreur n'émet pas d'autre constat. Ordre des vérifications d'un fichier : E14, E11 (absent), E10, E11 (en double).
+# Un fichier en erreur E14 ou E11 (absent) n'émet pas d'autre constat ; un identifiant en double donne E11 et, si le statut est inconnu, E10 sur le fichier.
 controle_issues() {
-  local f id statut rang=0 attendus chemin liste_ids="" doublons i
+  local f id statut rang=0 attendus chemin liste_ids="" doublons i objet double
   local fichiers=() ids=() statuts=() etats=() rangs=()
   table_statuts_de issue; attendus="$statuts_de"
   while IFS= read -r f; do
@@ -78,18 +78,15 @@ controle_issues() {
   doublons=$'\n'"$(printf '%s' "$liste_ids" | LC_ALL=C sort | uniq -d)"$'\n'
   for i in "${!fichiers[@]}"; do
     [ "${etats[$i]}" = lue ] || continue
-    id="${ids[$i]}"
-    constat_neutraliser "$id"; id="$neutre"
+    constat_neutraliser "${ids[$i]}"; id="$neutre"
+    constat_neutraliser "${fichiers[$i]}"; chemin="$neutre"
+    objet="issue $id"; double=0
+    case "$doublons" in *$'\n'"${ids[$i]}"$'\n'*) double=1; objet="fichier $chemin" ;; esac # deux fichiers de même id : l'objet est le fichier, pour les distinguer
     if ! table_statut_connu issue "${statuts[$i]}"; then
       constat_neutraliser "${statuts[$i]}"
-      constat_ajouter ERREUR E10 2 "${rangs[$i]}" "issue $id" "statut inconnu « $neutre » (attendus : $attendus)"
-    else
-      case "$doublons" in
-        *$'\n'"${ids[$i]}"$'\n'*)
-          constat_neutraliser "${fichiers[$i]}"
-          constat_ajouter ERREUR E11 2 "${rangs[$i]}" "fichier $neutre" "identifiant d'issue en double : $id" ;;
-      esac
+      constat_ajouter ERREUR E10 2 "${rangs[$i]}" "$objet" "statut inconnu « $neutre » (attendus : $attendus)"
     fi
+    [ "$double" -eq 0 ] || constat_ajouter ERREUR E11 2 "${rangs[$i]}" "fichier $chemin" "identifiant d'issue en double : $id"
   done
 }
 
@@ -103,6 +100,7 @@ besoins_lire() {
   awk -v OFS="$CONSTAT_SEP" '
     function trim(x) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", x); return x }
     function cellules(ligne,   k) {
+      gsub(/\037/, "\357\277\275", ligne) # 0x1F est le séparateur des enregistrements : une cellule qui en contient ne peut pas passer pour valide (U+FFFD à la place)
       gsub(/\\\|/, "\001", ligne)
       sub(/^[[:space:]]*\|/, "", ligne); sub(/\|[[:space:]]*$/, "", ligne)
       nc = split(ligne, c, "|")

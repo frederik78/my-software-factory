@@ -2963,6 +2963,18 @@ st_cas "ca08_statuts : 004-1 et 004-10 sont deux identifiants distincts" 0 <<'TX
 STATUTS : 0 erreur(s), 0 avis
 TXT
 
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf -- '---\nid: 004-91\nstatut: Bof\n---\n' > docs/issues/004-91-a.md; printf -- '---\nid: 004-91\nstatut: Zut\n---\n' > docs/issues/004-91-b.md
+st_cas "ca08_statuts : deux fichiers de même identifiant à statut inconnu = E10 (objet « fichier <chemin> ») et E11 pour chacun, distinguables" 1 <<TXT
+ERREUR E10 fichier docs/issues/004-91-a.md : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+ERREUR E11 fichier docs/issues/004-91-a.md : identifiant d'issue en double : 004-91
+ERREUR E10 fichier docs/issues/004-91-b.md : statut inconnu « Zut » (attendus : $ATTENDUS_I)
+ERREUR E11 fichier docs/issues/004-91-b.md : identifiant d'issue en double : 004-91
+STATUTS : 4 erreur(s), 0 avis
+TXT
+
+
 # ca09 : fichier d'issue illisible = E14, ignoré ; le contenu du fichier visé n'est reproduit nulle part
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
@@ -2991,6 +3003,43 @@ else
 fi
 verifier "ca09_le contenu du fichier visé par le lien (SECRET) n'apparaît dans aucune sortie" 0 "" test "$(cat "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -c SECRET)" = 0
 chmod 644 docs/issues/004-96-droits.md
+
+# Revue 1 : classe CSS d'un statut d'issue ajouté à la table (constat 6)
+st_depot
+st_issue 004-91 " Relue"; awk '{ print } index($0, "statut | issue | En revue |") == 1 { print "statut | issue | Relue | cycle | relue" }' factory/scripts/statuts.table > "$racine_tmp/table.neuve" && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+st_page
+verifier "ca02_dashboard : le statut d'issue ajouté à la table porte sa classe CSS (statut-relue), pas statut-inconnu" 0 "" grep -q '<h3 class="statut-relue">Relue (1)</h3>' "$racine_tmp/st.html"
+
+# Revue 1 : 0x1F dans une cellule du backlog (constat 1)
+st_depot
+SEP31=$'\037'
+printf '%s\n' "| F-01 | B | P1 | Fait${SEP31}zz | | |" "| F-02${SEP31} | B | P1 | Bof | | |" "| F-03 | B | P1 | Fait${SEP31} | | |" | st_backlog
+st_cas "ca06_statuts : 0x1F dans une cellule de statut ou d'identifiant ne rend pas la valeur valide (E05, champs non décalés)" 1 <<TXT
+ERREUR E05 besoin F-01 : statut inconnu « Fait�zz » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-02� : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-03 : statut inconnu « Fait� » (attendus : $ATTENDUS_B)
+STATUTS : 3 erreur(s), 0 avis
+TXT
+
+# Revue 1 : neutralisation RG-21 (constats 2 et 4)
+st_neutre() { ( . "$ici/../lib-constats.sh"; "$@" ); }
+st_n() { constat_neutraliser "$1"; printf '%s' "$neutre"; } # st_n <valeur> : la valeur neutralisée
+st_neutre_test() { # st_neutre_test <description> <attendu> <valeur> [LC_ALL]
+  local r; r="$(LC_ALL="${4:-C}" st_neutre st_n "$3")"
+  [ "$r" = "$2" ] && ok "$1" || ko "$1" "obtenu : $(printf '%s' "$r" | od -c | head -3 | tr '\n' '|')"
+}
+st_neutre_test "ca07_neutralisation : ESC, NUL et caractères de contrôle retirés" "[31mrouge" "$(printf '\033[31mro\001uge')"
+st_neutre_test "ca07_neutralisation : retour chariot, saut de ligne et tabulation remplacés par une espace" "a b c d" "$(printf 'a\rb\nc\td')"
+st_neutre_test "ca07_neutralisation : 120 caractères acceptés" "$(printf 'x%.0s' $(seq 1 120))" "$(printf 'x%.0s' $(seq 1 120))"
+st_neutre_test "ca07_neutralisation : 121 caractères tronqués à 120 avec « … »" "$(printf 'x%.0s' $(seq 1 120))…" "$(printf 'x%.0s' $(seq 1 121))"
+st_long="a$(printf 'é%.0s' $(seq 1 130))"; st_cent="a$(printf 'é%.0s' $(seq 1 119))"
+st_locs="C"; locale -a 2>/dev/null | grep -qix 'en_US.utf-\{0,1\}8' && st_locs="C en_US.UTF-8"
+for st_loc in $st_locs; do
+  st_neutre_test "ca07_neutralisation : « a » + 130 « é » coupé sur 120 caractères, UTF-8 valide (LC_ALL=$st_loc)" "${st_cent}…" "$st_long" "$st_loc"
+done
+st_neutre_test "ca07_neutralisation : 120 caractères multi-octets (240 octets) non tronqués" "$st_cent" "$st_cent"
+st_neutre_test "ca07_neutralisation : C1 (U+009B, U+0085) et contrôles bidirectionnels (U+202E, U+2066, U+200F) retirés, accents et guillemets français intacts" "aébcdÉe«x»fg" "$(printf 'a\xc3\xa9\xc2\x9bb\xc2\x85c\xe2\x80\xaed\xc3\x89\xe2\x81\xa6e\xc2\xabx\xc2\xbb\xe2\x80\x8ffg')"
+verifier "ca07_neutralisation : la coupe sous LC_ALL=C est acceptée par iconv (UTF-8 valide)" 0 "" sh -c 'printf "%s" "$1" | iconv -f UTF-8 -t UTF-8 >/dev/null' _ "$(LC_ALL=C st_neutre st_n "$st_long")"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

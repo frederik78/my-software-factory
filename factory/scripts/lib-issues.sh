@@ -54,11 +54,11 @@ issue_fichiers() {
 # Tableaux indexés parallèles (bash 3.2) :
 #   table_entite, table_nom, table_portee, table_classe : un élément par statut, dans l'ordre de la table (entité « issue » ou « besoin », portée « cycle » ou « hors-cycle »)
 #   tr_entite, tr_de, tr_vers, tr_declencheur, tr_preuve : un élément par transition légale (une transition par statut de départ)
-#   statuts_issues, statuts_besoins, statuts_classes_besoins : les statuts du CYCLE (sans les statuts hors cycle), dans l'ordre ; la classe CSS suit statuts_besoins
+#   statuts_issues, statuts_besoins, statuts_classes_issues, statuts_classes_besoins : les statuts du CYCLE (sans les statuts hors cycle), dans l'ordre, avec leur classe CSS
 STATUTS_TABLE="factory/scripts/statuts.table"
 table_entite=(); table_nom=(); table_portee=(); table_classe=()
 tr_entite=(); tr_de=(); tr_vers=(); tr_declencheur=(); tr_preuve=()
-statuts_issues=(); statuts_besoins=(); statuts_classes_besoins=()
+statuts_issues=(); statuts_besoins=(); statuts_classes_issues=(); statuts_classes_besoins=()
 table_erreur=""
 
 # table_nettoyer <texte> : met le texte sans espaces de bord dans $nettoye (sans sous-shell : la table est lue à chaque lancement de script).
@@ -74,7 +74,7 @@ statuts_table_charger() {
   table_erreur=""
   table_entite=(); table_nom=(); table_portee=(); table_classe=()
   tr_entite=(); tr_de=(); tr_vers=(); tr_declencheur=(); tr_preuve=()
-  statuts_issues=(); statuts_besoins=(); statuts_classes_besoins=()
+  statuts_issues=(); statuts_besoins=(); statuts_classes_issues=(); statuts_classes_besoins=()
   if [ ! -f "$STATUTS_TABLE" ] || [ ! -r "$STATUTS_TABLE" ]; then table_erreur="table des statuts introuvable ($STATUTS_TABLE)"; return 1; fi
   while IFS='|' read -r type entite a b c d || [ -n "$type" ]; do
     n=$((n + 1))
@@ -107,7 +107,7 @@ statuts_table_charger() {
   while [ "$n" -lt "${#table_nom[@]}" ]; do
     if [ "${table_portee[$n]}" = cycle ]; then
       case "${table_entite[$n]}" in
-        issue) statuts_issues+=("${table_nom[$n]}") ;;
+        issue) statuts_issues+=("${table_nom[$n]}"); statuts_classes_issues+=("${table_classe[$n]}") ;;
         besoin) statuts_besoins+=("${table_nom[$n]}"); statuts_classes_besoins+=("${table_classe[$n]}") ;;
       esac
     fi

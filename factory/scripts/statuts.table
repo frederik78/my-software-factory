@@ -3,7 +3,7 @@
 # Ajouter un statut ici suffit pour que le dashboard (colonne), l'ordre du cycle et le contrôle le connaissent. Affichage : scripts/statuts.sh --table
 #
 # Format : un enregistrement par ligne, champs séparés par « | » (espaces de bord ignorés), lignes vides et lignes « # » ignorées. Jamais évalué ni sourcé.
-#   statut | <issue|besoin> | <nom> | <cycle|hors-cycle> | <classe CSS de la colonne du dashboard, facultative>
+#   statut | <issue|besoin> | <nom> | <cycle|hors-cycle> | <classe CSS du titre de la colonne du dashboard, facultative>
 #       L'ordre des lignes est l'ordre du cycle. « hors-cycle » : statut hors du cycle et sans colonne propre (le dashboard le range dans « (autre) »).
 #   transition | <issue|besoin> | <de : un ou plusieurs statuts séparés par une virgule> | <vers> | <déclencheur> | <preuve exigée>
 #       Toute transition qui n'est pas listée est illégale.

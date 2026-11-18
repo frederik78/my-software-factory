@@ -91,9 +91,10 @@ sep=$'\037' # séparateur de champs non blanc : les champs vides ne sont pas fus
 echappe() { # echappe <texte> : échappement HTML
   printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&#39;/g"
 }
-classe() { # classe <statut> : nom de classe CSS, « inconnu » hors du cycle des besoins
+classe() { # classe <statut> : nom de classe CSS (cycle des besoins, puis des issues), « inconnu » hors cycle
   local i
   for i in "${!statuts_besoins[@]}"; do [ "${statuts_besoins[$i]}" = "$1" ] && { echo "${statuts_classes_besoins[$i]:-inconnu}"; return; }; done
+  for i in "${!statuts_issues[@]}"; do [ "${statuts_issues[$i]}" = "$1" ] && { echo "${statuts_classes_issues[$i]:-inconnu}"; return; }; done
   echo inconnu
 }
 parmi() { # parmi <valeur> <liste...> : vrai si la valeur figure dans la liste

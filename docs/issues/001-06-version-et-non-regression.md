@@ -3,7 +3,7 @@ id: 001-06
 titre: Version 1.23.0 et non-régression
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: En cours
+statut: En revue
 depend_de: [001-02, 001-03, 001-04, 001-05]
 criteres: [CA-17, CA-18]
 branche: feat/001-06-version-et-non-regression

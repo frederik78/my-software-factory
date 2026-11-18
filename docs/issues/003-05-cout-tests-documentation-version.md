@@ -3,7 +3,7 @@ id: 003-05
 titre: Coût mesuré, tests réunis, documentation et version
 prd: docs/prd/003-dashboard-a-jour.md
 besoin: F-08
-statut: À faire
+statut: En cours
 depend_de: [003-03, 003-04]
 criteres: [CA-23, CA-24, CA-25, CA-26, CA-27]
 branche: feat/003-05-cout-tests-documentation-version

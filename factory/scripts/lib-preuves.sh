@@ -159,3 +159,16 @@ preuves_en_revue() {
   constat_neutraliser "$3"
   constat_ajouter AVIS A07 2 "$1" "issue $neutre" "En revue sans fichier de revue ($valeur)"
 }
+
+# preuves_branche <rang> <id> <statut effectif> <branches ambiguës> : avis A08 d'une issue En cours ou En revue (statut effectif) dont aucune branche n'est retenue
+# (aucune, ou plusieurs qui conviennent par convention de nommage : la liste « a, b » vient de lib-issues.sh, vide sinon). Les noms de branche sont des données non fiables.
+preuves_branche() {
+  local statut
+  constat_neutraliser "$2"; statut="issue $neutre"
+  if [ -n "$4" ]; then
+    constat_neutraliser "$4"
+    constat_ajouter AVIS A08 2 "$1" "$statut" "$3 : branche ambiguë : $neutre"
+  else
+    constat_ajouter AVIS A08 2 "$1" "$statut" "$3 sans branche retenue"
+  fi
+}

@@ -91,11 +91,31 @@ controle_issues() {
   preuves_commits_verifier
 }
 
-# controle_preuves : les preuves de chaque issue contrôlée, selon son statut local (lib-preuves.sh).
+# issues_effectifs_calculer : branche retenue (iss_refs : refs/heads/<nom>, vide si aucune) et statut effectif (iss_effectifs) de chaque issue contrôlée, comme le dashboard (PRD 003).
+# Un statut hors cycle ou le dernier du cycle ne lit aucune branche (le statut local est déjà le résultat).
+iss_refs=(); iss_effectifs=()
+issues_effectifs_calculer() {
+  local i rang ref dernier=$((${#statuts_issues[@]} - 1))
+  rattachements_charger # une seule lecture des branches locales
+  for i in "${!iss_fichiers[@]}"; do
+    iss_refs+=(""); iss_effectifs+=("${iss_statuts[$i]}")
+    [ "${iss_etats[$i]}" = controlee ] || continue
+    rang="$(issue_rang_statut "${iss_statuts[$i]}")" && [ "$rang" -lt "$dernier" ] || continue
+    ref="$(issue_ref_branche "${iss_fichiers[$i]}")"
+    iss_refs[$i]="$ref"; iss_effectifs[$i]="$(issue_statut_effectif "${iss_fichiers[$i]}" "$ref")"
+  done
+}
+
+# controle_preuves : les preuves de chaque issue contrôlée, selon son statut local (lib-preuves.sh), et la branche retenue des issues démarrées (statut effectif).
 controle_preuves() {
   local i
+  issues_effectifs_calculer
   for i in "${!iss_fichiers[@]}"; do
     [ "${iss_etats[$i]}" = controlee ] || continue
+    case "${iss_effectifs[$i]}" in
+      "En cours"|"En revue")
+        [ -n "${iss_refs[$i]}" ] || preuves_branche "${iss_rangs[$i]}" "${iss_ids[$i]}" "${iss_effectifs[$i]}" "$(issue_branches_ambigues "${iss_fichiers[$i]}")" ;;
+    esac
     case "${iss_statuts[$i]}" in
       Fait) preuves_fait "${iss_rangs[$i]}" "${iss_fichiers[$i]}" "${iss_ids[$i]}" ;;
       "En revue") preuves_en_revue "${iss_rangs[$i]}" "${iss_fichiers[$i]}" "${iss_ids[$i]}" ;;

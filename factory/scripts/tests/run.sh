@@ -3428,6 +3428,45 @@ AVIS A07 issue 004-76 : En revue sans fichier de revue (docs/reviews/004-76.md)
 STATUTS : 0 erreur(s), 4 avis
 TXT
 
+
+# ca16 : issue En cours ou En revue (statut effectif) sans branche retenue = A08
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_enc() { pr_issue "$1" "$2" "docs/reviews/revue.md" "[]" "" "" "${3:-}"; } # pr_enc <id> <statut> [branche de l'en-tête] : issue à l'état indiqué (revue lisible, sans commits)
+pr_enc 004-71 "En cours"; pr_enc 004-72 "En revue" feat/absente
+pr_enc 004-74 "En cours"; git branch feat/004-74-a; git branch fix/004-74-b
+pr_enc 004-75 "En cours" feat/b; git branch feat/b
+pr_enc 004-76 "En cours"; git branch feat/004-76-x
+pr_issue 004-77 Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok 004-77)"
+pr_enc 004-78 "À faire"; pr_enc 004-79 "À faire" feat/absente
+pr_enc 004-73 "À faire" feat/c; sur_branche feat/c 004-73 "En cours" feat/c
+pr_enc 004-70 "À faire"; git branch feat/004-70-a; git branch fix/004-70-b
+st_cas "ca16_branche : En cours ou En revue sans branche (absente, déclarée inexistante) = A08 « sans branche retenue » ; branches ambiguës = A08 avec la liste ; branche déclarée, déduite, Fait sans branche, À faire (même ambiguë) = aucun avis ; statut effectif En cours lu sur la branche = aucun avis" 0 <<'TXT'
+AVIS A08 issue 004-71 : En cours sans branche retenue
+AVIS A08 issue 004-72 : En revue sans branche retenue
+AVIS A08 issue 004-74 : En cours : branche ambiguë : feat/004-74-a, fix/004-74-b
+STATUTS : 0 erreur(s), 3 avis
+TXT
+# valeurs hostiles dans les noms de branche : lues comme du texte (CS-02)
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_enc 004-71 "En cours"; git branch 'feat/004-71-$(touch${IFS}marque)'; git branch 'fix/004-71-;touch${IFS}marque'
+st_cas "ca16_branche : noms de branche hostiles dans la liste ambiguë : écrits tels quels, rien n'est exécuté" 0 <<'TXT'
+AVIS A08 issue 004-71 : En cours : branche ambiguë : feat/004-71-$(touch${IFS}marque), fix/004-71-;touch${IFS}marque
+STATUTS : 0 erreur(s), 1 avis
+TXT
+verifier "ca16_branche : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
+
+# ca16 : un fichier d'issue refusé (lien symbolique) n'est jamais lu pour rattacher les branches (CS-03)
+pr_depot
+printf -- '---\nid: 004-60\nbranche:\nstatut: Fait\n---\nSECRET\n' > "$racine_tmp/cible-issue.md"
+pr_enc 004-60 "En cours"; git branch feat/004-60-z; ln -s "$racine_tmp/cible-issue.md" docs/issues/004-61-lien.md
+st_cas "ca16_branche : un lien symbolique d'issue (E14) qui porte le même identifiant ne rend pas la branche déduite ambiguë ni absente ; son contenu n'apparaît pas" 1 <<'TXT'
+ERREUR E14 fichier docs/issues/004-61-lien.md : fichier d'issue illisible (lien symbolique)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

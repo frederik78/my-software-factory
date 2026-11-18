@@ -171,8 +171,10 @@ rattachements_charger() {
   local f ids=() brs=() i j b type reste id suffixe proprio n vide=0 deduction
   rat_fichiers=(); rat_deduites=(); rat_ambigues=()
   while IFS= read -r f; do
-    rat_fichiers+=("$f"); ids+=("$(issue_champ "$f" id)"); brs+=("$(issue_champ "$f" branche)")
-    rat_deduites+=(""); rat_ambigues+=("")
+    rat_fichiers+=("$f"); rat_deduites+=(""); rat_ambigues+=("")
+    # Un lien symbolique, un fichier spécial ou illisible n'est jamais ouvert (statuts.sh le signale, E14) : identifiant et branche vides, aucune branche à lui rattacher.
+    if [ -L "$f" ] || [ ! -f "$f" ] || [ ! -r "$f" ]; then ids+=(""); brs+=(""); continue; fi
+    ids+=("$(issue_champ "$f" id)"); brs+=("$(issue_champ "$f" branche)")
     [ -n "${brs[${#brs[@]}-1]}" ] || vide=1
   done < <(issue_fichiers)
   [ "$vide" -eq 1 ] || return 0

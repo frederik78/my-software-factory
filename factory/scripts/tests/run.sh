@@ -2041,9 +2041,8 @@ for v in FACTORY_DOSSIER_TESTS FACTORY_TESTS_BASH_FONCTIONS DOSSIER_TESTS; do
   verifier "ca23_$v isolée de l'environnement appelant" 0 "" contient_motif "$unsets" "(^| )$v( |$)"
 done
 # CA-24 : version 1.21.0, entrée du CHANGELOG (changement et migration), README et guide de mise à jour.
-verifier "ca24_factory/VERSION vaut 1.21.0" 0 "" contient_motif "$(lire_depot "$depot" factory/VERSION | head -n1)" '^1\.21\.0$'
-entree="$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{n++} n==1')"
-verifier "ca24_le CHANGELOG commence par 1.21.0" 0 "" contient_motif "$(head -n1 <<<"$entree")" '^## 1\.21\.0$'
+entree="$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{p = ($0 == "## 1.21.0")} p')" # l'entrée 1.21.0, quelle que soit la version courante
+verifier "ca24_le CHANGELOG a une entrée 1.21.0" 0 "" contient_motif "$(head -n1 <<<"$entree")" '^## 1\.21\.0$'
 for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'Migration : remplacer `factory/`' 'sans action'; do
   verifier "ca24_entrée 1.21.0 du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
 done
@@ -2585,6 +2584,63 @@ nr_page /bin/bash > "$racine_tmp/nr-page-bash32.txt"
 verifier "ca24_la page (hors date, durées et hash de commit) est celle de 1.21.0 : branches remplies ou sans correspondance, aucun besoin lié" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page.txt"
 verifier "ca24_etat-issues.sh : tableau, --prochaine, --statut et codes de sortie identiques à 1.21.0" 0 "" diff "$racine_tmp/nr-tableaux-attendus.txt" "$racine_tmp/nr-tableaux.txt"
 verifier "ca24_la page est la même sous /bin/bash (3.2 sur macOS : pas de mapfile, tri de la colonne Fait compris)" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page-bash32.txt"
+
+# ca25 : les cas de CA-01 à CA-24 et CS-01 à CS-06 de PRD 003 figurent dans cette suite (section ci-dessus), nom contenant l'identifiant ; dépôts jetables et environnement Git isolé.
+suite_prd003="$(lire_depot "$depot" factory/scripts/tests/run.sh | awk '/^echo "dashboard.sh et etat-issues.sh : rattachement d.une issue/ { p = 1 } p')"
+for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24; do
+  verifier "ca25_le cas ca${n}_ de PRD 003 figure dans run.sh" 0 "" contient_motif "$suite_prd003" "^[^#]*[\"']ca${n}_"
+done
+for n in 01 02 03 04 05 06; do
+  verifier "ca25_le cas cs${n}_ de PRD 003 figure dans run.sh" 0 "" contient_motif "$suite_prd003" "^[^#]*[\"']cs${n}_"
+done
+entete_suite="$(lire_depot "$depot" factory/scripts/tests/run.sh | head -n 60)"
+for v in GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM HOME; do
+  verifier "ca25_$v isolé en tête de run.sh (aucune configuration ni dépôt de l'utilisateur lu)" 0 "" contient_motif "$entete_suite" "^export (.* )?$v="
+done
+verifier "ca25_les dépôts de test sont créés sous le dossier temporaire de la suite" 0 "" contient_motif "$entete_suite" 'racine_tmp="\$\(mktemp -d'
+
+# ca26 : documentation (RG-24), chaque motif est cherché dans le passage concerné, jamais dans le fichier entier.
+doc_passage() { lire_depot "$depot" "$1" | awk "$2"; } # doc_passage <fichier> <programme awk>
+doc_motifs() { # doc_motifs <fichier> <programme awk> <motif littéral...> : le passage existe et contient chaque motif
+  local f="$1" doc motif; doc="$(doc_passage "$1" "$2")"; shift 2
+  verifier "ca26_$f : le passage existe" 0 "" test -n "$doc"
+  for motif in "$@"; do verifier "ca26_$f décrit « $motif »" 0 "" contient "$doc" "$motif"; done
+}
+passage_entete_script='/^set -uo pipefail/ { exit } { print }'
+motifs_dashboard=("par convention" "quelconque" "suivi d'un tiret" "prioritaire" "ambig" "empilée sur" "avancement" "à vérifier" "--boucle" "reste à jour")
+doc_motifs factory/scripts/dashboard.sh "$passage_entete_script" "${motifs_dashboard[@]}"
+doc_motifs factory/scripts/etat-issues.sh "$passage_entete_script" "par convention" "ambig" "sur leur branche"
+doc_motifs factory/README.md '/^\| `scripts\/dashboard\.sh` \|/' "${motifs_dashboard[@]}"
+doc_motifs factory/README.md '/^\| `scripts\/dashboard\.sh \[--sortie/' "par convention" "empilée sur" "avancement" "reste à jour"
+doc_motifs factory/README.md '/^\| `scripts\/etat-issues\.sh` \|/' "sur leur branche" "par convention"
+for f in AGENTS.md factory/templates/AGENTS.md; do doc_motifs "$f" '/^- `scripts\/dashboard\.sh/' "par convention" "reste à jour"; done
+for f in docs/issues/README.md factory/templates/docs/issues/README.md; do doc_motifs "$f" '/^## État/ { p = 1 } p' "par convention" "sur leur branche"; done
+for f in docs/agents/issue-tracker.md factory/templates/docs/agents/issue-tracker.md; do doc_motifs "$f" '/ready-for-agent/' "sur leur branche"; done
+for f in factory/README.md docs/issues/README.md factory/templates/docs/issues/README.md; do # l'ancienne règle (dépendance Fait seulement dans le dossier courant) n'est plus décrite
+  verifier "ca26_$f ne décrit plus l'ancienne règle de dépendance" 1 "" contient_motif "$(lire_depot "$depot" "$f")" 'pas déjà commencée sur sa branche|dépendance pas `Fait` dans le dossier courant|dépendances sont `Fait`, et pas'
+done
+verifier "ca26_docs/issues/README.md et son modèle disent la même chose de l'état" 0 "" test "$(doc_passage docs/issues/README.md '/^## État/ { p = 1 } p')" = "$(doc_passage factory/templates/docs/issues/README.md '/^## État/ { p = 1 } p')"
+
+# ca27 : version suivante libre, CHANGELOG (changement et migration), README et guide de mise à jour.
+version="$(lire_depot "$depot" factory/VERSION | head -n1)"
+changelog="$(lire_depot "$depot" factory/CHANGELOG.md)"
+entree="$(awk '/^## /{n++} n==1' <<<"$changelog")"
+precedente="$(awk '/^## /{n++; if (n==2) { sub(/^## /, ""); print; exit }}' <<<"$changelog")"
+plus_grande() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_grande <a> <b> : a > b (versions x.y.z)
+verifier "ca27_factory/VERSION est une version x.y.z" 0 "" contient_motif "$version" '^[0-9]+\.[0-9]+\.[0-9]+$'
+verifier "ca27_factory/VERSION vaut 1.22.0 (la suivante libre : F-01 réserve 1.22.0 dans son PRD mais n'est pas livré, D-14)" 0 "" contient_motif "$version" '^1\.22\.0$'
+verifier "ca27_le CHANGELOG commence par l'entrée de la version courante" 0 "" contient_motif "$(head -n1 <<<"$entree")" "^## ${version//./\\.}$"
+verifier "ca27_la version est supérieure à l'entrée précédente du CHANGELOG ($precedente)" 0 "" plus_grande "$version" "$precedente"
+if depot_git "$depot"; then # supérieure à toute version déjà étiquetée
+  for etiquette in $(git -C "$depot" tag --list 'v[0-9]*.[0-9]*.[0-9]*'); do
+    verifier "ca27_la version est supérieure à l'étiquette $etiquette" 0 "" plus_grande "$version" "${etiquette#v}"
+  done
+fi
+for motif in 'rattach' 'par convention' 'empilée sur' 'avancement' 'à vérifier' '--boucle' 'Migration : remplacer `factory/`' 'sans action'; do
+  verifier "ca27_entrée du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
+done
+verifier "ca27_factory/README.md mentionne la nouveauté ($version)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "($version)"
+verifier "ca27_factory/UPGRADE.md décrit la migration sans action de $version" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($version)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

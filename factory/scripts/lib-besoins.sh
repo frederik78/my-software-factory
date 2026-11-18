@@ -106,27 +106,56 @@ besoins_issues_lire() {
   done
 }
 
+# issue_classe <statut effectif> : met dans $classe la classe de l'issue pour le rapprochement avec son besoin : T (pas commencée), D (démarrée, pas terminée),
+# F (terminée), A (abandonnée, écartée de tous les comptes).
+issue_classe() {
+  case "$1" in
+    "En cours"|"En revue") classe=D ;;
+    Fait) classe=F ;;
+    Abandonnée) classe=A ;;
+    *) classe=T ;;
+  esac
+}
+
 # besoins_flux : le flux d'entrée de besoins_agreger, une ligne par enregistrement, champs séparés par CONSTAT_SEP :
 #   K <id>                       identifiant d'une ligne du tableau (lisible ou non)
-#   I <indice> <besoin>          issue contrôlée (indice dans les tableaux d'issues) ; un besoin qui contient CONSTAT_SEP est envoyé vide (il ne peut désigner aucune ligne)
+#   B <rang> <id>                besoin contrôlé (rang = rang de sa ligne)
+#   I <indice> <besoin> <classe> issue contrôlée (indice dans les tableaux d'issues, classe : issue_classe) ; un besoin qui contient CONSTAT_SEP est envoyé vide
+#                                (il ne peut désigner aucune ligne)
 besoins_flux() {
-  local i
-  for i in "${!bes_ids[@]}"; do printf 'K%s%s\n' "$CONSTAT_SEP" "${bes_ids[$i]}"; done
+  local i classe
+  for i in "${!bes_ids[@]}"; do
+    printf 'K%s%s\n' "$CONSTAT_SEP" "${bes_ids[$i]}"
+    [ "${bes_etats[$i]}" != controlee ] || printf 'B%s%s%s%s\n' "$CONSTAT_SEP" "$((i + 1))" "$CONSTAT_SEP" "${bes_ids[$i]}"
+  done
   for i in "${!iss_fichiers[@]}"; do
     [ "${iss_etats[$i]}" = controlee ] || continue
+    issue_classe "${iss_effectifs[$i]}"
     case "${iss_besoins[$i]}" in
-      *"$CONSTAT_SEP"*) printf 'I%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" ;;
-      *) printf 'I%s%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" "${iss_besoins[$i]}" ;;
+      *"$CONSTAT_SEP"*) printf 'I%s%s%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" "$CONSTAT_SEP" "$classe" ;;
+      *) printf 'I%s%s%s%s%s%s\n' "$CONSTAT_SEP" "$i" "$CONSTAT_SEP" "${iss_besoins[$i]}" "$CONSTAT_SEP" "$classe" ;;
     esac
   done
 }
 
 # besoins_agreger : lit le flux de besoins_flux et rapproche les issues des besoins en un seul passage (coût linéaire ; les valeurs sont des clés de tableau, jamais des motifs).
-# Écrit, séparés par CONSTAT_SEP : « X <indice> » pour une issue dont le besoin n'est l'identifiant d'aucune ligne du tableau.
+# Écrit, séparés par CONSTAT_SEP :
+#   X <indice>                                            issue dont le besoin n'est l'identifiant d'aucune ligne du tableau
+#   S <rang> <n> <fait> <démarrées> <première démarrée>   un état par besoin contrôlé : issues non abandonnées, terminées, démarrées (y compris terminées) et indice
+#                                                         de la première démarrée dans l'ordre des fichiers (vide s'il n'y en a pas)
 besoins_agreger() {
   LC_ALL=C awk 'BEGIN { FS = OFS = "\037" }
     $1 == "K" { connu[$2] = 1; next }
-    $1 == "I" { if (!($3 in connu)) print "X", $2 }'
+    $1 == "B" { nb++; ordre[nb] = $2; rang_de[$3] = $2; next }
+    $1 == "I" {
+      if (!($3 in connu)) { print "X", $2; next }
+      if (!($3 in rang_de)) next
+      r = rang_de[$3]; classe = $4
+      if (classe != "A") n[r]++
+      if (classe == "F") fait[r]++
+      if (classe == "D" || classe == "F") { dem[r]++; if (!(r in premiere)) premiere[r] = $2 }
+    }
+    END { for (k = 1; k <= nb; k++) { r = ordre[k]; print "S", r, n[r] + 0, fait[r] + 0, dem[r] + 0, premiere[r] } }'
 }
 
 # prd_present <chemin docs/prd/<nom>.md> : vrai si le PRD est un fichier régulier, ni lien symbolique ni dans un dossier docs/prd en lien (jamais ouvert : sa présence seule compte).
@@ -152,18 +181,31 @@ besoins_prd() {
   done
 }
 
-# besoins_coherence : E06 (besoin sans PRD) et, pour les issues contrôlées, E12 (issue sans besoin connu). Ne fait rien sans tableau des besoins (E02).
+# besoin_ecart <rang> <n> <fait> <démarrées> <première démarrée> : l'écart entre le statut du besoin et l'état de ses issues (RG-17), au plus un constat par besoin.
+besoin_ecart() {
+  local statut id
+  statut="${bes_statuts[$(($1 - 1))]}"
+  constat_neutraliser "${bes_ids[$(($1 - 1))]}"; id="besoin $neutre"
+  case "$statut" in
+    "À faire"|"En clarification"|Spécifié)
+      [ "$4" -eq 0 ] || { constat_neutraliser "${iss_ids[$5]}"; constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : l'issue $neutre est démarrée"; } ;;
+  esac
+}
+
+# besoins_coherence : E06 (besoin sans PRD) et, pour les issues contrôlées, E12 (issue sans besoin connu) et l'écart entre chaque besoin et ses issues (E07). Ne fait rien sans tableau
+# des besoins (E02).
 besoins_coherence() {
-  local t a objet
+  local t a b c d e objet
   [ "$bes_table" -eq 1 ] || return 0
   besoins_prd
   besoins_issues_lire
-  while IFS="$CONSTAT_SEP" read -r t a; do
+  while IFS="$CONSTAT_SEP" read -r t a b c d e; do
     case "$t" in
       X)
         constat_neutraliser "${iss_ids[$a]}"; objet="issue $neutre"
         constat_neutraliser "${iss_besoins[$a]}"
         constat_ajouter ERREUR E12 2 "${iss_rangs[$a]}" "$objet" "besoin « $neutre » inconnu du backlog" ;;
+      S) besoin_ecart "$a" "$b" "$c" "$d" "$e" ;;
     esac
   done < <(besoins_flux | besoins_agreger)
 }

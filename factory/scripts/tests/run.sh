@@ -3066,7 +3066,7 @@ ERREUR E10 issue 004-96 : statut inconnu « $DECOMP » (attendus : $ATTENDUS_I)
 STATUTS : 6 erreur(s), 0 avis
 TXT
 st_depot
-printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+mkdir -p docs/prd; printf '# PRD\n' > docs/prd/p.md; printf '| F-01 | B | P1 | En revue | `docs/prd/p.md` | |\n' | st_backlog
 st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fait'"; st_issue 004-94 ' " Fait "'
 st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucune erreur ; les avis A01 montrent que ces issues sont lues Fait)" 0 <<'TXT'
 AVIS A01 issue 004-91 : Fait sans champ revue renseigné
@@ -3779,6 +3779,31 @@ ERREUR E06 besoin F-09 : statut Spécifié sans PRD valide (fichier absent : ../
 ERREUR E06 besoin F-10 : statut Spécifié sans PRD valide (fichier absent : docs/prd/lien.md)
 ERREUR E06 besoin F-11 : statut Spécifié sans PRD valide (fichier absent : docs/prd/p.md.bak)
 STATUTS : 7 erreur(s), 0 avis
+TXT
+
+# ca21 : besoin À faire, En clarification ou Spécifié dont une issue est démarrée (statut effectif) = E07 « en retard »
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | À faire | | |' \
+  '| F-02 | B | P1 | En clarification | | |' \
+  '| F-03 | B | P1 | Spécifié | `docs/prd/p.md` | |' \
+  '| F-04 | B | P1 | Spécifié | `docs/prd/p.md` | |' \
+  '| F-05 | B | P1 | À faire | | |' \
+  '| F-06 | B | P1 | À faire | | |' \
+  '| F-07 | B | P1 | Spécifié | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 "En cours" F-01 feat/b none
+bs_issue 004-72 "À faire" F-02 feat/f none; sur_branche feat/f 004-72 "Fait" feat/f
+bs_issue 004-73 "En cours" F-03 feat/b none
+bs_issue 004-74 "Abandonnée" F-04 "" none "- 2026-11-18 : Abandonnée."; bs_issue 004-84 "À faire" F-04 "" none
+bs_issue 004-75 "Abandonnée" F-05 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-76 "À faire" F-06 "" none; bs_issue 004-77 "En cours" F-06 feat/b none; bs_issue 004-78 "En cours" F-06 feat/b none
+bs_issue 004-79 "À faire" F-07 "" none
+st_cas "ca21_retard : À faire, En clarification ou Spécifié avec une issue En cours (statut local) ou Fait seulement sur sa branche (statut effectif) = E07 « l'issue <id> est démarrée » (la première dans l'ordre des fichiers) ; issues Abandonnée ou À faire seules = aucune erreur" 1 <<'TXT'
+ERREUR E07 besoin F-01 : statut À faire en retard : l'issue 004-71 est démarrée
+ERREUR E07 besoin F-02 : statut En clarification en retard : l'issue 004-72 est démarrée
+ERREUR E07 besoin F-03 : statut Spécifié en retard : l'issue 004-73 est démarrée
+ERREUR E07 besoin F-06 : statut À faire en retard : l'issue 004-77 est démarrée
+STATUTS : 4 erreur(s), 0 avis
 TXT
 
 echo

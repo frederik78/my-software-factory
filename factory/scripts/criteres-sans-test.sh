@@ -27,7 +27,8 @@
 #   TESTS_BASH_FONCTIONS : noms des fonctions de test bash, séparés par des espaces (1 à 20 noms, [A-Za-z_][A-Za-z0-9_]*, 64 caractères au plus).
 #     Défaut : verifier verdict_cas. Elle REMPLACE le défaut ; validée avant toute lecture des tests (invalide : message sur stderr, code 64).
 #   Ordre de priorité, du plus fort au plus faible : variable d'environnement (DOSSIER_TESTS pour le dossier seulement, vide = ignorée), FACTORY_<CLÉ> (FACTORY_DOSSIER_TESTS, FACTORY_TESTS_BASH_FONCTIONS), .factory.local.conf
-#   (non versionné), .factory.conf, défaut. Une valeur vide dans FACTORY_<CLÉ>, .factory.local.conf ou .factory.conf impose le défaut (détection du dossier).
+#   (non versionné), .factory.conf, défaut. Pour DOSSIER_TESTS, une valeur vide dans FACTORY_DOSSIER_TESTS, .factory.local.conf ou .factory.conf impose la détection du dossier ;
+#   pour TESTS_BASH_FONCTIONS, une valeur vide (quelle que soit la source) est invalide : message, code 64.
 #   Dans fin-issue.sh, le contrôle s'exécute dans une extraction du commit : seul le .factory.conf commité compte (jamais .factory.local.conf), les variables d'environnement
 #   s'appliquent. Valeur effective : scripts/config-factory.sh.
 # Limites connues de la lecture des fichiers bash : en cas de doute le script signale MANQUE plutôt qu'un faux OK (détection prudente des documents ici et des guillemets :

@@ -2023,6 +2023,9 @@ for ancre in "factory/scripts/criteres-sans-test.sh|$passage_entete" "factory/RE
   for motif in 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'FACTORY_DOSSIER_TESTS' 'verifier "' 'verdict_cas' 'priorité'; do
     verifier "ca22_$f décrit « $motif »" 0 "" contient "$doc" "$motif"
   done
+  if [ "$f" = factory/scripts/criteres-sans-test.sh ]; then # l'en-tête précise l'effet d'une valeur vide, différent pour chaque clé
+    verifier "ca22_$f : TESTS_BASH_FONCTIONS vide = invalide" 0 "" contient "$doc" 'une valeur vide (quelle que soit la source) est invalide'
+  fi
   if [ "$f" = factory/templates/.factory.conf ]; then # le modèle porte aussi les lignes de clés, avec leurs défauts
     verifier "ca22_$f : ligne de clé DOSSIER_TESTS=" 0 "" contient_motif "$doc" '^DOSSIER_TESTS='
     verifier "ca22_$f : ligne de clé TESTS_BASH_FONCTIONS=verifier verdict_cas" 0 "" contient_motif "$doc" '^TESTS_BASH_FONCTIONS=verifier verdict_cas$'

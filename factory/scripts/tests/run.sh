@@ -3256,10 +3256,11 @@ verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR re
 
 
 echo "statuts.sh : preuves d'une issue, branche retenue, Abandonnée et dépendances (PRD 004, issue 004-02)"
-pr_depot() { # pr_depot : st_depot + backlog à un besoin « En cours » + un commit vide ; $pr_c = son identifiant court, $pr_cl = complet
+pr_depot() { # pr_depot : st_depot + backlog à un besoin « En cours » + un premier commit ; $pr_c = son identifiant court, $pr_cl = complet
   st_depot
   printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
-  gd_ commit -q --allow-empty -m init; pr_c="$(git rev-parse --short HEAD)"; pr_cl="$(git rev-parse HEAD)"
+  mkdir -p docs/issues; : > docs/issues/.gitkeep; gd_ add docs/issues/.gitkeep; gd_ commit -q -m init # le dossier des issues existe dans les branches créées ensuite
+  pr_c="$(git rev-parse --short HEAD)"; pr_cl="$(git rev-parse HEAD)"
   mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md
 }
 pr_issue() { # pr_issue <id> <statut> <revue> <commits> <notes> [depend_de] [branche] [corps avant les Notes] : docs/issues/<id>-x.md complet (revue et commits : valeur brute après la clé)
@@ -3520,6 +3521,8 @@ pr_issue 004-81 "À faire" "" "[]" "" "004-70, 004-99"
 pr_issue 004-82 "À faire" "" "[]" "" "004-83"; pr_issue 004-83 "Bof" "" "[]" "" ""
 pr_issue 004-84 "À faire" "" "[]" "" "004-7"
 pr_full 004-85 "004-86"; pr_full 004-86
+pr_full 004-87 "004-80" # dépendance À faire en local mais Fait sur sa branche (statut effectif) : terminée
+pr_issue 004-88 "À faire" "" "[]" "" "004-89"; pr_ab 004-89 "- 2026-11-18 : Abandonnée."; sed -i.bak 's/^branche:.*/branche: feat\/g/' docs/issues/004-89-x.md; rm docs/issues/004-89-x.md.bak; sur_branche feat/g 004-89 "Fait" feat/g # Abandonnée en local, Fait sur sa branche : reste Abandonnée
 st_cas "ca18_dependances : dépendance Abandonnée d'une issue À faire, En cours ou En revue = A09 ; inexistante = A10 (et 004-7 n'est pas 004-70) ; Fait avec une dépendance En cours = A11 ; Fait avec une dépendance Abandonnée ou inexistante, dépendance Fait sur sa branche, dépendance d'une issue en E10 = aucun avis" 1 <<'TXT'
 ERREUR E10 issue 004-83 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
 AVIS A09 issue 004-71 : dépend de l'issue Abandonnée 004-70
@@ -3530,7 +3533,8 @@ AVIS A11 issue 004-75 : Fait alors que la dépendance 004-76 n'est pas terminée
 AVIS A09 issue 004-81 : dépend de l'issue Abandonnée 004-70
 AVIS A10 issue 004-81 : dépend de 004-99, issue inconnue
 AVIS A10 issue 004-84 : dépend de 004-7, issue inconnue
-STATUTS : 1 erreur(s), 8 avis
+AVIS A09 issue 004-88 : dépend de l'issue Abandonnée 004-89
+STATUTS : 1 erreur(s), 9 avis
 TXT
 # la dépendance Abandonnée n'est pas levée : etat-issues --prochaine ne rend pas l'issue, le dashboard la marque bloquée (comportement inchangé)
 pr_depot

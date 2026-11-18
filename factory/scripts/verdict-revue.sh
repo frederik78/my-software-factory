@@ -25,6 +25,11 @@ fichier="$1"
 # Au plus 100 octets de la première ligne : plus long que toute valeur valide, donc jamais égal à l'une d'elles une fois tronqué.
 premiere="$(head -n 1 < "$fichier" | head -c 100)"
 
+# La substitution de commande supprime les octets NUL : « VERDICT: APPR<NUL>OUVÉ » deviendrait « VERDICT: APPROUVÉ ». On les compte donc
+# sur la même tranche d'octets, et tout NUL rend le verdict INCONNU.
+nuls="$(head -n 1 < "$fichier" | head -c 100 | tr -dc '\000' | wc -c)"
+[ "${nuls//[[:space:]]/}" = "0" ] || inconnu "verdict-revue : première ligne contenant un octet NUL (ligne VERDICT invalide)"
+
 case "$premiere" in
   "VERDICT: APPROUVÉ") echo "APPROUVÉ" ;;
   "VERDICT: CHANGEMENTS DEMANDÉS") echo "CHANGEMENTS DEMANDÉS" ;;

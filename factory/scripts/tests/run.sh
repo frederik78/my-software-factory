@@ -2005,6 +2005,26 @@ for f in factory/templates/AGENTS.md factory/prompts/developer.md factory/prompt
   lire_depot "$depot" "$f" | grep -q "classes techniques sont impérativement en anglais" && ok "$f : classes techniques en anglais" || ko "$f : règle de langue absente"
 done
 
+echo "liste d'escalade (CA-16)"
+escalade_manque() { # escalade_manque <fichier> : affiche les éléments absents DE LA SECTION ; code 1 s'il en manque
+  local txt manque=""
+  # la section seule (du titre au « ## » suivant) : une chaîne citée ailleurs dans le fichier ne compte pas
+  txt="$(lire_depot "$depot" "$1" | awk '/^## /{ d = ($0 == "## Sujets à remonter à l'"'"'utilisateur") } d')"
+  [ -n "$txt" ] || manque="$manque section"
+  for sujet in "1. secrets et identifiants" "2. authentification et autorisation" "3. dépendance et licence" "4. déploiement et CI" "5. contrat d'un service externe" "6. écart avec le PRD"; do
+    printf '%s\n' "$txt" | grep -q "^$sujet" || manque="$manque [$sujet]"
+  done
+  printf '%s\n' "$txt" | grep -q "s'arrête et ne décide pas seul" || manque="$manque arrêt"
+  printf '%s\n' "$txt" | grep -q '`## QUESTIONS`' || manque="$manque QUESTIONS"
+  printf '%s\n' "$txt" | grep -q '`## À trancher par l'"'"'utilisateur`' || manque="$manque A-trancher"
+  printf '%s\n' "$txt" | grep -q "tous les rôles (session, developer, code-reviewer, spec-writer)" || manque="$manque roles"
+  printf '%s\n' "$txt" | grep -q "Le code-reviewer ne le classe jamais « mineur »" || manque="$manque reviewer-pas-mineur"
+  printf '%s\n' "$txt" | grep -q "complète les règles existantes sans les contredire" || manque="$manque RG-15"
+  echo "manque :$manque"; [ -z "$manque" ]
+}
+verifier "ca16_modèle AGENTS.md : six sujets, arrêt, deux destinations, tous les rôles" 0 "" escalade_manque factory/templates/AGENTS.md
+verifier "ca16_AGENTS.md du dépôt : six sujets, arrêt, deux destinations, tous les rôles" 0 "" escalade_manque AGENTS.md
+
 echo "ce dépôt : dossier de tests bash"
 cd "$depot" || exit 1
 lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/tests' && ok "ca21_.factory.conf règle DOSSIER_TESTS=factory/scripts/tests" || ko "ca21_.factory.conf ne règle pas DOSSIER_TESTS=factory/scripts/tests"

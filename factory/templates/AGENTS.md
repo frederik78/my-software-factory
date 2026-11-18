@@ -44,6 +44,18 @@ La structure est décidée dans un ADR (`docs/adr/0001-architecture.md`) AVANT l
 - **Langue du code** : les classes techniques sont impérativement en anglais.
 - <Règles métier transverses du projet : unités, devises, configuration plutôt que constantes, validation, etc.>
 
+## Sujets à remonter à l'utilisateur
+Valable pour tous les rôles (session, developer, code-reviewer, spec-writer). Sur l'un de ces sujets, l'agent ne tranche pas seul :
+1. secrets et identifiants
+2. authentification et autorisation
+3. dépendance et licence
+4. déploiement et CI
+5. contrat d'un service externe
+6. écart avec le PRD
+
+Sur l'un de ces sujets, l'agent s'arrête et ne décide pas seul : il range le point dans `## QUESTIONS` (spec-writer) ou `## À trancher par l'utilisateur` (developer, code-reviewer) de son rapport ; la session le relaie à l'utilisateur. Le code-reviewer ne le classe jamais « mineur ».
+Cette liste complète les règles existantes sans les contredire (interdiction de lire les secrets ; les écarts de contrat externe, de licence, de dépendance ou de PRD se décident avec l'utilisateur).
+
 ## Tests (TDD obligatoire)
 Pas de code de production sans un test RED préalable qui échoue. Cycle : RED, GREEN (code minimal), REFACTOR.
 - Le nom de chaque test (ou son `@DisplayName`) contient l'identifiant du critère d'acceptation qu'il couvre (`ca10_…`, `cs07_…`).

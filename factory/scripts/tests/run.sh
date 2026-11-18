@@ -2025,6 +2025,94 @@ escalade_manque() { # escalade_manque <fichier> : affiche les éléments absents
 verifier "ca16_modèle AGENTS.md : six sujets, arrêt, deux destinations, tous les rôles" 0 "" escalade_manque factory/templates/AGENTS.md
 verifier "ca16_AGENTS.md du dépôt : six sujets, arrêt, deux destinations, tous les rôles" 0 "" escalade_manque AGENTS.md
 
+echo "verdict-revue.sh"
+verdict="$factory/scripts/verdict-revue.sh"
+dv="$racine_tmp/verdict"; mkdir -p "$dv"
+# verdict_cas <description> <code attendu> <sortie standard exacte> <motif de la sortie d'erreur (vide = aucune sortie d'erreur)> <fichier> [arguments...]
+# Le fichier lu doit rester inchangé ; la sortie standard doit tenir en une seule ligne (comparée en entier, retours à la ligne compris).
+verdict_cas() {
+  local desc="$1" attendu="$2" sortie_ok="$3" motif="$4"; shift 4
+  local avant apres sortie erreur code
+  avant="$(cksum < "$1" 2>/dev/null)"
+  sortie="$("$verdict" "${@:2}" "$1" 2>"$dv/err")"; code=$?
+  erreur="$(cat "$dv/err")"; apres="$(cksum < "$1" 2>/dev/null)"
+  if [ "$code" -ne "$attendu" ]; then ko "$desc" "code $code au lieu de $attendu"; return; fi
+  if [ "$sortie" != "$sortie_ok" ]; then ko "$desc" "sortie standard : $(printf '%s' "$sortie" | head -c 80 | tr '\n' '|')"; return; fi
+  if [ -z "$motif" ] && [ -n "$erreur" ]; then ko "$desc" "sortie d'erreur inattendue : $(printf '%s' "$erreur" | head -c 80)"; return; fi
+  if [ -n "$motif" ] && ! printf '%s' "$erreur" | grep -Eq "$motif"; then ko "$desc" "motif « $motif » absent de la sortie d'erreur : $(printf '%s' "$erreur" | head -c 80)"; return; fi
+  [ "$avant" = "$apres" ] || { ko "$desc" "fichier lu modifié"; return; }
+  ok "$desc"
+}
+printf 'VERDICT: APPROUVÉ\n## Verdict\nAPPROUVÉ\n' > "$dv/ok.md"
+printf 'VERDICT: CHANGEMENTS DEMANDÉS\n## Verdict\nx\n' > "$dv/ko.md"
+printf '## Verdict\nAPPROUVÉ\n' > "$dv/ancienne.md"
+: > "$dv/vide.md"
+verdict_cas "ca01_verdict_approuve : APPROUVÉ, code 0" 0 "APPROUVÉ" "" "$dv/ok.md"
+verdict_cas "ca02_verdict_changements : CHANGEMENTS DEMANDÉS, code 0" 0 "CHANGEMENTS DEMANDÉS" "" "$dv/ko.md"
+verdict_cas "ca03_sans_ligne_verdict : INCONNU, code 1, explication d'une ligne" 1 "INCONNU" "^[^ ].*ligne VERDICT" "$dv/ancienne.md"
+verdict_cas "ca03_fichier_vide : INCONNU, code 1" 1 "INCONNU" "ligne VERDICT" "$dv/vide.md"
+verdict_cas "ca04_fichier_absent : INCONNU, code 1, message distinct" 1 "INCONNU" "absent ou illisible" "$dv/n-existe-pas.md"
+n="$("$verdict" "$dv/n-existe-pas.md" 2>&1 >/dev/null | wc -l | tr -d ' ')"
+[ "$n" = 1 ] && ok "ca04_message_une_ligne : une seule ligne sur la sortie d'erreur" || ko "ca04_message_une_ligne" "$n lignes"
+verifier "ca05_aucun_argument : 64 et usage" 64 "Usage" "$verdict"
+verifier "ca05_plusieurs_arguments : 64 et usage" 64 "Usage" "$verdict" "$dv/ok.md" "$dv/ko.md"
+verifier "ca05_option_inconnue : 64 et usage" 64 "Usage" "$verdict" --inconnue
+[ -z "$("$verdict" 2>/dev/null)" ] && ok "ca05_usage_sur_sortie_erreur : rien sur la sortie standard" || ko "ca05_usage_sur_sortie_erreur" "sortie standard non vide"
+{ printf 'VERDICT: APPROUVÉ'; head -c 100000 /dev/zero | tr '\0' 'x'; printf '\n'; } > "$dv/ligne-longue.md"
+verdict_cas "ca11_une_seule_ligne_sur_ligne_longue : INCONNU, valeur valide suivie de 100000 caractères" 1 "INCONNU" "ligne VERDICT" "$dv/ligne-longue.md"
+printf 'x$(touch marque)\n`touch marque`\n; rm -rf x\n' > "$dv/hostile.md"
+printf 'VERDICT: APPROUVÉ; touch marque\n' > "$dv/injection.md"
+printf 'VERDICT: $(touch marque)\n' > "$dv/subst.md"
+cd "$dv" || exit 1
+verdict_cas "cs01_contenu_non_execute : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/hostile.md"
+verdict_cas "cs01_valeur_avec_point_virgule : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/injection.md"
+verdict_cas "cs01_substitution_en_valeur : INCONNU" 1 "INCONNU" "ligne VERDICT" "$dv/subst.md"
+[ ! -e "$dv/marque" ] && ok "cs01_fichier_marque_absent : aucune commande du contenu exécutée" || ko "cs01_fichier_marque_absent" "marque créé"
+mkdir -p "$dv/avec espaces"; printf 'VERDICT: APPROUVÉ\n' > "$dv/avec espaces/r e.md"
+verdict_cas "cs02_chemin_avec_espaces : lu comme un chemin" 0 "APPROUVÉ" "" "$dv/avec espaces/r e.md"
+printf 'VERDICT: CHANGEMENTS DEMANDÉS\n' > "$dv/-n"
+verifier "cs02_chemin_tiret_refuse_en_usage : -n n'est pas une option" 64 "Usage" "$verdict" -n
+verdict_cas "cs02_chemin_tiret_apres_double_tiret : lu comme un chemin" 0 "CHANGEMENTS DEMANDÉS" "" "-n" --
+verifier "cs02_chemin_tiret_prefixe : ./-n lu comme un chemin" 0 "^CHANGEMENTS DEMANDÉS$" "$verdict" ./-n
+cd "$ici" || exit 1
+# Fichier hostile : octets de contrôle, ligne de plusieurs milliers de caractères, retours à la ligne dans la valeur.
+{ printf 'VERDICT: APPROUV\033[31m\001\r\n'; head -c 5000 /dev/zero | tr '\0' 'A'; printf '\nVERDICT: APPROUVÉ\n'; } > "$dv/controle.md"
+{ head -c 6000 /dev/zero | tr '\0' 'B'; printf '\n'; } > "$dv/longue.md"
+printf 'VERDICT: APPROUVÉ\\nVERDICT: APPROUVÉ\n\x00\xff\n' > "$dv/binaire.md"
+for f in controle longue binaire; do
+  verdict_cas "cs03_fichier_hostile_$f : INCONNU, code 1, une ligne d'erreur sans le contenu" 1 "INCONNU" "^verdict-revue : .{0,200}$" "$dv/$f.md"
+  taille="$("$verdict" "$dv/$f.md" 2>&1 >/dev/null | wc -c | tr -d ' ')"
+  [ "$taille" -lt 200 ] && ok "cs03_erreur_bornee_$f : $taille octets" || ko "cs03_erreur_bornee_$f" "$taille octets"
+done
+# Octets NUL dans la première ligne : la substitution de commande les supprimerait, une valeur falsifiée deviendrait valide.
+printf 'VERDICT: APPR\0OUVÉ\n' > "$dv/nul-milieu.md"
+printf 'VERDICT:\0 APPROUVÉ\n' > "$dv/nul-apres-deux-points.md"
+printf 'VERDICT: APPROUVÉ\0\n' > "$dv/nul-fin.md"
+printf 'VERDICT: CHANGEMENTS\0 DEMANDÉS\n' > "$dv/nul-changements.md"
+for f in nul-milieu nul-apres-deux-points nul-fin nul-changements; do
+  verdict_cas "cs03_nul_premiere_ligne_$f : INCONNU, code 1, sans recopier le contenu" 1 "INCONNU" "^verdict-revue : .{0,200}$" "$dv/$f.md"
+done
+# Sortie d'erreur capturée dans une variable (un pipeline sous pipefail vaut 1 même quand grep trouve un caractère de contrôle).
+for f in controle longue binaire nul-milieu; do
+  erreur="$("$verdict" "$dv/$f.md" 2>&1 >/dev/null)"
+  if printf '%s' "$erreur" | LC_ALL=C grep -q '[[:cntrl:]]'; then ko "cs03_erreur_sans_controle_$f" "caractère de contrôle"; else ok "cs03_erreur_sans_controle_$f : aucun caractère de contrôle"; fi
+done
+# Chemins : lien symbolique, répertoire, fichier illisible, chemin hostile.
+ln -sf ok.md "$dv/lien.md"
+verdict_cas "cs02_lien_symbolique : suivi, verdict lu" 0 "APPROUVÉ" "" "$dv/lien.md"
+mkdir -p "$dv/repertoire.md"
+verdict_cas "ca04_repertoire : INCONNU, code 1" 1 "INCONNU" "absent ou illisible" "$dv/repertoire.md"
+printf 'VERDICT: APPROUVÉ\n' > "$dv/illisible.md"; chmod 000 "$dv/illisible.md"
+if [ "$(id -u)" = 0 ]; then
+  ok "ca04_fichier_illisible : ignoré, root lit un fichier de mode 000"
+else
+  verdict_cas "ca04_fichier_illisible : INCONNU, code 1" 1 "INCONNU" "absent ou illisible" "$dv/illisible.md"
+fi
+chmod 600 "$dv/illisible.md"
+mkdir -p "$dv/h"; printf 'VERDICT: APPROUVÉ\n' > "$dv/h/-x"
+( cd "$dv/h" && verdict_cas "cs02_chemin_hostile_tiret_double_tiret : lu après --" 0 "APPROUVÉ" "" "-x" -- )
+( cd "$dv/h" && verifier "cs02_chemin_hostile_tiret_prefixe : ./-x lu" 0 "^APPROUVÉ$" "$verdict" ./-x )
+
 echo "ce dépôt : dossier de tests bash"
 cd "$depot" || exit 1
 lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/tests' && ok "ca21_.factory.conf règle DOSSIER_TESTS=factory/scripts/tests" || ko "ca21_.factory.conf ne règle pas DOSSIER_TESTS=factory/scripts/tests"

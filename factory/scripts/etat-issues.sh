@@ -25,6 +25,7 @@ ids=(); statuts=(); fichiers=()
 while IFS= read -r f; do
   fichiers+=("$f"); ids+=("$(issue_champ "$f" id)"); statuts+=("$(issue_champ "$f" statut)")
 done < <(issue_fichiers)
+rattachements_charger
 
 statut_de() { # statut_de <id>
   local i
@@ -44,10 +45,21 @@ if [ "$mode" = "prochaine" ]; then
   exit 1
 fi
 
+branche_de() { # branche_de <fichier> : champ « branche » tel quel ; sinon « <nom> (déduite) » ou « ambiguë : <liste> » (RG-15)
+  local b
+  b="$(issue_champ "$1" branche)"
+  if [ -z "$b" ]; then
+    b="$(issue_branche_deduite "$1")"
+    if [ -n "$b" ]; then b="$b (déduite)"
+    else b="$(issue_branches_ambigues "$1")"; [ -z "$b" ] || b="ambiguë : $b"; fi
+  fi
+  printf '%s' "$b"
+}
+
 echo "| Id | Titre | Statut | Dépend de | Branche |"
 echo "|---|---|---|---|---|"
 for i in "${!ids[@]}"; do
   [ -z "$filtre" ] || [ "${statuts[$i]}" = "$filtre" ] || continue
   deps="$(issue_liste "${fichiers[$i]}" depend_de | paste -sd, - | sed 's/,/, /g')"
-  echo "| ${ids[$i]} | $(issue_champ "${fichiers[$i]}" titre) | ${statuts[$i]} | ${deps:-:} | $(issue_champ "${fichiers[$i]}" branche) |"
+  echo "| ${ids[$i]} | $(issue_champ "${fichiers[$i]}" titre) | ${statuts[$i]} | ${deps:-:} | $(branche_de "${fichiers[$i]}") |"
 done

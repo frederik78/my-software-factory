@@ -76,7 +76,57 @@ notes_lire() {
   [ -n "$notes_fin_ok" ] || { notes_fin_ok=0; notes_abandon=0; }
 }
 
-# preuves_fait <rang> <fichier> <id> : avis A01 à A04 d'une issue dont le statut local est Fait.
+# Commits déclarés de toutes les issues Fait, vérifiés en un seul appel Git (preuves_commits_verifier) : tableaux parallèles remplis par preuves_commits.
+commits_noms=(); commits_rangs=(); commits_ids=()
+
+# commit_hexadecimal <valeur> : vrai si la valeur est hexadécimale, de 7 à 40 caractères (RG-22) : seule forme soumise à Git, jamais une option ni une révision.
+commit_hexadecimal() {
+  case "$1" in ''|*[!0123456789abcdefABCDEF]*) return 1 ;; esac
+  [ "${#1}" -ge 7 ] && [ "${#1}" -le 40 ]
+}
+
+# preuves_commits <rang> <fichier> <id> : A05 (aucun commit déclaré) et A06 immédiat pour une valeur non hexadécimale (sans appel Git) ;
+# les valeurs hexadécimales sont mises en attente pour preuves_commits_verifier.
+preuves_commits() {
+  local rang="$1" commit nb=0
+  while IFS= read -r commit; do
+    nb=$((nb + 1))
+    if commit_hexadecimal "$commit"; then
+      commits_noms+=("$commit"); commits_rangs+=("$rang"); commits_ids+=("$3")
+    else
+      constat_neutraliser "$commit"; commits_signaler "$rang" "$3" "$neutre"
+    fi
+  done < <(issue_liste "$2" commits)
+  if [ "$nb" -eq 0 ]; then
+    constat_neutraliser "$3"
+    constat_ajouter AVIS A05 2 "$rang" "issue $neutre" "Fait sans commit déclaré"
+  fi
+}
+
+# commits_signaler <rang> <id> <valeur neutralisée> : A06.
+commits_signaler() {
+  constat_neutraliser "$2"
+  constat_ajouter AVIS A06 2 "$1" "issue $neutre" "commit déclaré introuvable : $3"
+}
+
+# preuves_commits_verifier : un seul appel « git cat-file --batch-check » pour tous les commits en attente (aucun s'il n'y en a pas) ; A06 pour chacun qui n'est pas un commit.
+# Les noms sont passés en minuscules sur l'entrée standard (jamais comme argument). Git résout une abréviation aussi par un nom de branche : le commit trouvé doit
+# donc commencer par la valeur déclarée, sinon elle est tenue pour introuvable. Lecture seule : cat-file ne touche ni l'index ni les refs.
+preuves_commits_verifier() {
+  local nom oid type k=0 minuscules=() trouves=()
+  [ "${#commits_noms[@]}" -gt 0 ] || return 0
+  while IFS= read -r nom; do minuscules+=("$nom"); done < <(printf '%s\n' "${commits_noms[@]}" | LC_ALL=C tr 'A-F' 'a-f')
+  while IFS=' ' read -r oid type _; do
+    if [ "$type" = commit ]; then case "$oid" in "${minuscules[$k]}"*) trouves[$k]=1 ;; esac; fi
+    k=$((k + 1))
+  done < <(printf '%s\n' "${minuscules[@]}" | git cat-file --batch-check 2>/dev/null)
+  for k in "${!commits_noms[@]}"; do
+    [ "${trouves[$k]:-0}" -eq 1 ] && continue
+    constat_neutraliser "${commits_noms[$k]}"; commits_signaler "${commits_rangs[$k]}" "${commits_ids[$k]}" "$neutre"
+  done
+}
+
+# preuves_fait <rang> <fichier> <id> : avis A01 à A06 d'une issue dont le statut local est Fait.
 preuves_fait() {
   local rang="$1" fichier="$2" id="$3" revue objet chemin
   constat_neutraliser "$id"; objet="issue $neutre"
@@ -95,4 +145,5 @@ preuves_fait() {
   fi
   notes_lire "$fichier" "$id"
   [ "$notes_fin_ok" -eq 1 ] || constat_ajouter AVIS A04 2 "$rang" "$objet" "Fait sans ligne « FIN-ISSUE OK ${objet#issue } » dans les Notes"
+  preuves_commits "$rang" "$fichier" "$id"
 }

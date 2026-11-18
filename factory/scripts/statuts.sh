@@ -88,6 +88,7 @@ controle_issues() {
     [ "$double" -eq 0 ] || constat_ajouter ERREUR E11 2 "${iss_rangs[$i]}" "fichier $chemin" "identifiant d'issue en double : $id"
   done
   controle_preuves
+  preuves_commits_verifier
 }
 
 # controle_preuves : les preuves de chaque issue contrôlée, selon son statut local (lib-preuves.sh).

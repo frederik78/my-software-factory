@@ -3000,13 +3000,17 @@ st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fai
 st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucune erreur ; les avis A01 montrent que ces issues sont lues Fait)" 0 <<'TXT'
 AVIS A01 issue 004-91 : Fait sans champ revue renseigné
 AVIS A04 issue 004-91 : Fait sans ligne « FIN-ISSUE OK 004-91 » dans les Notes
+AVIS A05 issue 004-91 : Fait sans commit déclaré
 AVIS A01 issue 004-92 : Fait sans champ revue renseigné
 AVIS A04 issue 004-92 : Fait sans ligne « FIN-ISSUE OK 004-92 » dans les Notes
+AVIS A05 issue 004-92 : Fait sans commit déclaré
 AVIS A01 issue 004-93 : Fait sans champ revue renseigné
 AVIS A04 issue 004-93 : Fait sans ligne « FIN-ISSUE OK 004-93 » dans les Notes
+AVIS A05 issue 004-93 : Fait sans commit déclaré
 AVIS A01 issue 004-94 : Fait sans champ revue renseigné
 AVIS A04 issue 004-94 : Fait sans ligne « FIN-ISSUE OK 004-94 » dans les Notes
-STATUTS : 0 erreur(s), 8 avis
+AVIS A05 issue 004-94 : Fait sans commit déclaré
+STATUTS : 0 erreur(s), 12 avis
 TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
@@ -3191,7 +3195,8 @@ $st_droits
 ERREUR E10 issue 004-97 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
 AVIS A01 issue 004-94 : Fait sans champ revue renseigné
 AVIS A04 issue 004-94 : Fait sans ligne « FIN-ISSUE OK 004-94 » dans les Notes
-STATUTS : 6 erreur(s), 2 avis
+AVIS A05 issue 004-94 : Fait sans commit déclaré
+STATUTS : 6 erreur(s), 3 avis
 TXT
 else
   ok "ca09_lecture impossible (chmod 000) non éprouvable en tant que root : cas ignoré"
@@ -3352,6 +3357,46 @@ st_cas "ca12_preuves : sans section Notes = A04" 0 <<'TXT'
 AVIS A04 issue 004-81 : Fait sans ligne « FIN-ISSUE OK 004-81 » dans les Notes
 STATUTS : 0 erreur(s), 1 avis
 TXT
+
+
+# ca13 : commits déclarés
+pr_shim_git() { # pr_shim_git : un « git » en tête de PATH qui consigne ses arguments (git.args) et l'entrée de cat-file (git.stdin), puis lance le vrai
+  local reel; reel="$(command -v git)"; mkdir -p "$racine_tmp/shim"; : > "$racine_tmp/git.args"; : > "$racine_tmp/git.stdin"
+  cat > "$racine_tmp/shim/git" <<SHIM
+#!/bin/bash
+printf '%s\n' "\$*" >> "$racine_tmp/git.args"
+if [ "\$1" = cat-file ]; then tee -a "$racine_tmp/git.stdin" | "$reel" "\$@"; exit "\${PIPESTATUS[1]}"; fi
+exec "$reel" "\$@"
+SHIM
+  chmod +x "$racine_tmp/shim/git"
+}
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_commits() { pr_issue "$1" Fait "docs/reviews/revue.md" "$2" "$(pr_ok "$1")"; } # pr_commits <id> <valeur brute de commits:> : issue Fait complète sauf les commits
+git branch 0000001 HEAD
+pr_maj="$(printf '%s' "$pr_c" | tr 'a-f' 'A-F')"
+PR_41="$(printf 'a%.0s' $(seq 1 41))"
+pr_commits 004-71 "[]"; pr_commits 004-72 "[deadbee]"; pr_commits 004-73 "[zzz]"; pr_commits 004-74 '[$(x)]'; pr_commits 004-75 "[--help]"; pr_commits 004-76 "[$PR_41]"
+pr_commits 004-77 "[$pr_c]"; pr_commits 004-78 "[abcdef]"; pr_commits 004-79 "[$pr_maj]"; pr_commits 004-80 "
+  - $pr_cl
+  - deadbee2"
+pr_commits 004-81 "[0000001]"; pr_commits 004-82 ""
+pr_shim_git
+PATH="$racine_tmp/shim:$PATH" st_cas "ca13_preuves : commits: vide = A05 ; hexadécimal absent, non hexadécimal, 6 ou 41 caractères, nom de branche = A06 ; commit existant (court, complet, majuscules) = aucun avis" 0 <<TXT
+AVIS A05 issue 004-71 : Fait sans commit déclaré
+AVIS A06 issue 004-72 : commit déclaré introuvable : deadbee
+AVIS A06 issue 004-73 : commit déclaré introuvable : zzz
+AVIS A06 issue 004-74 : commit déclaré introuvable : \$(x)
+AVIS A06 issue 004-75 : commit déclaré introuvable : --help
+AVIS A06 issue 004-76 : commit déclaré introuvable : $PR_41
+AVIS A06 issue 004-78 : commit déclaré introuvable : abcdef
+AVIS A06 issue 004-80 : commit déclaré introuvable : deadbee2
+AVIS A06 issue 004-81 : commit déclaré introuvable : 0000001
+AVIS A05 issue 004-82 : Fait sans commit déclaré
+STATUTS : 0 erreur(s), 10 avis
+TXT
+verifier "ca13_preuves : une seule vérification groupée par Git (cat-file), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
+verifier "ca13_preuves : seules des valeurs hexadécimales de 7 à 40 caractères parviennent à Git (zzz, \$(x), --help, 41 caractères : aucun appel sur ces valeurs)" 0 "" test "$(grep -c . "$racine_tmp/git.stdin")|$(grep -vc '^[0-9a-f]\{7,40\}$' "$racine_tmp/git.stdin")" = "6|0"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

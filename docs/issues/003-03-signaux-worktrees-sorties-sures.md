@@ -3,7 +3,7 @@ id: 003-03
 titre: Signaux de worktree et sorties sûres pour une branche déduite
 prd: docs/prd/003-dashboard-a-jour.md
 besoin: F-08
-statut: À faire
+statut: En cours
 depend_de: [003-02]
 criteres: [CA-21, CA-22, CS-01, CS-02, CS-04]
 branche: feat/003-03-signaux-worktrees-sorties-sures

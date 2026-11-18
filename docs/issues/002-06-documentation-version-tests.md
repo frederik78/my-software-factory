@@ -3,12 +3,12 @@ id: 002-06
 titre: Documentation, version 1.21.0 et tests réunis
 prd: docs/prd/002-criteres-tests-bash.md
 besoin: F-05
-statut: En revue
+statut: Fait
 depend_de: [002-02, 002-05]
 criteres: [CA-22, CA-23, CA-24]
 branche: feat/002-06-documentation-version-tests
-commits: []
-revue:
+commits: [1266994, 0aa114c, cddc505, 1743504, ef0ba16]
+revue: docs/reviews/002-06.md (APPROUVÉ, itération 2/3)
 ---
 
 ## Objectif
@@ -26,3 +26,7 @@ Un test par critère qui échoue puis réussit ; pour CA-23, la sortie de `facto
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-17 : `FIN-ISSUE OK 002-06 54040c9 : 858 tests, 0 échec, 0 ignoré`. Revue 1 APPROUVÉ avec 1 IMPORTANT (tests `ca22_` trop larges), corrigé ; revue 2 APPROUVÉ.
+- 2026-11-17 : commit 1743504 au message provisoire « wip-local » et sans `Co-Authored-By` (erreur du développeur, historique non réécrit) ; à renommer par l'utilisateur à la fusion s'il le souhaite.
+- 2026-11-17 : mineurs ouverts : `contient` devenu insensible à la casse (`run.sh:2012`) et `ca24_` s'en sert, léger affaiblissement ; ancre présente deux fois ou « Limites connues » supprimée : l'extraction awk s'élargit ; test d'isolation `ca23_` sur la présence du `unset`, pas sur son effet.
+- Passages devenus faux, à l'utilisateur : `backlog.md` D-05 (1.21.0 annoncé pour F-01, devient 1.22.0), PRD 002 lignes 17 et 20 (« version actuelle 1.20.1 »), CS-04 (exemple `$(touch marque)` : « introuvable », 64), bloc `ca21` de `run.sh` (vise encore 002-05).

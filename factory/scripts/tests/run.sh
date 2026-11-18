@@ -2859,6 +2859,386 @@ done
 verifier "ca27_factory/README.md mentionne la nouveauté ($version)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "($version)"
 verifier "ca27_factory/UPGRADE.md décrit la migration sans action de $version" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($version)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
 
+echo "statuts.sh : table unique des statuts et lecture du backlog et des en-têtes (PRD 004, issue 004-01)"
+st_depot() { # st_depot : projet jetable (dépôt git, branche develop, aucune issue), on s'y place
+  p="$(nouveau_projet)"; cd "$p" || exit 1
+  git init -q -b develop .; rm -f docs/issues/[0-9]*.md
+}
+st_table_attendue() { cat <<'TXT'
+Statuts d'une issue (dans l'ordre) :
+  À faire
+  En cours
+  En revue
+  Fait
+  Abandonnée (hors cycle)
+Transitions légales d'une issue :
+  À faire -> En cours | déclencheur : /deliver démarre l'issue (commit « docs: issue <id> en cours » sur sa branche) | preuve : une branche retenue pour l'issue
+  En cours -> En revue | déclencheur : le developer a livré, vérification de la session faite, avant la première relecture | preuve : la branche porte les commits de code ; le fichier de revue existe ou va être créé
+  En revue -> En cours | déclencheur : la revue demande des corrections (BLOQUANT ou IMPORTANT) | preuve : constats ouverts dans le fichier de revue
+  En revue -> Fait | déclencheur : /deliver, définition de fini, après FIN-ISSUE OK | preuve : champ revue non vide ; fichier de revue dont la dernière ligne est APPROUVÉ ; ligne FIN-ISSUE OK <id> dans les Notes ; au moins un commit
+  À faire -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+  En cours -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+  En revue -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+Statuts d'un besoin (dans l'ordre) :
+  À faire
+  En clarification
+  Spécifié
+  En cours
+  En revue
+  Fait
+  Abandonnée (hors cycle)
+Transitions légales d'un besoin :
+  À faire -> En clarification | déclencheur : l'orchestrateur ouvre le cadrage | preuve : aucune
+  En clarification -> Spécifié | déclencheur : l'utilisateur valide le PRD | preuve : colonne PRD renseignée, fichier présent
+  Spécifié -> En cours | déclencheur : la première issue du besoin passe En cours | preuve : au moins une issue démarrée
+  En cours -> En revue | déclencheur : toutes les issues sont Fait (les Abandonnée ne comptent pas, au moins une Fait) | preuve : au moins une issue Fait, toutes les autres Abandonnée
+  En revue -> Fait | déclencheur : l'utilisateur a fusionné : la branche de chaque issue Fait est fusionnée dans develop | preuve : fusion lue dans Git
+  À faire -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En clarification -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  Spécifié -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En cours -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En revue -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+TXT
+}
+
+# ca01 : la table unique s'affiche
+st_depot
+st_table_sortie() { scripts/statuts.sh --table > "$racine_tmp/st.out" 2>"$racine_tmp/st.err"; echo "$?" > "$racine_tmp/st.code"; }
+st_table_sortie
+verifier "ca01_statuts --table : code 0" 0 "" test "$(cat "$racine_tmp/st.code")" = 0
+st_table_attendue > "$racine_tmp/st.attendu"
+verifier "ca01_statuts --table : 5 statuts d'issue, 7 de besoin dans l'ordre et chaque transition légale (déclencheur, preuve), sortie exacte" 0 "" diff "$racine_tmp/st.attendu" "$racine_tmp/st.out"
+verifier "ca01_statuts --table : exactement 17 transitions (7 d'issue, 10 de besoin)" 0 "" test "$(grep -c -e ' -> ' "$racine_tmp/st.out")" = 17
+verifier "ca01_statuts --table : aucune transition illégale (pas de « À faire -> Fait » ni de « En cours -> Fait » d'issue)" 1 "" grep -E -e '^  (À faire|En cours) -> Fait \|' "$racine_tmp/st.out"
+verifier "ca01_statuts --table : rien sur la sortie d'erreur" 0 "" test ! -s "$racine_tmp/st.err"
+
+# ca02 : source unique, un statut ajouté à la table est connu du dashboard et de la bibliothèque des issues
+st_backlog() { # st_backlog : backlog.md avec le tableau des besoins ; les lignes « | F-01 | … | … | statut | prd | décisions | » viennent de l'entrée standard
+  { printf '# Backlog\n\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|\n'; cat; } > backlog.md
+}
+st_colonnes() { # st_colonnes <section> <fichier> : noms des colonnes du Kanban de la section, séparés par des virgules
+  awk -v s="<section id=\"$1\"" 'index($0, s) { on = 1 } on && /<h3/ { c = $0; sub(/<\/h3>.*/, "", c); sub(/.*>/, "", c); sub(/ \([0-9]+\)$/, "", c); r = r (r == "" ? "" : ",") c } on && /<\/section>/ { print r; exit }' "$2"
+}
+st_table_inserer() { # st_table_inserer <issue|besoin> <statut après lequel insérer> <nouveau statut du cycle> : ajoute le statut dans la table de ce projet
+  awk -v e="$1" -v apres="$2" -v nv="$3" '{ print } index($0, "statut | " e " | " apres " |") == 1 { print "statut | " e " | " nv " | cycle |" }' factory/scripts/statuts.table > "$racine_tmp/table.neuve" \
+    && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+}
+st_page() { scripts/dashboard.sh --sortie "$racine_tmp/st.html" >"$racine_tmp/st.out" 2>"$racine_tmp/st.err"; }
+st_depot
+printf '| F-01 | B | P1 | Relue | | |\n' | st_backlog; issue_b 004-91 "Relue" ""; gd_ add -A; gd_ commit -qm init
+st_page
+verifier "ca02_dashboard : un statut hors table (besoin ou issue) va dans « (autre) »" 0 "" test "$(st_colonnes besoins "$racine_tmp/st.html")|$(st_colonnes issues "$racine_tmp/st.html")" = "À faire,En clarification,Spécifié,En cours,En revue,Fait,(autre)|À faire,En cours,En revue,Fait,(autre)"
+st_table_inserer besoin "En revue" Relue; st_table_inserer issue "En revue" Relue
+st_page
+verifier "ca02_dashboard : le statut ajouté à la table devient une colonne du cycle, avant Fait (besoin et issue), sans « (autre) »" 0 "" test "$(st_colonnes besoins "$racine_tmp/st.html")|$(st_colonnes issues "$racine_tmp/st.html")" = "À faire,En clarification,Spécifié,En cours,En revue,Relue,Fait|À faire,En cours,En revue,Relue,Fait"
+verifier "ca02_dashboard : la carte de l'issue est dans la colonne ajoutée" 0 "" test "$(colonne_de 004-91 "$racine_tmp/st.html")" = "Relue"
+st_depot
+issue_b 004-92 "À faire" feat/x; gd_ add -A; gd_ commit -qm init; sur_branche feat/x 004-92 "Relue" feat/x
+verifier "ca02_etat-issues --prochaine : sans le statut dans la table, l'issue dont la branche dit « Relue » est prête" 0 "^004-92$" scripts/etat-issues.sh --prochaine
+st_table_inserer issue "En revue" Relue
+verifier "ca02_etat-issues --prochaine : avec le statut dans la table, « Relue » est plus avancé que « À faire » : aucune issue prête" 1 "" scripts/etat-issues.sh --prochaine
+
+st_depot
+rm factory/scripts/statuts.table
+for st_cmd in "scripts/dashboard.sh --sortie $racine_tmp/st-sans-table.html" "scripts/etat-issues.sh" "scripts/statuts.sh --table"; do
+  verifier_exact "ca02_table absente : « ${st_cmd%% *} » s'arrête avec le message exact, code 1" 1 "Erreur : table des statuts introuvable (factory/scripts/statuts.table)." $st_cmd
+done
+
+# ca03 : sans issue « Abandonnée », les sorties du dashboard et de etat-issues.sh sont celles d'avant la table unique (référence figée : tests/golden/ca03-sorties.txt)
+st_sorties_ca03() { # st_sorties_ca03 : dépôt jetable déterministe (dates et noms fixes) ; écrit sur la sortie standard le corps du dashboard (sans date) et les sorties de etat-issues.sh
+  export GIT_AUTHOR_DATE="2026-11-18T10:00:00+0000" GIT_COMMITTER_DATE="2026-11-18T10:00:00+0000"
+  st_depot
+  printf '%s\n' '| F-01 | Premier | P1 | À faire | | |' '| F-02 | Second | P2 | En clarification | | cadrage |' '| F-03 | Troisième | P2 | Spécifié | `docs/prd/003.md` | |' \
+    '| F-04 | Quatrième | P3 | En cours | `docs/prd/004.md` | D-01 |' '| F-05 | Cinquième | P1 | En revue | | |' '| F-06 | Sixième | P1 | Fait | | |' \
+    '| F-07 | Septième | P3 | Relue | | statut hors cycle |' '| F-08 | Huitième | P3 | Abandonnée | | Abandonnée par l utilisateur |' | st_backlog
+  issue_b 001-01 "Fait" ""; issue_b 001-02 "En cours" ""; issue_b 001-03 "À faire" "" 001-02; issue_b 001-04 "À faire" feat/001-04-x
+  issue_b 001-05 "Abandonnée" ""; issue_b 001-06 "En revue" ""; issue_b 001-07 "Abandonnée" feat/001-07-x; issue_b 001-08 "À faire" "" 001-04; issue_b 001-09 "À faire" ""
+  gd_ add docs backlog.md; gd_ commit -qm init
+  sur_branche feat/001-04-x 001-04 "En cours" feat/001-04-x; sur_branche feat/001-07-x 001-07 "Fait" feat/001-07-x
+  scripts/dashboard.sh --sortie "$racine_tmp/ca03.html" >/dev/null 2>&1
+  sed -n '/^<body>/,$p' "$racine_tmp/ca03.html" | grep -v '^<p>Généré le ' | sed -E 's/dernier commit : [0-9a-f]+ du/dernier commit : HASH du/' # le hash dépend du contenu exact des fichiers des autres cas
+  printf '== etat-issues\n'; scripts/etat-issues.sh
+  printf '== etat-issues --prochaine\n'; scripts/etat-issues.sh --prochaine; printf 'code %s\n' "$?"
+  printf '== etat-issues --statut\n'; scripts/etat-issues.sh --statut "À faire"
+  unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
+}
+st_sorties_ca03 > "$racine_tmp/ca03.sorties" 2>&1
+verifier "ca03_sans « Abandonnée » dans les données : page du dashboard (hors date) et sorties de etat-issues.sh identiques à la référence d'avant la livraison" 0 "" diff "$ici/golden/ca03-sorties.txt" "$racine_tmp/ca03.sorties"
+verifier "ca03_une issue « Abandonnée » est dans la colonne « (autre) », même quand sa branche dit « Fait » (statut effectif inchangé)" 0 "" test "$(colonne_de 001-05 "$racine_tmp/ca03.html")|$(colonne_de 001-07 "$racine_tmp/ca03.html")" = "(autre)|(autre)"
+
+# Contrôle (sans argument) : cas à sortie exacte
+st_issue() { # st_issue <id> <valeur brute après « statut: » (espaces et guillemets compris)> [besoin] : issue docs/issues/<id>-x.md
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nstatut:%s\nbranche:\ndepend_de: []\n---\n' "$1" "$1" "${3:-F-01}" "$2" > "docs/issues/$1-x.md"
+}
+st_cas() { # st_cas <description> <code attendu> [arguments de statuts.sh] : la sortie standard attendue vient de l'entrée standard ; la sortie d'erreur doit être vide
+  local desc="$1" attendu="$2" code; shift 2
+  cat > "$racine_tmp/st.attendu"
+  scripts/statuts.sh "$@" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; code=$?
+  if [ "$code" -eq "$attendu" ] && cmp -s "$racine_tmp/st.attendu" "$racine_tmp/st.out" && [ ! -s "$racine_tmp/st.err" ]; then ok "$desc"
+  else ko "$desc" "code $code (attendu $attendu) ; sortie : $(head -c 600 "$racine_tmp/st.out" | tr '\n' '|') ; erreur : $(head -c 200 "$racine_tmp/st.err" | tr '\n' '|')"; fi
+}
+ATTENDUS_I="À faire, En cours, En revue, Fait, Abandonnée"
+ATTENDUS_B="À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée"
+
+# ca04 : un statut d'issue inconnu est une erreur E10, sans correction ni suggestion
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+DECOMP=$'A\xcc\x80 faire'
+st_issue 004-91 " fait"; st_issue 004-92 " FAIT"; st_issue 004-93 " Fini"; st_issue 004-94 ""; st_issue 004-95 " A faire"; st_issue 004-96 " $DECOMP"
+st_cas "ca04_statuts : « fait », « FAIT », « Fini », vide, « A faire » et « À faire » décomposé = E10 par issue, liste des attendus de la table, code 1" 1 <<TXT
+ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-92 : statut inconnu « FAIT » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-93 : statut inconnu « Fini » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-94 : statut inconnu «  » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-95 : statut inconnu « A faire » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-96 : statut inconnu « $DECOMP » (attendus : $ATTENDUS_I)
+STATUTS : 6 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fait'"; st_issue 004-94 ' " Fait "'
+st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucun constat)" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+st_issue 004-91 " Relue"; st_table_inserer issue "En revue" Relue
+st_cas "ca02_statuts : un statut ajouté à la table des issues n'est plus une erreur E10" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+awk '$0 !~ /\| Relue \|/' factory/scripts/statuts.table > "$racine_tmp/table.neuve" && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+st_cas "ca02_statuts : le statut retiré de la table redevient une erreur E10" 1 <<TXT
+ERREUR E10 issue 004-91 : statut inconnu « Relue » (attendus : $ATTENDUS_I)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+
+# ca05 : un statut de besoin inconnu est une erreur E05
+st_depot
+printf '%s\n' '| F-01 | B | P1 | Specifie | | |' '| F-02 | B | P1 | en cours | | |' '| F-03 | B | P1 | Fini | | |' '| F-04 | B | P1 | | | |' '| F-05 | B | P1 | Fait | | |' | st_backlog
+st_cas "ca05_statuts : « Specifie », « en cours », « Fini » et vide = E05 par besoin, liste des attendus de la table, code 1" 1 <<TXT
+ERREUR E05 besoin F-01 : statut inconnu « Specifie » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-02 : statut inconnu « en cours » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-03 : statut inconnu « Fini » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-04 : statut inconnu «  » (attendus : $ATTENDUS_B)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | Relue | | |\n' | st_backlog; st_table_inserer besoin "En revue" Relue
+st_cas "ca02_statuts : un statut de besoin ajouté à la table n'est plus une erreur E05" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+awk '$0 !~ /\| Relue \|/' factory/scripts/statuts.table > "$racine_tmp/table.neuve" && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+st_cas "ca02_statuts : le statut de besoin retiré de la table redevient une erreur E05" 1 <<TXT
+ERREUR E05 besoin F-01 : statut inconnu « Relue » (attendus : $ATTENDUS_B)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+
+# ca06 : lecture du backlog (RG-04) : E01, E02, E03, E04, colonnes repérées par leur nom, tableau non fonctionnel ignoré
+st_depot
+st_issue 004-91 " fait"
+st_cas "ca06_statuts : backlog.md absent = la seule ligne d'erreur est E01, même avec une issue en erreur, puis le récapitulatif, code 1" 1 <<'TXT'
+ERREUR E01 backlog : backlog.md absent ou illisible
+STATUTS : 1 erreur(s), 0 avis
+TXT
+mkdir backlog.md
+st_cas "ca06_statuts : backlog.md qui est un dossier = E01" 1 <<'TXT'
+ERREUR E01 backlog : backlog.md absent ou illisible
+STATUTS : 1 erreur(s), 0 avis
+TXT
+rmdir backlog.md
+printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n' > backlog.md
+st_cas "ca06_statuts : backlog sans tableau reconnu (non fonctionnel, sans colonne PRD) = E02 ; les contrôles des issues restent émis ; le tableau non fonctionnel n'est pas lu" 1 <<TXT
+ERREUR E02 backlog : tableau des besoins introuvable (colonnes ID, Statut, PRD attendues)
+ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
+STATUTS : 2 erreur(s), 0 avis
+TXT
+printf 'Aucun tableau ici.\n' > backlog.md
+st_cas "ca06_statuts : backlog sans aucun tableau = E02" 1 <<TXT
+ERREUR E02 backlog : tableau des besoins introuvable (colonnes ID, Statut, PRD attendues)
+ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
+STATUTS : 2 erreur(s), 0 avis
+TXT
+st_depot
+printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n\n## Besoins fonctionnels\n\n| Besoin | PRD | Décisions | Statut | ID |\n|---|---|---|---|---|\n| B | | | Fait | F-01 |\n| B | | | Bof | F-02 |\n' > backlog.md
+st_cas "ca06_statuts : le tableau non fonctionnel qui précède n'est pas lu ; le premier tableau avec ID, Statut et PRD l'est, colonnes repérées par leur nom (ordre quelconque)" 1 <<TXT
+ERREUR E05 besoin F-02 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Fait |' '| F-03 | B | P1 | Bof | | |' '| F-04 | B | P1 | Fait | | | extra |' | st_backlog
+st_cas "ca06_statuts : ligne dont le nombre de colonnes diffère de l'en-tête = E03 pour elle seule ; les autres lignes sont contrôlées" 1 <<TXT
+ERREUR E03 besoin F-02 : ligne illisible (nombre de colonnes différent de l'en-tête)
+ERREUR E05 besoin F-03 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E03 besoin F-04 : ligne illisible (nombre de colonnes différent de l'en-tête)
+STATUTS : 3 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Fait | | |' '| F-01 | Copie | P1 | Fait | | |' | st_backlog
+st_cas "ca06_statuts : deux lignes de même identifiant = une erreur E04 pour cet identifiant" 1 <<'TXT'
+ERREUR E04 besoin F-01 : identifiant en double dans le backlog
+STATUTS : 1 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | Fait | | |' | st_backlog
+st_cas "ca06_statuts : F-1 et F-10 sont deux identifiants distincts (pas de doublon)" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-01 | B \| avec barre | P1 | À faire | | |' | st_backlog
+st_cas "ca06_statuts : une barre échappée dans une cellule ne change pas le nombre de colonnes" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
+# ca07 : forme de la sortie, tri, récapitulatif, codes
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog; st_issue 004-91 " À faire"
+st_cas "ca07_statuts : dépôt cohérent = la seule ligne « STATUTS : 0 erreur(s), 0 avis », code 0" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-02 | B | P1 | Bof | | |' '| F-01 | B | P1 | Bof | | |' | st_backlog
+st_issue 004-92 " Zut"; st_issue 004-91 " Bof"
+st_cas "ca07_statuts : une ligne par constat « GRAVITÉ CODE objet : texte » ; besoins dans l'ordre du tableau (F-02 avant F-01), puis issues dans l'ordre des fichiers ; récapitulatif exact en dernier" 1 <<TXT
+ERREUR E05 besoin F-02 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-01 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E10 issue 004-91 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-92 : statut inconnu « Zut » (attendus : $ATTENDUS_I)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+st_lib_constats() { # sort les constats ajoutés dans le désordre : un avis, une erreur, deux codes sur le même objet
+  ( . "$ici/../lib-constats.sh"
+    constat_ajouter AVIS A10 2 1 "issue 004-91" "second"
+    constat_ajouter AVIS A02 2 1 "issue 004-91" "premier"
+    constat_ajouter ERREUR E10 2 2 "issue 004-92" "erreur après"
+    constat_ajouter ERREUR E05 1 1 "besoin F-01" "erreur avant"
+    constat_ajouter AVIS A01 1 1 "besoin F-01" "avis du besoin"
+    constats_rendre; echo "code $?" )
+}
+verifier_exact "ca07_constats : les erreurs précèdent les avis ; puis groupe, rang, code ; récapitulatif exact ; code 1 avec une erreur" 0 "ERREUR E05 besoin F-01 : erreur avant
+ERREUR E10 issue 004-92 : erreur après
+AVIS A01 besoin F-01 : avis du besoin
+AVIS A02 issue 004-91 : premier
+AVIS A10 issue 004-91 : second
+STATUTS : 2 erreur(s), 3 avis
+code 1" st_lib_constats
+st_lib_avis() { ( . "$ici/../lib-constats.sh"; constat_ajouter AVIS A01 2 1 "issue 004-91" "seul"; constats_rendre; echo "code $?" ); }
+verifier_exact "ca07_constats : un avis seul = code 0" 0 "AVIS A01 issue 004-91 : seul
+STATUTS : 0 erreur(s), 1 avis
+code 0" st_lib_avis
+for st_args in "--inconnue" "extra" "--table extra" "--table --table" "-h"; do
+  scripts/statuts.sh $st_args > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
+  verifier "ca07_statuts $st_args : usage sur la sortie d'erreur, rien sur la sortie standard, code 64" 0 "" test "$st_c|$(wc -c < "$racine_tmp/st.out" | tr -d ' ')|$(grep -c '^Usage : ' "$racine_tmp/st.err")" = "64|0|1"
+done
+scripts/statuts.sh "" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
+verifier "ca07_statuts avec un argument vide : usage, code 64, rien sur la sortie standard" 0 "" test "$st_c|$(wc -c < "$racine_tmp/st.out" | tr -d ' ')|$(grep -c '^Usage : ' "$racine_tmp/st.err")" = "64|0|1"
+
+# ca08 : identifiant d'issue absent ou en double = E11 ; les autres issues restent contrôlées
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf -- '---\nid: 004-91\nstatut: À faire\n---\n' > docs/issues/004-91-a.md; printf -- '---\nid: 004-91\nstatut: Fait\n---\n' > docs/issues/004-91-b.md
+printf -- '---\nid:\nstatut: À faire\n---\n' > docs/issues/004-92-x.md; printf -- '---\nstatut: À faire\n---\n' > docs/issues/004-93-x.md
+st_issue 004-94 " Bof"; st_issue 004-95 " À faire"
+st_cas "ca08_statuts : identifiant absent ou vide = E11 ; deux fichiers de même identifiant = un E11 pour chacun ; ces issues ne donnent aucun autre constat ; les autres sont contrôlées" 1 <<TXT
+ERREUR E11 fichier docs/issues/004-91-a.md : identifiant d'issue en double : 004-91
+ERREUR E11 fichier docs/issues/004-91-b.md : identifiant d'issue en double : 004-91
+ERREUR E11 fichier docs/issues/004-92-x.md : identifiant d'issue absent
+ERREUR E11 fichier docs/issues/004-93-x.md : identifiant d'issue absent
+ERREUR E10 issue 004-94 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+STATUTS : 5 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf -- '---\nid: 004-1\nstatut: À faire\n---\n' > docs/issues/004-1-x.md; printf -- '---\nid: 004-10\nstatut: À faire\n---\n' > docs/issues/004-10-x.md
+st_cas "ca08_statuts : 004-1 et 004-10 sont deux identifiants distincts" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf -- '---\nid: 004-91\nstatut: Bof\n---\n' > docs/issues/004-91-a.md; printf -- '---\nid: 004-91\nstatut: Zut\n---\n' > docs/issues/004-91-b.md
+st_cas "ca08_statuts : deux fichiers de même identifiant à statut inconnu = E10 (objet « fichier <chemin> ») et E11 pour chacun, distinguables" 1 <<TXT
+ERREUR E10 fichier docs/issues/004-91-a.md : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+ERREUR E11 fichier docs/issues/004-91-a.md : identifiant d'issue en double : 004-91
+ERREUR E10 fichier docs/issues/004-91-b.md : statut inconnu « Zut » (attendus : $ATTENDUS_I)
+ERREUR E11 fichier docs/issues/004-91-b.md : identifiant d'issue en double : 004-91
+STATUTS : 4 erreur(s), 0 avis
+TXT
+
+
+# ca09 : fichier d'issue illisible = E14, ignoré ; le contenu du fichier visé n'est reproduit nulle part
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf 'id: 004-91\nstatut: Fait\n---\n' > docs/issues/004-91-ouvre.md
+printf -- '---\nid: 004-92\nstatut: Fait\n' > docs/issues/004-92-ferme.md
+st_entete="$(printf -- '---\nid: 004-93\nstatut: Fait\n---\n')"
+{ printf '%s\n' "$st_entete"; head -c $((1048577 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-93-gros.md
+{ printf '%s\n' "$st_entete" | sed 's/004-93/004-94/'; head -c $((1048576 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-94-limite.md
+printf -- '---\nid: SECRET-ID\nstatut: SECRET-CONTENU\n---\n' > cible-secrete.md; ln -s ../../cible-secrete.md docs/issues/004-95-lien.md
+printf -- '---\nid: 004-96\nstatut: Fait\n---\n' > docs/issues/004-96-droits.md; chmod 000 docs/issues/004-96-droits.md
+st_issue 004-97 " Bof"
+if [ "$(id -u)" -eq 0 ]; then st_droits=""; else st_droits="ERREUR E14 fichier docs/issues/004-96-droits.md : fichier d'issue illisible (lecture impossible)"; chmod 000 docs/issues/004-96-droits.md; fi
+verifier "ca09_gros fichier : 1 048 577 octets et 1 048 576 octets (limite) créés à la taille exacte" 0 "" test "$(wc -c < docs/issues/004-93-gros.md | tr -d ' ')|$(wc -c < docs/issues/004-94-limite.md | tr -d ' ')" = "1048577|1048576"
+if [ -n "$st_droits" ]; then
+  st_cas "ca09_statuts : en-tête ouvrant ou fermant absent, plus de 1 Mio, lien symbolique, lecture impossible = E14 avec le motif ; exactement 1 Mio accepté ; les autres fichiers sont contrôlés ; rien du fichier visé reproduit" 1 <<TXT
+ERREUR E14 fichier docs/issues/004-91-ouvre.md : fichier d'issue illisible (en-tête YAML absent ou non fermé)
+ERREUR E14 fichier docs/issues/004-92-ferme.md : fichier d'issue illisible (en-tête YAML absent ou non fermé)
+ERREUR E14 fichier docs/issues/004-93-gros.md : fichier d'issue illisible (plus de 1 Mio)
+ERREUR E14 fichier docs/issues/004-95-lien.md : fichier d'issue illisible (lien symbolique)
+$st_droits
+ERREUR E10 issue 004-97 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+STATUTS : 6 erreur(s), 0 avis
+TXT
+else
+  ok "ca09_lecture impossible (chmod 000) non éprouvable en tant que root : cas ignoré"
+fi
+verifier "ca09_le contenu du fichier visé par le lien (SECRET) n'apparaît dans aucune sortie" 0 "" test "$(cat "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -c SECRET)" = 0
+chmod 644 docs/issues/004-96-droits.md
+
+# Revue 1 : classe CSS d'un statut d'issue ajouté à la table (constat 6)
+st_depot
+st_issue 004-91 " Relue"; awk '{ print } index($0, "statut | issue | En revue |") == 1 { print "statut | issue | Relue | cycle | relue" }' factory/scripts/statuts.table > "$racine_tmp/table.neuve" && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+st_page
+verifier "ca02_dashboard : le statut d'issue ajouté à la table porte sa classe CSS (statut-relue), pas statut-inconnu" 0 "" grep -q '<h3 class="statut-relue">Relue (1)</h3>' "$racine_tmp/st.html"
+
+# Revue 1 : 0x1F dans une cellule du backlog (constat 1)
+st_depot
+SEP31=$'\037'
+printf '%s\n' "| F-01 | B | P1 | Fait${SEP31}zz | | |" "| F-02${SEP31} | B | P1 | Bof | | |" "| F-03 | B | P1 | Fait${SEP31} | | |" | st_backlog
+st_cas "ca06_statuts : 0x1F dans une cellule de statut ou d'identifiant ne rend pas la valeur valide (E05, champs non décalés)" 1 <<TXT
+ERREUR E05 besoin F-01 : statut inconnu « Fait�zz » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-02� : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-03 : statut inconnu « Fait� » (attendus : $ATTENDUS_B)
+STATUTS : 3 erreur(s), 0 avis
+TXT
+
+# Revue 1 : neutralisation RG-21 (constats 2 et 4)
+st_neutre() { ( . "$ici/../lib-constats.sh"; "$@" ); }
+st_n() { constat_neutraliser "$1"; printf '%s' "$neutre"; } # st_n <valeur> : la valeur neutralisée
+st_neutre_test() { # st_neutre_test <description> <attendu> <valeur> [LC_ALL]
+  local r; r="$(LC_ALL="${4:-C}" st_neutre st_n "$3")"
+  [ "$r" = "$2" ] && ok "$1" || ko "$1" "obtenu : $(printf '%s' "$r" | od -c | head -3 | tr '\n' '|')"
+}
+st_neutre_test "ca07_neutralisation : ESC, NUL et caractères de contrôle retirés" "[31mrouge" "$(printf '\033[31mro\001uge')"
+st_neutre_test "ca07_neutralisation : retour chariot, saut de ligne et tabulation remplacés par une espace" "a b c d" "$(printf 'a\rb\nc\td')"
+st_neutre_test "ca07_neutralisation : 120 caractères acceptés" "$(printf 'x%.0s' $(seq 1 120))" "$(printf 'x%.0s' $(seq 1 120))"
+st_neutre_test "ca07_neutralisation : 121 caractères tronqués à 120 avec « … »" "$(printf 'x%.0s' $(seq 1 120))…" "$(printf 'x%.0s' $(seq 1 121))"
+st_long="a$(printf 'é%.0s' $(seq 1 130))"; st_cent="a$(printf 'é%.0s' $(seq 1 119))"
+st_locs="C"; locale -a 2>/dev/null | grep -qix 'en_US.utf-\{0,1\}8' && st_locs="C en_US.UTF-8"
+for st_loc in $st_locs; do
+  st_neutre_test "ca07_neutralisation : « a » + 130 « é » coupé sur 120 caractères, UTF-8 valide (LC_ALL=$st_loc)" "${st_cent}…" "$st_long" "$st_loc"
+done
+st_neutre_test "ca07_neutralisation : 120 caractères multi-octets (240 octets) non tronqués" "$st_cent" "$st_cent"
+st_neutre_test "ca07_neutralisation : C1 (U+009B, U+0085) et contrôles bidirectionnels (U+202E, U+2066, U+200F) retirés, accents et guillemets français intacts" "aébcdÉe«x»fg" "$(printf 'a\xc3\xa9\xc2\x9bb\xc2\x85c\xe2\x80\xaed\xc3\x89\xe2\x81\xa6e\xc2\xabx\xc2\xbb\xe2\x80\x8ffg')"
+verifier "ca07_neutralisation : la coupe sous LC_ALL=C est acceptée par iconv (UTF-8 valide)" 0 "" sh -c 'printf "%s" "$1" | iconv -f UTF-8 -t UTF-8 >/dev/null' _ "$(LC_ALL=C st_neutre st_n "$st_long")"
+
+# Revue 2 : coût de la neutralisation (constat 10) : 20 000 occurrences d'un caractère retiré dans une cellule du backlog et dans un en-tête d'issue, sous le bash 3.2 de macOS quand il existe
+st_repete() { printf "$1%.0s" $(seq 1 20000); } # st_repete <séquence printf> : la séquence répétée 20 000 fois
+st_depot
+{ printf '| F-01 | B | P1 | Fait%szz | | |\n' "$(st_repete '\302\205')"; printf '| F-02 | B | P1 | Fait%szz | | |\n' "$(st_repete '\342\200\256')"; printf '| F-03 | B | P1 | Fait%szz | | |\n' "$(st_repete '\r')"; } | st_backlog
+printf -- '---\nid: 004-91\nstatut: Fait%szz\n---\n' "$(st_repete '\302\205')" > docs/issues/004-91-x.md
+printf -- '---\nid: 004-92\nstatut: Fait%szz\n---\n' "$(st_repete '\342\200\256')" > docs/issues/004-92-x.md
+printf -- '---\nid: 004-93\nstatut: Fait%szz\n---\n' "$(st_repete '\r')" > docs/issues/004-93-x.md
+st_bash=bash; [ -x /bin/bash ] && st_bash=/bin/bash
+st_debut=$SECONDS
+perl -e 'alarm 30; exec @ARGV' "$st_bash" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
+verifier "ca07_cout_neutralisation : 20 000 C1, 20 000 U+202E et 20 000 CR dans 3 cellules de backlog et 3 en-têtes d'issue : fini en moins de 30 s (durée $((SECONDS - st_debut)) s), 6 erreurs" 0 "" test "$st_c|$(grep -c '^ERREUR E05 besoin F-0[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(grep -c '^ERREUR E10 issue 004-9[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(tail -1 "$racine_tmp/st.out")" = "1|3|3|STATUTS : 6 erreur(s), 0 avis"
+verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR remplacés par des espaces puis tronqués à 120 caractères" 0 "" test "$(grep -c '« Faitzz »' "$racine_tmp/st.out")|$(grep -cE '« Fait {116}… »' "$racine_tmp/st.out")" = "4|2"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

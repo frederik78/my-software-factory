@@ -1,0 +1,108 @@
+<body>
+<main>
+<h1>Dashboard</h1>
+<section id="agents-actifs">
+<h2>Agents actifs</h2>
+<p>Aucun agent signalé (journal absent : hooks non installés, ou aucun sous-agent lancé depuis l'installation ; voir factory/sync-claude.sh).</p>
+</section>
+<section id="en-cours">
+<h2>En cours</h2>
+<ul>
+<li><strong>001-02</strong> T001-02 <span class="etiquette statut-encours">En cours</span></li>
+<li><strong>001-04</strong> T001-04 <span class="etiquette statut-encours">En cours</span></li>
+<li><strong>001-06</strong> T001-06 <span class="etiquette statut-enrevue">En revue</span></li>
+</ul>
+</section>
+<section id="besoins">
+<h2>Besoins</h2>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (1)</h3>
+<div class="carte"><strong>F-01</strong> <span class="titre">Premier</span><span class="detail">P1</span><span class="detail">1/9 Fait · 3 À faire · 2 En cours · 1 En revue · 2 Abandonnée</span><span class="detail">à vérifier : des issues sont déjà démarrées</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-clarification">En clarification (1)</h3>
+<div class="carte"><strong>F-02</strong> <span class="titre">Second</span><span class="detail">P2</span><span class="detail desc">cadrage</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-specifie">Spécifié (1)</h3>
+<div class="carte"><strong>F-03</strong> <span class="titre">Troisième</span><span class="detail">P2</span><span class="detail">PRD : `docs/prd/003.md`</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (1)</h3>
+<div class="carte"><strong>F-04</strong> <span class="titre">Quatrième</span><span class="detail">P3</span><span class="detail">PRD : `docs/prd/004.md`</span><span class="detail desc">D-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>F-05</strong> <span class="titre">Cinquième</span><span class="detail">P1</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (1)</h3>
+<div class="carte"><strong>F-06</strong> <span class="titre">Sixième</span><span class="detail">P1</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-inconnu">(autre) (2)</h3>
+<div class="carte"><strong>F-07</strong> <span class="titre">Septième</span><span class="detail">P3</span><span class="detail desc">statut hors cycle</span></div>
+<div class="carte"><strong>F-08</strong> <span class="titre">Huitième</span><span class="detail">P3</span><span class="detail desc">Abandonnée par l utilisateur</span></div>
+</div>
+</div>
+</section>
+<section id="issues">
+<h2>Issues</h2>
+<p>Prochaine issue prête : <strong>001-09</strong></p>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (3)</h3>
+<div class="carte bloquee"><strong>001-03</strong> <span class="titre">T001-03</span><span class="marqueur marqueur-bloquee">bloquée</span><span class="detail">F-01</span><span class="detail">dépend de : 001-02</span></div>
+<div class="carte bloquee"><strong>001-08</strong> <span class="titre">T001-08</span><span class="marqueur marqueur-bloquee">bloquée</span><span class="detail">F-01</span><span class="detail">dépend de : 001-04</span></div>
+<div class="carte prochaine"><strong>001-09</strong> <span class="titre">T001-09</span><span class="marqueur marqueur-prochaine">prochaine</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (2)</h3>
+<div class="carte"><strong>001-02</strong> <span class="titre">T001-02</span><span class="detail">F-01</span></div>
+<div class="carte"><strong>001-04</strong> <span class="titre">T001-04</span><span class="detail">F-01</span><span class="detail">dernier commit : HASH du 2026-11-18</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>001-06</strong> <span class="titre">T001-06</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (1)</h3>
+<div class="carte"><strong>001-01</strong> <span class="titre">T001-01</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-inconnu">(autre) (2)</h3>
+<div class="carte"><strong>001-05</strong> <span class="titre">T001-05</span><span class="detail">F-01</span></div>
+<div class="carte"><strong>001-07</strong> <span class="titre">T001-07</span><span class="detail">F-01</span><span class="detail">dernier commit : HASH du 2026-11-18</span></div>
+</div>
+</div>
+</section>
+<section id="autres-travaux">
+<h2>Autres travaux</h2>
+<p>Aucun autre travail.</p>
+</section>
+</main>
+</body>
+</html>
+== etat-issues
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 001-01 | T001-01 | Fait | : |  |
+| 001-02 | T001-02 | En cours | : |  |
+| 001-03 | T001-03 | À faire | 001-02 |  |
+| 001-04 | T001-04 | À faire | : | feat/001-04-x |
+| 001-05 | T001-05 | Abandonnée | : |  |
+| 001-06 | T001-06 | En revue | : |  |
+| 001-07 | T001-07 | Abandonnée | : | feat/001-07-x |
+| 001-08 | T001-08 | À faire | 001-04 |  |
+| 001-09 | T001-09 | À faire | : |  |
+== etat-issues --prochaine
+001-09
+code 0
+== etat-issues --statut
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 001-03 | T001-03 | À faire | 001-02 |  |
+| 001-04 | T001-04 | À faire | : | feat/001-04-x |
+| 001-08 | T001-08 | À faire | 001-04 |  |
+| 001-09 | T001-09 | À faire | : |  |

@@ -3068,8 +3068,20 @@ TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
 st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fait'"; st_issue 004-94 ' " Fait "'
-st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucun constat)" 0 <<'TXT'
-STATUTS : 0 erreur(s), 0 avis
+st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucune erreur ; les avis A01 montrent que ces issues sont lues Fait)" 0 <<'TXT'
+AVIS A01 issue 004-91 : Fait sans champ revue renseigné
+AVIS A04 issue 004-91 : Fait sans ligne « FIN-ISSUE OK 004-91 » dans les Notes
+AVIS A05 issue 004-91 : Fait sans commit déclaré
+AVIS A01 issue 004-92 : Fait sans champ revue renseigné
+AVIS A04 issue 004-92 : Fait sans ligne « FIN-ISSUE OK 004-92 » dans les Notes
+AVIS A05 issue 004-92 : Fait sans commit déclaré
+AVIS A01 issue 004-93 : Fait sans champ revue renseigné
+AVIS A04 issue 004-93 : Fait sans ligne « FIN-ISSUE OK 004-93 » dans les Notes
+AVIS A05 issue 004-93 : Fait sans commit déclaré
+AVIS A01 issue 004-94 : Fait sans champ revue renseigné
+AVIS A04 issue 004-94 : Fait sans ligne « FIN-ISSUE OK 004-94 » dans les Notes
+AVIS A05 issue 004-94 : Fait sans commit déclaré
+STATUTS : 0 erreur(s), 12 avis
 TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
@@ -3252,7 +3264,10 @@ ERREUR E14 fichier docs/issues/004-93-gros.md : fichier d'issue illisible (plus 
 ERREUR E14 fichier docs/issues/004-95-lien.md : fichier d'issue illisible (lien symbolique)
 $st_droits
 ERREUR E10 issue 004-97 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
-STATUTS : 6 erreur(s), 0 avis
+AVIS A01 issue 004-94 : Fait sans champ revue renseigné
+AVIS A04 issue 004-94 : Fait sans ligne « FIN-ISSUE OK 004-94 » dans les Notes
+AVIS A05 issue 004-94 : Fait sans commit déclaré
+STATUTS : 6 erreur(s), 3 avis
 TXT
 else
   ok "ca09_lecture impossible (chmod 000) non éprouvable en tant que root : cas ignoré"
@@ -3309,6 +3324,383 @@ st_debut=$SECONDS
 perl -e 'alarm 30; exec @ARGV' "$st_bash" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
 verifier "ca07_cout_neutralisation : 20 000 C1, 20 000 U+202E et 20 000 CR dans 3 cellules de backlog et 3 en-têtes d'issue : fini en moins de 30 s (durée $((SECONDS - st_debut)) s), 6 erreurs" 0 "" test "$st_c|$(grep -c '^ERREUR E05 besoin F-0[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(grep -c '^ERREUR E10 issue 004-9[123] : statut inconnu « Fait' "$racine_tmp/st.out")|$(tail -1 "$racine_tmp/st.out")" = "1|3|3|STATUTS : 6 erreur(s), 0 avis"
 verifier "ca07_cout_neutralisation : C1 et U+202E retirés (« Faitzz »), CR remplacés par des espaces puis tronqués à 120 caractères" 0 "" test "$(grep -c '« Faitzz »' "$racine_tmp/st.out")|$(grep -cE '« Fait {116}… »' "$racine_tmp/st.out")" = "4|2"
+
+
+echo "statuts.sh : preuves d'une issue, branche retenue, Abandonnée et dépendances (PRD 004, issue 004-02)"
+pr_depot() { # pr_depot : st_depot + backlog à un besoin « En cours » + un premier commit ; $pr_c = son identifiant court, $pr_cl = complet
+  st_depot
+  printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
+  mkdir -p docs/issues; : > docs/issues/.gitkeep; gd_ add docs/issues/.gitkeep; gd_ commit -q -m init # le dossier des issues existe dans les branches créées ensuite
+  pr_c="$(git rev-parse --short HEAD)"; pr_cl="$(git rev-parse HEAD)"
+  mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md
+}
+pr_issue() { # pr_issue <id> <statut> <revue> <commits> <notes> [depend_de] [branche] [corps avant les Notes] : docs/issues/<id>-x.md complet (revue et commits : valeur brute après la clé)
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\ndepend_de: [%s]\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\n%s\n\n## Notes\n%s\n' \
+    "$1" "$1" "$2" "${6:-}" "${7:-}" "$4" "${3:+ $3}" "${8:-x}" "$5" > "docs/issues/$1-x.md"
+}
+PR_OK='- 2026-11-18 : `FIN-ISSUE OK 004-9X abc1234 : 10 tests, 0 échec, 0 ignoré`.'
+pr_ok() { printf -- '- 2026-11-18 : `FIN-ISSUE OK %s abc1234 : 10 tests, 0 échec, 0 ignoré`.' "$1"; } # pr_ok <id> : la ligne de notes de preuve
+
+# ca10 : issue Fait complète = aucun constat, pour chaque forme réelle du champ revue
+pr_depot
+printf 'VERDICT: APPROUVÉ\n\n# Revue\n\nAPPROUVÉ\n' > docs/reviews/004-91.md
+printf 'texte\nAPPROUVÉ\r\n\r\n   \n\n' > docs/reviews/004-92.md
+printf 'texte\n\nAPPROUVÉ   \n' > docs/reviews/004-93.md
+pr_issue 004-91 Fait "docs/reviews/004-91.md" "[$pr_c]" "$(pr_ok 004-91)"
+pr_issue 004-92 Fait "docs/reviews/004-92.md (APPROUVÉ, itération 1/3)" "[$pr_cl]" "$(pr_ok 004-92)"
+pr_issue 004-93 Fait "APPROUVÉ (itération 2 sur 2, docs/reviews/004-93.md)" "[$pr_c, $pr_cl]" "$(pr_ok 004-93)"
+st_cas "ca10_preuves : issue Fait avec revue approuvée (trois formes du champ, lignes vides, retour chariot, espaces de fin), FIN-ISSUE OK et commits existants = aucun constat" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
+# ca11 : revue vide = A01 ; fichier absent, lien symbolique, plus de 1 Mio, forme invalide = A02 ; dernière ligne autre que APPROUVÉ = A03
+pr_depot
+pr_cas() { # pr_cas <id> <chemin ou champ revue> : issue Fait complète sauf le champ revue
+  pr_issue "$1" Fait "$2" "[$pr_c]" "$(pr_ok "$1")"
+}
+pr_revue() { # pr_revue <id> <contenu printf> : fichier docs/reviews/<id>.md ; l'issue <id> le désigne
+  printf "$2" > "docs/reviews/$1.md"; pr_cas "$1" "docs/reviews/$1.md"
+}
+pr_cas 004-81 ""
+pr_cas 004-82 "docs/reviews/absent.md"
+printf 'SECRET\nAPPROUVÉ\n' > "$racine_tmp/cible-revue.md"; ln -s "$racine_tmp/cible-revue.md" docs/reviews/004-83.md; pr_cas 004-83 "docs/reviews/004-83.md"
+{ head -c $((1048577 - 11)) /dev/zero | tr '\0' 'x'; printf '\nAPPROUVÉ\n'; } > docs/reviews/004-84.md; pr_cas 004-84 "docs/reviews/004-84.md"
+{ head -c $((1048576 - 11)) /dev/zero | tr '\0' 'x'; printf '\nAPPROUVÉ\n'; } > docs/reviews/004-85.md; pr_cas 004-85 "docs/reviews/004-85.md"
+verifier "ca11_fichiers de revue de 1 048 577 et 1 048 576 octets créés à la taille exacte" 0 "" test "$(wc -c < docs/reviews/004-84.md | tr -d ' ')|$(wc -c < docs/reviews/004-85.md | tr -d ' ')" = "1048577|1048576"
+pr_cas 004-86 "../x.md"; pr_cas 004-87 "/etc/hostname"; pr_cas 004-88 "docs/reviews/sub/x.md"; pr_cas 004-89 "docs/reviews/../../etc/hostname"
+pr_cas 004-80 "docs/reviews/x.md.bak"; pr_cas 004-79 "/home/u/docs/reviews/004-79.md"; printf 'APPROUVÉ\n' > docs/reviews/004-79.md
+pr_cas 004-78 "revue faite"
+pr_revue 004-71 'texte\nCHANGEMENTS DEMANDÉS\n'; pr_revue 004-72 'texte\napprouvé\n'; pr_revue 004-73 'texte\nAPPROUVÉ.\n'; pr_revue 004-74 'texte\nVERDICT: APPROUVÉ\n'
+pr_revue 004-75 'APPROUVÉ\ntexte\n'; pr_revue 004-76 ''; pr_revue 004-77 '\n  \n\n'
+st_cas "ca11_preuves : revue vide = A01 ; absente, lien symbolique, 1 Mio + 1 octet, ../x.md, chemin absolu, sous-dossier, texte sans chemin = A02 ; dernière ligne autre = A03 ; 1 Mio exactement accepté ; code 0" 0 <<'TXT'
+AVIS A03 issue 004-71 : Fait : la dernière ligne de docs/reviews/004-71.md n'est pas APPROUVÉ
+AVIS A03 issue 004-72 : Fait : la dernière ligne de docs/reviews/004-72.md n'est pas APPROUVÉ
+AVIS A03 issue 004-73 : Fait : la dernière ligne de docs/reviews/004-73.md n'est pas APPROUVÉ
+AVIS A03 issue 004-74 : Fait : la dernière ligne de docs/reviews/004-74.md n'est pas APPROUVÉ
+AVIS A03 issue 004-75 : Fait : la dernière ligne de docs/reviews/004-75.md n'est pas APPROUVÉ
+AVIS A03 issue 004-76 : Fait : la dernière ligne de docs/reviews/004-76.md n'est pas APPROUVÉ
+AVIS A03 issue 004-77 : Fait : la dernière ligne de docs/reviews/004-77.md n'est pas APPROUVÉ
+AVIS A02 issue 004-78 : Fait : fichier de revue introuvable ou illisible (revue faite)
+AVIS A02 issue 004-79 : Fait : fichier de revue introuvable ou illisible (/home/u/docs/reviews/004-79.md)
+AVIS A02 issue 004-80 : Fait : fichier de revue introuvable ou illisible (docs/reviews/x.md.bak)
+AVIS A01 issue 004-81 : Fait sans champ revue renseigné
+AVIS A02 issue 004-82 : Fait : fichier de revue introuvable ou illisible (docs/reviews/absent.md)
+AVIS A02 issue 004-83 : Fait : fichier de revue introuvable ou illisible (docs/reviews/004-83.md)
+AVIS A02 issue 004-84 : Fait : fichier de revue introuvable ou illisible (docs/reviews/004-84.md)
+AVIS A02 issue 004-86 : Fait : fichier de revue introuvable ou illisible (../x.md)
+AVIS A02 issue 004-87 : Fait : fichier de revue introuvable ou illisible (/etc/hostname)
+AVIS A02 issue 004-88 : Fait : fichier de revue introuvable ou illisible (docs/reviews/sub/x.md)
+AVIS A02 issue 004-89 : Fait : fichier de revue introuvable ou illisible (docs/reviews/../../etc/hostname)
+STATUTS : 0 erreur(s), 18 avis
+TXT
+
+
+# ca12 : ligne « FIN-ISSUE OK <id> » dans les Notes
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_fait() { pr_issue "$1" Fait "docs/reviews/revue.md" "[$pr_c]" "$2" "" "" "${3:-x}"; } # pr_fait <id> <notes> [corps avant les Notes] : issue Fait complète sauf les Notes
+pr_fait 004-71 "- 2026-11-18 : une note sans preuve."
+pr_fait 004-72 "$(pr_ok 004-99)"
+pr_fait 004-73 '- 2026-11-18 : `FIN-ISSUE ECHEC 004-73 abc1234 : 1 échec`'
+pr_fait 004-74 "" "$(pr_ok 004-74)"
+pr_fait 004-75 "- \`FIN-ISSUE OK 004-751 abc1234 : 10 tests\`"
+pr_fait 004-76 "- \`FIN-ISSUE OK 004-76\`"
+pr_fait 004-77 "$(pr_ok 004-77)"
+pr_fait 004-78 "FIN-ISSUE OK 004-78 abc1234 : sans puce ni accents graves"
+pr_fait 004-79 "### Détail
+$(pr_ok 004-79)"
+pr_fait 004-80 "- une note
+
+## Suite
+$(pr_ok 004-80)"
+st_cas "ca12_preuves : pas de ligne FIN-ISSUE OK <id> dans les Notes (autre issue, ECHEC, avant les Notes, préfixe d'un autre identifiant, fin de ligne, après la section) = A04 ; la ligne en puce, brute ou sous un sous-titre = aucun avis" 0 <<'TXT'
+AVIS A04 issue 004-71 : Fait sans ligne « FIN-ISSUE OK 004-71 » dans les Notes
+AVIS A04 issue 004-72 : Fait sans ligne « FIN-ISSUE OK 004-72 » dans les Notes
+AVIS A04 issue 004-73 : Fait sans ligne « FIN-ISSUE OK 004-73 » dans les Notes
+AVIS A04 issue 004-74 : Fait sans ligne « FIN-ISSUE OK 004-74 » dans les Notes
+AVIS A04 issue 004-75 : Fait sans ligne « FIN-ISSUE OK 004-75 » dans les Notes
+AVIS A04 issue 004-76 : Fait sans ligne « FIN-ISSUE OK 004-76 » dans les Notes
+AVIS A04 issue 004-80 : Fait sans ligne « FIN-ISSUE OK 004-80 » dans les Notes
+STATUTS : 0 erreur(s), 7 avis
+TXT
+printf -- '---\nid: 004-81\nbesoin: F-01\nstatut: Fait\ndepend_de: []\ncommits: [%s]\nrevue: docs/reviews/revue.md\n---\n\n## Objectif\nx\n' "$pr_c" > docs/issues/004-81-x.md
+rm -f docs/issues/004-7[1-9]-x.md docs/issues/004-80-x.md
+st_cas "ca12_preuves : sans section Notes = A04" 0 <<'TXT'
+AVIS A04 issue 004-81 : Fait sans ligne « FIN-ISSUE OK 004-81 » dans les Notes
+STATUTS : 0 erreur(s), 1 avis
+TXT
+
+
+# ca13 : commits déclarés
+pr_shim_git() { # pr_shim_git : un « git » en tête de PATH qui consigne ses arguments (git.args) et l'entrée de cat-file (git.stdin), puis lance le vrai
+  local reel; reel="$(command -v git)"; mkdir -p "$racine_tmp/shim"; : > "$racine_tmp/git.args"; : > "$racine_tmp/git.stdin"
+  cat > "$racine_tmp/shim/git" <<SHIM
+#!/bin/bash
+printf '%s\n' "\$*" >> "$racine_tmp/git.args"
+if [ "\$1" = cat-file ]; then tee -a "$racine_tmp/git.stdin" | "$reel" "\$@"; exit "\${PIPESTATUS[1]}"; fi
+exec "$reel" "\$@"
+SHIM
+  chmod +x "$racine_tmp/shim/git"
+}
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_commits() { pr_issue "$1" Fait "docs/reviews/revue.md" "$2" "$(pr_ok "$1")"; } # pr_commits <id> <valeur brute de commits:> : issue Fait complète sauf les commits
+git branch 0000001 HEAD
+pr_maj="$(printf '%s' "$pr_c" | tr 'a-f' 'A-F')"
+PR_41="$(printf 'a%.0s' $(seq 1 41))"
+pr_commits 004-71 "[]"; pr_commits 004-72 "[deadbee]"; pr_commits 004-73 "[zzz]"; pr_commits 004-74 '[$(x)]'; pr_commits 004-75 "[--help]"; pr_commits 004-76 "[$PR_41]"
+pr_commits 004-77 "[$pr_c]"; pr_commits 004-78 "[abcdef]"; pr_commits 004-79 "[$pr_maj]"; pr_commits 004-80 "
+  - $pr_cl
+  - deadbee2"
+pr_commits 004-81 "[0000001]"; pr_commits 004-82 ""
+pr_commits 004-83 "[abcdefg]"; pr_commits 004-84 '[$(touch${IFS}marque)]'; pr_commits 004-85 "[--output=x1234]"
+pr_shim_git
+PATH="$racine_tmp/shim:$PATH" st_cas "ca13_preuves : commits: vide = A05 ; hexadécimal absent, non hexadécimal, 6 ou 41 caractères, nom de branche = A06 ; commit existant (court, complet, majuscules) = aucun avis" 0 <<TXT
+AVIS A05 issue 004-71 : Fait sans commit déclaré
+AVIS A06 issue 004-72 : commit déclaré introuvable : deadbee
+AVIS A06 issue 004-73 : commit déclaré introuvable : zzz
+AVIS A06 issue 004-74 : commit déclaré introuvable : \$(x)
+AVIS A06 issue 004-75 : commit déclaré introuvable : --help
+AVIS A06 issue 004-76 : commit déclaré introuvable : $PR_41
+AVIS A06 issue 004-78 : commit déclaré introuvable : abcdef
+AVIS A06 issue 004-80 : commit déclaré introuvable : deadbee2
+AVIS A06 issue 004-81 : commit déclaré introuvable : 0000001
+AVIS A05 issue 004-82 : Fait sans commit déclaré
+AVIS A06 issue 004-83 : commit déclaré introuvable : abcdefg
+AVIS A06 issue 004-84 : commit déclaré introuvable : \$(touch\${IFS}marque)
+AVIS A06 issue 004-85 : commit déclaré introuvable : --output=x1234
+STATUTS : 0 erreur(s), 13 avis
+TXT
+verifier "ca13_preuves : une seule vérification groupée par Git (cat-file), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
+verifier "ca13_preuves : seules des valeurs hexadécimales de 7 à 40 caractères parviennent à Git (zzz, \$(x), --help, 41 caractères : aucun appel sur ces valeurs)" 0 "" test "$(grep -c . "$racine_tmp/git.stdin")|$(grep -vc '^[0-9a-f]\{7,40\}$' "$racine_tmp/git.stdin")" = "6|0"
+
+
+# ca14 : les issues réelles terminées avant ce besoin (copie de celles du dépôt de la factory) ne produisent que des avis
+pr_depot
+pr_reel() { # pr_reel <dossier> : chemins des fichiers 001-* à 003-* du dossier dans le dépôt de la factory (HEAD, ou fichiers hors dépôt Git)
+  if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD "$1/"; else (cd "$depot" && ls "$1"/*); fi | grep -E "^$1/00[123]-"
+}
+for pr_f in $(pr_reel docs/issues) $(pr_reel docs/reviews); do lire_depot "$depot" "$pr_f" > "$pr_f"; done
+scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; pr_code=$?
+verifier "ca14_issues réelles 001-01 à 003-05 : copiées dans un dépôt jetable (17 issues)" 0 "" test "$(ls docs/issues/00[123]-*.md | wc -l | tr -d ' ')" = 17
+verifier "ca14_issues réelles : aucune erreur, le code de sortie est celui des seules erreurs (0), avis présents" 0 "" test "$pr_code|$(grep -c '^ERREUR' "$racine_tmp/st.out")|$(grep -Ec '^STATUTS : 0 erreur\(s\), [1-9][0-9]* avis$' "$racine_tmp/st.out")|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|0|1|0"
+verifier "ca14_issues réelles : 002-01 et 002-03 (revue vide) = avis A01, et rien d'autre ne les concerne comme erreur" 0 "" test "$(grep -c '^AVIS A01 issue 002-0[13] : Fait sans champ revue renseigné$' "$racine_tmp/st.out")" = 2
+
+
+# ca15 : issue En revue sans fichier de revue lisible = A07
+pr_depot
+git branch feat/b HEAD
+pr_er() { pr_issue "$1" "${3:-En revue}" "$2" "[]" "" "" feat/b; } # pr_er <id> <revue> [statut] : issue sur la branche feat/b (existante), sans commits ni notes
+pr_er 004-71 ""; pr_er 004-72 "docs/reviews/absent.md"; pr_er 004-75 "docs/reviews/x/../y.md"
+printf 'texte\nCHANGEMENTS DEMANDÉS\n' > docs/reviews/004-73.md; pr_er 004-73 "docs/reviews/004-73.md"
+: > docs/reviews/004-74.md; pr_er 004-74 "APPROUVÉ (itération 1, docs/reviews/004-74.md)"
+ln -s "$racine_tmp/cible-revue.md" docs/reviews/004-76.md; pr_er 004-76 "docs/reviews/004-76.md"
+pr_er 004-77 "docs/reviews/absent.md" "À faire"; pr_er 004-78 "docs/reviews/absent.md" "En cours"; pr_er 004-79 "" "En cours"
+st_cas "ca15_preuves : En revue sans revue, avec fichier absent, sans forme valide ou lien symbolique = A07 (chemin ou champ) ; fichier lisible quelle que soit sa dernière ligne = aucun avis ; À faire et En cours avec un champ revue = aucun avis" 0 <<'TXT'
+AVIS A07 issue 004-71 : En revue sans fichier de revue ()
+AVIS A07 issue 004-72 : En revue sans fichier de revue (docs/reviews/absent.md)
+AVIS A07 issue 004-75 : En revue sans fichier de revue (docs/reviews/x/../y.md)
+AVIS A07 issue 004-76 : En revue sans fichier de revue (docs/reviews/004-76.md)
+STATUTS : 0 erreur(s), 4 avis
+TXT
+
+
+# ca16 : issue En cours ou En revue (statut effectif) sans branche retenue = A08
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_enc() { pr_issue "$1" "$2" "docs/reviews/revue.md" "[]" "" "" "${3:-}"; } # pr_enc <id> <statut> [branche de l'en-tête] : issue à l'état indiqué (revue lisible, sans commits)
+pr_enc 004-71 "En cours"; pr_enc 004-72 "En revue" feat/absente
+pr_enc 004-74 "En cours"; git branch feat/004-74-a; git branch fix/004-74-b
+pr_enc 004-75 "En cours" feat/b; git branch feat/b
+pr_enc 004-76 "En cours"; git branch feat/004-76-x
+pr_issue 004-77 Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok 004-77)"
+pr_enc 004-78 "À faire"; pr_enc 004-79 "À faire" feat/absente
+pr_enc 004-73 "À faire" feat/c; sur_branche feat/c 004-73 "En cours" feat/c
+pr_enc 004-70 "À faire"; git branch feat/004-70-a; git branch fix/004-70-b
+st_cas "ca16_branche : En cours ou En revue sans branche (absente, déclarée inexistante) = A08 « sans branche retenue » ; branches ambiguës = A08 avec la liste ; branche déclarée, déduite, Fait sans branche, À faire (même ambiguë) = aucun avis ; statut effectif En cours lu sur la branche = aucun avis" 0 <<'TXT'
+AVIS A08 issue 004-71 : En cours sans branche retenue
+AVIS A08 issue 004-72 : En revue sans branche retenue
+AVIS A08 issue 004-74 : En cours : branche ambiguë : feat/004-74-a, fix/004-74-b
+STATUTS : 0 erreur(s), 3 avis
+TXT
+# valeurs hostiles dans les noms de branche : lues comme du texte (CS-02)
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_enc 004-71 "En cours"; git branch 'feat/004-71-$(touch${IFS}marque)'; git branch 'fix/004-71-;touch${IFS}marque'
+st_cas "ca16_branche : noms de branche hostiles dans la liste ambiguë : écrits tels quels, rien n'est exécuté" 0 <<'TXT'
+AVIS A08 issue 004-71 : En cours : branche ambiguë : feat/004-71-$(touch${IFS}marque), fix/004-71-;touch${IFS}marque
+STATUTS : 0 erreur(s), 1 avis
+TXT
+verifier "ca16_branche : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
+
+# ca16 : un fichier d'issue refusé (lien symbolique) n'est jamais lu pour rattacher les branches (CS-03)
+pr_depot
+printf -- '---\nid: 004-60\nbranche:\nstatut: Fait\n---\nSECRET\n' > "$racine_tmp/cible-issue.md"
+pr_enc 004-60 "En cours"; git branch feat/004-60-z; ln -s "$racine_tmp/cible-issue.md" docs/issues/004-61-lien.md
+st_cas "ca16_branche : un lien symbolique d'issue (E14) qui porte le même identifiant ne rend pas la branche déduite ambiguë ni absente ; son contenu n'apparaît pas" 1 <<'TXT'
+ERREUR E14 fichier docs/issues/004-61-lien.md : fichier d'issue illisible (lien symbolique)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+
+
+# ca17 : issue Abandonnée = raison écrite dans les Notes (E13) ; jamais promue ni rétrogradée par sa branche
+pr_depot
+pr_ab() { pr_issue "$1" "Abandonnée" "" "[]" "$2" "" "" "${3:-x}"; } # pr_ab <id> <notes> [corps avant les Notes] : issue Abandonnée
+pr_ab 004-71 "- 2026-11-18 : une note sans raison."
+pr_ab 004-72 "Abandonnée par l'utilisateur, sans puce."
+pr_ab 004-73 "- 2026-11-18 : abandonnee (sans accent)."
+pr_ab 004-74 "" "- Abandonnée avant les Notes"
+pr_ab 004-75 "- 2026-11-18 : Abandonnée par l'utilisateur (périmètre retiré)."
+pr_ab 004-76 "  * Abandonnée, indentée"
+pr_ab 004-77 "+ Abandonnée"
+pr_ab 004-78 "- une note
+
+## Suite
+- Abandonnée mais hors des Notes"
+st_cas "ca17_abandonnee : sans ligne à puce contenant « Abandonnée » dans les Notes (sans puce, sans accent, avant les Notes, après la section) = E13, code 1 ; avec la ligne (puces - * +, indentée) = aucun constat" 1 <<'TXT'
+ERREUR E13 issue 004-71 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-72 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-73 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-74 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 004-78 : statut Abandonnée sans raison dans les Notes
+STATUTS : 5 erreur(s), 0 avis
+TXT
+# statut effectif : Abandonnée local reste Abandonnée même si sa branche dit Fait ; Fait local reste Fait même si sa branche dit Abandonnée
+pr_depot
+pr_ab 004-71 "- 2026-11-18 : Abandonnée." "x"; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+sed -i.bak 's/^branche:.*/branche: feat\/a/' docs/issues/004-71-x.md; rm docs/issues/004-71-x.md.bak
+pr_issue 004-72 Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok 004-72)" "" feat/f; sed -i.bak 's/^branche:.*/branche: feat\/f/' docs/issues/004-72-x.md; rm docs/issues/004-72-x.md.bak
+gd_ add -A; gd_ commit -qm fixtures
+sur_branche feat/a 004-71 "Fait" feat/a; sur_branche feat/f 004-72 "Abandonnée" feat/f
+scripts/dashboard.sh --sortie "$racine_tmp/ca17.html" >/dev/null 2>&1
+verifier "ca17_abandonnee : Abandonnée local dont la branche dit Fait reste dans « (autre) » ; Fait local dont la branche dit Abandonnée reste dans « Fait » (statut effectif)" 0 "" test "$(colonne_de 004-71 "$racine_tmp/ca17.html")|$(colonne_de 004-72 "$racine_tmp/ca17.html")" = "(autre)|Fait"
+st_cas "ca17_abandonnee : Abandonnée avec sa raison et Fait complet : aucun constat" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
+
+# ca18 : dépendances d'une issue
+pr_depot
+printf 'APPROUVÉ\n' > docs/reviews/revue.md; git branch feat/b HEAD
+pr_full() { pr_issue "$1" Fait docs/reviews/revue.md "[$pr_c]" "$(pr_ok "$1")" "${2:-}" "${3:-}"; } # pr_full <id> [depend_de] [branche] : issue Fait complète
+pr_ab 004-70 "- 2026-11-18 : Abandonnée."
+pr_issue 004-71 "À faire" "" "[]" "" "004-70"
+pr_issue 004-72 "En cours" "" "[]" "" "004-70" feat/b
+pr_issue 004-73 "En revue" docs/reviews/revue.md "[]" "" "004-70" feat/b
+pr_issue 004-74 "À faire" "" "[]" "" "004-99"
+pr_full 004-75 "004-76"; pr_issue 004-76 "En cours" "" "[]" "" "" feat/b
+pr_full 004-77 "004-70"; pr_full 004-78 "004-99"
+pr_issue 004-79 "À faire" "" "[]" "" "004-80"; pr_issue 004-80 "À faire" "" "[]" "" "" feat/c; sur_branche feat/c 004-80 "Fait" feat/c
+pr_issue 004-81 "À faire" "" "[]" "" "004-70, 004-99"
+pr_issue 004-82 "À faire" "" "[]" "" "004-83"; pr_issue 004-83 "Bof" "" "[]" "" ""
+pr_issue 004-84 "À faire" "" "[]" "" "004-7"
+pr_full 004-85 "004-86"; pr_full 004-86
+pr_full 004-87 "004-80" # dépendance À faire en local mais Fait sur sa branche (statut effectif) : terminée
+pr_issue 004-88 "À faire" "" "[]" "" "004-89"; pr_ab 004-89 "- 2026-11-18 : Abandonnée."; sed -i.bak 's/^branche:.*/branche: feat\/g/' docs/issues/004-89-x.md; rm docs/issues/004-89-x.md.bak; sur_branche feat/g 004-89 "Fait" feat/g # Abandonnée en local, Fait sur sa branche : reste Abandonnée
+pr_issue 004-90 "À faire" "" "[]" "" "004-99" feat/h; sur_branche feat/h 004-90 "Fait" feat/h # Fait sur sa branche (statut effectif) : une dépendance inconnue ne lui est pas reprochée
+pr_issue 004-91 "Abandonnée" "" "[]" "- Abandonnée" "004-99" # Abandonnée : aucune dépendance contrôlée
+st_cas "ca18_dependances : dépendance Abandonnée d'une issue À faire, En cours ou En revue = A09 ; inexistante = A10 (et 004-7 n'est pas 004-70) ; Fait avec une dépendance En cours = A11 ; Fait avec une dépendance Abandonnée ou inexistante, dépendance Fait sur sa branche, dépendance d'une issue en E10 = aucun avis" 1 <<'TXT'
+ERREUR E10 issue 004-83 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
+AVIS A09 issue 004-71 : dépend de l'issue Abandonnée 004-70
+AVIS A09 issue 004-72 : dépend de l'issue Abandonnée 004-70
+AVIS A09 issue 004-73 : dépend de l'issue Abandonnée 004-70
+AVIS A10 issue 004-74 : dépend de 004-99, issue inconnue
+AVIS A11 issue 004-75 : Fait alors que la dépendance 004-76 n'est pas terminée
+AVIS A09 issue 004-81 : dépend de l'issue Abandonnée 004-70
+AVIS A10 issue 004-81 : dépend de 004-99, issue inconnue
+AVIS A10 issue 004-84 : dépend de 004-7, issue inconnue
+AVIS A09 issue 004-88 : dépend de l'issue Abandonnée 004-89
+STATUTS : 1 erreur(s), 9 avis
+TXT
+# la dépendance Abandonnée n'est pas levée : etat-issues --prochaine ne rend pas l'issue, le dashboard la marque bloquée (comportement inchangé)
+pr_depot
+pr_ab 004-70 "- 2026-11-18 : Abandonnée."; pr_issue 004-71 "À faire" "" "[]" "" "004-70"
+verifier_exact "ca18_dependances : etat-issues --prochaine ne rend pas l'issue dont la dépendance est Abandonnée (code 1, rien d'écrit)" 1 "" scripts/etat-issues.sh --prochaine
+scripts/dashboard.sh --sortie "$racine_tmp/ca18.html" >/dev/null 2>&1
+verifier "ca18_dependances : le dashboard marque l'issue bloquée" 0 "bloquée" carte_de 004-71 "$racine_tmp/ca18.html"
+# valeurs hostiles dans depend_de : lues comme du texte
+pr_depot
+pr_issue 004-71 "À faire" "" "[]" "" '$(touch${IFS}marque)'; pr_issue 004-72 "À faire" "" "[]" "" '*'; pr_issue 004-73 "À faire" "" "[]" "" '--help'; pr_issue 004-74 "À faire" "" "[]" "" "004-7$(printf '\037')1"
+pr_issue 004-75 "À faire" "" "[]" "" '[a-z]'; pr_issue 004-76 "À faire" "" "[]" "" '.*'
+st_cas "ca18_dependances : dépendances hostiles (\$(…), *, --help, 0x1F, [a-z], .*) = A10 avec la valeur neutralisée, jamais un motif ni une commande" 0 <<'TXT'
+AVIS A10 issue 004-71 : dépend de $(touch${IFS}marque), issue inconnue
+AVIS A10 issue 004-72 : dépend de *, issue inconnue
+AVIS A10 issue 004-73 : dépend de --help, issue inconnue
+AVIS A10 issue 004-74 : dépend de 004-71, issue inconnue
+AVIS A10 issue 004-75 : dépend de [a-z], issue inconnue
+AVIS A10 issue 004-76 : dépend de .*, issue inconnue
+STATUTS : 0 erreur(s), 6 avis
+TXT
+verifier "ca18_dependances : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
+
+# Sûreté des preuves : valeurs hostiles, dossier de revues en lien symbolique, fichiers spéciaux, nombre d'appels Git
+pr_depot
+pr_cas 004-71 "$(printf 'a\rERREUR E13 issue 004-71 : forgé\tx\033[31m')"
+pr_cas 004-72 "$(printf 'x%.0s' $(seq 1 130))"
+pr_cas 004-73 '$(touch${IFS}marque)'
+pr_issue 004-74 Fait "" "[$(printf '1\033[31m2\rERREUR E13 forgé')]" "$(pr_ok 004-74)"
+st_cas "ca11_sûreté :  champ revue et commit à caractères de contrôle, retour chariot ou 130 caractères : une seule ligne par constat, neutralisés, tronqués à 120 caractères, rien de forgé" 0 <<TXT
+AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (a ERREUR E13 issue 004-71 : forgé x[31m)
+AVIS A02 issue 004-72 : Fait : fichier de revue introuvable ou illisible ($(printf 'x%.0s' $(seq 1 120))…)
+AVIS A02 issue 004-73 : Fait : fichier de revue introuvable ou illisible (\$(touch\${IFS}marque))
+AVIS A01 issue 004-74 : Fait sans champ revue renseigné
+AVIS A06 issue 004-74 : commit déclaré introuvable : 1[31m2 ERREUR E13 forgé
+STATUTS : 0 erreur(s), 5 avis
+TXT
+verifier "ca13_sûreté : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+pr_depot
+mkdir "$racine_tmp/hors-revues"; printf 'SECRET\nAPPROUVÉ\n' > "$racine_tmp/hors-revues/004-71.md"; rm -rf docs/reviews; ln -s "$racine_tmp/hors-revues" docs/reviews
+pr_cas 004-71 "docs/reviews/004-71.md"
+st_cas "ca11_sûreté : docs/reviews en lien symbolique : le fichier de revue vers l'extérieur n'est pas lu (A02), son contenu n'apparaît nulle part" 0 <<'TXT'
+AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/004-71.md)
+STATUTS : 0 erreur(s), 1 avis
+TXT
+verifier "ca11_sûreté : SECRET absent des sorties" 0 "" test "$(cat "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -c SECRET)" = 0
+pr_depot
+mkdir docs/reviews/d.md; mkfifo docs/reviews/p.md; pr_cas 004-71 "docs/reviews/d.md"; pr_cas 004-72 "docs/reviews/p.md"
+perl -e 'alarm 20; exec @ARGV' scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; pr_code=$?
+verifier "ca11_sûreté : un dossier ou un tube nommé x.md n'est pas un fichier de revue (A02), sans blocage (alarme 20 s)" 0 "" test "$pr_code|$(grep -c '^AVIS A02 ' "$racine_tmp/st.out")|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|2|0"
+
+# nombre d'appels Git : un seul appel groupé pour les commits, quel que soit le nombre d'issues ; aucun appel de vérification sans issue Fait
+pr_compte() { # pr_compte <nombre d'issues Fait> : crée n issues Fait complètes (branche vide) et compte les appels Git de statuts.sh
+  pr_depot; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+  local k; for k in $(seq 1 "$1"); do pr_full "$(printf '004-%02d' "$k")"; done
+  pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"
+  wc -l < "$racine_tmp/git.args" | tr -d ' '
+}
+pr_n3="$(pr_compte 3)"; pr_n30="$(pr_compte 30)"
+verifier "ca13_sûreté : appels Git de statuts.sh identiques pour 3 et 30 issues Fait avec commits ($pr_n3 et $pr_n30), au plus 2 (lecture des branches, vérification groupée)" 0 "" test "$pr_n3|$pr_n30" = "2|2"
+pr_depot; pr_issue 004-71 "À faire" "" "[]" ""; pr_issue 004-72 "Abandonnée" "" "[]" "- Abandonnée"
+pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
+verifier "ca13_sûreté : aucune issue Fait = aucune vérification de commit (pas d'appel cat-file)" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")" = 0
+
+
+
+# ca13 : le wrapper scripts/statuts.sh du dépôt (liens vers factory/scripts/) trouve toutes ses bibliothèques
+"$depot/scripts/statuts.sh" > "$racine_tmp/w.out" 2> "$racine_tmp/w.err"; pr_code=$?
+verifier "ca13_wrapper : scripts/statuts.sh du dépôt réel : code 0 ou 1, rien sur la sortie d'erreur, récapitulatif présent" 0 "" test "$([ "$pr_code" -le 1 ] && echo ok)|$(wc -c < "$racine_tmp/w.err" | tr -d ' ')|$(grep -c '^STATUTS : ' "$racine_tmp/w.out")" = "ok|0|1"
+
+
+# ca11 : revue au format F-01 (VERDICT en première ligne, lecture de verdict-revue.sh) ou ancienne (dernière ligne APPROUVÉ)
+pr_depot
+pr_revue 004-61 'VERDICT: APPROUVÉ\n\n# Revue\nune dernière ligne quelconque\n'
+pr_revue 004-62 'verdict :  approuvé \r\nsuite\r\nfin\r\n'
+pr_revue 004-63 'VERDICT: CHANGEMENTS DEMANDÉS\n\nAPPROUVÉ\n'
+pr_revue 004-64 'VERDICT: APPROUVÉ\nsuite\nVERDICT: APPROUVÉ\n'
+pr_revue 004-65 'VERDICT: APPROUVE\nsuite\n'
+pr_revue 004-66 'VERDICT: INCONNU\nsuite\n'
+pr_revue 004-67 'texte\n\nAPPROUVÉ\n'
+pr_revue 004-68 'VERDICT: CHANGEMENTS DEMANDÉS\n\nVERDICT: APPROUVÉ\n'
+st_cas "ca11_verdict : première ligne VERDICT: APPROUVÉ (casse, espaces, CRLF tolérés) ou dernière ligne APPROUVÉ = aucun avis ; CHANGEMENTS DEMANDÉS, INCONNU, sans accent, deux lignes VERDICT = A03" 0 <<'TXT'
+AVIS A03 issue 004-63 : Fait : la dernière ligne de docs/reviews/004-63.md n'est pas APPROUVÉ
+AVIS A03 issue 004-64 : Fait : la dernière ligne de docs/reviews/004-64.md n'est pas APPROUVÉ
+AVIS A03 issue 004-65 : Fait : la dernière ligne de docs/reviews/004-65.md n'est pas APPROUVÉ
+AVIS A03 issue 004-66 : Fait : la dernière ligne de docs/reviews/004-66.md n'est pas APPROUVÉ
+AVIS A03 issue 004-68 : Fait : la dernière ligne de docs/reviews/004-68.md n'est pas APPROUVÉ
+STATUTS : 0 erreur(s), 5 avis
+TXT
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

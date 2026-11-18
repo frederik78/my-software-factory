@@ -1,5 +1,20 @@
 # PRD 003 : le dashboard donne l'état réel du travail avant la fusion
 
+## En clair
+*Lecture sans contexte : ce bloc résume le document ; les règles et critères qui suivent sont destinés aux tests.*
+
+**Le problème.** Le dashboard lit l'état du travail dans `develop`. Une issue terminée sur sa branche, non encore fusionnée, y reste « À faire », et la suivante y reste « bloquée ». Exemple réel : 002-04 était « Fait » sur sa branche et apparaissait « À faire ».
+
+**Ce que ce besoin change**
+1. **La branche est retrouvée toute seule.** Si le champ `branche:` d'une issue est vide, le dashboard cherche la branche locale dont le nom commence par le numéro de l'issue (`002-04` → `feat/002-04-…`) et l'indique « (déduite) ». Le champ rempli l'emporte. Si plusieurs branches conviennent, aucune n'est choisie : « branche ambiguë : … ».
+2. **Les issues suivantes se débloquent.** Une issue dont les dépendances sont « Fait » sur leur branche n'est plus « bloquée » : elle affiche « empilée sur <branche> ». La commande `etat-issues.sh --prochaine` suit la même règle.
+3. **L'avancement des besoins est visible.** La carte d'un besoin affiche le compte de ses issues (« 5/6 Fait · 1 En cours ») et « à vérifier : … » si le statut du backlog diverge. Le dashboard ne modifie jamais `backlog.md`.
+4. **Sûr et rapide.** Un nom de branche est une donnée non fiable : jamais exécuté, toujours échappé. Une génération du dashboard fait au plus un appel Git de plus qu'avant.
+
+**Hors de ce besoin** : remplir `branche:` à la création des issues (F-06), afficher le verdict de revue (F-03), lancer la boucle de régénération automatiquement.
+
+**Comment lire la suite** : section 2, les règles (RG-xx) ; section 5, les 33 critères (« Given… When… Then… » : une situation, une action, un résultat) ; section 7, les décisions déjà prises avec l'utilisateur ; section 9, le découpage en 5 issues.
+
 Besoin : F-08 (`backlog.md`). Décisions de cadrage reprises telles quelles : D-10 à D-17. Ce PRD ne les rouvre pas ; D-09 (champ `branche:` rempli à la création) relève de F-06 et complète ce besoin sans en dépendre.
 Le « produit » est la factory elle-même (scripts bash, Markdown). Les noms de commande, de message et de fichier visibles par les utilisateurs sont des contrats ; aucune structure de code n'est décrite.
 

@@ -3742,8 +3742,8 @@ $notes}"; fi
 bs_depot
 printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | À faire | | |' '| F-02 | B | P1 | Spécifié | `docs/prd/p.md` | |' | st_backlog
 git branch feat/b
-bs_issue 004-71 "En cours" "" feat/b; bs_issue 004-72 "En cours" "F-99" feat/b; bs_issue 004-73 "En cours" "F-02, F-1" feat/b; bs_issue 004-74 "À faire" "F-1"; bs_issue 004-75 "À faire" "F-10"
-bs_issue 004-76 "En cours" "F-0" feat/b; bs_issue 004-77 "En cours" "f-02" feat/b; bs_issue 004-78 "À faire" '"F-1"'
+bs_issue 004-71 "En cours" "" feat/b; bs_issue 004-72 "En cours" "F-99" feat/b; bs_issue 004-73 "En cours" "F-02, F-1" feat/b; bs_issue 004-74 "À faire" "F-1" "" none; bs_issue 004-75 "À faire" "F-10" "" none
+bs_issue 004-76 "En cours" "F-0" feat/b; bs_issue 004-77 "En cours" "f-02" feat/b; bs_issue 004-78 "À faire" '"F-1"' "" none
 bs_issue 004-79 "En cours" "F-02$(printf '\037')x" feat/b; bs_issue 004-80 "En cours" '*' feat/b; bs_issue 004-81 "En cours" '.*' feat/b; bs_issue 004-82 "En cours" '$(touch${IFS}marque)' feat/b
 st_cas "ca19_besoin : besoin vide, absent du backlog (F-99, F-0, f-02) ou à plusieurs valeurs = E12 (valeur entre guillemets, vide comprise), l'issue n'est comptée pour aucun besoin (F-02 Spécifié ne reçoit pas d'E07) ; F-1 et F-10 sont deux besoins distincts ; guillemets de bord retirés" 1 <<'TXT'
 ERREUR E12 issue 004-71 : besoin «  » inconnu du backlog
@@ -3920,6 +3920,59 @@ AVIS A12 besoin F-04 : statut En revue en avance : toutes les issues ne sont pas
 AVIS A12 besoin F-05 : statut En revue en avance : toutes les issues ne sont pas Fait
 AVIS A12 besoin F-06 : statut En revue en avance : toutes les issues ne sont pas Fait
 STATUTS : 0 erreur(s), 6 avis
+TXT
+
+# ca26 : un besoin réparti sur plusieurs PRD : toutes ses issues comptent ; le PRD d'une issue non listé ou introuvable = A14
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | Spécifié | `docs/prd/p.md` | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/p.md`, `docs/prd/q.md` | |' \
+  '| F-03 | B | P1 | En cours | `docs/prd/p.md` | |' | st_backlog
+bs_issue 004-71 "En cours" F-01 feat/b docs/prd/q.md                               # PRD q non listé dans la colonne de F-01 : l'issue compte (E07) et reçoit A14
+bs_issue 004-72 "En cours" F-02 feat/b docs/prd/q.md; bs_issue 004-73 "À faire" F-02 "" docs/prd/p.md   # les deux PRD sont listés : rien
+bs_issue 004-74 "En cours" F-03 feat/b docs/prd/absent.md                          # ni listé ni présent
+bs_issue 004-75 "À faire" F-03 "" ../x.md                                          # pas un chemin de PRD : introuvable
+bs_issue 004-76 "À faire" F-03 "" none                                             # pas de PRD : aucun avis
+bs_issue 004-77 "À faire" F-03 "" docs/prd/p.md                                    # listé et présent : rien
+bs_issue 004-78 "À faire" F-03 "" docs/prd/../prd/p.md                             # chemin avec .. : introuvable (jamais suivi)
+st_cas "ca26_prd : les issues de deux PRD comptent toutes dans l'état du besoin (E07 pour F-01 Spécifié) ; PRD d'issue non listé = A14 « non listé dans le backlog pour le besoin <id> » ; PRD absent ou de forme invalide = A14 « introuvable » ; deux PRD listés et présents ou aucun prd: = aucun avis" 1 <<'TXT'
+ERREUR E07 besoin F-01 : statut Spécifié en retard : l'issue 004-71 est démarrée
+AVIS A14 issue 004-71 : PRD docs/prd/q.md non listé dans le backlog pour le besoin F-01
+AVIS A14 issue 004-74 : PRD docs/prd/absent.md non listé dans le backlog pour le besoin F-03
+AVIS A14 issue 004-74 : PRD docs/prd/absent.md introuvable
+AVIS A14 issue 004-75 : PRD ../x.md introuvable
+AVIS A14 issue 004-78 : PRD docs/prd/../prd/p.md introuvable
+STATUTS : 1 erreur(s), 5 avis
+TXT
+printf '%s\n' '| F-01 | B | P1 | En cours | `docs/prd/p.md`, `docs/prd/absent.md` | |' | st_backlog
+rm -f docs/issues/004-7[2-8]-x.md
+st_cas "ca26_prd : colonne PRD à deux chemins dont un absent = E06 (les deux sont exigés présents)" 1 <<'TXT'
+ERREUR E06 besoin F-01 : statut En cours sans PRD valide (fichier absent : docs/prd/absent.md)
+AVIS A14 issue 004-71 : PRD docs/prd/q.md non listé dans le backlog pour le besoin F-01
+STATUTS : 1 erreur(s), 1 avis
+TXT
+
+# ca27 : besoin Abandonnée : raison dans la colonne Décisions (E09), issues encore ouvertes (A15)
+bs_depot
+printf '%s\n' \
+  '| F-01 | B | P1 | Abandonnée | | |' \
+  '| F-02 | B | P1 | Abandonnée | | Abandonné par l'"'"'utilisateur (périmètre retiré) |' \
+  '| F-03 | B | P1 | Abandonnée | | abandonné, en minuscules |' \
+  '| F-04 | B | P1 | Abandonnée | | Abandonnée |' \
+  '| F-05 | B | P1 | Abandonnée | | Abandonnée |' \
+  '| F-06 | B | P1 | Fait | `docs/prd/p.md` | |' \
+  '| F-07 | B | P1 | Abandonnée | | Abandonnée |' | st_backlog
+bs_issue 004-71 Fait F-02 feat/b none; bs_issue 004-72 Abandonnée F-02 "" none "- 2026-11-18 : Abandonnée."
+bs_issue 004-73 "En cours" F-04 feat/b none
+bs_issue 004-74 "À faire" F-05 "" none; bs_issue 004-75 "En revue" F-05 feat/b none
+bs_issue 004-76 Fait F-06 feat/b none; bs_issue 004-77 Abandonnée F-06 "" none "- 2026-11-18 : Abandonnée."
+st_cas "ca27_abandon : besoin Abandonnée sans le mot « Abandonn » dans Décisions (vide, minuscules) = E09 ; avec le mot = aucun constat ; une issue En cours, À faire ou En revue = A15 (un avis par issue) ; issues Fait ou Abandonnée seules = aucun constat ; besoin Fait avec une issue Abandonnée et une Fait fusionnée = aucun constat" 1 <<'TXT'
+ERREUR E09 besoin F-01 : statut Abandonnée sans raison dans la colonne Décisions
+ERREUR E09 besoin F-03 : statut Abandonnée sans raison dans la colonne Décisions
+AVIS A15 besoin F-04 : Abandonnée alors que l'issue 004-73 est En cours
+AVIS A15 besoin F-05 : Abandonnée alors que l'issue 004-74 est À faire
+AVIS A15 besoin F-05 : Abandonnée alors que l'issue 004-75 est En revue
+STATUTS : 2 erreur(s), 3 avis
 TXT
 
 echo

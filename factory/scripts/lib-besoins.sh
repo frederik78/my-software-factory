@@ -143,6 +143,7 @@ besoins_flux() {
 # besoins_agreger : rapproche les issues des besoins en un seul passage (coût linéaire ; les valeurs sont des clés de tableau, jamais des motifs). Lit les refs fusionnées dans develop
 # (fus_refs, précédées d'une ligne « # » pour que le fichier ne soit jamais vide) puis le flux de besoins_flux. Écrit, séparés par CONSTAT_SEP :
 #   X <indice>                          issue dont le besoin n'est l'identifiant d'aucune ligne du tableau
+#   Y <indice> <rang>                   issue rattachée au besoin contrôlé de ce rang
 #   S <rang> <n> <fait> <démarrées> <première démarrée> <première non terminée> <première non fusionnée> <fusion inconnue>
 #                                       un état par besoin contrôlé : issues non abandonnées, terminées, démarrées (y compris terminées), indice de la première démarrée,
 #                                       de la première ni terminée ni abandonnée et de la première terminée non fusionnée dans l'ordre des fichiers (vides s'il n'y en a pas),
@@ -156,6 +157,7 @@ besoins_agreger() {
       if (!($3 in connu)) { print "X", $2; next }
       if (!($3 in rang_de)) next
       r = rang_de[$3]; classe = $4
+      print "Y", $2, r
       if (classe != "A") n[r]++
       if (classe == "F") fait[r]++
       if (classe == "D" || classe == "F") { dem[r]++; if (!(r in premiere)) premiere[r] = $2 }
@@ -238,6 +240,46 @@ besoins_fusion_preparer() {
   done < <(fusion_sonder "${noms[@]}")
 }
 
+# prd_chemin_valide <valeur> : vrai si la valeur est exactement un chemin docs/prd/<nom>.md, <nom> ne contenant que [A-Za-z0-9._-] (RG-08).
+prd_chemin_valide() {
+  local LC_ALL=C nom="${1#docs/prd/}"
+  [ "$nom" != "$1" ] || return 1
+  case "$nom" in ''|*[!A-Za-z0-9._-]*|.md) return 1 ;; *.md) return 0 ;; esac
+  return 1
+}
+
+# besoin_issue <indice d'issue> <rang du besoin> : pour une issue rattachée à un besoin contrôlé, A14 (PRD de l'issue non listé dans la colonne PRD du besoin, ou introuvable ;
+# les deux peuvent se cumuler) et A15 (besoin Abandonnée alors que l'issue est À faire, En cours ou En revue).
+besoin_issue() {
+  local prd="${iss_prds[$1]}" chemins="${bes_chemins[$(($2 - 1))]}" besoin objet statut
+  constat_neutraliser "${bes_ids[$(($2 - 1))]}"; besoin="$neutre"
+  constat_neutraliser "${iss_ids[$1]}"; objet="issue $neutre"
+  if [ -n "$prd" ]; then
+    constat_neutraliser "$prd"
+    if prd_chemin_valide "$prd"; then
+      case " $chemins " in *" $prd "*) ;; *) constat_ajouter AVIS A14 2 "${iss_rangs[$1]}" "$objet" "PRD $neutre non listé dans le backlog pour le besoin $besoin" ;; esac
+      prd_present "$prd" || constat_ajouter AVIS A14 2 "${iss_rangs[$1]}" "$objet" "PRD $neutre introuvable"
+    else
+      constat_ajouter AVIS A14 2 "${iss_rangs[$1]}" "$objet" "PRD $neutre introuvable"
+    fi
+  fi
+  statut="${iss_effectifs[$1]}"
+  if [ "${bes_statuts[$(($2 - 1))]}" = Abandonnée ]; then
+    case "$statut" in "À faire"|"En cours"|"En revue") constat_ajouter AVIS A15 1 "$2" "besoin $besoin" "Abandonnée alors que l'issue ${objet#issue } est $statut" ;; esac
+  fi
+}
+
+# besoins_abandon : E09 (RG-18) : un besoin Abandonnée a le mot « Abandonn » (casse comprise) dans sa colonne Décisions.
+besoins_abandon() {
+  local i id
+  for i in "${!bes_ids[@]}"; do
+    [ "${bes_etats[$i]}" = controlee ] && [ "${bes_statuts[$i]}" = Abandonnée ] || continue
+    case "${bes_decisions[$i]}" in *Abandonn*) continue ;; esac
+    constat_neutraliser "${bes_ids[$i]}"; id="$neutre"
+    constat_ajouter ERREUR E09 1 $((i + 1)) "besoin $id" "statut Abandonnée sans raison dans la colonne Décisions"
+  done
+}
+
 # besoin_ecart <rang> <n> <fait> <démarrées> <première démarrée> <première non terminée> <première non fusionnée> <fusion inconnue> : l'écart entre le statut du besoin et l'état
 # de ses issues (RG-17), au plus un constat par besoin.
 besoin_ecart() {
@@ -263,12 +305,13 @@ besoin_ecart() {
   esac
 }
 
-# besoins_coherence : E06 (besoin sans PRD) et, pour les issues contrôlées, E12 (issue sans besoin connu), l'écart entre chaque besoin et ses issues (E07, E08) et A13 (develop
-# absente). Ne fait rien sans tableau des besoins (E02).
+# besoins_coherence : E06 (besoin sans PRD), E09 (besoin abandonné sans raison) et, pour les issues contrôlées, E12 (issue sans besoin connu), A14 et A15 (PRD de l'issue, besoin
+# abandonné), l'écart entre chaque besoin et ses issues (E07, E08, A12) et A13 (develop absente). Ne fait rien sans tableau des besoins (E02).
 besoins_coherence() {
   local t a b c d e f g h objet
   [ "$bes_table" -eq 1 ] || return 0
   besoins_prd
+  besoins_abandon
   besoins_issues_lire
   besoins_fusion_preparer
   while IFS="$CONSTAT_SEP" read -r t a b c d e f g h; do
@@ -277,6 +320,7 @@ besoins_coherence() {
         constat_neutraliser "${iss_ids[$a]}"; objet="issue $neutre"
         constat_neutraliser "${iss_besoins[$a]}"
         constat_ajouter ERREUR E12 2 "${iss_rangs[$a]}" "$objet" "besoin « $neutre » inconnu du backlog" ;;
+      Y) besoin_issue "$a" "$b" ;;
       S) besoin_ecart "$a" "$b" "$c" "$d" "$e" "$f" "$g" "$h" ;;
     esac
   done < <(besoins_agreger)

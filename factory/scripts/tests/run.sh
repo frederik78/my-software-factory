@@ -3975,6 +3975,53 @@ AVIS A15 besoin F-05 : Abandonnée alors que l'issue 004-75 est En revue
 STATUTS : 2 erreur(s), 3 avis
 TXT
 
+# ca24 : coût Git de la lecture de la fusion : un listage des branches fusionnées et une sonde par lot, quel que soit le nombre d'issues ; aucun appel sans issue Fait à vérifier
+bs_compte() { # bs_compte <nombre d'issues Fait> <branche déclarée de chaque issue, vide ou absente> : lance statuts.sh avec un git de comptage ; écrit « appels | listages fusionnées | sondes »
+  local k
+  bs_depot; printf '| F-01 | B | P1 | Fait | `docs/prd/p.md` | |\n' | st_backlog
+  for k in $(seq 1 "$1"); do bs_issue "$(printf '004-%02d' "$k")" Fait F-01 "$2" none; done
+  pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"
+  printf '%s|%s|%s' "$(wc -l < "$racine_tmp/git.args" | tr -d ' ')" "$(grep -c '^for-each-ref --merged' "$racine_tmp/git.args")" "$(grep -c '^cat-file --batch$' "$racine_tmp/git.args")"
+}
+bs_n3="$(bs_compte 3 "")"; bs_n12="$(bs_compte 12 "")"; bs_n50="$(bs_compte 50 "")"
+verifier "ca24_coût : issues Fait sans branche retenue, 3, 12 et 50 issues : mêmes appels Git ($bs_n3, $bs_n12, $bs_n50 : appels | listages des fusionnées | sondes par lot), un seul listage et une seule sonde" 0 "" test "$bs_n3|$bs_n12|$bs_n50" = "4|1|1|4|1|1|4|1|1"
+bs_n3="$(bs_compte 3 feat/gone)"; bs_n50="$(bs_compte 50 feat/gone)"
+verifier "ca24_coût : issues Fait à branche déclarée absente, 3 et 50 issues : mêmes appels Git ($bs_n3, $bs_n50), un seul listage et une seule sonde" 0 "" test "$bs_n3|$bs_n50" = "3|1|1|3|1|1"
+bs_n50="$(bs_compte 50 feat/b)"
+verifier "ca24_coût : issues Fait à branche déclarée existante, 50 issues : une sonde (existence des branches non fusionnées ou fichier), un seul listage ($bs_n50)" 0 "" test "$bs_n50" = "3|1|1"
+bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none; bs_issue 004-72 "À faire" F-01 "" none
+pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
+verifier "ca24_coût : aucune issue Fait à vérifier = ni listage des fusionnées ni sonde" 0 "" test "$(grep -c -e '--merged' "$racine_tmp/git.args")|$(grep -c '^cat-file' "$racine_tmp/git.args")" = "0|0"
+
+# ca24 : noms de branche déclarés hostiles : jamais transmis à Git comme révision, la fusion se lit alors dans le fichier de develop
+bs_depot
+for bs_n in 1 2 3 4 5 6; do printf '| F-0%s | B | P1 | Fait | `docs/prd/p.md` | |\n' "$bs_n"; done | st_backlog
+git branch 'feat/$(touch${IFS}marque)' feat/b
+bs_issue 004-71 Fait F-01 '$(touch${IFS}marque)' none; bs_issue 004-72 Fait F-02 '--help' none; bs_issue 004-73 Fait F-03 '../../x' none
+bs_issue 004-74 Fait F-04 'feat/b^{commit}' none; bs_issue 004-75 Fait F-05 'feat/b:docs' none; bs_issue 004-76 Fait F-06 'feat/$(touch${IFS}marque)' none
+st_cas "ca24_sûreté : branche déclarée \$(…), --help, ../.., feat/b^{commit}, feat/b:docs ou aux caractères interdits : jamais lue comme révision ni option, la fusion se lit dans le fichier de develop (absent : non fusionnée), rien n'est exécuté" 1 <<'TXT'
+ERREUR E08 besoin F-01 : statut Fait non justifié : la branche de l'issue 004-71 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-02 : statut Fait non justifié : la branche de l'issue 004-72 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-03 : statut Fait non justifié : la branche de l'issue 004-73 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-04 : statut Fait non justifié : la branche de l'issue 004-74 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-05 : statut Fait non justifié : la branche de l'issue 004-75 n'est pas fusionnée dans develop
+ERREUR E08 besoin F-06 : statut Fait non justifié : la branche de l'issue 004-76 n'est pas fusionnée dans develop
+STATUTS : 6 erreur(s), 0 avis
+TXT
+verifier "ca24_sûreté : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
+# ca20 : cellules hostiles du backlog (identifiant, PRD) : neutralisées, tronquées à 120 caractères, jamais évaluées
+bs_depot
+printf '%s\n' "$(printf '| F-01\033[31m | B | P1 | Fait | \033[31m$(touch${IFS}marque) | ERREUR E13 forgé |')" "| F-02 | B | P1 | Spécifié | $(printf 'x%.0s' $(seq 1 130)) | |" "| F-03 | B | P1 | Spécifié | * | |" | st_backlog
+st_cas "ca20_sûreté : identifiant avec ESC, cellule PRD avec ESC et \$(…), PRD de 130 caractères ou « * » : une seule ligne par constat, neutralisés, tronqués à 120 caractères, rien n'est exécuté" 1 <<TXT
+ERREUR E06 besoin F-01[31m : statut Fait sans PRD valide (fichier absent : [31m\$(touch\${IFS}marque))
+ERREUR E08 besoin F-01[31m : statut Fait non justifié : aucune issue Fait
+ERREUR E06 besoin F-02 : statut Spécifié sans PRD valide (fichier absent : $(printf 'x%.0s' $(seq 1 120))…)
+ERREUR E06 besoin F-03 : statut Spécifié sans PRD valide (fichier absent : *)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+verifier "ca20_sûreté : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

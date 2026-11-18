@@ -16,11 +16,11 @@ fusion_charger() {
   return 0
 }
 
-# fusion_nom_sur <nom de branche> : vrai si le nom ne contient que [A-Za-z0-9._/-], sans « .. », sans « // » ni barre oblique au début ou à la fin, et ne finit pas par « .lock » : seule forme
-# transmise à Git (comme nom d'objet refs/heads/<nom>) sans risque d'être lue comme une révision (@{, ^, ~, :) ou une option.
+# fusion_nom_sur <nom de branche> : vrai si le nom n'a que des caractères [A-Za-z0-9._/-] et n'est pas vide. Le nom est transmis à Git sous la forme refs/heads/<nom> (jamais lu comme
+# une option) : sans ces seuls caractères il ne peut pas être lu comme une révision (@{, ^, ~, :, espace). Un nom invalide pour Git (« .. », « // ») désigne simplement une branche absente.
 fusion_nom_sur() {
   local LC_ALL=C
-  case "$1" in ''|*[!A-Za-z0-9._/-]*|*..*|*//*|/*|*/|*.lock) return 1 ;; esac
+  case "$1" in ''|*[!A-Za-z0-9._/-]*) return 1 ;; esac
 }
 
 # fusion_sonder <nom d'objet>... : un seul appel « git cat-file --batch » (les noms sur l'entrée standard, jamais en argument) ; écrit un jeu de 1 ou 0 par nom, dans l'ordre :
@@ -28,7 +28,7 @@ fusion_nom_sur() {
 #   nom d'un fichier (refs/heads/develop:<fichier d'issue>) : 1 si le fichier tel qu'il est dans develop a le statut « Fait » (même lecture de l'en-tête que issue_champ), 0 s'il est absent
 #   de develop, trop gros (ISSUE_BRANCHE_OCTETS_MAX) ou sans en-tête ; tout autre type d'objet : 0.
 # Les octets du flux sont comptés pour suivre le découpage de Git (LC_ALL=C) : un découpage perdu arrête la lecture, les noms restants comptent pour 0 (échec sûr).
-# Aucun nom ne contient de saut de ligne (l'appelant les écarte).
+# Aucun nom ne contient de saut de ligne (les chemins viennent de issue_fichiers, qui lit ligne à ligne ; les noms de branche passent par fusion_nom_sur).
 fusion_sonder() {
   local nom
   for nom in "$@"; do printf '%s\n' "$nom"; done | git cat-file --batch 2>/dev/null | LC_ALL=C awk -v max="$ISSUE_BRANCHE_OCTETS_MAX" '

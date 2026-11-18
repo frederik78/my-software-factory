@@ -223,7 +223,6 @@ besoins_fusion_preparer() {
       fi
     fi
     iss_fusion_refs[$i]="$ref"
-    case "${iss_fichiers[$i]}" in *$'\n'*) continue ;; esac
     if [ -z "$ref" ] || [ "$declaree" -eq 1 ]; then noms+=("$FUSION_REF:${iss_fichiers[$i]}"); cibles+=("f$i"); fi
   done
   [ "$utile" -eq 1 ] || return 0

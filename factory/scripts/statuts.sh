@@ -98,6 +98,7 @@ controle_preuves() {
     [ "${iss_etats[$i]}" = controlee ] || continue
     case "${iss_statuts[$i]}" in
       Fait) preuves_fait "${iss_rangs[$i]}" "${iss_fichiers[$i]}" "${iss_ids[$i]}" ;;
+      "En revue") preuves_en_revue "${iss_rangs[$i]}" "${iss_fichiers[$i]}" "${iss_ids[$i]}" ;;
     esac
   done
 }

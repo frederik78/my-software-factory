@@ -147,3 +147,15 @@ preuves_fait() {
   [ "$notes_fin_ok" -eq 1 ] || constat_ajouter AVIS A04 2 "$rang" "$objet" "Fait sans ligne « FIN-ISSUE OK ${objet#issue } » dans les Notes"
   preuves_commits "$rang" "$fichier" "$id"
 }
+
+# preuves_en_revue <rang> <fichier> <id> : avis A07 d'une issue dont le statut local est En revue et dont le champ revue ne désigne aucun fichier de revue lisible
+# (quelle que soit sa dernière ligne : le verdict n'est exigé qu'à Fait). Un champ vide s'affiche entre parenthèses vides.
+preuves_en_revue() {
+  local revue valeur
+  revue="$(issue_champ "$2" revue)"
+  revue_examiner "$revue" 0
+  [ "$revue_lisible" -eq 0 ] || return 0
+  constat_neutraliser "${revue_chemin:-$revue}"; valeur="$neutre"
+  constat_neutraliser "$3"
+  constat_ajouter AVIS A07 2 "$1" "issue $neutre" "En revue sans fichier de revue ($valeur)"
+}

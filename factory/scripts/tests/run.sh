@@ -3410,6 +3410,24 @@ verifier "ca14_issues réelles 001-01 à 003-05 : copiées dans un dépôt jetab
 verifier "ca14_issues réelles : aucune erreur, le code de sortie est celui des seules erreurs (0), avis présents" 0 "" test "$pr_code|$(grep -c '^ERREUR' "$racine_tmp/st.out")|$(grep -Ec '^STATUTS : 0 erreur\(s\), [1-9][0-9]* avis$' "$racine_tmp/st.out")|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|0|1|0"
 verifier "ca14_issues réelles : 002-01 et 002-03 (revue vide) = avis A01, et rien d'autre ne les concerne comme erreur" 0 "" test "$(grep -c '^AVIS A01 issue 002-0[13] : Fait sans champ revue renseigné$' "$racine_tmp/st.out")" = 2
 
+
+# ca15 : issue En revue sans fichier de revue lisible = A07
+pr_depot
+git branch feat/b HEAD
+pr_er() { pr_issue "$1" "${3:-En revue}" "$2" "[]" "" "" feat/b; } # pr_er <id> <revue> [statut] : issue sur la branche feat/b (existante), sans commits ni notes
+pr_er 004-71 ""; pr_er 004-72 "docs/reviews/absent.md"; pr_er 004-75 "docs/reviews/x/../y.md"
+printf 'texte\nCHANGEMENTS DEMANDÉS\n' > docs/reviews/004-73.md; pr_er 004-73 "docs/reviews/004-73.md"
+: > docs/reviews/004-74.md; pr_er 004-74 "APPROUVÉ (itération 1, docs/reviews/004-74.md)"
+ln -s "$racine_tmp/cible-revue.md" docs/reviews/004-76.md; pr_er 004-76 "docs/reviews/004-76.md"
+pr_er 004-77 "docs/reviews/absent.md" "À faire"; pr_er 004-78 "docs/reviews/absent.md" "En cours"; pr_er 004-79 "" "En cours"
+st_cas "ca15_preuves : En revue sans revue, avec fichier absent, sans forme valide ou lien symbolique = A07 (chemin ou champ) ; fichier lisible quelle que soit sa dernière ligne = aucun avis ; À faire et En cours avec un champ revue = aucun avis" 0 <<'TXT'
+AVIS A07 issue 004-71 : En revue sans fichier de revue ()
+AVIS A07 issue 004-72 : En revue sans fichier de revue (docs/reviews/absent.md)
+AVIS A07 issue 004-75 : En revue sans fichier de revue (docs/reviews/x/../y.md)
+AVIS A07 issue 004-76 : En revue sans fichier de revue (docs/reviews/004-76.md)
+STATUTS : 0 erreur(s), 4 avis
+TXT
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

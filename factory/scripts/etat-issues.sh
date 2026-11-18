@@ -13,6 +13,7 @@ racine="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$racine" || exit 1
 # shellcheck source=lib-issues.sh
 . "$(dirname "$0")/lib-issues.sh"
+table_exiger # la table unique des statuts (factory/scripts/statuts.table) fixe l'ordre du cycle utilisé pour le statut effectif
 
 mode="tableau"; filtre=""
 while [ $# -gt 0 ]; do

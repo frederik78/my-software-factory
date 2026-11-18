@@ -1,0 +1,38 @@
+# Table unique des statuts et des transitions légales des besoins (backlog.md) et des issues (docs/issues/) : PRD 004, règle RG-01.
+# Seul endroit où ces listes sont écrites : le dashboard, la bibliothèque des issues (lib-issues.sh), etat-issues.sh et statuts.sh la lisent.
+# Ajouter un statut ici suffit pour que le dashboard (colonne), l'ordre du cycle et le contrôle le connaissent. Affichage : scripts/statuts.sh --table
+#
+# Format : un enregistrement par ligne, champs séparés par « | » (espaces de bord ignorés), lignes vides et lignes « # » ignorées. Jamais évalué ni sourcé.
+#   statut | <issue|besoin> | <nom> | <cycle|hors-cycle> | <classe CSS de la colonne du dashboard, facultative>
+#       L'ordre des lignes est l'ordre du cycle. « hors-cycle » : statut hors du cycle et sans colonne propre (le dashboard le range dans « (autre) »).
+#   transition | <issue|besoin> | <de : un ou plusieurs statuts séparés par une virgule> | <vers> | <déclencheur> | <preuve exigée>
+#       Toute transition qui n'est pas listée est illégale.
+
+# --- Issues -----------------------------------------------------------------------------------------------------------------------------
+statut | issue | À faire | cycle | afaire
+statut | issue | En cours | cycle | encours
+statut | issue | En revue | cycle | enrevue
+statut | issue | Fait | cycle | fait
+statut | issue | Abandonnée | hors-cycle |
+
+transition | issue | À faire | En cours | /deliver démarre l'issue (commit « docs: issue <id> en cours » sur sa branche) | une branche retenue pour l'issue
+transition | issue | En cours | En revue | le developer a livré, vérification de la session faite, avant la première relecture | la branche porte les commits de code ; le fichier de revue existe ou va être créé
+transition | issue | En revue | En cours | la revue demande des corrections (BLOQUANT ou IMPORTANT) | constats ouverts dans le fichier de revue
+transition | issue | En revue | Fait | /deliver, définition de fini, après FIN-ISSUE OK | champ revue non vide ; fichier de revue dont la dernière ligne est APPROUVÉ ; ligne FIN-ISSUE OK <id> dans les Notes ; au moins un commit
+transition | issue | À faire, En cours, En revue | Abandonnée | décision de l'utilisateur | raison écrite dans les Notes de l'issue
+
+# --- Besoins ----------------------------------------------------------------------------------------------------------------------------
+statut | besoin | À faire | cycle | afaire
+statut | besoin | En clarification | cycle | clarification
+statut | besoin | Spécifié | cycle | specifie
+statut | besoin | En cours | cycle | encours
+statut | besoin | En revue | cycle | enrevue
+statut | besoin | Fait | cycle | fait
+statut | besoin | Abandonnée | hors-cycle |
+
+transition | besoin | À faire | En clarification | l'orchestrateur ouvre le cadrage | aucune
+transition | besoin | En clarification | Spécifié | l'utilisateur valide le PRD | colonne PRD renseignée, fichier présent
+transition | besoin | Spécifié | En cours | la première issue du besoin passe En cours | au moins une issue démarrée
+transition | besoin | En cours | En revue | toutes les issues sont Fait (les Abandonnée ne comptent pas, au moins une Fait) | au moins une issue Fait, toutes les autres Abandonnée
+transition | besoin | En revue | Fait | l'utilisateur a fusionné : la branche de chaque issue Fait est fusionnée dans develop | fusion lue dans Git
+transition | besoin | À faire, En clarification, Spécifié, En cours, En revue | Abandonnée | décision de l'utilisateur | raison écrite dans la colonne Décisions

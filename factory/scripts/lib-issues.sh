@@ -47,8 +47,100 @@ issue_fichiers() {
   return 0
 }
 
-# Statuts d'une issue, dans l'ordre du cycle (docs/issues/README.md).
-statuts_issues=("À faire" "En cours" "En revue" "Fait")
+# --- Table unique des statuts (PRD 004, RG-01) --------------------------------------------------------------------------------------------
+# Les statuts et les transitions des besoins et des issues sont définis une seule fois, dans factory/scripts/statuts.table (format décrit en tête de ce fichier),
+# lu comme du texte (jamais sourcé ni évalué). Le chemin est relatif à la racine du projet, où chaque script se place avant de sourcer cette bibliothèque.
+# Chargé une fois, au moment où la bibliothèque est sourcée ; en cas d'échec, table_erreur porte le motif et les tableaux restent vides (table_exiger l'impose).
+# Tableaux indexés parallèles (bash 3.2) :
+#   table_entite, table_nom, table_portee, table_classe : un élément par statut, dans l'ordre de la table (entité « issue » ou « besoin », portée « cycle » ou « hors-cycle »)
+#   tr_entite, tr_de, tr_vers, tr_declencheur, tr_preuve : un élément par transition légale (une transition par statut de départ)
+#   statuts_issues, statuts_besoins, statuts_classes_besoins : les statuts du CYCLE (sans les statuts hors cycle), dans l'ordre ; la classe CSS suit statuts_besoins
+STATUTS_TABLE="factory/scripts/statuts.table"
+table_entite=(); table_nom=(); table_portee=(); table_classe=()
+tr_entite=(); tr_de=(); tr_vers=(); tr_declencheur=(); tr_preuve=()
+statuts_issues=(); statuts_besoins=(); statuts_classes_besoins=()
+table_erreur=""
+
+# table_nettoyer <texte> : met le texte sans espaces de bord dans $nettoye (sans sous-shell : la table est lue à chaque lancement de script).
+table_nettoyer() {
+  nettoye="$1"
+  nettoye="${nettoye#"${nettoye%%[![:space:]]*}"}"
+  nettoye="${nettoye%"${nettoye##*[![:space:]]}"}"
+}
+
+# statuts_table_charger : remplit les tableaux ci-dessus ; code 1 et table_erreur renseigné si la table est absente ou mal formée (tableaux alors vides).
+statuts_table_charger() {
+  local type entite a b c d n=0 morceaux=() de
+  table_erreur=""
+  table_entite=(); table_nom=(); table_portee=(); table_classe=()
+  tr_entite=(); tr_de=(); tr_vers=(); tr_declencheur=(); tr_preuve=()
+  statuts_issues=(); statuts_besoins=(); statuts_classes_besoins=()
+  if [ ! -f "$STATUTS_TABLE" ] || [ ! -r "$STATUTS_TABLE" ]; then table_erreur="table des statuts introuvable ($STATUTS_TABLE)"; return 1; fi
+  while IFS='|' read -r type entite a b c d || [ -n "$type" ]; do
+    n=$((n + 1))
+    table_nettoyer "$type"; type="$nettoye"
+    case "$type" in ''|'#'*) continue ;; esac
+    table_nettoyer "$entite"; entite="$nettoye"
+    case "$entite" in issue|besoin) ;; *) table_erreur="$STATUTS_TABLE ligne $n : entité inconnue (issue ou besoin attendu)"; break ;; esac
+    table_nettoyer "$a"; a="$nettoye"; table_nettoyer "$b"; b="$nettoye"; table_nettoyer "$c"; c="$nettoye"; table_nettoyer "$d"; d="$nettoye"
+    case "$type" in
+      statut)
+        case "$b" in cycle|hors-cycle) ;; *) b="" ;; esac
+        if [ -z "$a" ] || [ -z "$b" ]; then table_erreur="$STATUTS_TABLE ligne $n : statut sans nom ou sans portée (cycle ou hors-cycle)"; break; fi
+        table_entite+=("$entite"); table_nom+=("$a"); table_portee+=("$b"); table_classe+=("$c") ;;
+      transition)
+        if [ -z "$a" ] || [ -z "$b" ] || [ -z "$c" ] || [ -z "$d" ]; then table_erreur="$STATUTS_TABLE ligne $n : transition incomplète (de, vers, déclencheur, preuve attendus)"; break; fi
+        IFS=',' read -r -a morceaux <<< "$a"
+        for de in "${morceaux[@]}"; do
+          table_nettoyer "$de"
+          tr_entite+=("$entite"); tr_de+=("$nettoye"); tr_vers+=("$b"); tr_declencheur+=("$c"); tr_preuve+=("$d")
+        done ;;
+      *) table_erreur="$STATUTS_TABLE ligne $n : type d'enregistrement inconnu (statut ou transition attendu)"; break ;;
+    esac
+  done < "$STATUTS_TABLE"
+  if [ -z "$table_erreur" ] && [ "${#table_nom[@]}" -eq 0 ]; then table_erreur="$STATUTS_TABLE ne définit aucun statut"; fi
+  if [ -n "$table_erreur" ]; then
+    table_entite=(); table_nom=(); table_portee=(); table_classe=(); tr_entite=(); tr_de=(); tr_vers=(); tr_declencheur=(); tr_preuve=()
+    return 1
+  fi
+  n=0
+  while [ "$n" -lt "${#table_nom[@]}" ]; do
+    if [ "${table_portee[$n]}" = cycle ]; then
+      case "${table_entite[$n]}" in
+        issue) statuts_issues+=("${table_nom[$n]}") ;;
+        besoin) statuts_besoins+=("${table_nom[$n]}"); statuts_classes_besoins+=("${table_classe[$n]}") ;;
+      esac
+    fi
+    n=$((n + 1))
+  done
+}
+
+# table_exiger : arrête le script (code 1, message sur la sortie d'erreur) si la table n'a pas pu être chargée. À appeler par les scripts qui classent ou contrôlent des statuts.
+table_exiger() {
+  [ -z "$table_erreur" ] || { echo "Erreur : $table_erreur." >&2; exit 1; }
+}
+
+# table_statut_connu <issue|besoin> <statut> : vrai si le statut figure dans la table de l'entité (cycle ou hors cycle), comparaison exacte octet pour octet.
+table_statut_connu() {
+  local i=0
+  while [ "$i" -lt "${#table_nom[@]}" ]; do
+    [ "${table_entite[$i]}" = "$1" ] && [ "${table_nom[$i]}" = "$2" ] && return 0
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# table_statuts_de <issue|besoin> : met dans $statuts_de les statuts de l'entité dans l'ordre de la table, séparés par « , ».
+table_statuts_de() {
+  local i=0
+  statuts_de=""
+  while [ "$i" -lt "${#table_nom[@]}" ]; do
+    [ "${table_entite[$i]}" = "$1" ] && statuts_de="${statuts_de:+$statuts_de, }${table_nom[$i]}"
+    i=$((i + 1))
+  done
+}
+
+statuts_table_charger
 
 # issue_rang_statut <statut> : rang dans le cycle ; code 1 et rien d'écrit pour un statut inconnu.
 issue_rang_statut() {

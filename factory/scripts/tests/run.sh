@@ -2674,6 +2674,180 @@ done
 verifier "ca27_factory/README.md mentionne la nouveauté ($version)" 0 "" contient "$(lire_depot "$depot" factory/README.md)" "($version)"
 verifier "ca27_factory/UPGRADE.md décrit la migration sans action de $version" 0 "" contient "$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="($version)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')" "sans action"
 
+echo "statuts.sh : table unique des statuts et lecture du backlog et des en-têtes (PRD 004, issue 004-01)"
+st_depot() { # st_depot : projet jetable (dépôt git, branche develop, aucune issue), on s'y place
+  p="$(nouveau_projet)"; cd "$p" || exit 1
+  git init -q -b develop .; rm -f docs/issues/[0-9]*.md
+}
+st_table_attendue() { cat <<'TXT'
+Statuts d'une issue (dans l'ordre) :
+  À faire
+  En cours
+  En revue
+  Fait
+  Abandonnée (hors cycle)
+Transitions légales d'une issue :
+  À faire -> En cours | déclencheur : /deliver démarre l'issue (commit « docs: issue <id> en cours » sur sa branche) | preuve : une branche retenue pour l'issue
+  En cours -> En revue | déclencheur : le developer a livré, vérification de la session faite, avant la première relecture | preuve : la branche porte les commits de code ; le fichier de revue existe ou va être créé
+  En revue -> En cours | déclencheur : la revue demande des corrections (BLOQUANT ou IMPORTANT) | preuve : constats ouverts dans le fichier de revue
+  En revue -> Fait | déclencheur : /deliver, définition de fini, après FIN-ISSUE OK | preuve : champ revue non vide ; fichier de revue dont la dernière ligne est APPROUVÉ ; ligne FIN-ISSUE OK <id> dans les Notes ; au moins un commit
+  À faire -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+  En cours -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+  En revue -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+Statuts d'un besoin (dans l'ordre) :
+  À faire
+  En clarification
+  Spécifié
+  En cours
+  En revue
+  Fait
+  Abandonnée (hors cycle)
+Transitions légales d'un besoin :
+  À faire -> En clarification | déclencheur : l'orchestrateur ouvre le cadrage | preuve : aucune
+  En clarification -> Spécifié | déclencheur : l'utilisateur valide le PRD | preuve : colonne PRD renseignée, fichier présent
+  Spécifié -> En cours | déclencheur : la première issue du besoin passe En cours | preuve : au moins une issue démarrée
+  En cours -> En revue | déclencheur : toutes les issues sont Fait (les Abandonnée ne comptent pas, au moins une Fait) | preuve : au moins une issue Fait, toutes les autres Abandonnée
+  En revue -> Fait | déclencheur : l'utilisateur a fusionné : la branche de chaque issue Fait est fusionnée dans develop | preuve : fusion lue dans Git
+  À faire -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En clarification -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  Spécifié -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En cours -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En revue -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+TXT
+}
+
+# ca01 : la table unique s'affiche
+st_depot
+st_table_sortie() { scripts/statuts.sh --table > "$racine_tmp/st.out" 2>"$racine_tmp/st.err"; echo "$?" > "$racine_tmp/st.code"; }
+st_table_sortie
+verifier "ca01_statuts --table : code 0" 0 "" test "$(cat "$racine_tmp/st.code")" = 0
+st_table_attendue > "$racine_tmp/st.attendu"
+verifier "ca01_statuts --table : 5 statuts d'issue, 7 de besoin dans l'ordre et chaque transition légale (déclencheur, preuve), sortie exacte" 0 "" diff "$racine_tmp/st.attendu" "$racine_tmp/st.out"
+verifier "ca01_statuts --table : exactement 17 transitions (7 d'issue, 10 de besoin)" 0 "" test "$(grep -c -e ' -> ' "$racine_tmp/st.out")" = 17
+verifier "ca01_statuts --table : aucune transition illégale (pas de « À faire -> Fait » ni de « En cours -> Fait » d'issue)" 1 "" grep -E -e '^  (À faire|En cours) -> Fait \|' "$racine_tmp/st.out"
+verifier "ca01_statuts --table : rien sur la sortie d'erreur" 0 "" test ! -s "$racine_tmp/st.err"
+
+# ca02 : source unique, un statut ajouté à la table est connu du dashboard et de la bibliothèque des issues
+st_backlog() { # st_backlog : backlog.md avec le tableau des besoins ; les lignes « | F-01 | … | … | statut | prd | décisions | » viennent de l'entrée standard
+  { printf '# Backlog\n\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|\n'; cat; } > backlog.md
+}
+st_colonnes() { # st_colonnes <section> <fichier> : noms des colonnes du Kanban de la section, séparés par des virgules
+  awk -v s="<section id=\"$1\"" 'index($0, s) { on = 1 } on && /<h3/ { c = $0; sub(/<\/h3>.*/, "", c); sub(/.*>/, "", c); sub(/ \([0-9]+\)$/, "", c); r = r (r == "" ? "" : ",") c } on && /<\/section>/ { print r; exit }' "$2"
+}
+st_table_inserer() { # st_table_inserer <issue|besoin> <statut après lequel insérer> <nouveau statut du cycle> : ajoute le statut dans la table de ce projet
+  awk -v e="$1" -v apres="$2" -v nv="$3" '{ print } index($0, "statut | " e " | " apres " |") == 1 { print "statut | " e " | " nv " | cycle |" }' factory/scripts/statuts.table > "$racine_tmp/table.neuve" \
+    && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+}
+st_page() { scripts/dashboard.sh --sortie "$racine_tmp/st.html" >"$racine_tmp/st.out" 2>"$racine_tmp/st.err"; }
+st_depot
+printf '| F-01 | B | P1 | Relue | | |\n' | st_backlog; issue_b 004-91 "Relue" ""; gd_ add -A; gd_ commit -qm init
+st_page
+verifier "ca02_dashboard : un statut hors table (besoin ou issue) va dans « (autre) »" 0 "" test "$(st_colonnes besoins "$racine_tmp/st.html")|$(st_colonnes issues "$racine_tmp/st.html")" = "À faire,En clarification,Spécifié,En cours,En revue,Fait,(autre)|À faire,En cours,En revue,Fait,(autre)"
+st_table_inserer besoin "En revue" Relue; st_table_inserer issue "En revue" Relue
+st_page
+verifier "ca02_dashboard : le statut ajouté à la table devient une colonne du cycle, avant Fait (besoin et issue), sans « (autre) »" 0 "" test "$(st_colonnes besoins "$racine_tmp/st.html")|$(st_colonnes issues "$racine_tmp/st.html")" = "À faire,En clarification,Spécifié,En cours,En revue,Relue,Fait|À faire,En cours,En revue,Relue,Fait"
+verifier "ca02_dashboard : la carte de l'issue est dans la colonne ajoutée" 0 "" test "$(colonne_de 004-91 "$racine_tmp/st.html")" = "Relue"
+st_depot
+issue_b 004-92 "À faire" feat/x; gd_ add -A; gd_ commit -qm init; sur_branche feat/x 004-92 "Relue" feat/x
+verifier "ca02_etat-issues --prochaine : sans le statut dans la table, l'issue dont la branche dit « Relue » est prête" 0 "^004-92$" scripts/etat-issues.sh --prochaine
+st_table_inserer issue "En revue" Relue
+verifier "ca02_etat-issues --prochaine : avec le statut dans la table, « Relue » est plus avancé que « À faire » : aucune issue prête" 1 "" scripts/etat-issues.sh --prochaine
+
+st_depot
+rm factory/scripts/statuts.table
+for st_cmd in "scripts/dashboard.sh --sortie $racine_tmp/st-sans-table.html" "scripts/etat-issues.sh" "scripts/statuts.sh --table"; do
+  verifier_exact "ca02_table absente : « ${st_cmd%% *} » s'arrête avec le message exact, code 1" 1 "Erreur : table des statuts introuvable (factory/scripts/statuts.table)." $st_cmd
+done
+
+# ca03 : sans issue « Abandonnée », les sorties du dashboard et de etat-issues.sh sont celles d'avant la table unique (référence figée : tests/golden/ca03-sorties.txt)
+st_sorties_ca03() { # st_sorties_ca03 : dépôt jetable déterministe (dates et noms fixes) ; écrit sur la sortie standard le corps du dashboard (sans date) et les sorties de etat-issues.sh
+  export GIT_AUTHOR_DATE="2026-11-18T10:00:00+0000" GIT_COMMITTER_DATE="2026-11-18T10:00:00+0000"
+  st_depot
+  printf '%s\n' '| F-01 | Premier | P1 | À faire | | |' '| F-02 | Second | P2 | En clarification | | cadrage |' '| F-03 | Troisième | P2 | Spécifié | `docs/prd/003.md` | |' \
+    '| F-04 | Quatrième | P3 | En cours | `docs/prd/004.md` | D-01 |' '| F-05 | Cinquième | P1 | En revue | | |' '| F-06 | Sixième | P1 | Fait | | |' \
+    '| F-07 | Septième | P3 | Relue | | statut hors cycle |' '| F-08 | Huitième | P3 | Abandonnée | | Abandonnée par l utilisateur |' | st_backlog
+  issue_b 001-01 "Fait" ""; issue_b 001-02 "En cours" ""; issue_b 001-03 "À faire" "" 001-02; issue_b 001-04 "À faire" feat/001-04-x
+  issue_b 001-05 "Abandonnée" ""; issue_b 001-06 "En revue" ""; issue_b 001-07 "Abandonnée" feat/001-07-x; issue_b 001-08 "À faire" "" 001-04; issue_b 001-09 "À faire" ""
+  gd_ add docs backlog.md; gd_ commit -qm init
+  sur_branche feat/001-04-x 001-04 "En cours" feat/001-04-x; sur_branche feat/001-07-x 001-07 "Fait" feat/001-07-x
+  scripts/dashboard.sh --sortie "$racine_tmp/ca03.html" >/dev/null 2>&1
+  sed -n '/^<body>/,$p' "$racine_tmp/ca03.html" | grep -v '^<p>Généré le ' | sed -E 's/dernier commit : [0-9a-f]+ du/dernier commit : HASH du/' # le hash dépend du contenu exact des fichiers des autres cas
+  printf '== etat-issues\n'; scripts/etat-issues.sh
+  printf '== etat-issues --prochaine\n'; scripts/etat-issues.sh --prochaine; printf 'code %s\n' "$?"
+  printf '== etat-issues --statut\n'; scripts/etat-issues.sh --statut "À faire"
+  unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
+}
+st_sorties_ca03 > "$racine_tmp/ca03.sorties" 2>&1
+verifier "ca03_sans « Abandonnée » dans les données : page du dashboard (hors date) et sorties de etat-issues.sh identiques à la référence d'avant la livraison" 0 "" diff "$ici/golden/ca03-sorties.txt" "$racine_tmp/ca03.sorties"
+verifier "ca03_une issue « Abandonnée » est dans la colonne « (autre) », même quand sa branche dit « Fait » (statut effectif inchangé)" 0 "" test "$(colonne_de 001-05 "$racine_tmp/ca03.html")|$(colonne_de 001-07 "$racine_tmp/ca03.html")" = "(autre)|(autre)"
+
+# Contrôle (sans argument) : cas à sortie exacte
+st_issue() { # st_issue <id> <valeur brute après « statut: » (espaces et guillemets compris)> [besoin] : issue docs/issues/<id>-x.md
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nstatut:%s\nbranche:\ndepend_de: []\n---\n' "$1" "$1" "${3:-F-01}" "$2" > "docs/issues/$1-x.md"
+}
+st_cas() { # st_cas <description> <code attendu> [arguments de statuts.sh] : la sortie standard attendue vient de l'entrée standard ; la sortie d'erreur doit être vide
+  local desc="$1" attendu="$2" code; shift 2
+  cat > "$racine_tmp/st.attendu"
+  scripts/statuts.sh "$@" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; code=$?
+  if [ "$code" -eq "$attendu" ] && cmp -s "$racine_tmp/st.attendu" "$racine_tmp/st.out" && [ ! -s "$racine_tmp/st.err" ]; then ok "$desc"
+  else ko "$desc" "code $code (attendu $attendu) ; sortie : $(head -c 600 "$racine_tmp/st.out" | tr '\n' '|') ; erreur : $(head -c 200 "$racine_tmp/st.err" | tr '\n' '|')"; fi
+}
+ATTENDUS_I="À faire, En cours, En revue, Fait, Abandonnée"
+ATTENDUS_B="À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée"
+
+# ca04 : un statut d'issue inconnu est une erreur E10, sans correction ni suggestion
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+DECOMP=$'A\xcc\x80 faire'
+st_issue 004-91 " fait"; st_issue 004-92 " FAIT"; st_issue 004-93 " Fini"; st_issue 004-94 ""; st_issue 004-95 " A faire"; st_issue 004-96 " $DECOMP"
+st_cas "ca04_statuts : « fait », « FAIT », « Fini », vide, « A faire » et « À faire » décomposé = E10 par issue, liste des attendus de la table, code 1" 1 <<TXT
+ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-92 : statut inconnu « FAIT » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-93 : statut inconnu « Fini » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-94 : statut inconnu «  » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-95 : statut inconnu « A faire » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-96 : statut inconnu « $DECOMP » (attendus : $ATTENDUS_I)
+STATUTS : 6 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+st_issue 004-91 ' "Fait"'; st_issue 004-92 '    Fait   '; st_issue 004-93 " 'Fait'"; st_issue 004-94 ' " Fait "'
+st_cas "ca04_statuts : « Fait » entouré de guillemets ou d'espaces est lu comme Fait (aucun constat)" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+st_issue 004-91 " Relue"; st_table_inserer issue "En revue" Relue
+st_cas "ca02_statuts : un statut ajouté à la table des issues n'est plus une erreur E10" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+awk '$0 !~ /\| Relue \|/' factory/scripts/statuts.table > "$racine_tmp/table.neuve" && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+st_cas "ca02_statuts : le statut retiré de la table redevient une erreur E10" 1 <<TXT
+ERREUR E10 issue 004-91 : statut inconnu « Relue » (attendus : $ATTENDUS_I)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+
+# ca05 : un statut de besoin inconnu est une erreur E05
+st_depot
+printf '%s\n' '| F-01 | B | P1 | Specifie | | |' '| F-02 | B | P1 | en cours | | |' '| F-03 | B | P1 | Fini | | |' '| F-04 | B | P1 | | | |' '| F-05 | B | P1 | Fait | | |' | st_backlog
+st_cas "ca05_statuts : « Specifie », « en cours », « Fini » et vide = E05 par besoin, liste des attendus de la table, code 1" 1 <<TXT
+ERREUR E05 besoin F-01 : statut inconnu « Specifie » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-02 : statut inconnu « en cours » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-03 : statut inconnu « Fini » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-04 : statut inconnu «  » (attendus : $ATTENDUS_B)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | Relue | | |\n' | st_backlog; st_table_inserer besoin "En revue" Relue
+st_cas "ca02_statuts : un statut de besoin ajouté à la table n'est plus une erreur E05" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+awk '$0 !~ /\| Relue \|/' factory/scripts/statuts.table > "$racine_tmp/table.neuve" && cp "$racine_tmp/table.neuve" factory/scripts/statuts.table
+st_cas "ca02_statuts : le statut de besoin retiré de la table redevient une erreur E05" 1 <<TXT
+ERREUR E05 besoin F-01 : statut inconnu « Relue » (attendus : $ATTENDUS_B)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

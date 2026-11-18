@@ -81,10 +81,9 @@ esac
 # Dossier git commun (absolu) : journal des agents et liste des worktrees ; vide hors dépôt git.
 git_commun="$(git rev-parse --git-common-dir 2>/dev/null)" && git_commun="$(cd "$git_commun" 2>/dev/null && pwd)" || git_commun=""
 
-# Statuts du cycle, dans l'ordre des colonnes : besoins (backlog.md).
-statuts_besoins=("À faire" "En clarification" "Spécifié" "En cours" "En revue" "Fait")
-# statuts_issues vient de lib-issues.sh.
-classes=(afaire clarification specifie encours enrevue fait) # une par statut de besoin (liste fermée, jamais le texte brut)
+# Statuts du cycle, dans l'ordre des colonnes : statuts_besoins, statuts_issues et statuts_classes_besoins (classe CSS, liste fermée, jamais le texte brut)
+# viennent de la table unique (factory/scripts/statuts.table) chargée par lib-issues.sh ; les statuts hors cycle vont dans « (autre) ».
+table_exiger
 # Rang du champ « statut » dans les lignes produites par besoins_backlog et issues_dossier.
 RANG_STATUT_BESOIN=4; RANG_STATUT_ISSUE=3
 sep=$'\037' # séparateur de champs non blanc : les champs vides ne sont pas fusionnés par read
@@ -94,7 +93,7 @@ echappe() { # echappe <texte> : échappement HTML
 }
 classe() { # classe <statut> : nom de classe CSS, « inconnu » hors du cycle des besoins
   local i
-  for i in "${!statuts_besoins[@]}"; do [ "${statuts_besoins[$i]}" = "$1" ] && { echo "${classes[$i]}"; return; }; done
+  for i in "${!statuts_besoins[@]}"; do [ "${statuts_besoins[$i]}" = "$1" ] && { echo "${statuts_classes_besoins[$i]:-inconnu}"; return; }; done
   echo inconnu
 }
 parmi() { # parmi <valeur> <liste...> : vrai si la valeur figure dans la liste

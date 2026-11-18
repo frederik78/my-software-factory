@@ -12,7 +12,7 @@ Plage de commits : {{base}}..HEAD sur la branche {{branche}} ({{git log --onelin
 
 Preuve avant / après du développeur : relance sa commande et dis si elle est suffisante pour chaque critère. Lisibilité : duplications, code mort, structure.
 Critères de l'issue : {{CA-xx, CS-xx}}. Lance scripts/criteres-sans-test.sh {{id}} et rapporte son résultat.
-Remarques de la revue précédente à confirmer une par une (corrigé / non corrigé, avec la preuve) : {{liste, ou « première itération »}}
+Remarques de la revue précédente à confirmer une par une (corrigé / non corrigé, avec la preuve) : {{« première itération », ou : lis docs/reviews/<id>.md (itérations précédentes et tableau « Suivi des constats ») ; il sert à confirmer chaque constat, pas à orienter ton jugement sur le reste}}
 Points d'attention propres à cette issue : {{zones de risque : sécurité, concurrence, contrat externe, migration…}}
 Décisions déjà prises que tu ne dois pas remettre en cause : {{liste}}
 

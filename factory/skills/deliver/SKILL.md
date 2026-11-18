@@ -54,6 +54,7 @@ Avant la **première** relecture : mets `statut: En revue` dans l'issue et **com
 Lance le sous-agent `code-reviewer` avec le modèle `factory/prompts/briefs/reviewer.md` : l'issue, la plage de commits, les points de la revue précédente à
 confirmer, les points d'attention propres à l'issue, `scripts/verify-clean.sh` pour le build, **lecture seule**, et le format de rapport du reviewer.
 Écris son rapport tel quel dans `docs/reviews/<id-issue>.md` (une section datée « Itération n »).
+**Le fichier de revue est la mémoire de l'issue** : tiens à jour, en tête de fichier, le tableau « Suivi des constats » (numéro, gravité, résumé, statut `ouvert` / `corrigé` / `refusé (raison)`, itération de la correction) ; tu es seul à l'écrire (le relecteur reste en lecture seule). Aux itérations suivantes, le relecteur relit ce fichier pour confirmer chaque constat, et le developer le lit en entier (étape 4) : ne recopie plus les remarques de mémoire dans un brief.
 
 **Mutations du relecteur** : garde-fous nouveaux ou modifiés de la passe, 8 au plus, les plus risqués d'abord ; ceux qui restent sont listés dans son rapport, non lancés. `fin-issue.sh` reste le filet final.
 
@@ -61,7 +62,7 @@ confirmer, les points d'attention propres à l'issue, `scripts/verify-clean.sh` 
 Lis la limite au début de la livraison : `scripts/config-factory.sh --max-iterations` (code 64 = valeur invalide : arrête-toi et dis-le à l'utilisateur). Une itération = une relecture
 du `code-reviewer` (étape 3) ; numérote-les dans `docs/reviews/<id-issue>.md`.
 Pour chaque constat, décide :
-- **BLOQUANT et IMPORTANT, correctif sans choix de conception** : remets `statut: En cours` dans l'issue et commite-le (`docs: issue <id> en cours`), renvoie les constats au developer sans demander à l'utilisateur, puis, une fois ses
+- **BLOQUANT et IMPORTANT, correctif sans choix de conception** : remets `statut: En cours` dans l'issue et commite-le (`docs: issue <id> en cours`), renvoie les constats au developer sans demander à l'utilisateur (dans son brief : « lis `docs/reviews/<id-issue>.md` en entier, toutes les itérations et le suivi des constats, avant de coder ; réponds à chaque constat ouvert dans la section « Réponse à la revue » de ton rapport »), puis, une fois ses
   corrections vérifiées (étape 2), remets `statut: En revue` (`docs: issue <id> en revue`) et relance le reviewer sur les nouveaux commits.
 - **Il faut trancher** (changement de contrat externe ou de comportement visible, écart au PRD, nouvelle dépendance ou licence, choix entre
   deux conceptions, compromis sécurité/ergonomie) : pose la question à l'utilisateur avec ta recommandation, puis continue.

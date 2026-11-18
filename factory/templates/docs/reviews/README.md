@@ -16,3 +16,4 @@ Chaque itération s'ouvre par un bloc « En clair » (l'issue, le verdict, le se
 - **Mutation** : le relecteur casse volontairement un garde-fou dans une copie jetable et relance les tests. *Tuée* : un test devient rouge, le garde-fou est protégé. *Survivante* : tout reste vert, le test est trop faible. *Équivalente* : la casse ne change aucun comportement.
 - **OWASP A01 à A10** : catégories de risques de sécurité (skill `owasp-check`).
 - **Copie propre** : le build tourne dans une copie du dépôt (`scripts/verify-clean.sh`), indépendante de l'IDE et des fichiers non versionnés.
+- **Pour l'humain** : section `## Pour l'humain` écrite par la session (jamais par le relecteur), seulement quand l'issue reste bloquée après `MAX_ITERATIONS_REVUE` revues sans `APPROUVÉ`, à la fin de la section de la dernière itération. Trois rubriques : `**Décision à prendre**`, `**Fichiers à lire**`, `**Vérification suggérée**`. La même carte ouvre le courriel de blocage.

@@ -13,6 +13,9 @@ quelle version il a été initialisé ; `factory/VERSION` donne celle du dossier
    reprendre à la main ce qui vous intéresse : `AGENTS.md`, `.claude/settings.json`, `docs/agents/*`, et pour la stack du projet `diff -r factory/stacks/<stack>/.github .github` (CI, Dependabot).
 5. Lancer `factory/scripts/tests/run.sh`, puis `scripts/verify-clean.sh`.
 
+## Verdict de revue, carte « pour l'humain » et liste d'escalade (1.23.0)
+Remplacez `factory/` : sans action requise (les revues déjà écrites restent telles quelles ; une revue sans ligne `VERDICT:` se lit `INCONNU`, ce qui est attendu). Les nouvelles revues commencent par `VERDICT: APPROUVÉ` ou `VERDICT: CHANGEMENTS DEMANDÉS` ; `/deliver` les lit avec `scripts/verdict-revue.sh` (relancez `./factory/init-projet.sh` pour créer le lien `scripts/verdict-revue.sh` dans le projet). Si votre `AGENTS.md` est le vôtre, ajoutez-y à la main la section « Sujets à remonter à l'utilisateur » (modèle : `factory/templates/AGENTS.md`) : six sujets sur lesquels aucun rôle ne décide seul.
+
 ## Dashboard à jour avant la fusion (1.22.0)
 Remplacez `factory/` : sans action requise. Un dépôt dont chaque issue a `branche:` rempli se comporte comme avant. Un champ `branche:` vide est désormais complété par la branche locale `<type>/<id>-…` (rattachement par convention), et une dépendance `Fait` seulement sur sa branche lève la suivante (« empilée sur <branche> »). Pour que la page reste à jour, laissez tourner `scripts/dashboard.sh --boucle <secondes>`.
 

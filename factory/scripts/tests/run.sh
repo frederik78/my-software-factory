@@ -2009,14 +2009,24 @@ lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/test
 verifier "ca21_criteres-sans-test.sh sur une issue de ce dépôt = OK" 0 "^OK " env -u DOSSIER_TESTS -u FACTORY_DOSSIER_TESTS scripts/criteres-sans-test.sh 002-05
 
 echo "F-05 : documentation, version et cas réunis (CA-22 à CA-24)"
-contient() { grep -qF -e "$2" <<<"$1"; }      # contient <texte> <chaîne littérale>
+contient() { grep -qiF -e "$2" <<<"$1"; }     # contient <texte> <chaîne littérale> (sans tenir compte de la casse)
 contient_motif() { grep -qE -e "$2" <<<"$1"; } # contient_motif <texte> <motif grep -E>
 # CA-22 : forme du test bash, deux clés, défauts et priorité, dans les endroits où un utilisateur les cherche.
-for f in factory/scripts/criteres-sans-test.sh factory/README.md AGENTS.md factory/templates/.factory.conf factory/templates/AGENTS.md; do
-  doc="$(lire_depot "$depot" "$f")"
+# Chaque motif est cherché dans le PASSAGE concerné (de sa phrase d'ancrage à sa fin), jamais dans le fichier entier : un mot présent ailleurs ne suffit pas.
+passage_entete='/^# Forme du test bash/{p=1} /^# Limites connues/{p=0} p'
+passage_puce='/^- \*\*Tests bash\*\*/{p=1; print; next} p && /^  /{print; next} {p=0}'
+passage_commande='/^- `scripts\/criteres-sans-test.sh/{p=1; print; next} p && /^  /{print; next} {p=0}'
+passage_modele='/^# Traçabilité critères -> tests/{p=1} p'
+for ancre in "factory/scripts/criteres-sans-test.sh|$passage_entete" "factory/README.md|$passage_puce" "AGENTS.md|$passage_commande" "factory/templates/AGENTS.md|$passage_commande" "factory/templates/.factory.conf|$passage_modele"; do
+  f="${ancre%%|*}"; doc="$(lire_depot "$depot" "$f" | awk "${ancre#*|}")"
+  verifier "ca22_$f : le passage existe" 0 "" test -n "$doc"
   for motif in 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'FACTORY_DOSSIER_TESTS' 'verifier "' 'verdict_cas' 'priorité'; do
     verifier "ca22_$f décrit « $motif »" 0 "" contient "$doc" "$motif"
   done
+  if [ "$f" = factory/templates/.factory.conf ]; then # le modèle porte aussi les lignes de clés, avec leurs défauts
+    verifier "ca22_$f : ligne de clé DOSSIER_TESTS=" 0 "" contient_motif "$doc" '^DOSSIER_TESTS='
+    verifier "ca22_$f : ligne de clé TESTS_BASH_FONCTIONS=verifier verdict_cas" 0 "" contient_motif "$doc" '^TESTS_BASH_FONCTIONS=verifier verdict_cas$'
+  fi
 done
 # CA-23 : tous les cas de CA-01 à CA-20 et CA-25 figurent dans cette suite, leur nom contient l'identifiant ; variables isolées en tête.
 suite="$(lire_depot "$depot" factory/scripts/tests/run.sh)"

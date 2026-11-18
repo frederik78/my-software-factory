@@ -3,7 +3,7 @@ id: 003-04
 titre: Avancement des besoins et alerte de divergence
 prd: docs/prd/003-dashboard-a-jour.md
 besoin: F-08
-statut: À faire
+statut: En cours
 depend_de: [003-02]
 criteres: [CA-16, CA-17, CA-18, CA-19, CA-20]
 branche: feat/003-04-avancement-besoins

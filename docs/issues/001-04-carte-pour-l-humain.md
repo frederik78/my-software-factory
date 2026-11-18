@@ -3,10 +3,10 @@ id: 001-04
 titre: Carte « pour l'humain »
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: À faire
+statut: En cours
 depend_de: [001-03]
 criteres: [CA-14, CA-15, CS-04]
-branche:
+branche: feat/001-04-carte-pour-l-humain
 commits: []
 revue:
 ---

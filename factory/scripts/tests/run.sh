@@ -2900,6 +2900,48 @@ st_cas "ca06_statuts : une barre échappée dans une cellule ne change pas le no
 STATUTS : 0 erreur(s), 0 avis
 TXT
 
+# ca07 : forme de la sortie, tri, récapitulatif, codes
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog; st_issue 004-91 " À faire"
+st_cas "ca07_statuts : dépôt cohérent = la seule ligne « STATUTS : 0 erreur(s), 0 avis », code 0" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+printf '%s\n' '| F-02 | B | P1 | Bof | | |' '| F-01 | B | P1 | Bof | | |' | st_backlog
+st_issue 004-92 " Zut"; st_issue 004-91 " Bof"
+st_cas "ca07_statuts : une ligne par constat « GRAVITÉ CODE objet : texte » ; besoins dans l'ordre du tableau (F-02 avant F-01), puis issues dans l'ordre des fichiers ; récapitulatif exact en dernier" 1 <<TXT
+ERREUR E05 besoin F-02 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-01 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
+ERREUR E10 issue 004-91 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+ERREUR E10 issue 004-92 : statut inconnu « Zut » (attendus : $ATTENDUS_I)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+st_lib_constats() { # sort les constats ajoutés dans le désordre : un avis, une erreur, deux codes sur le même objet
+  ( . "$ici/../lib-constats.sh"
+    constat_ajouter AVIS A10 2 1 "issue 004-91" "second"
+    constat_ajouter AVIS A02 2 1 "issue 004-91" "premier"
+    constat_ajouter ERREUR E10 2 2 "issue 004-92" "erreur après"
+    constat_ajouter ERREUR E05 1 1 "besoin F-01" "erreur avant"
+    constat_ajouter AVIS A01 1 1 "besoin F-01" "avis du besoin"
+    constats_rendre; echo "code $?" )
+}
+verifier_exact "ca07_constats : les erreurs précèdent les avis ; puis groupe, rang, code ; récapitulatif exact ; code 1 avec une erreur" 0 "ERREUR E05 besoin F-01 : erreur avant
+ERREUR E10 issue 004-92 : erreur après
+AVIS A01 besoin F-01 : avis du besoin
+AVIS A02 issue 004-91 : premier
+AVIS A10 issue 004-91 : second
+STATUTS : 2 erreur(s), 3 avis
+code 1" st_lib_constats
+st_lib_avis() { ( . "$ici/../lib-constats.sh"; constat_ajouter AVIS A01 2 1 "issue 004-91" "seul"; constats_rendre; echo "code $?" ); }
+verifier_exact "ca07_constats : un avis seul = code 0" 0 "AVIS A01 issue 004-91 : seul
+STATUTS : 0 erreur(s), 1 avis
+code 0" st_lib_avis
+for st_args in "--inconnue" "extra" "--table extra" "--table --table" "-h"; do
+  scripts/statuts.sh $st_args > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
+  verifier "ca07_statuts $st_args : usage sur la sortie d'erreur, rien sur la sortie standard, code 64" 0 "" test "$st_c|$(wc -c < "$racine_tmp/st.out" | tr -d ' ')|$(grep -c '^Usage : ' "$racine_tmp/st.err")" = "64|0|1"
+done
+scripts/statuts.sh "" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
+verifier "ca07_statuts avec un argument vide : usage, code 64, rien sur la sortie standard" 0 "" test "$st_c|$(wc -c < "$racine_tmp/st.out" | tr -d ' ')|$(grep -c '^Usage : ' "$racine_tmp/st.err")" = "64|0|1"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

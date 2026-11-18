@@ -129,10 +129,34 @@ besoins_agreger() {
     $1 == "I" { if (!($3 in connu)) print "X", $2 }'
 }
 
-# besoins_coherence : E12 (issue sans besoin connu). Ne fait rien sans tableau des besoins (E02).
+# prd_present <chemin docs/prd/<nom>.md> : vrai si le PRD est un fichier régulier, ni lien symbolique ni dans un dossier docs/prd en lien (jamais ouvert : sa présence seule compte).
+prd_present() { [ -f "$1" ] && [ ! -L "$1" ] && [ ! -L docs/prd ]; }
+
+# besoins_prd : E06 (RG-08). Un besoin Spécifié, En cours, En revue ou Fait liste au moins un chemin docs/prd/<nom>.md et chaque chemin désigne un fichier présent ;
+# la cellule PRD vide s'appelle « colonne PRD vide », une cellule sans aucun chemin de cette forme est citée comme le fichier absent. Un seul constat par besoin (le premier chemin absent).
+besoins_prd() {
+  local i statut id chemins p motif
+  for i in "${!bes_ids[@]}"; do
+    [ "${bes_etats[$i]}" = controlee ] || continue
+    statut="${bes_statuts[$i]}"
+    case "$statut" in Spécifié|"En cours"|"En revue"|Fait) ;; *) continue ;; esac
+    chemins="${bes_chemins[$i]}"; motif=""
+    if [ -z "$chemins" ]; then
+      if [ -z "${bes_prds[$i]}" ]; then motif="colonne PRD vide"; else constat_neutraliser "${bes_prds[$i]}"; motif="fichier absent : $neutre"; fi
+    else
+      for p in $chemins; do prd_present "$p" || { motif="fichier absent : $p"; break; }; done
+    fi
+    [ -n "$motif" ] || continue
+    constat_neutraliser "${bes_ids[$i]}"; id="$neutre"
+    constat_ajouter ERREUR E06 1 $((i + 1)) "besoin $id" "statut $statut sans PRD valide ($motif)"
+  done
+}
+
+# besoins_coherence : E06 (besoin sans PRD) et, pour les issues contrôlées, E12 (issue sans besoin connu). Ne fait rien sans tableau des besoins (E02).
 besoins_coherence() {
   local t a objet
   [ "$bes_table" -eq 1 ] || return 0
+  besoins_prd
   besoins_issues_lire
   while IFS="$CONSTAT_SEP" read -r t a; do
     case "$t" in

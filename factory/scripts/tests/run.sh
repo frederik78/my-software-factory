@@ -3097,7 +3097,7 @@ TXT
 
 # ca05 : un statut de besoin inconnu est une erreur E05
 st_depot
-printf '%s\n' '| F-01 | B | P1 | Specifie | | |' '| F-02 | B | P1 | en cours | | |' '| F-03 | B | P1 | Fini | | |' '| F-04 | B | P1 | | | |' '| F-05 | B | P1 | Fait | | |' | st_backlog
+printf '%s\n' '| F-01 | B | P1 | Specifie | | |' '| F-02 | B | P1 | en cours | | |' '| F-03 | B | P1 | Fini | | |' '| F-04 | B | P1 | | | |' '| F-05 | B | P1 | À faire | | |' | st_backlog
 st_cas "ca05_statuts : « Specifie », « en cours », « Fini » et vide = E05 par besoin, liste des attendus de la table, code 1" 1 <<TXT
 ERREUR E05 besoin F-01 : statut inconnu « Specifie » (attendus : $ATTENDUS_B)
 ERREUR E05 besoin F-02 : statut inconnu « en cours » (attendus : $ATTENDUS_B)
@@ -3142,7 +3142,7 @@ ERREUR E10 issue 004-91 : statut inconnu « fait » (attendus : $ATTENDUS_I)
 STATUTS : 2 erreur(s), 0 avis
 TXT
 st_depot
-printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n\n## Besoins fonctionnels\n\n| Besoin | PRD | Décisions | Statut | ID |\n|---|---|---|---|---|\n| B | | | Fait | F-01 |\n| B | | | Bof | F-02 |\n' > backlog.md
+printf '# Backlog\n\n## Besoins non fonctionnels\n\n| ID | Besoin | Statut |\n|----|--------|--------|\n| NF-01 | Sécurité | Inconnu |\n\n## Besoins fonctionnels\n\n| Besoin | PRD | Décisions | Statut | ID |\n|---|---|---|---|---|\n| B | | | À faire | F-01 |\n| B | | | Bof | F-02 |\n' > backlog.md
 st_cas "ca06_statuts : le tableau non fonctionnel qui précède n'est pas lu ; le premier tableau avec ID, Statut et PRD l'est, colonnes repérées par leur nom (ordre quelconque)" 1 <<TXT
 ERREUR E05 besoin F-02 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
 STATUTS : 1 erreur(s), 0 avis
@@ -3154,12 +3154,12 @@ ERREUR E05 besoin F-03 : statut inconnu « Bof » (attendus : $ATTENDUS_B)
 ERREUR E03 besoin F-04 : ligne illisible (nombre de colonnes différent de l'en-tête)
 STATUTS : 3 erreur(s), 0 avis
 TXT
-printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Fait | | |' '| F-01 | Copie | P1 | Fait | | |' | st_backlog
+printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | À faire | | |' '| F-01 | Copie | P1 | Fait | | |' | st_backlog
 st_cas "ca06_statuts : deux lignes de même identifiant = une erreur E04 pour cet identifiant" 1 <<'TXT'
 ERREUR E04 besoin F-01 : identifiant en double dans le backlog
 STATUTS : 1 erreur(s), 0 avis
 TXT
-printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | Fait | | |' | st_backlog
+printf '%s\n' '| F-1 | B | P1 | À faire | | |' '| F-10 | B | P1 | À faire | | |' | st_backlog
 st_cas "ca06_statuts : F-1 et F-10 sont deux identifiants distincts (pas de doublon)" 0 <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
@@ -3245,7 +3245,7 @@ TXT
 
 # ca09 : fichier d'issue illisible = E14, ignoré ; le contenu du fichier visé n'est reproduit nulle part
 st_depot
-printf '| F-01 | B | P1 | En revue | | |\n' | st_backlog
+mkdir -p docs/prd; printf '# PRD\n' > docs/prd/p.md; printf '| F-01 | B | P1 | En revue | `docs/prd/p.md` | |\n' | st_backlog
 printf 'id: 004-91\nstatut: Fait\n---\n' > docs/issues/004-91-ouvre.md
 printf -- '---\nid: 004-92\nstatut: Fait\n' > docs/issues/004-92-ferme.md
 st_entete="$(printf -- '---\nid: 004-93\nbesoin: F-01\nstatut: Fait\n---\n')"
@@ -3721,13 +3721,16 @@ bs_depot() { # bs_depot : st_depot + dossiers docs/prd (p.md, q.md) et docs/revi
   st_depot
   mkdir -p docs/prd docs/reviews; printf '# PRD\n' > docs/prd/p.md; printf '# PRD\n' > docs/prd/q.md; printf 'APPROUVÉ\n' > docs/reviews/revue.md
   : > docs/issues/.gitkeep; gd_ add -A; gd_ commit -q -m init; bs_c="$(git rev-parse --short HEAD)"
+  git branch feat/b # même commit que develop : fusionnée
+  git branch feat/nf "$(git commit-tree 'HEAD^{tree}' -p HEAD -m avance)" # un commit de plus que develop : non fusionnée
 }
-bs_issue() { # bs_issue <id> <statut> <besoin> [branche] [prd] [notes] : docs/issues/<id>-x.md ; une issue Fait reçoit une revue approuvée, un commit et sa ligne FIN-ISSUE OK
-  local revue="" commits="[]" notes="${6:-}"
+bs_issue() { # bs_issue <id> <statut> <besoin> [branche] [prd : « none » = vide] [notes] : docs/issues/<id>-x.md ; une issue Fait reçoit une revue approuvée, un commit et sa ligne FIN-ISSUE OK
+  local revue="" commits="[]" notes="${6:-}" prd="${5:-docs/prd/p.md}"
+  [ "$prd" != none ] || prd=""
   if [ "$2" = Fait ]; then revue=" docs/reviews/revue.md"; commits="[$bs_c]"; notes="- \`FIN-ISSUE OK $1 abc1234 : 1 test\`${notes:+
 $notes}"; fi
   printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nprd: %s\nstatut: %s\ndepend_de: []\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue:%s\n---\n\n## Objectif\nx\n\n## Notes\n%s\n' \
-    "$1" "$1" "$3" "${5:-docs/prd/p.md}" "$2" "${4:-}" "$commits" "$revue" "$notes" > "docs/issues/$1-x.md"
+    "$1" "$1" "$3" "$prd" "$2" "${4:-}" "$commits" "$revue" "$notes" > "docs/issues/$1-x.md"
 }
 
 # ca19 : issue sans besoin connu = E12, comptée pour aucun besoin
@@ -3750,6 +3753,33 @@ ERREUR E12 issue 004-82 : besoin « $(touch${IFS}marque) » inconnu du backlog
 STATUTS : 9 erreur(s), 0 avis
 TXT
 verifier "ca19_besoin : valeurs hostiles ($(…), *, .*, 0x1F) lues comme du texte : le fichier « marque » n'existe pas" 0 "" test ! -e marque
+
+# ca20 : besoin Spécifié, En cours, En revue ou Fait sans PRD valide = E06 ; les autres statuts n'exigent rien
+bs_depot
+printf 'x\n' > hors-depot.md; ln -s ../../hors-depot.md docs/prd/lien.md # le lien vise un fichier existant : il n'est pas suivi
+printf '%s\n' \
+  '| F-01 | B | P1 | Spécifié | | |' \
+  '| F-02 | B | P1 | En cours | `docs/prd/absent.md` | |' \
+  '| F-03 | B | P1 | En revue | `docs/prd/p.md`, `docs/prd/absent.md` | |' \
+  '| F-04 | B | P1 | Fait | à définir | |' \
+  '| F-05 | B | P1 | À faire | | |' \
+  '| F-06 | B | P1 | En clarification | | |' \
+  '| F-07 | B | P1 | Abandonnée | | Abandonné |' \
+  '| F-08 | B | P1 | Spécifié | [PRD](docs/prd/p.md) et `docs/prd/q.md` | |' \
+  '| F-09 | B | P1 | Spécifié | ../docs/prd/p.md | |' \
+  '| F-10 | B | P1 | Spécifié | `docs/prd/lien.md` | |' \
+  '| F-11 | B | P1 | Spécifié | docs/prd/p.md.bak | |' | st_backlog
+bs_issue 004-71 "En cours" F-02 feat/b none; bs_issue 004-72 "Fait" F-03 feat/nf none; bs_issue 004-73 "Fait" F-04 feat/b none
+st_cas "ca20_prd : colonne PRD vide, fichier absent (parmi plusieurs), texte sans chemin, chemin avec .., lien symbolique ou nom plus long = E06 pour Spécifié, En cours, En revue et Fait ; À faire, En clarification, Abandonnée sans PRD, et PRD présent sans issue (plusieurs chemins, lien Markdown) = aucun constat" 1 <<'TXT'
+ERREUR E06 besoin F-01 : statut Spécifié sans PRD valide (colonne PRD vide)
+ERREUR E06 besoin F-02 : statut En cours sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E06 besoin F-03 : statut En revue sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E06 besoin F-04 : statut Fait sans PRD valide (fichier absent : à définir)
+ERREUR E06 besoin F-09 : statut Spécifié sans PRD valide (fichier absent : ../docs/prd/p.md)
+ERREUR E06 besoin F-10 : statut Spécifié sans PRD valide (fichier absent : docs/prd/lien.md)
+ERREUR E06 besoin F-11 : statut Spécifié sans PRD valide (fichier absent : docs/prd/p.md.bak)
+STATUTS : 7 erreur(s), 0 avis
+TXT
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

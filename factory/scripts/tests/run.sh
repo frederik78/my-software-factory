@@ -2469,6 +2469,123 @@ for cfg in "3 1" "3 50" "12 1" "12 50"; do
   verifier "ca23_${cfg% *} issues, ${cfg#* } branches : le tableau de etat-issues.sh seul, différence <= 1 et un seul listage dans B" 0 "" cout_compare tableau
 done
 
+# ca24 : non-régression. Dépôt où chaque issue a branche: rempli (existante ou non) ou sans correspondance, aucune issue liée à un besoin, aucune dépendance Fait seulement sur sa branche :
+# la page (de l'encart « En cours » à la fin, sans date de génération, hash de commit masqué) et les sorties de etat-issues.sh sont celles des scripts de 1.21.0, enregistrées avant PRD 003.
+# nr-fonctions-debut
+nr_depot() { # nr_depot : le dépôt de non-régression, dates de commit fixes
+  export GIT_AUTHOR_DATE="2026-01-02T03:04:05Z" GIT_COMMITTER_DATE="2026-01-02T03:04:05Z"
+  rat_depot
+  nr_issue() { printf -- '---\nid: %s\ntitre: T%s\nstatut: %s\nbranche: %s\ndepend_de: [%s]\n---\n\n## Objectif\nObjectif %s.\n' "$1" "$1" "$2" "$3" "${4:-}" "$1" > "docs/issues/$1-x.md"; }
+  nr_issue 201-01 "Fait" ""; nr_issue 201-02 "En cours" "feat/a"; nr_issue 201-03 "À faire" "feat/absente" "201-01"; nr_issue 201-04 "À faire" "" "201-05"
+  nr_issue 201-05 "À faire" ""; nr_issue 201-06 "En revue" "feat/b"; nr_issue 201-07 "Fait" "feat/c"
+  printf '# Backlog\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|\n| F-01 | Premier | P1 | En cours | | |\n' > backlog.md
+  rat_commit
+  printf '\nNotes.\n' >> docs/issues/201-07-x.md; GIT_AUTHOR_DATE="2026-01-03T03:04:05Z" GIT_COMMITTER_DATE="2026-01-03T03:04:05Z" gd_ commit -qam "notes" # 201-07 modifiée plus tard : la colonne Fait la place en tête
+  sur_branche feat/a 201-02 "Fait" "feat/a"; sur_branche feat/b 201-06 "En revue" "feat/b"; sur_branche feat/c 201-07 "Fait" "feat/c"
+  unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
+}
+nr_page() { # nr_page [interpréteur] : partie stable de la page, de l'encart « En cours » à la fin
+  ${1:-bash} scripts/dashboard.sh --sortie "$racine_tmp/nr.html" >/dev/null 2>&1 && awk '/<section id="en-cours">/ { p = 1 } p { print } /<\/main>/ { exit }' "$racine_tmp/nr.html" | sed -E 's/[0-9a-f]{7,40} du /HASH du /'
+}
+nr_tableaux() { scripts/etat-issues.sh; echo "code $?"; scripts/etat-issues.sh --prochaine; echo "code $?"; scripts/etat-issues.sh --statut "À faire"; echo "code $?"; }
+# nr-fonctions-fin
+# Sorties enregistrées avec les scripts de 1.21.0 (avant PRD 003) sur ce dépôt ; l'issue 201-07 est la plus récente de la colonne Fait.
+cat > "$racine_tmp/nr-page-attendue.txt" <<'XEOF'
+<section id="en-cours">
+<h2>En cours</h2>
+<ul>
+<li><strong>201-06</strong> T201-06 <span class="etiquette statut-enrevue">En revue</span></li>
+</ul>
+</section>
+<section id="besoins">
+<h2>Besoins</h2>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-clarification">En clarification (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-specifie">Spécifié (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (1)</h3>
+<div class="carte"><strong>F-01</strong> <span class="titre">Premier</span><span class="detail">P1</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (0)</h3>
+<p class="vide">—</p>
+</div>
+</div>
+</section>
+<section id="issues">
+<h2>Issues</h2>
+<p>Prochaine issue prête : <strong>201-03</strong></p>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (3)</h3>
+<div class="carte prochaine"><strong>201-03</strong> <span class="titre">T201-03</span><span class="marqueur marqueur-prochaine">prochaine</span><span class="detail desc">Objectif 201-03.</span><span class="detail">dépend de : 201-01</span></div>
+<div class="carte bloquee"><strong>201-04</strong> <span class="titre">T201-04</span><span class="marqueur marqueur-bloquee">bloquée</span><span class="detail desc">Objectif 201-04.</span><span class="detail">dépend de : 201-05</span></div>
+<div class="carte"><strong>201-05</strong> <span class="titre">T201-05</span><span class="detail desc">Objectif 201-05.</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>201-06</strong> <span class="titre">T201-06</span><span class="detail desc">Objectif 201-06.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (3)</h3>
+<div class="carte"><strong>201-07</strong> <span class="titre">T201-07</span><span class="detail desc">Objectif 201-07.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+<div class="carte"><strong>201-01</strong> <span class="titre">T201-01</span><span class="detail desc">Objectif 201-01.</span></div>
+<div class="carte"><strong>201-02</strong> <span class="titre">T201-02</span><span class="detail desc">Objectif 201-02.</span><span class="detail">dernier commit : HASH du 2026-01-02</span></div>
+</div>
+</div>
+</section>
+<section id="autres-travaux">
+<h2>Autres travaux</h2>
+<p>Aucun autre travail.</p>
+</section>
+</main>
+XEOF
+cat > "$racine_tmp/nr-tableaux-attendus.txt" <<'XEOF'
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 201-01 | T201-01 | Fait | : |  |
+| 201-02 | T201-02 | En cours | : | feat/a |
+| 201-03 | T201-03 | À faire | 201-01 | feat/absente |
+| 201-04 | T201-04 | À faire | 201-05 |  |
+| 201-05 | T201-05 | À faire | : |  |
+| 201-06 | T201-06 | En revue | : | feat/b |
+| 201-07 | T201-07 | Fait | : | feat/c |
+code 0
+201-03
+code 0
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 201-03 | T201-03 | À faire | 201-01 | feat/absente |
+| 201-04 | T201-04 | À faire | 201-05 |  |
+| 201-05 | T201-05 | À faire | : |  |
+code 0
+XEOF
+nr_depot
+nr_page > "$racine_tmp/nr-page.txt"
+nr_tableaux > "$racine_tmp/nr-tableaux.txt" 2>&1
+nr_page /bin/bash > "$racine_tmp/nr-page-bash32.txt"
+verifier "ca24_la page (hors date, durées et hash de commit) est celle de 1.21.0 : branches remplies ou sans correspondance, aucun besoin lié" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page.txt"
+verifier "ca24_etat-issues.sh : tableau, --prochaine, --statut et codes de sortie identiques à 1.21.0" 0 "" diff "$racine_tmp/nr-tableaux-attendus.txt" "$racine_tmp/nr-tableaux.txt"
+verifier "ca24_la page est la même sous /bin/bash (3.2 sur macOS : pas de mapfile, tri de la colonne Fait compris)" 0 "" diff "$racine_tmp/nr-page-attendue.txt" "$racine_tmp/nr-page-bash32.txt"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

@@ -27,3 +27,4 @@ Un test par critère qui échoue puis réussit ; suite entière verte ; page du 
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-18 (consigne de l'orchestrateur, à intégrer à la documentation de cette issue) : dans `factory/skills/deliver/SKILL.md` et `AGENTS.md` (Orchestration, clôture), après chaque fusion demandée par l'utilisateur, lancer `scripts/statuts.sh` et passer à `Fait` dans `backlog.md` (branche `docs/`, sans fusionner) tout besoin signalé « en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait) » ; demandé par l'utilisateur le 2026-11-18. Tester la phrase comme les autres textes de la skill.

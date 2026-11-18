@@ -2244,15 +2244,16 @@ verifier "ca13_deliver_definition_de_fini_s_entend_de_la_sortie_du_script" 0 "" 
 
 # CA-14, CA-15 et CS-04 : la carte « pour l'humain » de la règle d'arrêt (documentation, lue dans HEAD) et son envoi en tête du courriel.
 echo "carte « pour l'humain » (documentation et courriel, CA-14, CA-15, CS-04)"
-verifier "ca14_deliver_trois_rubriques_titres_exacts_decision_avant_fichiers" 0 "" doc_ordre $dl '\*\*Décision à prendre\*\*' '\*\*Fichiers à lire\*\*'
-verifier "ca14_deliver_trois_rubriques_titres_exacts_fichiers_avant_verification" 0 "" doc_ordre $dl '\*\*Fichiers à lire\*\*' '\*\*Vérification suggérée\*\*'
-verifier "ca14_deliver_rubriques_apres_la_regle_d_arret" 0 "" doc_ordre $dl '^- \*\*Règle d.arrêt\*\*' '\*\*Décision à prendre\*\*'
+# doc_ordre passe ses motifs à awk -v, qui interprète « \* » : les astérisques du gras s'écrivent donc [*] (awk de macOS).
+verifier "ca14_deliver_trois_rubriques_titres_exacts_decision_avant_fichiers" 0 "" doc_ordre $dl '[*][*]Décision à prendre[*][*]' '[*][*]Fichiers à lire[*][*]'
+verifier "ca14_deliver_trois_rubriques_titres_exacts_fichiers_avant_verification" 0 "" doc_ordre $dl '[*][*]Fichiers à lire[*][*]' '[*][*]Vérification suggérée[*][*]'
+verifier "ca14_deliver_rubriques_apres_la_regle_d_arret" 0 "" doc_ordre $dl '^- [*][*]Règle d.arrêt[*][*]' '[*][*]Décision à prendre[*][*]'
 verifier "ca14_deliver_carte_redigee_par_la_session_seulement_apres_max_iterations_sans_approuve" 0 "" doc_a $dl 'rédiges la carte toi-même \(jamais le `code-reviewer`\), seulement après `MAX_ITERATIONS_REVUE` revues sans `APPROUVÉ`'
 verifier "ca14_deliver_aucune_carte_pour_issue_approuvee_ni_en_cours_de_boucle" 0 "" doc_a $dl 'Aucune carte pour une issue approuvée ni pendant la boucle'
 verifier "ca14_deliver_carte_en_section_pour_l_humain_a_la_fin_de_la_derniere_iteration" 0 "" doc_a $dl 'section `## Pour l.humain` à la fin de la section de la dernière itération de `docs/reviews/<id-issue>\.md`'
 verifier "ca14_deliver_courriel_seulement_s_il_reste_au_moins_un_bloquant" 0 "" doc_a $dl 'courriel part seulement s.il reste au moins un BLOQUANT'
 verifier "ca14_deliver_seulement_des_important_carte_au_fichier_et_a_la_conversation_sans_courriel" 0 "" doc_a $dl 'ne reste que des IMPORTANT : .*carte.*fichier de revue.*conversation, sans courriel'
-verifier "ca14_deliver_carte_avant_la_regle_du_courriel_dans_le_corps" 0 "" doc_ordre $dl '^- \*\*Règle d.arrêt\*\*' 'corps de la notification'
+verifier "ca14_deliver_carte_avant_la_regle_du_courriel_dans_le_corps" 0 "" doc_ordre $dl '^- [*][*]Règle d.arrêt[*][*]' 'corps de la notification'
 verifier "ca15_deliver_carte_en_tete_du_corps_avant_constats_branche_et_chemin" 0 "" doc_a $dl 'corps de la notification : la carte en tête, puis les constats bloquants restants .*, la branche, le chemin `docs/reviews/<id-issue>\.md`'
 verifier "ca15_deliver_codes_3_et_4_de_notifier_remontes" 0 "" doc_a $dl 'Si `notifier\.sh` rend 3$'
 verifier "ca15_deliver_codes_3_et_4_l_utilisateur_n_a_pas_recu_de_courriel" 0 "" doc_a $dl "l.utilisateur n.a pas reçu de courriel"

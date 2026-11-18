@@ -2948,10 +2948,12 @@ if depot_git "$depot" && git -C "$depot" cat-file -e "$base_f01^{commit}" 2>/dev
   ca17_j="$racine_tmp/ca17"; mkdir -p "$ca17_j/factory/scripts" "$ca17_j/docs/reviews"; git -C "$ca17_j" init -q -b develop .
   printf 'a\n' > "$ca17_j/factory/scripts/dashboard.sh"; printf 'a\n' > "$ca17_j/docs/reviews/003-01.md"
   git -C "$ca17_j" add -A; git -C "$ca17_j" -c user.name=t -c user.email=t@t commit -q -m "base"
-  printf 'b\n' > "$ca17_j/factory/scripts/dashboard.sh"; printf 'b\n' > "$ca17_j/docs/reviews/003-01.md"
+  printf 'a\n' > "$ca17_j/docs/reviews/003-05.md" # revue créée pendant F-01 (absente de la base)
+  git -C "$ca17_j" add -A; git -C "$ca17_j" -c user.name=t -c user.email=t@t commit -q -m "docs: revue 003-05"
+  printf 'b\n' > "$ca17_j/factory/scripts/dashboard.sh"; printf 'b\n' > "$ca17_j/docs/reviews/003-01.md"; printf 'b\n' > "$ca17_j/docs/reviews/003-05.md"
   git -C "$ca17_j" add -A; git -C "$ca17_j" -c user.name=t -c user.email=t@t commit -q -m "fix: 001-02 touche tout"
-  ca17_d() { depot="$ca17_j"; base_f01="HEAD~1"; echo "$(f01_fichiers factory/scripts/dashboard.sh)|$(f01_modifie)"; }
-  verifier "ca17_le contrôle détecte un commit de F-01 qui modifie dashboard.sh et une revue antérieure" 0 "" test "$(ca17_d)" = "factory/scripts/dashboard.sh|docs/reviews/003-01.md"
+  ca17_d() { depot="$ca17_j"; base_f01="HEAD~2"; echo "$(f01_fichiers factory/scripts/dashboard.sh)|$(f01_modifie)"; }
+  verifier "ca17_le contrôle détecte un commit de F-01 qui modifie dashboard.sh et une revue antérieure, mais pas une revue créée pendant F-01 puis reformatée" 0 "" test "$(ca17_d)" = "factory/scripts/dashboard.sh|docs/reviews/003-01.md"
 else
   ok "ca17_historique Git de F-01 absent (copie propre ou clone partiel) : comparaison des commits non faite"
 fi

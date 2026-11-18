@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Statuts des besoins (backlog.md) et des issues (docs/issues/) : table unique et contrôle en lecture seule (PRD 004).
 #
-# Usage : scripts/statuts.sh            contrôle : signale les statuts inconnus et les fichiers illisibles (autres contrôles : issues suivantes du PRD 004)
+# Usage : scripts/statuts.sh            contrôle de l'état courant : statuts inconnus (E05 besoin, E10 issue), backlog illisible (E01, E02, E03, E04),
+#                                       fichiers d'issue illisibles (E14) ou sans identifiant (E11) ; les autres contrôles du PRD 004 viennent avec les issues suivantes
 #         scripts/statuts.sh --table    affiche les statuts (dans l'ordre) et les transitions légales (de, vers, déclencheur, preuve) de chaque entité ; code 0
+# Sortie : une ligne par constat « <ERREUR|AVIS> <CODE> <objet> : <texte> » (erreurs avant avis, puis objet, puis code), puis « STATUTS : <e> erreur(s), <a> avis ».
+# Les valeurs lues dans les fichiers sont des données : jamais évaluées, neutralisées dans les messages (lib-constats.sh). Aucun fichier n'est écrit.
 # Les statuts et les transitions sont définis une seule fois, dans factory/scripts/statuts.table (lue par lib-issues.sh).
-# Code de sortie : 0, 1 (table illisible), 64 usage (option inconnue ou argument superflu ; un seul argument est permis : --table).
+# Code de sortie : 0 aucune erreur (les avis sont permis), 1 au moins une erreur ou table des statuts illisible, 64 usage (un seul argument est permis : --table).
 set -uo pipefail
 
 racine="$(cd "$(dirname "$0")/.." && pwd)"

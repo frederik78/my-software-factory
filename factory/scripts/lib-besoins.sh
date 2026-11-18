@@ -202,12 +202,12 @@ besoins_prd() {
 # (existante), sinon la branche déduite (rattachements_charger) ; une branche ambiguë ou absente ne retient rien.
 iss_fusion_refs=(); iss_fusion_existe=(); iss_fusion_fait=()
 besoins_fusion_preparer() {
-  local i j k pertinents=$'\n' besoin utile=0 noms=() cibles=() jeton ref declaree
+  local i j k pertinents besoin utile=0 noms=() cibles=() jeton ref declaree
   iss_fusion_refs=(); iss_fusion_existe=(); iss_fusion_fait=(); fus_connue=0; fus_refs=""
-  for i in "${!bes_ids[@]}"; do
+  pertinents=$'\n'"$(for i in "${!bes_ids[@]}"; do # un seul assemblage (des ajouts successifs à une grande chaîne coûtent plus que linéaire sous bash 3.2)
     [ "${bes_etats[$i]}" = controlee ] || continue
-    case "${bes_statuts[$i]}" in "En cours"|"En revue"|Fait) pertinents="$pertinents${bes_ids[$i]}"$'\n' ;; esac
-  done
+    case "${bes_statuts[$i]}" in "En cours"|"En revue"|Fait) printf '%s\n' "${bes_ids[$i]}" ;; esac
+  done)"$'\n'
   for i in "${!iss_fichiers[@]}"; do
     iss_fusion_refs+=(""); iss_fusion_existe+=(""); iss_fusion_fait+=("")
     [ "${iss_etats[$i]}" = controlee ] && [ "${iss_effectifs[$i]}" = Fait ] || continue

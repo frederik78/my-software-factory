@@ -2292,6 +2292,89 @@ rat_c() { [ "$(se_lignes 006-04 006-05)" = "006-04=Fait 006-05=À faire " ] || {
 rat_c() { rat_carte 006-11 | grep -q 'marqueur-bloquee' && ! rat_carte 006-11 | grep -q 'empilée'; }; verifier "cs06_dépendance sur l'issue au lien symbolique : reste bloquée" 0 "" rat_c
 verifier_exact "cs06_etat-issues --prochaine : 006-01 (lien symbolique, statut local À faire) est prête, 006-11 qui en dépend ne l'est pas" 0 "006-01" scripts/etat-issues.sh --prochaine
 
+echo "dashboard.sh : avancement des besoins et alerte de divergence (PRD 003, issue 003-04)"
+av_issue() { # av_issue <id> <besoin> <statut> [branche] : issue rattachée au besoin donné (vide = aucune)
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: %s\nstatut: %s\nbranche: %s\ndepend_de: []\n---\n' "$1" "$1" "$2" "$3" "${4:-}" > "docs/issues/$1-x.md"
+}
+av_backlog() { # av_backlog <statuts « id=statut »...> : backlog.md aux besoins donnés
+  local b; { printf '# Backlog\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|\n'
+  for b in "$@"; do printf '| %s | Besoin %s | P1 | %s | | |\n' "${b%%=*}" "${b%%=*}" "${b#*=}"; done; } > backlog.md
+}
+av_col() { awk -v id="<strong>$1</strong>" '/<section id="besoins"/ { s = 1 } /<section id="issues"/ { s = 0 } s && /<h3/ { c = $0; sub(/<\/h3>.*/, "", c); sub(/.*>/, "", c); sub(/ \([0-9]+\)$/, "", c) } s && /class="carte/ && index($0, id) { print c; exit }' "$racine_tmp/rat.html"; }
+av_detail() { rat_carte "$1" | grep -qF "<span class=\"detail\">$2</span>"; } # av_detail <besoin> <texte échappé>
+av_sans_avancement() { ! rat_carte "$1" | grep -q 'Fait\|à vérifier'; }
+
+# ca16 : compte par statut effectif
+rat_depot
+av_backlog "F-05=En cours" "F-06=À faire" "F-07=En revue" "F-08=En cours" "F-09=En cours"
+for n in 1 2 3 4; do av_issue "005-0$n" F-05 "Fait"; done
+av_issue 005-05 F-05 "À faire"; av_issue 005-06 F-05 "En cours"
+av_issue 006-01 F-06 "À faire"; av_issue 006-02 F-06 "À faire"
+av_issue 007-01 F-07 "En revue"; av_issue 007-02 F-07 "Fait"; av_issue 007-03 F-07 "Abandonnée"
+av_issue 008-01 F-08 "Zeta"; av_issue 008-02 F-08 "Abandonnée"; av_issue 008-03 F-08 "À faire"; av_issue 008-04 F-08 "Zeta"
+av_issue 009-01 F-09 "<i>x</i>"
+rat_commit
+sur_branche feat/005-05-x 005-05 "Fait" ""
+rat_page
+rat_c() { av_detail F-05 "5/6 Fait · 1 En cours" || { rat_carte F-05; return 1; }; }; verifier "ca16_5 Fait sur 6 dont un Fait seulement sur sa branche, 1 En cours : « 5/6 Fait · 1 En cours »" 0 "" rat_c
+rat_c() { av_detail F-06 "0/2 Fait · 2 À faire" || { rat_carte F-06; return 1; }; }; verifier "ca16_2 À faire : « 0/2 Fait · 2 À faire »" 0 "" rat_c
+rat_c() { av_detail F-07 "1/3 Fait · 1 En revue · 1 Abandonnée" || { rat_carte F-07; return 1; }; }; verifier "ca16_En revue, Fait et Abandonnée : cycle d'abord, statut hors cycle ensuite" 0 "" rat_c
+rat_c() { av_detail F-08 "0/4 Fait · 1 À faire · 2 Zeta · 1 Abandonnée" || { rat_carte F-08; return 1; }; }; verifier "ca16_statuts hors cycle dans l'ordre d'apparition, à zéro omis" 0 "" rat_c
+rat_c() { av_detail F-09 "0/1 Fait · 1 &lt;i&gt;x&lt;/i&gt;" && ! rat_carte F-09 | grep -qF '<i>'; }; verifier "ca16_statut hostile échappé dans le compte" 0 "" rat_c
+
+# ca17 : besoin sans issue, issue orpheline, identifiants voisins
+rat_depot
+av_backlog "F-01=Fait" "F-1=En cours" "F-10=À faire" "F-02=En cours"
+av_issue 001-01 F-1 "Fait"; av_issue 001-02 F-10 "À faire"; av_issue 001-03 F-10 "À faire"; av_issue 001-04 "" "Fait"; av_issue 001-05 F-99 "Fait"
+rat_commit
+rat_page; rat_code=$?
+rat_c() { av_sans_avancement F-01 && av_sans_avancement F-02; }; verifier "ca17_besoin sans issue : ni compte ni « à vérifier » (même au statut Fait)" 0 "" rat_c
+rat_c() { [ "$rat_code" -eq 0 ] && [ ! -s "$racine_tmp/rat.err" ] && [ "$(grep -c '<span class="detail">[0-9]*/[0-9]* Fait' "$racine_tmp/rat.html")" -eq 2 ]; }; verifier "ca17_issue sans besoin ou liée à un besoin absent : page générée, comptée nulle part" 0 "" rat_c
+rat_c() { av_detail F-1 "1/1 Fait" && av_detail F-10 "0/2 Fait · 2 À faire"; }; verifier "ca17_F-1 et F-10 : les issues de l'un ne sont pas comptées pour l'autre" 0 "" rat_c
+
+# ca18 : chaque ligne du tableau de divergence
+rat_depot
+av_backlog "G-01=En cours" "G-02=En cours" "G-03=En revue" "G-04=Fait" "G-05=Fait" "G-06=Spécifié" "G-07=À faire" "G-08=En clarification"
+av_issue 011-01 G-01 "Fait"; av_issue 011-02 G-01 "Fait"
+av_issue 012-01 G-02 "À faire"; av_issue 013-01 G-03 "À faire"; av_issue 013-02 G-03 "À faire"
+av_issue 014-01 G-04 "Fait"; av_issue 014-02 G-04 "À faire"
+av_issue 015-01 G-05 "Fait"; av_issue 015-02 G-05 "En cours"; av_issue 015-03 G-05 "Abandonnée"
+av_issue 016-01 G-06 "En cours"; av_issue 017-01 G-07 "Fait"; av_issue 018-01 G-08 "En revue"
+rat_commit; rat_page
+av_motif() { # av_motif <besoin> <statut du backlog> <motif>
+  [ "$(av_col "$1")" = "$2" ] && av_detail "$1" "à vérifier : $3" || { av_col "$1"; rat_carte "$1"; return 1; }
+}
+rat_c() { av_motif G-01 "En cours" "toutes les issues sont Fait"; }; verifier "ca18_En cours avec toutes les issues Fait : « toutes les issues sont Fait »" 0 "" rat_c
+rat_c() { av_motif G-02 "En cours" "aucune issue démarrée" && av_motif G-03 "En revue" "aucune issue démarrée"; }; verifier "ca18_En cours ou En revue avec toutes À faire : « aucune issue démarrée »" 0 "" rat_c
+rat_c() { av_motif G-04 "Fait" "1 issue non Fait"; }; verifier "ca18_Fait avec 1 issue non Fait : « 1 issue non Fait »" 0 "" rat_c
+rat_c() { av_motif G-05 "Fait" "2 issues non Fait"; }; verifier "ca18_Fait avec 2 issues non Fait dont une hors cycle : « 2 issues non Fait »" 0 "" rat_c
+rat_c() { av_motif G-06 "Spécifié" "des issues sont déjà démarrées" && av_motif G-07 "À faire" "des issues sont déjà démarrées" && av_motif G-08 "En clarification" "des issues sont déjà démarrées"; }; verifier "ca18_À faire, En clarification ou Spécifié avec une issue démarrée : « des issues sont déjà démarrées »" 0 "" rat_c
+
+# ca19 : pas de divergence
+rat_depot
+av_backlog "H-01=En cours" "H-02=En revue" "H-03=Fait" "H-04=Spécifié" "H-05=Abandonnée" "H-06=En cours"
+av_issue 021-01 H-01 "En cours"; av_issue 022-01 H-02 "Fait"; av_issue 023-01 H-03 "Fait"; av_issue 024-01 H-04 "À faire"
+av_issue 025-01 H-05 "À faire"; av_issue 026-01 H-06 "Fait"; av_issue 026-02 H-06 "À faire"
+rat_commit; rat_page
+rat_c() { local b; for b in H-01 H-02 H-03 H-04 H-05 H-06; do ! rat_carte "$b" | grep -q 'à vérifier' || { rat_carte "$b"; return 1; }; done; }; verifier "ca19_aucune mention « à vérifier » hors des lignes du tableau (dont En revue tout Fait et statut hors cycle)" 0 "" rat_c
+rat_c() { av_detail H-02 "1/1 Fait" && av_detail H-05 "0/1 Fait · 1 À faire"; }; verifier "ca19_le compte reste affiché sans divergence" 0 "" rat_c
+
+# ca20 : backlog.md et issues intacts, seule la sortie est écrite
+rat_depot
+av_backlog "F-01=Fait" "F-02=En cours"
+av_issue 001-01 F-01 "À faire"; av_issue 001-02 F-02 "Fait"
+rat_commit
+av_empreinte() { find . -path ./.git -prune -o -type f -print | sort | while IFS= read -r f; do cksum "$f"; done; }
+avant="$(av_empreinte)"
+rat_page; apres_unique="$(av_empreinte)"
+mkdir -p "$racine_tmp/shim"
+printf '#!/bin/sh\nn=$(cat "%s/shim/n" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > "%s/shim/n"\n[ "$n" -lt 2 ] || kill -TERM $PPID\n' "$racine_tmp" "$racine_tmp" > "$racine_tmp/shim/sleep"; chmod +x "$racine_tmp/shim/sleep"
+PATH="$racine_tmp/shim:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/boucle.html" --boucle 1 >/dev/null 2>&1; code_boucle=$?
+apres_boucle="$(av_empreinte)"
+rat_c() { [ "$avant" = "$apres_unique" ] && [ -n "$avant" ] && grep -q 'backlog.md' <<< "$avant" || { printf '%s\n--\n%s\n' "$avant" "$apres_unique"; return 1; }; }; verifier "ca20_génération unique : backlog.md et issues identiques octet pour octet, aucun autre fichier écrit" 0 "" rat_c
+rat_c() { [ "$avant" = "$apres_boucle" ] && [ "$(cat "$racine_tmp/shim/n")" = 2 ] && [ -s "$racine_tmp/boucle.html" ] && grep -q 'à vérifier' "$racine_tmp/boucle.html" || { printf '%s\n--\n%s\n%s\n' "$avant" "$apres_boucle" "$(cat "$racine_tmp/shim/n")"; return 1; }; }; verifier "ca20_boucle arrêtée après deux générations : mêmes empreintes, deux passages, page produite" 0 "" rat_c
+rat_c() { [ -z "$(git status --porcelain)" ]; }; verifier "ca20_arbre git propre après les générations" 0 "" rat_c
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

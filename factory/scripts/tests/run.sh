@@ -3398,6 +3398,18 @@ TXT
 verifier "ca13_preuves : une seule vérification groupée par Git (cat-file), pas d'autre appel à cause des commits" 0 "" test "$(grep -c '^cat-file' "$racine_tmp/git.args")|$(grep -vc '^cat-file\|^for-each-ref' "$racine_tmp/git.args")" = "1|0"
 verifier "ca13_preuves : seules des valeurs hexadécimales de 7 à 40 caractères parviennent à Git (zzz, \$(x), --help, 41 caractères : aucun appel sur ces valeurs)" 0 "" test "$(grep -c . "$racine_tmp/git.stdin")|$(grep -vc '^[0-9a-f]\{7,40\}$' "$racine_tmp/git.stdin")" = "6|0"
 
+
+# ca14 : les issues réelles terminées avant ce besoin (copie de celles du dépôt de la factory) ne produisent que des avis
+pr_depot
+pr_reel() { # pr_reel <dossier> : chemins des fichiers 001-* à 003-* du dossier dans le dépôt de la factory (HEAD, ou fichiers hors dépôt Git)
+  if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD "$1/"; else (cd "$depot" && ls "$1"/*); fi | grep -E "^$1/00[123]-"
+}
+for pr_f in $(pr_reel docs/issues) $(pr_reel docs/reviews); do lire_depot "$depot" "$pr_f" > "$pr_f"; done
+scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; pr_code=$?
+verifier "ca14_issues réelles 001-01 à 003-05 : copiées dans un dépôt jetable (17 issues)" 0 "" test "$(ls docs/issues/00[123]-*.md | wc -l | tr -d ' ')" = 17
+verifier "ca14_issues réelles : aucune erreur, le code de sortie est celui des seules erreurs (0), avis présents" 0 "" test "$pr_code|$(grep -c '^ERREUR' "$racine_tmp/st.out")|$(grep -Ec '^STATUTS : 0 erreur\(s\), [1-9][0-9]* avis$' "$racine_tmp/st.out")|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|0|1|0"
+verifier "ca14_issues réelles : 002-01 et 002-03 (revue vide) = avis A01, et rien d'autre ne les concerne comme erreur" 0 "" test "$(grep -c '^AVIS A01 issue 002-0[13] : Fait sans champ revue renseigné$' "$racine_tmp/st.out")" = 2
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

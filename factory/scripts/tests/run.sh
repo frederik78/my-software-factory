@@ -2009,32 +2009,35 @@ lire_depot "$depot" .factory.conf | grep -qx 'DOSSIER_TESTS=factory/scripts/test
 verifier "ca21_criteres-sans-test.sh sur une issue de ce dépôt = OK" 0 "^OK " env -u DOSSIER_TESTS -u FACTORY_DOSSIER_TESTS scripts/criteres-sans-test.sh 002-05
 
 echo "F-05 : documentation, version et cas réunis (CA-22 à CA-24)"
-# CA-22 : forme du test bash, deux clés, défauts et priorité, dans les quatre endroits où un utilisateur les cherche.
+contient() { grep -qF -e "$2" <<<"$1"; }      # contient <texte> <chaîne littérale>
+contient_motif() { grep -qE -e "$2" <<<"$1"; } # contient_motif <texte> <motif grep -E>
+# CA-22 : forme du test bash, deux clés, défauts et priorité, dans les endroits où un utilisateur les cherche.
 for f in factory/scripts/criteres-sans-test.sh factory/README.md AGENTS.md factory/templates/.factory.conf factory/templates/AGENTS.md; do
   doc="$(lire_depot "$depot" "$f")"
   for motif in 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'FACTORY_DOSSIER_TESTS' 'verifier "' 'verdict_cas' 'priorité'; do
-    grep -qF -e "$motif" <<<"$doc" && ok "ca22_$f décrit « $motif »" || ko "ca22_$f ne décrit pas « $motif »"
+    verifier "ca22_$f décrit « $motif »" 0 "" contient "$doc" "$motif"
   done
 done
 # CA-23 : tous les cas de CA-01 à CA-20 et CA-25 figurent dans cette suite, leur nom contient l'identifiant ; variables isolées en tête.
 suite="$(lire_depot "$depot" factory/scripts/tests/run.sh)"
 for n in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20 25; do
-  grep -qE "^[^#]*[\"']ca${n}_" <<<"$suite" && ok "ca23_le cas ca${n}_ figure dans run.sh" || ko "ca23_aucun cas ca${n}_ dans run.sh"
+  verifier "ca23_le cas ca${n}_ figure dans run.sh" 0 "" contient_motif "$suite" "^[^#]*[\"']ca${n}_"
 done
+unsets="$(grep -E '^unset ' <<<"$suite")"
 for v in FACTORY_DOSSIER_TESTS FACTORY_TESTS_BASH_FONCTIONS DOSSIER_TESTS; do
-  grep -E '^unset ' <<<"$suite" | grep -qwF "$v" && ok "ca23_$v isolée de l'environnement appelant" || ko "ca23_$v non isolée par unset"
+  verifier "ca23_$v isolée de l'environnement appelant" 0 "" contient_motif "$unsets" "(^| )$v( |$)"
 done
 # CA-24 : version 1.21.0, entrée du CHANGELOG (changement et migration), README et guide de mise à jour.
-[ "$(lire_depot "$depot" factory/VERSION | head -n1)" = "1.21.0" ] && ok "ca24_factory/VERSION vaut 1.21.0" || ko "ca24_factory/VERSION ne vaut pas 1.21.0"
+verifier "ca24_factory/VERSION vaut 1.21.0" 0 "" contient_motif "$(lire_depot "$depot" factory/VERSION | head -n1)" '^1\.21\.0$'
 entree="$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{n++} n==1')"
-head -n1 <<<"$entree" | grep -qx '## 1.21.0' && ok "ca24_le CHANGELOG commence par 1.21.0" || ko "ca24_première entrée du CHANGELOG n'est pas 1.21.0"
+verifier "ca24_le CHANGELOG commence par 1.21.0" 0 "" contient_motif "$(head -n1 <<<"$entree")" '^## 1\.21\.0$'
 for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS' 'Migration : remplacer `factory/`' 'sans action'; do
-  grep -qF -e "$motif" <<<"$entree" && ok "ca24_entrée 1.21.0 du CHANGELOG : « $motif »" || ko "ca24_entrée 1.21.0 du CHANGELOG sans « $motif »"
+  verifier "ca24_entrée 1.21.0 du CHANGELOG : « $motif »" 0 "" contient "$entree" "$motif"
 done
 for f in factory/README.md factory/UPGRADE.md; do
   doc="$(lire_depot "$depot" "$f")"
   for motif in 'tests bash' 'TESTS_BASH_FONCTIONS' 'DOSSIER_TESTS'; do
-    grep -qF -e "$motif" <<<"$doc" && ok "ca24_$f mentionne « $motif »" || ko "ca24_$f ne mentionne pas « $motif »"
+    verifier "ca24_$f mentionne « $motif »" 0 "" contient "$doc" "$motif"
   done
 done
 

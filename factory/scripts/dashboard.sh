@@ -13,8 +13,8 @@
 #   debut<TAB>epoch<TAB>agent_id<TAB>rôle<TAB>chemin du journal de l'agent | description<TAB>epoch<TAB>agent_id<TAB>texte | fin<TAB>epoch<TAB>agent_id
 # Un agent avec debut sans fin est affiché ; dernière preuve = le plus récent du début et de la date de modification de son journal.
 # Au-delà de AGENTS_SILENCE_MINUTES sans preuve : « sans nouvelles » ; au-delà de AGENTS_RETRAIT_MINUTES : retiré (configuration, voir lib-config.sh).
-# Signaux Git de chaque worktree, sur l'issue de même branche : fichiers non commités et dernière activité (commit ou fichier modifié).
-# Encart « Autres travaux » (après les issues) : une ligne par worktree dont la branche n'est le champ « branche » d'aucune issue, hors develop, main et HEAD détaché,
+# Signaux Git de chaque worktree, sur l'issue dont la branche retenue (déclarée ou déduite) est la sienne : fichiers non commités et dernière activité (commit ou fichier modifié).
+# Encart « Autres travaux » (après les issues) : une ligne par worktree dont la branche n'est la branche retenue d'aucune issue (une branche ambiguë y reste), hors develop, main et HEAD détaché,
 # dans l'ordre de git worktree list : branche, puis le même signal (mêmes appels git, aucun de plus) ; « Aucun autre travail. » sinon.
 # Limites : une preuve d'activité, pas un état ; un agent arrêté sans hook de fin reste affiché « sans nouvelles » jusqu'au retrait.
 # L'âge d'activité d'un worktree ne voit pas la modification d'un fichier existant dans un dossier entièrement non suivi : git status ne le
@@ -189,8 +189,8 @@ etat_dependances() {
   [ -z "$empilee" ] || echo "empilee $empilee"
 }
 carte_issue() { # carte_issue <ligne de issues_dossier>
-  local id titre statut deps besoin commit branche objectif mention signal dependances marques="" etats=""
-  IFS="$sep" read -r id titre statut deps besoin commit _ branche objectif _ mention _ <<< "$1"
+  local id titre statut deps besoin commit objectif mention retenue signal dependances marques="" etats=""
+  IFS="$sep" read -r id titre statut deps besoin commit _ _ objectif _ mention retenue <<< "$1"
   if [ -n "$prochaine" ] && [ "$id" = "$prochaine" ]; then
     etats=" prochaine"; marques='<span class="marqueur marqueur-prochaine">prochaine</span>'
   fi
@@ -205,7 +205,7 @@ carte_issue() { # carte_issue <ligne de issues_dossier>
   [ -z "$deps" ] || printf '<span class="detail">dépend de : %s</span>' "$(echappe "$deps")"
   [ -z "$mention" ] || printf '<span class="detail">%s</span>' "$(echappe "$mention")"
   [ -z "$commit" ] || printf '<span class="detail">dernier commit : %s</span>' "$(echappe "$commit")"
-  signal="$(signal_branche "$branche")"
+  signal="$(signal_branche "$retenue")"
   [ -z "$signal" ] || printf '<span class="detail signal">%s</span>' "$signal"
   printf '</div>\n'
 }
@@ -333,13 +333,13 @@ kanban() { # kanban <lignes> <rang du statut> <rang de la date> <fonction de car
 }
 
 encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cours et En revue, ou « Aucune issue en cours. »
-  local id titre statut branche signal n=0
+  local id titre statut retenue signal n=0
   printf '<section id="en-cours">\n<h2>En cours</h2>\n'
-  while IFS="$sep" read -r id titre statut _ _ _ _ branche _; do
+  while IFS="$sep" read -r id titre statut _ _ _ _ _ _ _ _ retenue; do
     parmi "$statut" "En cours" "En revue" || continue
     [ "$n" -gt 0 ] || printf '<ul>\n'
     n=$((n + 1))
-    signal="$(signal_branche "$branche")"
+    signal="$(signal_branche "$retenue")"
     printf '<li><strong>%s</strong> %s <span class="etiquette statut-%s">%s</span>%s</li>\n' "$(echappe "$id")" "$(echappe "$titre")" "$(classe "$statut")" "$(echappe "$statut")" "${signal:+ <span class=\"signal\">$signal</span>}"
   done <<< "$1"
   if [ "$n" -gt 0 ]; then printf '</ul>\n'; else printf '<p>Aucune issue en cours.</p>\n'; fi
@@ -347,12 +347,12 @@ encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cou
 }
 
 encart_autres_travaux() { # encart_autres_travaux <lignes de issues_dossier> : worktrees dont la branche n'est celle d'aucune issue (ni develop ni main), ou « Aucun autre travail. »
-  local ligne branche i=0 n=0 b
+  local ligne retenue i=0 n=0 b
   local -a branches_issues=()
   while IFS= read -r ligne; do
     [ -n "$ligne" ] || continue
-    IFS="$sep" read -r _ _ _ _ _ _ _ branche _ <<< "$ligne"
-    [ -z "$branche" ] || branches_issues+=("$branche")
+    IFS="$sep" read -r _ _ _ _ _ _ _ _ _ _ _ retenue <<< "$ligne"
+    [ -z "$retenue" ] || branches_issues+=("$retenue")
   done <<< "$1"
   printf '<section id="autres-travaux">\n<h2>Autres travaux</h2>\n'
   while [ "$i" -lt "${#wt_branches[@]}" ]; do # ordre de git worktree list, signaux déjà calculés par signaux_worktrees

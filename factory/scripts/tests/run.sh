@@ -2292,6 +2292,59 @@ rat_c() { [ "$(se_lignes 006-04 006-05)" = "006-04=Fait 006-05=À faire " ] || {
 rat_c() { rat_carte 006-11 | grep -q 'marqueur-bloquee' && ! rat_carte 006-11 | grep -q 'empilée'; }; verifier "cs06_dépendance sur l'issue au lien symbolique : reste bloquée" 0 "" rat_c
 verifier_exact "cs06_etat-issues --prochaine : 006-01 (lien symbolique, statut local À faire) est prête, 006-11 qui en dépend ne l'est pas" 0 "006-01" scripts/etat-issues.sh --prochaine
 
+echo "dashboard.sh : signaux de worktree et sorties sûres pour une branche déduite (PRD 003, issue 003-03)"
+sw_worktree() { # sw_worktree <nom court> <branche> : worktree sur cette branche (créée depuis HEAD si elle n'existe pas)
+  git worktree add -q "$racine_tmp/wt-sw-$1" "$2" >/dev/null 2>&1 || git worktree add -q "$racine_tmp/wt-sw-$1" -b "$2" >/dev/null 2>&1
+}
+sw_autres() { awk '/<section id="autres-travaux">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "$racine_tmp/rat.html"; }
+sw_encours() { awk '/<section id="en-cours">/ { s = 1 } s { print } s && /<\/section>/ { exit }' "$racine_tmp/rat.html"; }
+
+# ca21, ca22 : worktrees d'une branche déduite, d'une branche ambiguë et d'un travail sans issue
+rat_depot
+issue_b 031-01 "En cours" ""; issue_b 031-02 "En cours" ""; issue_b 031-03 "En cours" "feat/decl"
+rat_commit
+sw_worktree d1 feat/031-01-x; sw_worktree a1 feat/031-02-a; sw_worktree a2 fix/031-02-b; sw_worktree zz feat/zz-autre; sw_worktree dc feat/decl; sw_worktree mn main
+printf 'a\n' > "$racine_tmp/wt-sw-d1/a.txt"; printf 'b\n' > "$racine_tmp/wt-sw-d1/b.txt"
+printf 'a\n' > "$racine_tmp/wt-sw-a1/a.txt"
+rat_page
+rat_c() { sw_autres | grep -qF '<strong>feat/zz-autre</strong>' && ! sw_autres | grep -qF 'feat/031-01-x' && ! sw_autres | grep -qF 'feat/decl' && ! sw_autres | grep -qF '<strong>develop</strong>' && ! sw_autres | grep -qF '<strong>main</strong>'; }; verifier "ca21_Autres travaux : la branche déduite (et la déclarée) n'y figure plus, develop et main restent exclus, un travail sans issue y reste" 0 "" rat_c
+rat_c() { sw_autres | grep -qF '<strong>feat/031-02-a</strong>' && sw_autres | grep -qF '<strong>fix/031-02-b</strong>'; }; verifier "ca21_Autres travaux : une branche ambiguë portée par un worktree y figure" 0 "" rat_c
+rat_c() { rat_carte 031-01 | grep -qF '<span class="detail signal">2 fichiers non commités · activité il y a moins d'"'"'1 min</span>' && sw_encours | grep -F '031-01' | grep -qF '<span class="signal">2 fichiers non commités · activité il y a moins d'"'"'1 min</span>'; }; verifier "ca22_branche déduite : la carte et l'encart En cours affichent le signal du worktree" 0 "" rat_c
+rat_c() { ! rat_carte 031-02 | grep -q 'signal' && ! sw_encours | grep -F '031-02' | grep -q 'signal'; }; verifier "ca22_branche ambiguë : aucun signal sur la carte ni dans l'encart En cours" 0 "" rat_c
+
+# cs01, cs02, cs04 : noms de branche et identifiants hostiles (HTML, commandes), puis dépôt intact. Aucune commande du contenu ne doit créer « marque ».
+rat_depot
+HB1='feat/034-01-<img-src=x-onerror=alert(1)>'; HB2a='feat/034-02-"><script>alert(1)<script>'; HB2b="fix/034-02-&amp;'"; HB4='feat/<b>x&y'"'"'</b>'; HZZ='zz/<i>"q"&'
+C1='feat/035-01-$(touch${IFS}marque)'; C2='feat/035-02-;touch${IFS}marque'; C3='feat/035-03-`touch${IFS}marque`'; C4='feat/035-04-|a&&b'
+issue_b 034-01 "À faire" ""; issue_b 034-02 "En cours" ""; issue_b 034-03 "À faire" "" "034-01"; issue_b 034-04 "À faire" "$HB4"
+issue_b 035-01 "À faire" ""; issue_b 035-02 "À faire" ""; issue_b 035-03 "À faire" ""; issue_b 035-04 "À faire" ""
+issue_b 'a;b' "À faire" ""; issue_b '$(touch${IFS}marque)' "À faire" ""
+rat_commit
+sur_branche "$HB1" 034-01 "Fait" ""; git branch "$HB2a"; git branch "$HB2b"; sur_branche "$HB4" 034-04 "En cours" "$HB4"
+sur_branche "$C1" 035-01 "Fait" ""; sur_branche "$C2" 035-02 "Fait" ""; sur_branche "$C3" 035-03 "Fait" ""; sur_branche "$C4" 035-04 "Fait" ""
+git branch 'feat/a;b-x'; git branch 'feat/$(touch${IFS}marque)-x'
+n=0; for b in "$HB1" "$HB2a" "$HB2b" "$HB4" "$HZZ" "$C1" "$C2" "$C3" "$C4"; do n=$((n + 1)); sw_worktree "h$n" "$b"; printf 'x\n' > "$racine_tmp/wt-sw-h$n/nouveau.txt"; done
+touch -t "$(date_t $(( $(date +%s) + 60 )))" f-develop.txt 2>/dev/null; touch -t "$(date_t $(( $(date +%s) + 60 )))" .gitignore "$racine_tmp/wt-sw-h1/docs/issues/034-01-x.md" # index périmé : un git status ordinaire le réécrirait
+cd "$racine_tmp" && rm -rf marque; cd - >/dev/null || exit 1
+sw_instantane() { # sw_instantane : empreinte de tout ce qui peut changer (dépôt .git entier, arbres de travail, liste des worktrees, refs, index)
+  { git for-each-ref; git worktree list --porcelain; git ls-files -s
+    find .git "$racine_tmp"/wt-sw-* -type f ! -name '*.html' -print0 2>/dev/null | sort -z | xargs -0 cksum
+    find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 cksum; } 2>&1 | cksum
+}
+sw_avant="$(sw_instantane)"; sw_index_avant="$(cksum < .git/index)"
+rat_page; rat_code=$?
+cs_tableau="$(scripts/etat-issues.sh 2>&1)"; cs_code_t=$?; cs_prochaine="$(scripts/etat-issues.sh --prochaine 2>&1)"; scripts/etat-issues.sh --statut "À faire" >/dev/null 2>&1
+sw_apres="$(sw_instantane)"
+rat_c() { [ "$rat_code" -eq 0 ] && [ -s "$racine_tmp/rat.html" ] && ! grep -qF '<img' "$racine_tmp/rat.html" && ! grep -qF '<script' "$racine_tmp/rat.html" && ! grep -qF '<b>' "$racine_tmp/rat.html" && ! grep -qF '</b>' "$racine_tmp/rat.html" && ! grep -qF '<i>' "$racine_tmp/rat.html" && ! grep -qF "&amp;'" "$racine_tmp/rat.html" || { printf 'code %s\n' "$rat_code"; return 1; }; }; verifier "cs01_aucune balise issue d'un nom de branche n'apparaît brute dans la page" 0 "" rat_c
+rat_c() { rat_carte 034-01 | grep -qF '<span class="detail">branche : feat/034-01-&lt;img-src=x-onerror=alert(1)&gt; (déduite)</span>'; }; verifier "cs01_branche déduite hostile : échappée dans la mention de la carte" 0 "" rat_c
+rat_c() { rat_carte 034-02 | grep -qF '<span class="detail">branche ambiguë : feat/034-02-&quot;&gt;&lt;script&gt;alert(1)&lt;script&gt;, fix/034-02-&amp;amp;&#39;</span>'; }; verifier "cs01_branches ambiguës hostiles : échappées, triées par ordre d'octets" 0 "" rat_c
+rat_c() { rat_carte 034-03 | grep -qF '<span class="marqueur marqueur-empilee">empilée sur feat/034-01-&lt;img-src=x-onerror=alert(1)&gt;</span>'; }; verifier "cs01_empilée sur une branche hostile : échappée dans le marqueur" 0 "" rat_c
+rat_c() { sw_autres | grep -qF '<li><strong>zz/&lt;i&gt;&quot;q&quot;&amp;</strong> ' && sw_autres | grep -qF '<li><strong>feat/034-02-&quot;&gt;&lt;script&gt;alert(1)&lt;script&gt;</strong> ' && sw_autres | grep -qF "<li><strong>fix/034-02-&amp;amp;&#39;</strong> " && ! sw_autres | grep -qF 'x&amp;y'; }; verifier "cs01_Autres travaux : noms hostiles échappés (branche non retenue, ambiguë), branche déclarée hostile absente" 0 "" rat_c
+rat_c() { [ ! -e "$racine_tmp/marque" ] && [ ! -e marque ] && [ -z "$(find "$racine_tmp" -name marque -print -quit)" ]; }; verifier "cs02_noms et identifiants \$(…), ;, backtick, | : le dashboard n'exécute rien (aucun fichier « marque »)" 0 "" rat_c
+rat_c() { [ "$cs_code_t" -eq 0 ] && [ ! -e marque ] && [ -z "$(find "$racine_tmp" -name marque -print -quit)" ] && printf '%s\n' "$cs_tableau" | grep -qF '| feat/035-01-$(touch${IFS}marque) (déduite) |' && printf '%s\n' "$cs_tableau" | grep -qF '| feat/035-02-;touch${IFS}marque (déduite) |' && printf '%s\n' "$cs_tableau" | grep -qF '| feat/035-04-|a&&b (déduite) |' && [ "$cs_prochaine" = 034-03 ] || { printf '%s\n' "$cs_tableau" "$cs_prochaine"; return 1; }; }; verifier "cs02_etat-issues.sh : rien n'est exécuté, les noms valides sont affichés comme du texte" 0 "" rat_c
+rat_c() { rat_carte 035-01 | grep -qF 'branche : feat/035-01-$(touch${IFS}marque) (déduite)' && rat_carte 035-02 | grep -qF 'branche : feat/035-02-;touch${IFS}marque (déduite)' && rat_carte 035-03 | grep -qF 'branche : feat/035-03-`touch${IFS}marque` (déduite)' && rat_carte 035-04 | grep -qF 'branche : feat/035-04-|a&amp;&amp;b (déduite)' && ! rat_carte 'a;b' | grep -q 'déduite' && [ "$(rat_col 035-01)" = "Fait" ]; }; verifier "cs02_noms valides traités comme du texte dans la page (statut lu sur la branche compris) ; identifiants hostiles sans déduction" 0 "" rat_c
+rat_c() { [ "$sw_apres" = "$sw_avant" ] && [ "$(cksum < .git/index)" = "$sw_index_avant" ] && [ -z "$(find .git "$racine_tmp"/wt-sw-* -name '*.lock' -print -quit 2>/dev/null)" ]; }; verifier "cs04_refs, index, arbres de travail et liste des worktrees identiques avant et après (dashboard et etat-issues.sh), aucun verrou" 0 "" rat_c
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

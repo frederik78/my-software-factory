@@ -3,10 +3,10 @@ id: 001-03
 titre: Verdict exigé du reviewer et relance
 prd: docs/prd/001-verdict-revue.md
 besoin: F-01
-statut: À faire
+statut: En cours
 depend_de: [001-02]
 criteres: [CA-12, CA-13]
-branche:
+branche: feat/001-03-verdict-exige-et-relance
 commits: []
 revue:
 ---

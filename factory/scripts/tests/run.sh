@@ -2942,6 +2942,56 @@ done
 scripts/statuts.sh "" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; st_c=$?
 verifier "ca07_statuts avec un argument vide : usage, code 64, rien sur la sortie standard" 0 "" test "$st_c|$(wc -c < "$racine_tmp/st.out" | tr -d ' ')|$(grep -c '^Usage : ' "$racine_tmp/st.err")" = "64|0|1"
 
+# ca08 : identifiant d'issue absent ou en double = E11 ; les autres issues restent contrôlées
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf -- '---\nid: 004-91\nstatut: À faire\n---\n' > docs/issues/004-91-a.md; printf -- '---\nid: 004-91\nstatut: Fait\n---\n' > docs/issues/004-91-b.md
+printf -- '---\nid:\nstatut: À faire\n---\n' > docs/issues/004-92-x.md; printf -- '---\nstatut: À faire\n---\n' > docs/issues/004-93-x.md
+st_issue 004-94 " Bof"; st_issue 004-95 " À faire"
+st_cas "ca08_statuts : identifiant absent ou vide = E11 ; deux fichiers de même identifiant = un E11 pour chacun ; ces issues ne donnent aucun autre constat ; les autres sont contrôlées" 1 <<TXT
+ERREUR E11 fichier docs/issues/004-91-a.md : identifiant d'issue en double : 004-91
+ERREUR E11 fichier docs/issues/004-91-b.md : identifiant d'issue en double : 004-91
+ERREUR E11 fichier docs/issues/004-92-x.md : identifiant d'issue absent
+ERREUR E11 fichier docs/issues/004-93-x.md : identifiant d'issue absent
+ERREUR E10 issue 004-94 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+STATUTS : 5 erreur(s), 0 avis
+TXT
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf -- '---\nid: 004-1\nstatut: À faire\n---\n' > docs/issues/004-1-x.md; printf -- '---\nid: 004-10\nstatut: À faire\n---\n' > docs/issues/004-10-x.md
+st_cas "ca08_statuts : 004-1 et 004-10 sont deux identifiants distincts" 0 <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+
+# ca09 : fichier d'issue illisible = E14, ignoré ; le contenu du fichier visé n'est reproduit nulle part
+st_depot
+printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+printf 'id: 004-91\nstatut: Fait\n---\n' > docs/issues/004-91-ouvre.md
+printf -- '---\nid: 004-92\nstatut: Fait\n' > docs/issues/004-92-ferme.md
+st_entete="$(printf -- '---\nid: 004-93\nstatut: Fait\n---\n')"
+{ printf '%s\n' "$st_entete"; head -c $((1048577 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-93-gros.md
+{ printf '%s\n' "$st_entete" | sed 's/004-93/004-94/'; head -c $((1048576 - ${#st_entete} - 1)) /dev/zero | tr '\0' 'x'; } > docs/issues/004-94-limite.md
+printf -- '---\nid: SECRET-ID\nstatut: SECRET-CONTENU\n---\n' > cible-secrete.md; ln -s ../../cible-secrete.md docs/issues/004-95-lien.md
+printf -- '---\nid: 004-96\nstatut: Fait\n---\n' > docs/issues/004-96-droits.md; chmod 000 docs/issues/004-96-droits.md
+st_issue 004-97 " Bof"
+if [ "$(id -u)" -eq 0 ]; then st_droits=""; else st_droits="ERREUR E14 fichier docs/issues/004-96-droits.md : fichier d'issue illisible (lecture impossible)"; chmod 000 docs/issues/004-96-droits.md; fi
+verifier "ca09_gros fichier : 1 048 577 octets et 1 048 576 octets (limite) créés à la taille exacte" 0 "" test "$(wc -c < docs/issues/004-93-gros.md | tr -d ' ')|$(wc -c < docs/issues/004-94-limite.md | tr -d ' ')" = "1048577|1048576"
+if [ -n "$st_droits" ]; then
+  st_cas "ca09_statuts : en-tête ouvrant ou fermant absent, plus de 1 Mio, lien symbolique, lecture impossible = E14 avec le motif ; exactement 1 Mio accepté ; les autres fichiers sont contrôlés ; rien du fichier visé reproduit" 1 <<TXT
+ERREUR E14 fichier docs/issues/004-91-ouvre.md : fichier d'issue illisible (en-tête YAML absent ou non fermé)
+ERREUR E14 fichier docs/issues/004-92-ferme.md : fichier d'issue illisible (en-tête YAML absent ou non fermé)
+ERREUR E14 fichier docs/issues/004-93-gros.md : fichier d'issue illisible (plus de 1 Mio)
+ERREUR E14 fichier docs/issues/004-95-lien.md : fichier d'issue illisible (lien symbolique)
+$st_droits
+ERREUR E10 issue 004-97 : statut inconnu « Bof » (attendus : $ATTENDUS_I)
+STATUTS : 6 erreur(s), 0 avis
+TXT
+else
+  ok "ca09_lecture impossible (chmod 000) non éprouvable en tant que root : cas ignoré"
+fi
+verifier "ca09_le contenu du fichier visé par le lien (SECRET) n'apparaît dans aucune sortie" 0 "" test "$(cat "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -c SECRET)" = 0
+chmod 644 docs/issues/004-96-droits.md
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

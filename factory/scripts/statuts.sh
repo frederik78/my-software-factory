@@ -34,18 +34,60 @@ afficher_table() {
   done
 }
 
-# controle_issues : un constat E10 par issue dont le statut n'est pas dans la table.
+# Taille maximale (octets) d'un fichier d'issue lu : au-delà, le fichier est refusé (E14). Une issue fait quelques ko.
+ISSUE_OCTETS_MAX=1048576
+
+# issue_illisible <fichier> : met dans $motif_e14 le motif E14 du fichier (lien symbolique, plus de 1 Mio, lecture impossible, en-tête YAML absent ou non fermé), vide s'il est lisible.
+# Le fichier n'est ouvert qu'une fois ces vérifications faites : un lien symbolique n'est jamais suivi, un gros fichier jamais lu.
+issue_illisible() {
+  local taille
+  motif_e14=""
+  if [ -L "$1" ]; then motif_e14="lien symbolique"
+  elif [ ! -f "$1" ] || [ ! -r "$1" ]; then motif_e14="lecture impossible"
+  elif ! taille="$(wc -c < "$1" 2>/dev/null)"; then motif_e14="lecture impossible"
+  elif [ "$((taille + 0))" -gt "$ISSUE_OCTETS_MAX" ]; then motif_e14="plus de 1 Mio"
+  elif ! awk 'NR == 1 { if ($0 != "---") exit 1; next } $0 == "---" { fin = 1; exit } END { exit fin ? 0 : 1 }' "$1" 2>/dev/null; then motif_e14="en-tête YAML absent ou non fermé"
+  fi
+}
+
+# controle_issues : E14 (fichier illisible), E11 (identifiant absent ou en double), E10 (statut inconnu) pour les fichiers de docs/issues/.
+# Un fichier en erreur n'émet pas d'autre constat. Ordre des vérifications d'un fichier : E14, E11 (absent), E10, E11 (en double).
 controle_issues() {
-  local f id statut rang=0 attendus
+  local f id statut rang=0 attendus chemin liste_ids="" doublons i
+  local fichiers=() ids=() statuts=() etats=() rangs=()
   table_statuts_de issue; attendus="$statuts_de"
   while IFS= read -r f; do
-    rang=$((rang + 1))
-    id="$(issue_champ "$f" id)"; statut="$(issue_champ "$f" statut)"
-    table_nettoyer "$statut"; statut="$nettoye" # espaces à l'intérieur de guillemets de bord : « " Fait " » est lu Fait
-    table_statut_connu issue "$statut" && continue
-    constat_neutraliser "$id"; id="$neutre"; constat_neutraliser "$statut"
-    constat_ajouter ERREUR E10 2 "$rang" "issue $id" "statut inconnu « $neutre » (attendus : $attendus)"
+    rang=$((rang + 1)); fichiers+=("$f"); rangs+=("$rang")
+    constat_neutraliser "$f"; chemin="$neutre"
+    issue_illisible "$f"
+    if [ -n "$motif_e14" ]; then
+      ids+=(""); statuts+=(""); etats+=(ignoree)
+      constat_ajouter ERREUR E14 2 "$rang" "fichier $chemin" "fichier d'issue illisible ($motif_e14)"; continue
+    fi
+    id="$(issue_champ "$f" id)"; table_nettoyer "$id"; id="$nettoye"
+    statut="$(issue_champ "$f" statut)"; table_nettoyer "$statut"; statut="$nettoye" # espaces à l'intérieur de guillemets de bord : « " Fait " » est lu Fait
+    ids+=("$id"); statuts+=("$statut")
+    if [ -z "$id" ]; then
+      etats+=(ignoree); constat_ajouter ERREUR E11 2 "$rang" "fichier $chemin" "identifiant d'issue absent"; continue
+    fi
+    etats+=(lue); liste_ids="$liste_ids$id"$'\n'
   done < <(issue_fichiers)
+  doublons=$'\n'"$(printf '%s' "$liste_ids" | LC_ALL=C sort | uniq -d)"$'\n'
+  for i in "${!fichiers[@]}"; do
+    [ "${etats[$i]}" = lue ] || continue
+    id="${ids[$i]}"
+    constat_neutraliser "$id"; id="$neutre"
+    if ! table_statut_connu issue "${statuts[$i]}"; then
+      constat_neutraliser "${statuts[$i]}"
+      constat_ajouter ERREUR E10 2 "${rangs[$i]}" "issue $id" "statut inconnu « $neutre » (attendus : $attendus)"
+    else
+      case "$doublons" in
+        *$'\n'"${ids[$i]}"$'\n'*)
+          constat_neutraliser "${fichiers[$i]}"
+          constat_ajouter ERREUR E11 2 "${rangs[$i]}" "fichier $neutre" "identifiant d'issue en double : $id" ;;
+      esac
+    fi
+  done
 }
 
 # besoins_lire : lit le premier tableau de backlog.md dont l'en-tête a les colonnes ID, Statut et PRD (RG-04), colonnes repérées par leur nom, cellules sans espaces de bord,

@@ -2261,6 +2261,10 @@ verifier "cs04_deliver_rapport_donnee_non_fiable_aucune_consigne_recopiee_dans_l
 verifier "cs04_deliver_carte_sans_secret_jeton_donnee_reelle_ni_fichier_de_secrets" 0 "" doc_a $dl 'La carte ne contient ni secret, ni jeton, ni donnée réelle, ni contenu de fichier de secrets'
 verifier "ca14_modele_docs_reviews_decrit_la_section_pour_l_humain" 0 "" doc_a factory/templates/docs/reviews/README.md 'Pour l.humain.*session.*MAX_ITERATIONS_REVUE'
 verifier "ca14_report_format_section_pour_l_humain_ecrite_par_la_session" 0 "" doc_a $rf 'section `## Pour l.humain`.*écrite par la session'
+verifier "ca14_deliver_fichier_du_rapport_mktemp_hors_depot_supprime_dans_tous_les_cas_meme_a_l_arret" 0 "" doc_a $dl 'Fichier temporaire du rapport.*créé par `mktemp` \(permissions restreintes\), jamais dans le dépôt.*supprimes dans tous les cas.*après usage.*aussi quand tu t.arrêtes.*second `INCONNU`.*code 64.*remontée à l.utilisateur'
+verifier "ca14_deliver_fichier_du_corps_du_courriel_mktemp_hors_depot_supprime_dans_tous_les_cas_meme_a_l_arret" 0 "" doc_a $dl 'Fichier temporaire du corps de la notification.*créé par `mktemp` \(permissions restreintes\), jamais dans le dépôt.*supprimes dans tous les cas.*après `notifier\.sh`.*aussi quand `notifier\.sh` rend 3 ou 4.*remontes le blocage'
+verifier "ca14_deliver_carte_une_dizaine_de_fichiers_au_plus_demi_ligne_de_raison_chemins_relatifs" 0 "" doc_a $dl 'chemins relatifs au dépôt .*, une dizaine au plus, avec une demi-ligne de raison chacun'
+verifier "ca14_deliver_carte_identique_dans_le_fichier_de_revue_et_le_courriel" 0 "" doc_a $dl 'Inscris la carte, identique partout, en section `## Pour l.humain`'
 # CA-15 : avec une commande d'envoi de test (frontière externe doublée : elle écrit le message dans un fichier), la carte est en tête du corps.
 carte_en_tete_du_message() {
   local q; q="$(nouveau_projet)" && mkdir "$q/outils" && cd "$q" || return 1

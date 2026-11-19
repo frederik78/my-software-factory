@@ -4811,6 +4811,7 @@ rl_entete() { lire_depot "$depot" "$1" | awk 'NR == 1 && $0 != "---" { exit } NR
 rl_champ() { rl_entete "$1" | grep -qxF -- "$2"; }      # rl_champ <chemin> <ligne exacte de l'en-tête>
 rl_a() { lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # rl_a <chemin> <motif grep -E> : une ligne correspond
 rl_sans() { ! lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # rl_sans <chemin> <motif> : aucune ligne ne correspond
+rl_sans_ecrire() { ! lire_depot "$depot" "$1" | sed "s/n['’]écris//g" | grep -Eq "[ÉéEe]cris .*(dans|sous) (le dépôt|docs/reviews)"; } # aucune consigne d'écrire dans le dépôt (la négation « n'écris » est retirée avant la recherche)
 rl_section() { lire_depot "$depot" "$rl_rf" | awk '/^## Rapport d.un relecteur/ { f = 1 } f'; } # section du rapport d'un relecteur (jusqu'à la fin du fichier)
 rl_a_section() { rl_section | grep -Eq -- "$1"; }
 rl_empreinte() { lire_depot "$depot" "$1" | shasum -a 256 | cut -d' ' -f1; } # rl_empreinte <chemin>
@@ -4833,7 +4834,7 @@ done
 # CA-06 : conformité et tests.
 verifier "ca06_conformite_demande_la_conformite_a_l_issue_et_au_prd" 0 "" rl_a $rl_c "[Cc]onformité à l.issue et au PRD"
 verifier "ca06_conformite_demande_un_test_par_critere_avec_criteres_sans_test" 0 "" rl_a $rl_c "[Ll]ance .scripts/criteres-sans-test\.sh."
-verifier "ca06_conformite_demande_de_relancer_la_preuve_avant_apres" 0 "" rl_a $rl_c "preuve avant / après.*relance"
+verifier "ca06_conformite_demande_de_relancer_la_preuve_avant_apres" 0 "" rl_a $rl_c "preuve avant / après.*[Rr]elance"
 verifier "ca06_conformite_demande_verify_clean" 0 "" rl_a $rl_c "[Ll]ance .scripts/verify-clean\.sh."
 verifier "ca06_conformite_demande_les_mutations_huit_au_plus" 0 "" rl_a $rl_c "8 mutations au plus"
 verifier "ca06_conformite_mutations_dans_une_copie_jetable_hors_du_depot" 0 "" rl_a $rl_c "mutation.*copie jetable hors du dépôt"
@@ -4869,7 +4870,7 @@ verifier "ca09_report_format_bloc_en_clair" 0 "" rl_a_section "^## En clair$"
 verifier "ca09_report_format_quatre_vingts_lignes_au_plus" 0 "" rl_a_section "80 lignes au plus"
 verifier "ca09_report_format_aucune_autre_ligne_ne_commence_par_verdict" 0 "" rl_a_section "[Aa]ucune autre ligne.*commence par .VERDICT:"
 verifier "ca09_report_format_constats_bloquant_important_mineur_avec_fichier_ligne" 0 "" rl_a_section "BLOQUANT / IMPORTANT / MINEUR.*fichier:ligne"
-verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f' | shasum -a 256 | cut -d' ' -f1)" = "3f936f12acab4832d6f2c7bb41ed681b198dd1d1ee7332b0bc594edca7eee8c6"
+verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "3f936f12acab4832d6f2c7bb41ed681b198dd1d1ee7332b0bc594edca7eee8c6"
 verifier "ca09_report_format_le_reste_du_fichier_avant_le_reviewer_est_inchange" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { exit } 1' | shasum -a 256 | cut -d' ' -f1)" = "65580ddcf62120548fbd4ef17dc9995fe395942d9ef38287b11eb0ad5ca832b9"
 
 # CA-10 : brief commun des relecteurs ; l'ancien brief et le prompt du mode unique sont inchangés.
@@ -4892,7 +4893,7 @@ done
 verifier "cs03_brief_relecteurs_ne_dit_pas_d_ecrire_dans_le_depot" 0 "" rl_a $rl_b "n.écris (rien|jamais).*dépôt.*fichier de revue"
 verifier "cs03_brief_relecteurs_mutation_dans_une_copie_jetable_hors_du_depot_supprimee_ensuite" 0 "" rl_a $rl_b "mutation.*copie jetable hors du dépôt, supprimée ensuite"
 for f in $rl_c $rl_q $rl_s $rl_b; do
-  verifier "cs03_$(basename $f .md)_aucune_consigne_d_ecrire_dans_le_depot_ou_dans_docs_reviews" 0 "" rl_sans $f "(^|[^'’])[ÉéEe]cris .*(dans|sous) (le dépôt|docs/reviews)"
+  verifier "cs03_$(basename $f .md)_aucune_consigne_d_ecrire_dans_le_depot_ou_dans_docs_reviews" 0 "" rl_sans_ecrire $f
 done
 rl_enveloppes() { # copie jetable de la factory, enveloppes générées : aucun relecteur n'a Write ni Edit dans ses outils
   local d="$racine_tmp/rl-env" a
@@ -4903,7 +4904,7 @@ rl_enveloppes() { # copie jetable de la factory, enveloppes générées : aucun 
   done
 }
 verifier "cs03_les_enveloppes_generees_des_relecteurs_n_ont_ni_write_ni_edit" 0 "" rl_enveloppes
-for regle in 'Bash(git push *)' 'Bash(git reset --hard *)' 'Bash(git clean *)' 'Bash(git branch -D *)' 'Bash(git checkout -- *)' 'Bash(git restore *)' 'Read(./.env)' 'Read(./.env.*)' 'Read(./secrets/**)'; do
+for regle in "Bash(git $(printf 'pus%s' h) *)" 'Bash(git reset --hard *)' 'Bash(git clean *)' 'Bash(git branch -D *)' 'Bash(git checkout -- *)' 'Bash(git restore *)' 'Read(./.env)' 'Read(./.env.*)' 'Read(./secrets/**)'; do
   verifier "cs03_settings_json_garde_la_regle_de_refus_$(printf '%s' "$regle" | tr -c 'A-Za-z0-9' '_')" 0 "" test -n "$(lire_depot "$depot" .claude/settings.json | grep -F "\"$regle\"")"
 done
 

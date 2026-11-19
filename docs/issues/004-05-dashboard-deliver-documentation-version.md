@@ -3,7 +3,7 @@ id: 004-05
 titre: Dashboard, /deliver, documentation, version et tests réunis
 prd: docs/prd/004-machines-a-etats-statuts.md
 besoin: F-09
-statut: À faire
+statut: En cours
 depend_de: [004-04]
 criteres: [CA-31, CA-32, CA-33, CA-34, CA-35, CA-36, CA-37, CS-05, CS-06]
 branche: feat/004-05-dashboard-deliver-documentation-version

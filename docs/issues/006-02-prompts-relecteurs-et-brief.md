@@ -3,7 +3,7 @@ id: 006-02
 titre: Trois prompts de relecteurs, brief commun et section du rapport d'un relecteur
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-05, CA-06, CA-07, CA-08, CA-09, CA-10, CS-03, CS-06]
 branche: feat/006-02-prompts-relecteurs-et-brief

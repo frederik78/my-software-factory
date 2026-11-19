@@ -7,8 +7,8 @@ statut: Fait
 depend_de: []
 criteres: [CA-01, CA-02, CA-04, CA-08, CA-09, CA-17, CA-18, CS-01, CS-05]
 branche: feat/002-01-reconnaitre-test-bash
-commits: []
-revue:
+commits: [3c84d59, b17696a, 87d094c, 3cdabad, f159f47]
+revue: APPROUVÉ (itération 2, docs/reviews/002-01.md)
 ---
 
 ## Objectif

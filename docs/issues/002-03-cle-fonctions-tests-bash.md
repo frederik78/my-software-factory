@@ -7,8 +7,8 @@ statut: Fait
 depend_de: [002-01]
 criteres: [CA-03, CA-14, CA-15, CS-02, CS-04, CS-06]
 branche: feat/002-03-cle-fonctions-tests-bash
-commits: []
-revue:
+commits: [1b28593, ea858d1]
+revue: APPROUVÉ (itération 1, docs/reviews/002-03.md)
 ---
 
 ## Objectif

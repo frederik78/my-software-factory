@@ -5,7 +5,7 @@ Une issue = un fichier `docs/issues/<prd>-<nn>-<slug>.md` : une tranche vertical
 (statut, dépendances, branche, commits, revue). Modèle : `_template.md`. La skill `deliver` lit et met à jour ces fichiers.
 
 ## Format
-En-tête YAML : `id`, `titre`, `prd`, `besoin`, `statut` (`À faire` -> `En cours` -> `En revue` -> `Fait`), `criteres_justification` (facultatif : raison de dépasser environ 10 critères), `depend_de` (ids d'issues qui doivent être
+En-tête YAML : `id`, `titre`, `prd`, `besoin`, `statut` (statuts et transitions légales : `scripts/statuts.sh --table` ; `Abandonnée`, hors cycle et final, exige sa raison dans les Notes ; contrôle de l'état courant : `scripts/statuts.sh`), `criteres_justification` (facultatif : raison de dépasser environ 10 critères), `depend_de` (ids d'issues qui doivent être
 `Fait`), `criteres` (CA-xx / CS-xx du PRD), `branche` (`feat/<prd>-<nn>-<slug>`), `commits`, `revue` (`docs/reviews/<id>.md`).
 Corps : Objectif, Périmètre (dans / hors), Critères d'acceptation (renvoi au PRD, sans les recopier), Notes (décisions et écarts datés).
 

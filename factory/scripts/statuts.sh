@@ -8,7 +8,11 @@
 #                                       justifié par la fusion dans la branche locale develop (E08, A13), Abandonnée (E09, A15), PRD d'une issue (A14)
 #         scripts/statuts.sh --table    affiche les statuts (dans l'ordre) et les transitions légales (de, vers, déclencheur, preuve) de chaque entité ; code 0
 # Sortie : une ligne par constat « <ERREUR|AVIS> <CODE> <objet> : <texte> » (erreurs avant avis, puis objet, puis code), puis « STATUTS : <e> erreur(s), <a> avis ».
-# Les valeurs lues dans les fichiers sont des données : jamais évaluées, neutralisées dans les messages (lib-constats.sh). Aucun fichier n'est écrit.
+# Les valeurs lues dans les fichiers sont des données : jamais évaluées, neutralisées dans les messages (lib-constats.sh). 
+# Lecture seule : le contrôle ne modifie ni backlog.md, ni une issue, ni une revue, ni un PRD, ni les refs, l'index ou les worktrees (aucune commande Git d'écriture, aucun verrou d'index) et ne corrige rien.
+# Codes : erreurs E01 à E14, avis A01 à A15 ; le catalogue complet des messages (texte exact, objet) est dans factory/README.md. `Abandonnée` est un statut hors cycle et final, d'issue comme de besoin,
+# qui exige une raison écrite (E13 dans les Notes de l'issue, E09 dans la colonne Décisions du besoin) ; une issue ou un besoin existant garde son statut, les preuves manquantes ne donnent que des avis.
+# Utilisé par : /deliver (à chaque changement de statut, voir la skill deliver) et scripts/dashboard.sh (une exécution par génération, section « Contrôle des statuts » ; son code de sortie ne dépend pas du résultat).
 # Coût : les en-têtes de toutes les issues sont lus en un seul passage (lib-issues.sh, issues_en_tetes_charger), les fichiers trop gros listés par un seul find par dossier,
 # le verdict d'une revue lu sans processus par fichier (lib-verdict.sh) : de l'ordre de la seconde par centaine d'issues (mesuré par le test cs04_volumes).
 # Les statuts et les transitions sont définis une seule fois, dans factory/scripts/statuts.table (lue par lib-issues.sh).

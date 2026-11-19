@@ -4163,68 +4163,93 @@ scripts/dashboard.sh --sortie "$racine_tmp/ro-dash/d.html" > /dev/null 2>&1; ro_
 verifier "ca29_cout : le dashboard n'exécute pas le contrôle plus d'une fois par génération ($(wc -l < "$racine_tmp/statuts.appels" | tr -d ' ') exécution(s), code $ro_dc ; 004-05 : exactement une)" 0 "" test "$ro_dc|$(wc -l < "$racine_tmp/statuts.appels" 2>/dev/null | tr -d ' ' | awk '{ print ($1 + 0 <= 1) }')" = "0|1"
 
 # ca30 : fichiers absents, vides ou illisibles : pas de message d'erreur de shell, constats de la section 2.6, code 1 seulement s'il y a une erreur.
-ro_cas() { # ro_cas <description> <code attendu> : sortie standard attendue sur l'entrée standard (comparée exactement) ; sortie d'erreur vide, sous les deux bash
-  local desc="$1" attendu="$2" sh code
-  cat > "$racine_tmp/ro.attendu"
-  for sh in $ro_shells; do
-    ro_statuts "$sh" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; code=$?
-    if [ "$code" -eq "$attendu" ] && cmp -s "$racine_tmp/ro.attendu" "$racine_tmp/st.out" && [ ! -s "$racine_tmp/st.err" ]; then ok "$desc [$sh]"
-    else ko "$desc [$sh]" "code $code (attendu $attendu) ; sortie : $(head -c 600 "$racine_tmp/st.out" | tr '\n' '|') ; erreur : $(head -c 300 "$racine_tmp/st.err" | tr '\n' '|')"; fi
-  done
+ro_attendu() { cat > "$racine_tmp/ro.attendu"; } # la sortie standard attendue de statuts.sh vient de l'entrée standard
+ro_cas_ok() { # ro_cas_ok <défaut|b32> <code attendu> : statuts.sh du projet courant rend ce code, exactement la sortie attendue (ro_attendu) et rien sur la sortie d'erreur
+  local code
+  ro_statuts "$1" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; code=$?
+  if [ "$code" -eq "$2" ] && cmp -s "$racine_tmp/ro.attendu" "$racine_tmp/st.out" && [ ! -s "$racine_tmp/st.err" ]; then return 0; fi
+  echo "code $code (attendu $2) ; sortie : $(head -c 600 "$racine_tmp/st.out" | tr '\n' '|') ; erreur : $(head -c 300 "$racine_tmp/st.err" | tr '\n' '|')"; return 1
 }
 bs_depot; printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Spécifié | `docs/prd/p.md` | |' | st_backlog
 rm -rf docs/issues
-ro_cas "ca30_fichiers_absents : docs/issues absent : aucune issue, besoins contrôlés, pas d'erreur de shell, code 0" 0 <<'TXT'
+ro_attendu <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/issues absent : aucune issue, besoins contrôlés, pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+done
 mkdir docs/issues
-ro_cas "ca30_fichiers_absents : docs/issues vide : aucune issue, code 0" 0 <<'TXT'
+ro_attendu <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/issues vide : aucune issue, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+done
 rm -rf docs/prd
-ro_cas "ca30_fichiers_absents : docs/prd absent : E06 pour le besoin Spécifié (fichier absent), pas d'erreur de shell, code 1" 1 <<'TXT'
+ro_attendu <<'TXT'
 ERREUR E06 besoin F-02 : statut Spécifié sans PRD valide (fichier absent : docs/prd/p.md)
 STATUTS : 1 erreur(s), 0 avis
 TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/prd absent : E06 pour le besoin Spécifié (fichier absent), pas d'erreur de shell, code 1 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 1
+done
 bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
 bs_issue 004-71 Fait F-01 feat/b none; bs_issue 004-72 "En revue" F-01 feat/b none
 rm -rf docs/reviews
-ro_cas "ca30_fichiers_absents : docs/reviews absent : A02 (Fait) et A07 (En revue), pas d'erreur de shell, code 0" 0 <<'TXT'
+ro_attendu <<'TXT'
 AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/revue.md)
 AVIS A07 issue 004-72 : En revue sans fichier de revue (docs/reviews/revue.md)
 STATUTS : 0 erreur(s), 2 avis
 TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/reviews absent : A02 (Fait) et A07 (En revue), pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+done
 bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
 bs_issue 004-72 "En cours" F-01 feat/b
 rm -rf docs/prd
-ro_cas "ca30_fichiers_absents : docs/prd absent, issue qui nomme un PRD : E06 du besoin puis A14 « introuvable » de l'issue, pas d'erreur de shell, code 1" 1 <<'TXT'
+ro_attendu <<'TXT'
 ERREUR E06 besoin F-01 : statut En cours sans PRD valide (fichier absent : docs/prd/p.md)
 AVIS A14 issue 004-72 : PRD docs/prd/p.md introuvable
 STATUTS : 1 erreur(s), 1 avis
 TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/prd absent, issue qui nomme un PRD : E06 du besoin puis A14 « introuvable » de l'issue, pas d'erreur de shell, code 1 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 1
+done
 # lecture interdite (sans effet pour root : cas ignoré)
 if [ "$(id -u)" -ne 0 ]; then
   bs_depot; printf '| F-01 | B | P1 | En revue | `docs/prd/p.md` | |\n' | st_backlog
   bs_issue 004-71 Fait F-01 feat/nf none; chmod 000 docs/reviews/revue.md
-  ro_cas "ca30_fichiers_absents : fichier de revue en lecture interdite : A02, pas d'erreur de shell, code 0" 0 <<'TXT'
+  ro_attendu <<'TXT'
 AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/revue.md)
 STATUTS : 0 erreur(s), 1 avis
 TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : fichier de revue en lecture interdite : A02, pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+  done
   chmod 644 docs/reviews/revue.md; chmod 000 docs/reviews
-  ro_cas "ca30_fichiers_absents : dossier docs/reviews en lecture interdite : A02, pas d'erreur de shell, code 0" 0 <<'TXT'
+  ro_attendu <<'TXT'
 AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/revue.md)
 STATUTS : 0 erreur(s), 1 avis
 TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : dossier docs/reviews en lecture interdite : A02, pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+  done
   chmod 755 docs/reviews; chmod 000 docs/prd
-  ro_cas "ca30_fichiers_absents : dossier docs/prd en lecture interdite : E06 (fichier absent), pas d'erreur de shell, code 1" 1 <<'TXT'
+  ro_attendu <<'TXT'
 ERREUR E06 besoin F-01 : statut En revue sans PRD valide (fichier absent : docs/prd/p.md)
 STATUTS : 1 erreur(s), 0 avis
 TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : dossier docs/prd en lecture interdite : E06 (fichier absent), pas d'erreur de shell, code 1 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 1
+  done
   chmod 755 docs/prd; chmod 000 docs/issues
-  ro_cas "ca30_fichiers_absents : dossier docs/issues en lecture interdite : aucune issue lue (A12 : aucune n'est Fait), pas d'erreur de shell, code 0" 0 <<'TXT'
+  ro_attendu <<'TXT'
 AVIS A12 besoin F-01 : statut En revue en avance : toutes les issues ne sont pas Fait
 STATUTS : 0 erreur(s), 1 avis
 TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : dossier docs/issues en lecture interdite : aucune issue lue (A12 : aucune n'est Fait), pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+  done
   chmod 755 docs/issues
 fi
 

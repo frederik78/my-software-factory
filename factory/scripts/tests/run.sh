@@ -3437,11 +3437,12 @@ pr_cas 004-80 "docs/reviews/x.md.bak"; pr_cas 004-79 "/home/u/docs/reviews/004-7
 pr_cas 004-78 "revue faite"
 pr_revue 004-71 'texte\nCHANGEMENTS DEMANDÉS\n'; pr_revue 004-72 'texte\napprouvé\n'; pr_revue 004-73 'texte\nAPPROUVÉ.\n'; pr_revue 004-74 'texte\nVERDICT: APPROUVÉ\n'
 pr_revue 004-75 'APPROUVÉ\ntexte\n'; pr_revue 004-76 ''; pr_revue 004-77 '\n  \n\n'
-st_cas "ca11_preuves : revue vide = A01 ; absente, lien symbolique, 1 Mio + 1 octet, ../x.md, chemin absolu, sous-dossier, texte sans chemin = A02 ; dernière ligne autre = A03 ; 1 Mio exactement accepté ; code 0" 0 <<'TXT'
+st_cas "ca11_preuves : revue vide = A01 ; absente, lien symbolique, 1 Mio + 1 octet, ../x.md, chemin absolu, sous-dossier, texte sans chemin = A02 ; dernière ligne autre = A03 (et A16 pour une ligne VERDICT: qui n'est pas la première, issue 005-02) ; 1 Mio exactement accepté ; code 0" 0 <<'TXT'
 AVIS A03 issue 004-71 : Fait : la dernière ligne de docs/reviews/004-71.md n'est pas APPROUVÉ
 AVIS A03 issue 004-72 : Fait : la dernière ligne de docs/reviews/004-72.md n'est pas APPROUVÉ
 AVIS A03 issue 004-73 : Fait : la dernière ligne de docs/reviews/004-73.md n'est pas APPROUVÉ
 AVIS A03 issue 004-74 : Fait : la dernière ligne de docs/reviews/004-74.md n'est pas APPROUVÉ
+AVIS A16 issue 004-74 : fichier de revue mal formé docs/reviews/004-74.md : la première ligne n'est pas la ligne VERDICT:
 AVIS A03 issue 004-75 : Fait : la dernière ligne de docs/reviews/004-75.md n'est pas APPROUVÉ
 AVIS A03 issue 004-76 : Fait : la dernière ligne de docs/reviews/004-76.md n'est pas APPROUVÉ
 AVIS A03 issue 004-77 : Fait : la dernière ligne de docs/reviews/004-77.md n'est pas APPROUVÉ
@@ -3456,7 +3457,7 @@ AVIS A02 issue 004-86 : Fait : fichier de revue introuvable ou illisible (../x.m
 AVIS A02 issue 004-87 : Fait : fichier de revue introuvable ou illisible (/etc/hostname)
 AVIS A02 issue 004-88 : Fait : fichier de revue introuvable ou illisible (docs/reviews/sub/x.md)
 AVIS A02 issue 004-89 : Fait : fichier de revue introuvable ou illisible (docs/reviews/../../etc/hostname)
-STATUTS : 0 erreur(s), 18 avis
+STATUTS : 0 erreur(s), 19 avis
 TXT
 
 
@@ -3761,13 +3762,15 @@ pr_revue 004-65 'VERDICT: APPROUVE\nsuite\n'
 pr_revue 004-66 'VERDICT: INCONNU\nsuite\n'
 pr_revue 004-67 'texte\n\nAPPROUVÉ\n'
 pr_revue 004-68 'VERDICT: CHANGEMENTS DEMANDÉS\n\nVERDICT: APPROUVÉ\n'
-st_cas "ca11_verdict : première ligne VERDICT: APPROUVÉ (casse, espaces, CRLF tolérés) ou dernière ligne APPROUVÉ = aucun avis ; CHANGEMENTS DEMANDÉS, INCONNU, sans accent, deux lignes VERDICT = A03" 0 <<'TXT'
+st_cas "ca11_verdict : première ligne VERDICT: APPROUVÉ (casse, espaces, CRLF tolérés) ou dernière ligne APPROUVÉ = aucun avis ; CHANGEMENTS DEMANDÉS, INCONNU, sans accent, deux lignes VERDICT = A03 (et A16 pour les deux lignes VERDICT, issue 005-02)" 0 <<'TXT'
 AVIS A03 issue 004-63 : Fait : la dernière ligne de docs/reviews/004-63.md n'est pas APPROUVÉ
 AVIS A03 issue 004-64 : Fait : la dernière ligne de docs/reviews/004-64.md n'est pas APPROUVÉ
+AVIS A16 issue 004-64 : fichier de revue mal formé docs/reviews/004-64.md : plus d'une ligne VERDICT:
 AVIS A03 issue 004-65 : Fait : la dernière ligne de docs/reviews/004-65.md n'est pas APPROUVÉ
 AVIS A03 issue 004-66 : Fait : la dernière ligne de docs/reviews/004-66.md n'est pas APPROUVÉ
 AVIS A03 issue 004-68 : Fait : la dernière ligne de docs/reviews/004-68.md n'est pas APPROUVÉ
-STATUTS : 0 erreur(s), 5 avis
+AVIS A16 issue 004-68 : fichier de revue mal formé docs/reviews/004-68.md : plus d'une ligne VERDICT:
+STATUTS : 0 erreur(s), 7 avis
 TXT
 
 
@@ -4912,31 +4915,30 @@ f6_run
 verifier "ca11_première ligne = titre ou ligne vide et une seule ligne de verdict plus bas : A16 « la première ligne n'est pas la ligne VERDICT: »" 0 "" test "$(f6_a16_de 005-81)|$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PREM")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PREM")" "$racine_tmp/st.out")" = "1|1|1"
 verifier "ca11_première ligne seule ligne de verdict, quelle que soit sa valeur (APPROUVÉ, CHANGEMENTS DEMANDÉS, valeur invalide) : aucun A16" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-84)|$(f6_a16_de 005-85)" = "0|0|0"
 
-# CA-12 : fichiers d'avant F-01 (copies de 002-01 et 003-01, sans ligne de verdict), non modifiés
+# CA-12 : fichiers d'avant F-01 (sans ligne de verdict), non modifiés. Les revues 002-01 et 003-01 du dépôt portent en fait des lignes de verdict (écart avec le PRD, voir les Notes de
+# l'issue) : les copies utilisées ici en sont privées, pour représenter une revue d'avant F-01 sans ligne de verdict.
 pr_depot
-for f6_r in 002-01 003-01; do lire_depot "$depot" "docs/reviews/$f6_r.md" > "docs/reviews/$f6_r.md"; f6_fait "$f6_r"; done
+for f6_r in 002-01 003-01; do lire_depot "$depot" "docs/reviews/$f6_r.md" | grep -a -v -i -E '^[[:blank:]]*verdict[[:blank:]]*:' > "docs/reviews/$f6_r.md"; f6_fait "$f6_r"; done
 printf '# Revue\n\nAPPROUVÉ\n' > docs/reviews/005-81.md; f6_fait 005-81
+printf '# Revue\n\nCHANGEMENTS DEMANDÉS\n' > docs/reviews/005-82.md; f6_fait 005-82
 f6_avant="$(cksum docs/reviews/*.md)"; f6_run
-verifier "ca12_revues d'avant F-01 (copies de 002-01 et 003-01, dernière ligne APPROUVÉ ou non) : aucun A16, fichiers inchangés" 0 "" test "$(f6_nb)|$(grep -a -c '^AVIS A03 issue 00[23]-01 ' "$racine_tmp/st.out")|$([ "$f6_avant" = "$(cksum docs/reviews/*.md)" ] && echo inchanges)" != "0||inchanges"
-verifier "ca12_revues d'avant F-01 : le décompte exact (aucun A16, A03 seulement pour une dernière ligne autre que APPROUVÉ), sans fichier modifié" 0 "" test "$(f6_nb)|$([ "$f6_avant" = "$(cksum docs/reviews/*.md)" ] && echo inchanges)" = "0|inchanges"
+verifier "ca12_revues d'avant F-01 (copies de 002-01 et 003-01 privées de leurs lignes de verdict, et deux fichiers sans ligne de verdict) : aucun A16, fichiers inchangés, 4 issues" 0 "" test "$(f6_nb)|$([ "$f6_avant" = "$(cksum docs/reviews/*.md)" ] && echo inchanges)|$(ls docs/reviews | wc -l | tr -d ' ')" = "0|inchanges|4"
 
 # CA-13 : périmètre (statut local Fait ou En revue), un avis par issue, cause (a) avant (b)
 pr_depot
 printf 'VERDICT: APPROUVÉ\n\n# R\nVERDICT: APPROUVÉ\n' > docs/reviews/mal.md
-for f6_s in Fait "En revue" "En cours" "À faire" Abandonnée; do
-  f6_id="005-$(printf '%s' "$f6_s" | LC_ALL=C tr -cd 'a-zA-Z' | wc -c | tr -d ' ')$(printf '%s' "$f6_s" | wc -c | tr -d ' ')"
-  pr_issue "$f6_id" "$f6_s" "docs/reviews/mal.md" "[$pr_c]" "- 2026-11-19 : Abandonnée : raison.
-$(pr_ok "$f6_id")" "" "feat/x"
-  echo "$f6_s=$f6_id" >> "$racine_tmp/f6.ids"
-done
 git branch feat/x
+pr_issue 005-81 Fait docs/reviews/mal.md "[$pr_c]" "$(pr_ok 005-81)"
+pr_issue 005-82 "En revue" docs/reviews/mal.md "[$pr_c]" "" "" feat/x
+pr_issue 005-83 "En cours" docs/reviews/mal.md "[$pr_c]" "" "" feat/x
+pr_issue 005-84 "À faire" docs/reviews/mal.md "[$pr_c]" ""
+pr_issue 005-85 Abandonnée docs/reviews/mal.md "[$pr_c]" "- 2026-11-19 : Abandonnée : raison."
 f6_run
-f6_ids="$(sed 's/^.*=//' "$racine_tmp/f6.ids" | tr '\n' ' ')"; f6_id_fait="$(grep '^Fait=' "$racine_tmp/f6.ids" | cut -d= -f2)"; f6_id_rev="$(grep '^En revue=' "$racine_tmp/f6.ids" | cut -d= -f2)"
-verifier "ca13_périmètre : un A16 pour l'issue Fait et un pour l'issue En revue qui désignent le même fichier mal formé, aucun pour En cours, À faire, Abandonnée ($f6_ids)" 0 "" test "$(f6_nb)|$(f6_a16_de "$f6_id_fait")|$(f6_a16_de "$f6_id_rev")" = "2|1|1"
-rm -f "$racine_tmp/f6.ids"
+verifier "ca13_périmètre : un A16 pour l'issue Fait et un pour l'issue En revue qui désignent le même fichier mal formé, aucun pour En cours, À faire, Abandonnée" 0 "" test "$(f6_nb)|$(f6_a16_de 005-81)|$(f6_a16_de 005-82)|$(f6_a16_de 005-83)|$(f6_a16_de 005-84)|$(f6_a16_de 005-85)" = "2|1|1|0|0|0"
 pr_depot
 printf 'titre\nVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/les-deux.md; f6_fait 005-81 docs/reviews/les-deux.md
-verifier "ca13_fichier à la fois à deux lignes de verdict et à première ligne autre : un seul A16 de cause « plus d'une ligne VERDICT: »" 0 "" test "$(f6_run; f6_nb)|$(f6_a16_de 005-81)|$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PLUS")" "$racine_tmp/st.out")" = "1|1|1"
+f6_run
+verifier "ca13_fichier à la fois à deux lignes de verdict et à première ligne autre : un seul A16 de cause « plus d'une ligne VERDICT: »" 0 "" test "$(f6_nb)|$(f6_a16_de 005-81)|$(grep -a -c -x -F "AVIS A16 issue 005-81 : fichier de revue mal formé docs/reviews/les-deux.md : $F6_PLUS" "$racine_tmp/st.out")" = "1|1|1"
 f6_fait 005-82 docs/reviews/les-deux.md
 verifier "ca13_deux issues qui désignent le même fichier mal formé : un A16 par issue" 0 "" test "$(f6_run; f6_nb)|$(f6_a16_de 005-81)|$(f6_a16_de 005-82)" = "2|1|1"
 
@@ -4979,7 +4981,7 @@ f6_avant="$(f6_trace)"; f6_mal="$(f6_compte)"; f6_nb_mal="$(f6_nb)"
 verifier "ca16_coût : cinq fichiers mal formés = le même nombre d'appels Git que des fichiers conformes ($f6_propre et $f6_mal), $f6_nb_mal A16 contre $f6_nb_propre" 0 "" test "$f6_propre|$f6_nb_propre" = "$f6_mal|0" -a "$f6_nb_mal" = 5
 verifier "ca16_lecture seule : revues, backlog.md, issues, index, refs et arbre identiques après le contrôle" 0 "" test "$f6_avant" = "$(f6_trace)"
 pr_depot
-{ printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n'; head -c $((1048577 - 40)) /dev/zero | tr '\0' 'x'; printf '\n'; } > docs/reviews/005-81.md; f6_fait 005-81
+{ printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n'; head -c 1048577 /dev/zero | tr '\0' 'x'; printf '\n'; } > docs/reviews/005-81.md; f6_fait 005-81
 printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > "$racine_tmp/f6-cible.md"; ln -s "$racine_tmp/f6-cible.md" docs/reviews/005-82.md; f6_fait 005-82
 printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/x.md.bak; f6_fait 005-83 docs/reviews/x.md.bak
 mkdir -p docs/reviews/sub; printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/sub/y.md; f6_fait 005-84 docs/reviews/sub/y.md
@@ -5028,7 +5030,7 @@ f6_cs02() {
   [ "$(grep -a -c -E 'forgé|touch|rm -rf|rouge' "$racine_tmp/st.out" "$racine_tmp/f6.html" | grep -v ':0$' | wc -l | tr -d ' ')" -eq 0 ] || { echo "contenu de la revue recopié"; return 1; }
   [ "$(grep -a -c '^ERREUR E01 ' "$racine_tmp/st.out")" -eq 0 ] || { echo "E01 contrefait"; return 1; }
   ro_sans_marque || { echo "marque"; return 1; }
-  grep -a -q "$(printf 'y%.0s' $(seq 1 120))…" "$racine_tmp/st.out" || { echo "valeur longue non tronquée"; return 1; }
+  grep -a -q "y\{100,\}…" "$racine_tmp/st.out" && ! grep -a -q "y\{121,\}" "$racine_tmp/st.out" || { echo "valeur longue non tronquée"; return 1; }
   [ "$(grep -a -c '<img' "$racine_tmp/f6.html")" -eq 0 ] && grep -a -q '&lt;img' "$racine_tmp/f6.html" || { echo "balise non échappée"; return 1; }
 }
 verifier "cs02_valeurs_hostiles : id avec CR, ESC, NUL, balise HTML ou 130 caractères et revue pleine de \$(…), backticks, « ; rm », faux E01 et ESC : une ligne par constat, aucun contrôle, contenu absent, rien exécuté, valeur tronquée, page échappée" 0 "" f6_cs02

@@ -3,12 +3,12 @@ id: 004-06
 titre: Retrait des anciennes listes et règles de statut
 prd: docs/prd/004-machines-a-etats-statuts.md
 besoin: F-09
-statut: En revue
+statut: Fait
 depend_de: [004-01, 004-02, 004-03, 004-04, 004-05]
 criteres: [CA-38, CA-39, CA-40, CA-41]
 branche: feat/004-06-retrait-anciennes-listes
-commits: []
-revue:
+commits: [3eaef95, ce54e7b, a4ea70b, 5036423, 3708740, d297e2e, d303cf7]
+revue: docs/reviews/004-06.md
 ---
 
 ## Objectif
@@ -38,3 +38,4 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-18 Correction hors périmètre : le test de limite de revue en dur ignore aussi `docs/issues/*` et `docs/reviews/*` (une note de 004-05 cite l'ancienne valeur) : la suite était en échec sur `develop` (1 échec sur 1646 avant ce travail).
 - 2026-11-18 Choix : version 1.24.1 (retrait sans nouveau comportement, patch après 1.24.0) ; aucune entrée dans UPGRADE (remplacer `factory/`, aucune migration). Passages du PRD 004 devenus faux : D-26 et RG-32 (« une fois F-09 fini » : le retrait est fait), la ligne 316 du tableau des issues (004-06 à `Fait` après fusion) et CA-36 (« CA-38 à CA-41 relèvent de 004-06 » : désormais couverts par la suite).
 - 2026-11-19 Revue 1, constat 1 : la paire terminale de `statuts.sh` (ex-`Fait|Abandonnée`) se lit maintenant dans la table par `statut_termine` (dernier statut du cycle ou statut hors cycle) ; le garde-fou voit en plus deux statuts reliés par `||`, `&&` ou une virgule (cas `ca38_` ajoutés, RED constaté), sans faux positif sur le code existant. `lib-issues.sh` `statut_en_travail` réécrit sans `&&` pour la même raison. Golden ca41 inchangé.
+- 2026-11-19 Clôture : revue 2 APPROUVÉ (revue 1 : un IMPORTANT corrigé). `FIN-ISSUE OK 004-06 e5bc660 : 1681 tests, 0 échec, 0 ignoré`. `run.sh` direct (développeur) : 1686 OK. Mineur ouvert 4 : `garde-statuts.awk` ne voit pas `-o`, un `elif` sur une autre ligne que le `if`, ni deux `case` consécutifs sur une ligne (piste : ajouter `-o` à la regex). Décisions en attente de l'utilisateur : version 1.24.1 plutôt que 1.25.0 (005-03 attend 1.25.0) ; règles de rang d'un statut ajouté à la table ; `factory/README.md` (l. 350, 360), `factory/templates/backlog.md` (l. 7) et `factory/templates/docs/issues/README.md` (l. 8) contiennent encore des chaînes de statuts à flèche (hors périmètre de CA-39). Correction aux Notes de 004-05 : l'échec « 1 sur 1646 » de la suite sur develop venait du test « limite « 3 itérations » écrite en dur » (corrigé ici), non de la borne de CS-04.

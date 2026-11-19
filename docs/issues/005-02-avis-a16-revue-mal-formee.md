@@ -3,13 +3,13 @@ id: 005-02
 titre: Avis A16 : fichier de revue mal formé
 prd: docs/prd/005-format-revue-consolide.md
 besoin: F-12
-statut: À faire
+statut: Fait
 depend_de: [005-01, 004-06]
 criteres: [CA-09, CA-10, CA-11, CA-12, CA-13, CA-14, CA-15, CA-16, CS-01, CS-02, CS-03, CS-04, CS-05]
 criteres_justification: Treize critères sur un seul avis (A16) : définition, périmètre, bornes et valeurs hostiles se testent sur la même fonction ; les scinder ferait couvrir un même code par deux issues.
 branche:
-commits: []
-revue:
+commits: [c81ebae, 23ab44f, 0984ae0, 12c8126, fb2edeb, f9d1256]
+revue: APPROUVÉ (itération 2, docs/reviews/005-02.md)
 ---
 
 ## Objectif
@@ -30,3 +30,8 @@ Un test par critère sur dépôts jetables qui échoue puis réussit ; le critè
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - Dépend de 004-06 : même table, mêmes bibliothèques et même catalogue que F-09 (backlog : F-12 dépend de F-09).
 - Amendement du PRD 004 à faire par l'utilisateur : ligne A16 au catalogue RG-23 et RG-11 élargie (cadrage Q-03, 2026-11-18).
+- 2026-11-19 : écart avec le PRD (CA-12, à trancher par l'utilisateur) : les revues réelles 002-01 et 003-01 ne sont pas « sans ligne de verdict » (002-01 en a deux mais n'a pas d'A16 car son champ `revue:` est vide ; 003-01 a sa ligne de verdict à la ligne 12). Selon RG-08 elles sont mal formées : `scripts/statuts.sh` du dépôt émet donc A16 pour 8 issues Fait (001-05, 002-02, 002-04, 002-05, 002-06, 003-01, 003-02, 003-03). Le test ca12 utilise des copies privées de leurs lignes de verdict ; RG-08 est appliquée telle quelle, sans exception.
+- 2026-11-19 : décompte des lignes de verdict de A16 : pour une issue Fait, dans le passage awk déjà fait pour la dernière ligne (aucun processus de plus, borne cs04 tenue : 30 s mesurés sous charge contre 37 s avec un grep de plus par revue) ; pour une issue En revue, un grep (`verdict_forme`, lib-verdict.sh, même motif et mêmes options que `verdict_lire`).
+- 2026-11-19 : cas existants réécrits parce que leurs fixtures sont désormais des fichiers mal formés (A16 attendu en plus) : ca11_preuves (004-74), ca11_verdict (004-64, 004-68), et le motif « A01 à A16 » de l'en-tête de statuts.sh (ca34). La ligne du catalogue de factory/README.md est ajoutée ; le reste de la documentation relève de 005-03.
+
+- 2026-11-19 Clôture : revue 2 APPROUVÉ (revue 1 : un IMPORTANT corrigé ; le relecteur avait écrit APPROUVÉ à tort, la session a consigné CHANGEMENTS DEMANDÉS). `FIN-ISSUE OK 005-02 7fea670 : 1744 tests, 0 échec, 0 ignoré` ; `run.sh` direct (relecteur) 1749 OK. Mineur ouvert 4 : `constat_neutraliser "$revue_chemin"` (lib-preuves.sh:120 et :141) sans effet observable, défense en profondeur. Décision en attente de l'utilisateur : écart au PRD 005 (RG-08, CA-12) : `statuts.sh` émet 8 avis A16 sur les revues d'avant F-01 (001-05, 002-02, 002-04, 002-06 : plus d'une ligne ; 002-05, 003-01, 003-02, 003-03 : première ligne) ; le PRD dit à tort que 002-01 et 003-01 n'ont pas de ligne de verdict. Recommandation : accepter l'avis et corriger les 8 fichiers dans une branche de rattrapage.

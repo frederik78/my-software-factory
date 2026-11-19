@@ -1,0 +1,29 @@
+---
+id: 008-01
+titre: Une génération par tour relancée du disque
+prd: docs/prd/008-boucle-dashboard-code-a-jour.md
+besoin: F-11
+statut: À faire
+depend_de: []
+criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CS-01, CS-02]
+branche: feat/008-01-une-generation-par-tour-relancee-du-disque
+commits: []
+revue:
+---
+
+## Objectif
+Une génération par tour relancée du disque, options fixées, validation au lancement, mode une génération inchangé, arguments et script relancé non interprétés.
+
+## Périmètre
+- Dans : Une génération par tour relancée du disque, options fixées, validation au lancement, mode une génération inchangé, arguments et script relancé non interprétés.
+- Hors : les autres issues du PRD 008 (voir le découpage de sa section 9).
+
+## Critères d'acceptation
+Les critères listés dans l'en-tête (`criteres`), tels que définis dans le PRD. Chaque critère doit être couvert par au moins un test
+dont le nom contient son identifiant (ex. `ca10_…`, `cs07_…`).
+
+## Preuve attendue
+Un test par critère qui échoue puis réussit (RED constaté), suite verte, `scripts/criteres-sans-test.sh 008-01` à OK.
+
+## Notes
+Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).

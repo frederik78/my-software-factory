@@ -3,7 +3,7 @@ id: 004-06
 titre: Retrait des anciennes listes et règles de statut
 prd: docs/prd/004-machines-a-etats-statuts.md
 besoin: F-09
-statut: En revue
+statut: En cours
 depend_de: [004-01, 004-02, 004-03, 004-04, 004-05]
 criteres: [CA-38, CA-39, CA-40, CA-41]
 branche: feat/004-06-retrait-anciennes-listes

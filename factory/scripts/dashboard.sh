@@ -427,6 +427,36 @@ encart_autres_travaux() { # encart_autres_travaux <lignes de issues_dossier> : w
   printf '</section>\n'
 }
 
+# Contrôle des statuts (PRD 004, RG-26) : scripts/statuts.sh est exécuté une fois par génération, son code de sortie est ignoré (1 = erreurs trouvées, la page ne change pas de code).
+# Le résultat n'est affiché que s'il a la forme du contrat de statuts.sh : lignes « ERREUR … » / « AVIS … » puis récapitulatif en dernière ligne, rien d'autre ; sinon (script absent ou non exécutable,
+# usage, plantage, sortie inattendue) la section dit « Contrôle indisponible », sans chemin ni détail brut (la sortie d'erreur est jetée). Chaque ligne est échappée HTML avant d'être écrite.
+RECAPITULATIF_AUCUNE_INCOHERENCE="STATUTS : 0 erreur(s), 0 avis"
+controle_statuts() {
+  local sortie_controle="" recapitulatif corps="" ligne ok=1 re='^STATUTS : [0-9]+ erreur\(s\), [0-9]+ avis$'
+  sortie_controle="$("$dossier_scripts/statuts.sh" 2>/dev/null </dev/null)"
+  recapitulatif="${sortie_controle##*$'\n'}"
+  [[ $recapitulatif =~ $re ]] || ok=0
+  if [ "$ok" -eq 1 ] && [ "$recapitulatif" != "$sortie_controle" ]; then
+    corps="${sortie_controle%$'\n'*}"
+    while IFS= read -r ligne; do
+      case "$ligne" in "ERREUR "*|"AVIS "*) ;; *) ok=0 ;; esac
+    done <<< "$corps"
+    [ "$recapitulatif" != "$RECAPITULATIF_AUCUNE_INCOHERENCE" ] || ok=0 # aucune incohérence annoncée, mais des constats listés
+  fi
+  printf '<section id="controle-statuts">\n<h2>Contrôle des statuts</h2>\n'
+  if [ "$ok" -eq 1 ] && corps="$(echappe "$corps")" && recapitulatif="$(echappe "$recapitulatif")"; then
+    printf '<p>%s</p>\n' "$recapitulatif"
+    if [ -z "$corps" ] && [ "$recapitulatif" = "$RECAPITULATIF_AUCUNE_INCOHERENCE" ]; then
+      printf '<p>Aucune incohérence.</p>\n'
+    elif [ -n "$corps" ]; then
+      printf '<ul>\n%s\n</ul>\n' "$(printf '%s\n' "$corps" | sed -e 's|^\(ERREUR .*\)$|<li class="constat-erreur">\1</li>|' -e 's|^\(AVIS .*\)$|<li class="constat-avis">\1</li>|')"
+    fi
+  else
+    printf '<p>Contrôle indisponible</p>\n'
+  fi
+  printf '</section>\n'
+}
+
 palette() { # palette <clair|sombre> : variables CSS des couleurs de la page (les règles ne citent que ces variables)
   case "$1" in
     clair) cat <<'CSS'
@@ -533,6 +563,7 @@ $(kanban "$b" "$RANG_STATUT_BESOIN" 7 carte_besoin "${statuts_besoins[@]}")
 $(kanban "$i" "$RANG_STATUT_ISSUE" 10 carte_issue "${statuts_issues[@]}")
 </section>
 $(encart_autres_travaux "$i")
+$(controle_statuts)
 </main>
 </body>
 </html>

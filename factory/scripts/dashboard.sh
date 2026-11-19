@@ -109,11 +109,12 @@ besoins_backlog() { # lignes « id SEP besoin SEP priorité SEP statut SEP prd S
     /^## / { actif = ($0 ~ /^## Besoins fonctionnels/); next }
     actif && /^\|/ {
       gsub(/\\\|/, "\001")  # « \| » est un « | » littéral dans la cellule, pas un séparateur
-      for (i = 2; i < NF; i++) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i); gsub(/\001/, "|", $i) }
-      # La description est la colonne « Décisions » (repérée dans l'"'"'en-tête, quel que soit le nombre de colonnes) ; à défaut, la dernière.
-      if ($2 == "ID") { dec = 0; for (i = 2; i < NF; i++) if ($i == "Décisions") dec = i; next }
+      sub(/[[:space:]]+$/, ""); sub(/\|$/, "")  # « | » final facultatif (et fin de ligne \r) : aucune cellule fantôme
+      for (i = 2; i <= NF; i++) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i); gsub(/\001/, "|", $i) }
+      # La description est la colonne « Décisions » (repérée par l’en-tête, quel que soit le nombre de colonnes) ; à défaut, la dernière.
+      if ($2 == "ID") { dec = 0; for (i = 2; i <= NF; i++) if ($i == "Décisions") dec = i; next }
       if ($2 ~ /^[-: ]+$/ || $2 == "" || $3 == "") next
-      d = (dec ? $dec : $(NF - 1))
+      d = (dec ? $dec : $NF)
       print $2, $3, $4, $5, $6, d
     }
   ' backlog.md

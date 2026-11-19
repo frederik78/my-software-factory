@@ -4847,7 +4847,7 @@ verifier "ca07_qualite_demande_framework_d_abord" 0 "" rl_a $rl_q "[Ff]ramework 
 verifier "ca07_qualite_demande_la_reference_de_l_adr" 0 "" rl_a $rl_q "[Rr]éférence.*ADR"
 verifier "ca07_qualite_demande_la_langue_des_classes_techniques" 0 "" rl_a $rl_q "[Ll]angue.*classes techniques.*anglais"
 verifier "ca07_qualite_demande_les_entrees_externes" 0 "" rl_a $rl_q "[Ee]ntrées externes"
-verifier "ca07_qualite_ne_lance_ni_verify_clean_ni_criteres_ni_mutation" 0 "" rl_a $rl_q "[Nn]e lance ni .scripts/verify-clean\.sh., ni .scripts/criteres-sans-test\.sh., ni mutation"
+verifier "ca07_qualite_ne_lance_ni_verify_clean_ni_criteres_ni_mutation" 0 "" rl_a $rl_q "[Nn]e lances? ni .scripts/verify-clean\.sh., ni .scripts/criteres-sans-test\.sh., ni mutation"
 
 # CA-08 : sécurité.
 verifier "ca08_securite_demande_les_categories_a01_a10_de_owasp_check" 0 "" rl_a $rl_s "[Pp]arcours.*A01 à A10.*owasp-check"
@@ -4856,8 +4856,8 @@ verifier "ca08_securite_demande_un_test_par_critere_cs" 0 "" rl_a $rl_s "test.*c
 verifier "ca08_securite_demande_l_analyse_des_dependances_sinon_le_dire" 0 "" rl_a $rl_s "analyse des dépendances.*sinon dis-le"
 verifier "ca08_securite_report_d_un_risque_est_une_decision_de_l_utilisateur" 0 "" rl_a $rl_s "[Rr]isque reporté.*décision de l.utilisateur"
 verifier "ca08_securite_passe_sur_toutes_les_issues_meme_sans_critere_cs" 0 "" rl_a $rl_s "toutes les issues, même sans critère CS"
-verifier "ca08_securite_ne_rend_jamais_sans_objet_pour_toute_la_grille" 0 "" rl_a $rl_s "jamais .sans objet. pour toute la grille"
-verifier "ca08_securite_ne_lance_ni_verify_clean_ni_mutation" 0 "" rl_a $rl_s "[Nn]e lance ni .scripts/verify-clean\.sh., ni .*mutation"
+verifier "ca08_securite_ne_rend_jamais_sans_objet_pour_toute_la_grille" 0 "" rl_a $rl_s "jamais .+sans objet.+ pour toute la grille"
+verifier "ca08_securite_ne_lance_ni_verify_clean_ni_mutation" 0 "" rl_a $rl_s "[Nn]e lances? ni .scripts/verify-clean\.sh., ni .*mutation"
 
 # CA-09 : section du rapport d'un relecteur dans report-format.md.
 verifier "ca09_report_format_a_une_section_du_rapport_d_un_relecteur" 0 "" rl_a $rl_rf "^## Rapport d.un relecteur"
@@ -4912,7 +4912,7 @@ for f in $rl_c $rl_q $rl_s; do
   verifier "cs06_$(basename $f .md)_vulnerabilite_owasp_averee_est_bloquante" 0 "" rl_a $f "vulnérabilité OWASP avérée.*BLOQUANT"
   verifier "cs06_$(basename $f .md)_seul_son_report_se_decide_avec_l_utilisateur" 0 "" rl_a $f "seul son report se décide avec l.utilisateur"
 done
-verifier "cs06_securite_ne_classe_jamais_mineur_un_sujet_de_la_liste_d_escalade" 0 "" rl_a $rl_s "ne classe jamais .mineur. un sujet de la liste.*AGENTS\.md"
+verifier "cs06_securite_ne_classe_jamais_mineur_un_sujet_de_la_liste_d_escalade" 0 "" rl_a $rl_s "ne classes? jamais .+mineur.+ un sujet de la liste.*AGENTS\.md"
 verifier "cs06_securite_est_relancee_des_qu_elle_demande_des_changements_tour_final_compris" 0 "" rl_a $rl_s "demandé des changements.*relancé.*tour final"
 
 echo

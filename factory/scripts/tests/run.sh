@@ -819,6 +819,22 @@ cat > backlog.md <<'EOF'
 EOF
 scripts/dashboard.sh >/dev/null
 carte F-09 | grep -q '<span class="detail desc">Ancien format</span>' && ok "fix_dashboard_colonnes_sept : ancien format, la dernière colonne reste la description" || ko "fix_dashboard_colonnes_sept" "$(carte F-09)"
+# fix_dashboard_colonnes_ : « Décisions » repérée par l'en-tête (pas forcément la dernière colonne) ; lignes sans « | » final
+cat > backlog.md <<'EOF'
+## Besoins fonctionnels
+
+| ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions | Notes |
+|----|--------|----------|--------|-----|-----------|-----------|-------|
+| F-10 | Milieu | P2 | À faire | | F-01 | Décision milieu | Note finale |
+EOF
+scripts/dashboard.sh >/dev/null
+carte F-10 | grep -q '<span class="detail desc">Décision milieu</span>' && ok "fix_dashboard_colonnes_milieu : « Décisions » n'est pas la dernière colonne" || ko "fix_dashboard_colonnes_milieu" "$(carte F-10)"
+printf '## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions\n|----|----|----|----|----|----|----\n| F-11 | Sans pipe final | P2 | À faire | | F-01 | dec a \\| b\n' > backlog.md
+scripts/dashboard.sh >/dev/null
+[ "$(carte F-11)" = '<div class="carte"><strong>F-11</strong> <span class="titre">Sans pipe final</span><span class="detail">P2</span><span class="detail desc">dec a | b</span></div>' ] && ok "fix_dashboard_colonnes_sans_pipe_final : en-tête et ligne sans « | » final, \\| restauré" || ko "fix_dashboard_colonnes_sans_pipe_final" "$(carte F-11 | od -c | head -5)"
+printf '## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions\n|----|----|----|----|----|----\n| F-12 | Sept sans pipe | P2 | À faire | | ancien \\| format\n' > backlog.md
+scripts/dashboard.sh >/dev/null
+[ "$(carte F-12)" = '<div class="carte"><strong>F-12</strong> <span class="titre">Sept sans pipe</span><span class="detail">P2</span><span class="detail desc">ancien | format</span></div>' ] && ok "fix_dashboard_colonnes_ancien_sans_pipe_final : 6 cellules sans « | » final" || ko "fix_dashboard_colonnes_ancien_sans_pipe_final" "$(carte F-12 | od -c | head -5)"
 [ "$(colonnes issues)" = "À faire (1)|En cours (1)|En revue (1)|Fait (0)|(autre) (1)|" ] && carte 009-04 | grep -q 'Hors cycle' && ok "issue hors du cycle des issues (Spécifié) : colonne (autre)" || ko "colonne (autre) des issues" "$(colonnes issues)"
 [ "$(carte 009-02)" = '<div class="carte"><strong>009-02</strong> <span class="titre">&lt;script&gt;x&lt;/script&gt; &amp; y</span><span class="detail">F-09</span><span class="detail">dépend de : 009-01, 009-03</span></div>' ] && ok "cs03_ carte d'issue : id, titre échappé, besoin, dépendances (pas de marqueur hors À faire)" || ko "cs03_ carte d'issue" "$(carte 009-02)"
 ! grep -qi '<script' dashboard.html && ok "cs03_ aucune balise <script> dans la page" || ko "cs03_ <script> dans la page" "$(grep -n -i '<script' dashboard.html)"

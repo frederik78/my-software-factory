@@ -27,3 +27,7 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, `sc
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-19 : `sync-claude.sh` retire `Write` et `Edit` du champ `tools:` des trois relecteurs même si leur prompt les déclare (RG-04, CA-04 testé avec des prompts jetables qui les déclarent).
+- 2026-11-19 : les modèles (`AGENT_MODELE` compris) sont limités à 64 caractères (CS-02 : valeur de 10 000 caractères refusée) ; message de `AGENT_MODELE` inchangé.
+- 2026-11-19 : les six clés sont validées en entier avant toute écriture, même si le prompt du rôle est absent ; un saut de ligne final de la valeur la rend invalide (`config_valeur_exacte`).
+- 2026-11-19 : ordre de `CONFIG_CLES` : les six clés après `AGENT_EFFORT`, puis `MODE_REVUE` ; le test « sans option » de `run.sh` est mis à jour en conséquence.

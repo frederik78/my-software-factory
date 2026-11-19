@@ -92,18 +92,16 @@ controle_besoins() {
 # Valeurs lues de l'en-tête de chaque issue contrôlée (indice des tableaux d'issues) : besoin, prd et branche déclarée, sans espaces de bord.
 iss_besoins=(); iss_prds=(); iss_branches=()
 
-# besoins_issues_lire : remplit iss_besoins, iss_prds et iss_branches (un passage awk par issue contrôlée).
+# besoins_issues_lire : remplit iss_besoins, iss_prds et iss_branches depuis les en-têtes déjà lus (issues_en_tetes_charger).
 besoins_issues_lire() {
-  local i out b p br
+  local i
   iss_besoins=(); iss_prds=(); iss_branches=()
   for i in "${!iss_fichiers[@]}"; do
     iss_besoins+=(""); iss_prds+=(""); iss_branches+=("")
     [ "${iss_etats[$i]}" = controlee ] || continue
-    out="$(issue_champs "${iss_fichiers[$i]}" besoin prd branche)"
-    { IFS= read -r b; IFS= read -r p; IFS= read -r br; } <<< "$out"
-    table_nettoyer "$b"; iss_besoins[$i]="$nettoye"
-    table_nettoyer "$p"; iss_prds[$i]="$nettoye"
-    table_nettoyer "$br"; iss_branches[$i]="$nettoye"
+    table_nettoyer "${ent_besoins[$i]}"; iss_besoins[$i]="$nettoye"
+    table_nettoyer "${ent_prds[$i]}"; iss_prds[$i]="$nettoye"
+    table_nettoyer "${ent_branches[$i]}"; iss_branches[$i]="$nettoye"
   done
 }
 

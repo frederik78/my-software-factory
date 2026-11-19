@@ -60,6 +60,130 @@ issue_fichiers() {
   return 0
 }
 
+# --- Fichiers lus : refus et lecture groupée des en-têtes (PRD 004, RG-21, CS-04) ---------------------------------------------------------------
+# Taille maximale (octets) d'un fichier lu (fichier d'issue, fichier de revue) : au-delà, le fichier est refusé et n'est jamais lu.
+FICHIER_OCTETS_MAX=1048576
+# Fichiers de plus de FICHIER_OCTETS_MAX octets des dossiers déjà examinés par gros_charger (un find par dossier au lieu d'un wc par fichier).
+gros_dossiers=$'\n'; gros_liste=$'\n'
+
+# gros_charger <dossier> : liste en un seul appel les fichiers du dossier (sans sous-dossier) de plus de FICHIER_OCTETS_MAX octets ; fichier_motif_refus les connaît ensuite sans lancer wc.
+gros_charger() {
+  local trouves
+  trouves="$(find "$1" -maxdepth 1 -type f -size +"$FICHIER_OCTETS_MAX"c 2>/dev/null)"
+  gros_dossiers="$gros_dossiers$1"$'\n'
+  [ -z "$trouves" ] || gros_liste="$gros_liste$trouves"$'\n'
+}
+
+# fichier_motif_refus <fichier> : met dans $motif_refus pourquoi le fichier n'est pas lu (« lien symbolique », « lecture impossible », « plus de 1 Mio »), vide s'il peut l'être.
+# Le fichier n'est ouvert qu'après ces vérifications : un lien symbolique n'est jamais suivi, un gros fichier ni un fichier spécial jamais lu.
+fichier_motif_refus() {
+  local taille
+  motif_refus=""
+  if [ -L "$1" ]; then motif_refus="lien symbolique"
+  elif [ ! -f "$1" ] || [ ! -r "$1" ]; then motif_refus="lecture impossible"
+  else
+    case "$gros_dossiers" in
+      *$'\n'"${1%/*}"$'\n'*) # dossier listé par gros_charger
+        case "$gros_liste" in *$'\n'"$1"$'\n'*) motif_refus="plus de 1 Mio" ;; esac ;;
+      *)
+        if ! taille="$(wc -c < "$1" 2>/dev/null)"; then motif_refus="lecture impossible"
+        elif [ "$((taille + 0))" -gt "$FICHIER_OCTETS_MAX" ]; then motif_refus="plus de 1 Mio"
+        fi ;;
+    esac
+  fi
+}
+
+# En-têtes de toutes les issues (docs/issues/), lus en UN SEUL passage awk par issues_en_tetes_charger : tableaux parallèles dans l'ordre d'issue_fichiers.
+#   ent_refus       motif d'un fichier refusé (fichier_motif_refus), vide s'il est lu ; un fichier refusé n'est pas ouvert : ses autres valeurs sont vides
+#   ent_ok          1 si l'en-tête YAML s'ouvre et se ferme (ligne « --- » avant et après), sinon 0
+#   ent_ids, ent_statuts, ent_besoins, ent_prds, ent_branches, ent_revues   valeurs scalaires, lues comme issue_champ (guillemets de bord et espaces de fin retirés)
+#   ent_dependances, ent_commits   éléments des listes depend_de et commits, lus comme issue_liste ; chaque élément est suivi de ENT_FIN_ELEMENT (voir ent_elements)
+#   ent_fin_ok      1 si la section « ## Notes » a une ligne contenant « FIN-ISSUE OK <id> » suivi d'une espace (texte littéral, casse comprise)
+#   ent_abandon     1 si une ligne à puce (- * +) de cette section contient le mot « Abandonnée »
+# Les valeurs sont des données non fiables, jamais évaluées. Les caractères 0x1E et 0x1F (séparateurs de ce flux) y sont remplacés par 0x01 (un contrôle, retiré des messages).
+# Coût : un processus quel que soit le nombre d'issues (un awk par issue et par champ coûtait plusieurs secondes par centaine d'issues).
+ENT_SEP=$'\037'; ENT_FIN_ELEMENT=$'\036'
+ent_charge=0
+ent_fichiers=(); ent_refus=(); ent_ok=(); ent_ids=(); ent_statuts=(); ent_besoins=(); ent_prds=(); ent_branches=(); ent_revues=()
+ent_dependances=(); ent_commits=(); ent_fin_ok=(); ent_abandon=()
+
+issues_en_tetes_charger() {
+  local f liste="" ok id statut besoin prd branche revue dep commits fin ab _
+  ent_charge=1
+  ent_fichiers=(); ent_refus=(); ent_ok=(); ent_ids=(); ent_statuts=(); ent_besoins=(); ent_prds=(); ent_branches=(); ent_revues=()
+  ent_dependances=(); ent_commits=(); ent_fin_ok=(); ent_abandon=()
+  gros_charger docs/issues
+  while IFS= read -r f; do
+    ent_fichiers+=("$f")
+    fichier_motif_refus "$f"; ent_refus+=("$motif_refus")
+    if [ -n "$motif_refus" ]; then liste="$liste"$'\n'; else liste="$liste$f"$'\n'; fi # une ligne vide pour un fichier refusé : l'enregistrement reste vide
+  done < <(issue_fichiers)
+  [ "${#ent_fichiers[@]}" -gt 0 ] || return 0
+  while IFS="$ENT_SEP" read -r ok id statut besoin prd branche revue dep commits fin ab _; do
+    ent_ok+=("$ok"); ent_ids+=("$id"); ent_statuts+=("$statut"); ent_besoins+=("$besoin"); ent_prds+=("$prd"); ent_branches+=("$branche"); ent_revues+=("$revue")
+    ent_dependances+=("$dep"); ent_commits+=("$commits"); ent_fin_ok+=("$fin"); ent_abandon+=("$ab")
+  done < <(printf '%s' "$liste" | LC_ALL=C awk '
+    function valeur(l, cle,   v) { v = l; sub("^" cle ":[[:space:]]*", "", v); gsub(/^["\047]|["\047]$/, "", v); sub(/[[:space:]]+$/, "", v); return v }
+    BEGIN {
+      SEP = "\037"; FIN = "\036"
+      nc = split("id statut besoin prd branche revue", cle, " ")
+      nl = split("depend_de commits", lcle, " ")
+    }
+    {
+      f = $0
+      if (f == "") { print "0" SEP SEP SEP SEP SEP SEP SEP SEP SEP "0" SEP "0" SEP "."; next }
+      split("", val); split("", pris); split("", cap); split("", lst)
+      ln = 0; ok = 0; entete = 0; notes = 0; fin = 0; ab = 0; cible = ""
+      while ((getline l < f) > 0) {
+        ln++
+        gsub("[\036\037]", "\001", l)
+        if (ln == 1) { if (l != "---") break; entete = 1; continue }
+        if (entete) {
+          if (l == "---") {
+            entete = 0; ok = 1
+            ident = val[1]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", ident); cible = "FIN-ISSUE OK " ident " "
+            continue
+          }
+          for (k = 1; k <= nc; k++) if (!(k in pris) && index(l, cle[k] ":") == 1) { val[k] = valeur(l, cle[k]); pris[k] = 1 }
+          for (j = 1; j <= nl; j++) {
+            fait = 0
+            if (cap[j]) {
+              if (l ~ /^[[:space:]]*-[[:space:]]+/) { s = l; sub(/^[[:space:]]*-[[:space:]]+/, "", s); gsub(/["\047]|[[:space:]]+$/, "", s); sub(/[[:space:]]*#.*$/, "", s); lst[j] = lst[j] s FIN; fait = 1 }
+              else if (l ~ /^[[:space:]]*($|#)/) fait = 1
+              else cap[j] = 0
+            }
+            if (!fait && index(l, lcle[j] ":") == 1) {
+              v = l; sub("^" lcle[j] ":[[:space:]]*", "", v)
+              if (v ~ /^\[/) {
+                gsub(/^\[|\][[:space:]]*$/, "", v); m = split(v, a, /[[:space:]]*,[[:space:]]*/)
+                for (q = 1; q <= m; q++) { gsub(/["\047]|^[[:space:]]+|[[:space:]]+$/, "", a[q]); if (a[q] != "") lst[j] = lst[j] a[q] FIN }
+              } else if (v == "" || v ~ /^#/) cap[j] = 1
+            }
+          }
+          continue
+        }
+        if (l ~ /^#[[:space:]]/ || l ~ /^##[[:space:]]/) { notes = (l ~ /^##[[:space:]]+Notes[[:space:]]*$/); continue }
+        if (notes) {
+          if (index(l, cible)) fin = 1
+          if (l ~ /^[[:space:]]*[-*+][[:space:]]/ && index(l, "Abandonnée")) ab = 1
+        }
+      }
+      close(f)
+      print ok SEP val[1] SEP val[2] SEP val[3] SEP val[4] SEP val[5] SEP val[6] SEP lst[1] SEP lst[2] SEP fin SEP ab SEP "."
+    }')
+}
+
+# ent_elements <liste> : met dans le tableau ent_items les éléments d'une liste de l'en-tête (ent_dependances, ent_commits), un élément vide compris.
+ent_items=()
+ent_elements() {
+  local reste="$1"
+  ent_items=()
+  while [ -n "$reste" ]; do
+    ent_items+=("${reste%%"$ENT_FIN_ELEMENT"*}")
+    reste="${reste#*"$ENT_FIN_ELEMENT"}"
+  done
+}
+
 # --- Table unique des statuts (PRD 004, RG-01) --------------------------------------------------------------------------------------------
 # Les statuts et les transitions des besoins et des issues sont définis une seule fois, dans factory/scripts/statuts.table (format décrit en tête de ce fichier),
 # lu comme du texte (jamais sourcé ni évalué). Le chemin est relatif à la racine du projet, où chaque script se place avant de sourcer cette bibliothèque.
@@ -183,13 +307,14 @@ issue_id_deductible() {
 rattachements_charger() {
   local f ids=() brs=() i j b type reste id suffixe proprio n vide=0 deduction
   rat_fichiers=(); rat_deduites=(); rat_ambigues=()
-  while IFS= read -r f; do
-    rat_fichiers+=("$f"); rat_deduites+=(""); rat_ambigues+=("")
-    # Un lien symbolique, un fichier spécial ou illisible n'est jamais ouvert (statuts.sh le signale, E14) : identifiant et branche vides, aucune branche à lui rattacher.
-    if [ -L "$f" ] || [ ! -f "$f" ] || [ ! -r "$f" ]; then ids+=(""); brs+=(""); continue; fi
-    ids+=("$(issue_champ "$f" id)"); brs+=("$(issue_champ "$f" branche)")
-    [ -n "${brs[${#brs[@]}-1]}" ] || vide=1
-  done < <(issue_fichiers)
+  [ "$ent_charge" -eq 1 ] || issues_en_tetes_charger # en-têtes lus une seule fois (et partagés avec le contrôle des statuts)
+  for i in "${!ent_fichiers[@]}"; do
+    rat_fichiers+=("${ent_fichiers[$i]}"); rat_deduites+=(""); rat_ambigues+=("")
+    # Un lien symbolique, un fichier spécial, illisible ou trop gros n'est jamais ouvert (statuts.sh le signale, E14) : identifiant et branche vides, aucune branche à lui rattacher.
+    if [ -n "${ent_refus[$i]}" ]; then ids+=(""); brs+=(""); continue; fi
+    ids+=("${ent_ids[$i]}"); brs+=("${ent_branches[$i]}")
+    [ -n "${ent_branches[$i]}" ] || vide=1
+  done
   [ "$vide" -eq 1 ] || return 0
   local candidats=() n_candidats=()
   for i in "${!rat_fichiers[@]}"; do candidats+=(""); n_candidats+=(0); done
@@ -249,12 +374,18 @@ issue_branches_ambigues() {
   printf '%s' "${rat_ambigues[$i]}"
 }
 
-# issue_ref_branche <fichier> : refs/heads/<nom> de la branche retenue, sinon rien. Le champ « branche » rempli l'emporte (branche locale existante
+# issue_ref_branche <fichier> [<indice>] : refs/heads/<nom> de la branche retenue, sinon rien. Le champ « branche » rempli l'emporte (branche locale existante
 # exigée, sans repli sur la déduction) ; champ vide : la branche déduite. Le nom est non fiable : validé par git, jamais passé à un shell, toujours préfixé.
+# <indice> (rang de l'issue dans les tableaux de lecture groupée, quand les en-têtes sont chargés) évite de relire le fichier et de chercher l'issue dans les tableaux de rattachement.
 issue_ref_branche() {
   local b ref
-  b="$(issue_champ "$1" branche)"
-  [ -n "$b" ] || b="$(issue_branche_deduite "$1")"
+  if [ -n "${2:-}" ] && [ "$ent_charge" -eq 1 ]; then
+    b="${ent_branches[$2]}"
+    [ -n "$b" ] || b="${rat_deduites[$2]:-}"
+  else
+    b="$(issue_champ "$1" branche)"
+    [ -n "$b" ] || b="$(issue_branche_deduite "$1")"
+  fi
   [ -n "$b" ] || return 0
   ref="refs/heads/$b"
   git check-ref-format "$ref" 2>/dev/null || return 0
@@ -275,12 +406,12 @@ issue_statut_distant() {
   issue_champ /dev/stdin statut <<< "$contenu"
 }
 
-# issue_statut_effectif <fichier> [<ref>] : le plus avancé dans le cycle du statut local et de celui de la branche retenue de l'issue.
+# issue_statut_effectif <fichier> [<ref> [<statut local>]] : le plus avancé dans le cycle du statut local et de celui de la branche retenue de l'issue.
 # Branche absente, fichier absent ou illisible sur la branche, statut hors cycle d'un côté : le statut local.
-# <ref> (refs/heads/<nom> ou vide) évite de recalculer la branche retenue quand l'appelant l'a déjà.
+# <ref> (refs/heads/<nom> ou vide) évite de recalculer la branche retenue quand l'appelant l'a déjà ; <statut local> évite de relire le fichier.
 issue_statut_effectif() {
   local local_ ref distant r_local r_distant
-  local_="$(issue_champ "$1" statut)"
+  local_="${3-$(issue_champ "$1" statut)}"
   ref="${2-$(issue_ref_branche "$1")}"
   if [ -n "$ref" ]; then
     distant="$(issue_statut_distant "$ref" "$1")"

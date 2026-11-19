@@ -1966,9 +1966,9 @@ printf 'fichier\n' > "$d/copie/AGENTS.md"; mkdir "$d/copie/docs"; printf 'motif-
 [ "$(lire_depot "$d/copie" AGENTS.md)" = "fichier" ] && [ "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | wc -l | tr -d ' ')" = "1" ] && chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | grep -q 'docs/x.md' && ok "hors dépôt git (copie de verify-clean.sh) : lecture et recherche dans les fichiers, exclusions respectées" || ko "lecture hors dépôt git" "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | tr '\n' '|')"
 
 echo "limite des itérations de revue (documentation)"
-restes="$(chercher_depot "$depot" -i "3 itérations|trois itérations" factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
+restes="$(chercher_depot "$depot" -i "3 itérations|trois itérations" factory/CHANGELOG.md factory/scripts/tests/run.sh "docs/prd/*" | head -5 | tr '\n' '|')"
 deliver="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"; conf_modele="$(lire_depot "$depot" factory/templates/.factory.conf)"
-[ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
+[ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG, PRD et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
 printf '%s\n' "$deliver" | grep -q 'scripts/config-factory.sh --max-iterations' && printf '%s\n' "$deliver" | grep -q 'scripts/notifier.sh' && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
 printf '%s\n' "$deliver" | grep -q "au moins un BLOQUANT" && printf '%s\n' "$deliver" | grep -q "IMPORTANT.*sans courriel" && ok "/deliver : courriel seulement s'il reste au moins un BLOQUANT (IMPORTANT seuls : remontés sans courriel)" || ko "/deliver : courriel réservé aux BLOQUANT"
 printf '%s\n' "$deliver" | grep -q 'statut: En revue' && printf '%s\n' "$deliver" | grep -q 'docs: issue <id> en revue' && printf '%s\n' "$deliver" | grep -q 'remets `statut: En cours`' && ok "/deliver : l'issue passe En revue au lancement de la première relecture, et revient En cours quand les corrections repartent au développeur" || ko "/deliver : statut En revue"

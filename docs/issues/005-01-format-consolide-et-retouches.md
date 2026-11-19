@@ -29,3 +29,7 @@ Un test par critère qui échoue puis réussit ; pour la lecture, `verdict-revue
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - Dépend de 004-05 : mêmes fichiers (`factory/skills/deliver/SKILL.md`, `AGENTS.md`), pour éviter les conflits (backlog : F-12 dépend de F-09).
+- 2026-11-19 : textes de lecture réécrits (chaînes changées, CA-22 du PRD) : `ca12_report_format_exige_la_premiere_ligne_verdict` et `ca12_report_format_premiere_ligne_avant_en_clair` (première ligne du gabarit `VERDICT: APPROUVÉ` au lieu de la barre verticale) ; `ca13_deliver_lit_avant_ajout_au_fichier_de_revue` (l'ancre « Ajoute ensuite le rapport tel quel » devient « Écrire dans le fichier de revue »).
+- 2026-11-19 : `factory/prompts/code-reviewer.md` et `factory/prompts/briefs/reviewer.md` inchangés (PRD RG-13) ; ils gardent la barre verticale dans leur rappel de la première ligne (hors CA-17, qui ne vise que le gabarit de `report-format.md`).
+- 2026-11-19 : le dernier paragraphe de `report-format.md` (« sauvegarde le rapport tel quel ») reste à réécrire en 005-03 (CA-19) ; le gabarit et la skill disent déjà que la session remplace la ligne `VERDICT:`.
+- À trancher : (1) la phrase qui nomme l'autre valeur est placée juste après le bloc du gabarit du relecteur (le bloc est un seul bloc de code) ; (2) la ligne de tête et les sections tiennent en une puce de la skill plutôt qu'un modèle de fichier complet ; (3) la date de la section est celle du jour de la revue.

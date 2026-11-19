@@ -853,6 +853,9 @@ sur_branche "$H1" 002-06 "En revue" "$H1"
 sur_branche feat/f 002-10 "Fait" feat/f
 colonne_de() { awk -v id="<strong>$1</strong>" '/<section id="issues"/ { s = 1 } s && /<h3/ { c = $0; sub(/<\/h3>.*/, "", c); sub(/.*>/, "", c); sub(/ \([0-9]+\)$/, "", c) } s && /class="carte/ && index($0, id) { print c; exit }' "$2"; }
 carte_de() { grep -F "<strong>$1</strong>" "$2" | grep -F 'class="carte'; }
+sans_controle() { # sans_controle : filtre (entrée standard) qui retire la section « Contrôle des statuts » (PRD 004, 004-05) : les non-régressions comparent la page hors cette section
+  awk 'index($0, "<section id=\"controle-statuts\"") { on = 1 } !on { print } on && /<\/section>/ { on = 0 }'
+}
 sortie_b="$racine_tmp/branche.html"
 verifier_exact "branche : aucune erreur, noms hostiles compris" 0 "$sortie_b" scripts/dashboard.sh --sortie "$sortie_b"
 [ "$(colonne_de 002-01 "$sortie_b")" = "En cours" ] && ok "branche : statut plus avancé sur la branche affiché" || ko "branche : statut plus avancé" "$(colonne_de 002-01 "$sortie_b")"
@@ -2762,7 +2765,7 @@ nr_depot() { # nr_depot : le dépôt de non-régression, dates de commit fixes
   unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
 }
 nr_page() { # nr_page [interpréteur] : partie stable de la page, de l'encart « En cours » à la fin
-  ${1:-bash} scripts/dashboard.sh --sortie "$racine_tmp/nr.html" >/dev/null 2>&1 && awk '/<section id="en-cours">/ { p = 1 } p { print } /<\/main>/ { exit }' "$racine_tmp/nr.html" | sed -E 's/[0-9a-f]{7,40} du /HASH du /'
+  ${1:-bash} scripts/dashboard.sh --sortie "$racine_tmp/nr.html" >/dev/null 2>&1 && awk '/<section id="en-cours">/ { p = 1 } p { print } /<\/main>/ { exit }' "$racine_tmp/nr.html" | sans_controle | sed -E 's/[0-9a-f]{7,40} du /HASH du /'
 }
 nr_tableaux() { scripts/etat-issues.sh; echo "code $?"; scripts/etat-issues.sh --prochaine; echo "code $?"; scripts/etat-issues.sh --statut "À faire"; echo "code $?"; }
 # nr-fonctions-fin
@@ -3082,7 +3085,7 @@ st_sorties_ca03() { # st_sorties_ca03 : dépôt jetable déterministe (dates et 
   gd_ add docs backlog.md; gd_ commit -qm init
   sur_branche feat/001-04-x 001-04 "En cours" feat/001-04-x; sur_branche feat/001-07-x 001-07 "Fait" feat/001-07-x
   scripts/dashboard.sh --sortie "$racine_tmp/ca03.html" >/dev/null 2>&1
-  sed -n '/^<body>/,$p' "$racine_tmp/ca03.html" | grep -v '^<p>Généré le ' | sed -E 's/dernier commit : [0-9a-f]+ du/dernier commit : HASH du/' # le hash dépend du contenu exact des fichiers des autres cas
+  sed -n '/^<body>/,$p' "$racine_tmp/ca03.html" | sans_controle | grep -v '^<p>Généré le ' | sed -E 's/dernier commit : [0-9a-f]+ du/dernier commit : HASH du/' # le hash dépend du contenu exact des fichiers des autres cas
   printf '== etat-issues\n'; scripts/etat-issues.sh
   printf '== etat-issues --prochaine\n'; scripts/etat-issues.sh --prochaine; printf 'code %s\n' "$?"
   printf '== etat-issues --statut\n'; scripts/etat-issues.sh --statut "À faire"
@@ -4156,11 +4159,11 @@ verifier "ca29_cout : issues à branche déclarée, 4, 12 et 50 issues : le cont
 bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none; bs_issue 004-72 "À faire" F-01 "" none; bs_issue 004-73 Abandonnée F-01 "" none "- Abandonnée"; bs_issue 004-74 "En revue" F-01 feat/b none
 pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
 verifier "ca29_cout : aucune issue Fait : ni appel de fusion (--merged, develop:) ni vérification de commit (cat-file)" 0 "" test "$(grep -c -e '--merged' "$racine_tmp/git.args")|$(grep -c '^cat-file' "$racine_tmp/git.args")" = "0|0"
-# Le dashboard n'exécute pas encore le contrôle (issue 004-05) : on compte les exécutions de statuts.sh pendant une génération, avec un statuts.sh de comptage dans le projet jetable.
+# On compte les exécutions de statuts.sh pendant une génération, avec un statuts.sh de comptage dans le projet jetable (exactement une : voir aussi ca29 de l'issue 004-05, en --boucle).
 bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none
 rm -f factory/scripts/statuts.sh; printf '#!/usr/bin/env bash\necho x >> "%s/statuts.appels"\necho "STATUTS : 0 erreur(s), 0 avis"\n' "$racine_tmp" > factory/scripts/statuts.sh; chmod +x factory/scripts/statuts.sh; : > "$racine_tmp/statuts.appels"
 scripts/dashboard.sh --sortie "$racine_tmp/ro-dash/d.html" > /dev/null 2>&1; ro_dc=$?
-verifier "ca29_cout : le dashboard n'exécute pas le contrôle plus d'une fois par génération ($(wc -l < "$racine_tmp/statuts.appels" | tr -d ' ') exécution(s), code $ro_dc ; 004-05 : exactement une)" 0 "" test "$ro_dc|$(wc -l < "$racine_tmp/statuts.appels" 2>/dev/null | tr -d ' ' | awk '{ print ($1 + 0 <= 1) }')" = "0|1"
+verifier "ca29_cout : le dashboard exécute le contrôle exactement une fois par génération ($(wc -l < "$racine_tmp/statuts.appels" | tr -d ' ') exécution(s), code $ro_dc)" 0 "" test "$ro_dc|$(wc -l < "$racine_tmp/statuts.appels" 2>/dev/null | tr -d ' ')" = "0|1"
 
 # ca30 : fichiers absents, vides ou illisibles : pas de message d'erreur de shell, constats de la section 2.6, code 1 seulement s'il y a une erreur.
 ro_attendu() { cat > "$racine_tmp/ro.attendu"; } # la sortie standard attendue de statuts.sh vient de l'entrée standard
@@ -4481,6 +4484,142 @@ for ro_sh in $ro_shells; do
   verifier "cs04_lecture_groupee [$ro_sh] : en-tête fermé, ligne FIN-ISSUE OK <id> et raison d'abandon de la section Notes (littéraux attendus)" 0 "" cmp "$racine_tmp/eq.attendu" "$racine_tmp/eq.drapeaux"
 done
 verifier "cs04_lecture_groupee : les 9 fichiers sont bien lus (au moins un identifiant et une liste non vides)" 0 "" test "$(grep -c '^docs/issues/004-0' "$racine_tmp/eq.groupe")|$(grep -c -F '004-01|Fait|F-01|docs/prd/p.md|feat/a|docs/reviews/x.md|3:004-02 004-03 004-04|2:abc1234 def5678' "$racine_tmp/eq.groupe")" = "9|1"
+
+echo "dashboard.sh : section « Contrôle des statuts » (PRD 004, issue 004-05)"
+d5_page() { # d5_page [fichier] : génère le dashboard du projet courant dans $racine_tmp/d5.html (ou le fichier donné) ; code du dashboard dans $d5_code
+  scripts/dashboard.sh --sortie "${1:-$racine_tmp/d5.html}" > "$racine_tmp/d5.out" 2> "$racine_tmp/d5.err"; d5_code=$?
+}
+d5_egal() { # d5_egal <fichier attendu> <fichier obtenu> : le dashboard a réussi (code 0) et les deux fichiers sont identiques
+  [ "$d5_code" = 0 ] || { echo "code $d5_code"; return 1; }; diff "$1" "$2"
+}
+d5_section() { # d5_section <page> : le texte (balises retirées, une ligne par élément) de la section « Contrôle des statuts »
+  awk 'index($0, "<section id=\"controle-statuts\"") { on = 1 } on { print } on && /<\/section>/ { exit }' "$1" | sed -e 's/<[^>]*>//g' -e '/^$/d'
+}
+d5_hors_section() { # d5_hors_section <page> : la page sans la section de contrôle ni la date de génération
+  sans_controle < "$1" | grep -v '^<p>Généré le '
+}
+ro_riche; d5_page
+cat > "$racine_tmp/d5.attendu" <<'TXT'
+Contrôle des statuts
+STATUTS : 5 erreur(s), 3 avis
+ERREUR E05 besoin F-03 : statut inconnu « Zut » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
+ERREUR E06 besoin F-04 : statut Spécifié sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
+ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
+ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
+AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
+AVIS A01 issue 004-77 : Fait sans champ revue renseigné
+TXT
+d5_section "$racine_tmp/d5.html" > "$racine_tmp/d5.section"
+verifier "ca31_dashboard : dépôt à erreurs et avis : la section « Contrôle des statuts » donne le récapitulatif puis chaque constat, code et texte exacts de RG-23, erreurs avant avis (code $d5_code)" 0 "" d5_egal "$racine_tmp/d5.attendu" "$racine_tmp/d5.section"
+verifier "ca31_dashboard : une seule section de contrôle dans la page" 0 "" test "$(grep -c '<section id="controle-statuts"' "$racine_tmp/d5.html")" = 1
+st_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/nf; d5_page
+printf 'Contrôle des statuts\nSTATUTS : 0 erreur(s), 0 avis\nAucune incohérence.\n' > "$racine_tmp/d5.attendu"
+d5_section "$racine_tmp/d5.html" > "$racine_tmp/d5.section"
+verifier "ca31_dashboard : dépôt cohérent : le récapitulatif et « Aucune incohérence. », sans liste" 0 "" d5_egal "$racine_tmp/d5.attendu" "$racine_tmp/d5.section"
+verifier "ca31_dashboard : dépôt cohérent : aucune liste de constats dans la section" 1 "" grep -q 'constat-' "$racine_tmp/d5.html"
+# Contrôle qui ne peut pas s'exécuter : « Contrôle indisponible », sans chemin ni détail brut (script absent, code 64, sortie sans récapitulatif, plantage, non exécutable).
+d5_indispo() { # d5_indispo <description du cas> : la page porte « Contrôle indisponible » seul, sans le chemin du projet, le nom du script ni le texte brut ; le dashboard réussit
+  local desc="$1"
+  d5_page
+  printf 'Contrôle des statuts\nContrôle indisponible\n' > "$racine_tmp/d5.attendu"; d5_section "$racine_tmp/d5.html" > "$racine_tmp/d5.section"
+  verifier "ca31_dashboard : $desc : « Contrôle indisponible » seul (code $d5_code)" 0 "" d5_egal "$racine_tmp/d5.attendu" "$racine_tmp/d5.section"
+  verifier "ca31_dashboard : $desc : ni chemin, ni nom de script, ni détail brut dans la page" 1 "" grep -E -e "$PWD|statuts\.sh|SECRET-BRUT|Traceback" "$racine_tmp/d5.html" "$racine_tmp/d5.out" "$racine_tmp/d5.err"
+}
+rm -f factory/scripts/statuts.sh; d5_indispo "script absent"
+printf '#!/usr/bin/env bash\necho "Traceback SECRET-BRUT %s" >&2; echo "ERREUR E99 x : y"; exit 64\n' "$PWD" > factory/scripts/statuts.sh; chmod +x factory/scripts/statuts.sh; d5_indispo "script qui rend 64 et une ligne sans récapitulatif"
+printf '#!/usr/bin/env bash\necho "SECRET-BRUT %s"; exit 2\n' "$PWD" > factory/scripts/statuts.sh; d5_indispo "script qui plante (code 2, texte brut)"
+printf '#!/usr/bin/env bash\necho "STATUTS : 0 erreur(s), 0 avis"\n' > factory/scripts/statuts.sh; chmod -x factory/scripts/statuts.sh; d5_indispo "script non exécutable"
+printf '#!/usr/bin/env bash\necho "AVIS A01 issue x : y"\necho "STATUTS : 0 erreur(s), 1 avis"\necho "SECRET-BRUT"\n' > factory/scripts/statuts.sh; chmod +x factory/scripts/statuts.sh; d5_indispo "récapitulatif qui n'est pas la dernière ligne"
+
+# ca32 : le dashboard reste à 0 (ou 64 pour un mauvais usage) quelles que soient les erreurs du contrôle ; cartes, colonnes et ordre ne changent pas.
+ro_riche; d5_page "$racine_tmp/d5.avec.html"; d5_c1=$d5_code
+verifier "ca32_dashboard : dépôt à 5 erreurs de contrôle : le dashboard rend 0 (statuts.sh rend 1 sur le même dépôt)" 0 "" test "$d5_c1|$(scripts/statuts.sh > /dev/null 2>&1; echo $?)|$(grep -c '^<li class="constat-erreur">' "$racine_tmp/d5.avec.html")" = "0|1|5"
+verifier "ca32_dashboard : mauvais usage avec des erreurs de contrôle : toujours 64" 64 "Usage" scripts/dashboard.sh --attente abc
+verifier "ca32_dashboard : thème invalide avec des erreurs de contrôle : toujours 64" 64 "DASHBOARD_THEME invalide" scripts/dashboard.sh --theme violet
+mv factory/scripts/statuts.sh "$racine_tmp/statuts.sh.ecarte"; d5_page "$racine_tmp/d5.sans.html"; d5_c2=$d5_code; mv "$racine_tmp/statuts.sh.ecarte" factory/scripts/statuts.sh
+d5_hors_section "$racine_tmp/d5.avec.html" > "$racine_tmp/d5.avec.hors"; d5_hors_section "$racine_tmp/d5.sans.html" > "$racine_tmp/d5.sans.hors"
+d5_memes_cartes() { [ "$d5_c1|$d5_c2" = "0|0" ] && [ "$(grep -c '<div class="carte' "$racine_tmp/d5.avec.hors")" -ge 6 ] && cmp "$racine_tmp/d5.avec.hors" "$racine_tmp/d5.sans.hors"; }
+verifier "ca32_dashboard : cartes, colonnes et ordre identiques que le contrôle trouve 8 constats ou soit indisponible (hors section ; codes $d5_c1 et $d5_c2)" 0 "" d5_memes_cartes
+
+# cs05 : valeurs hostiles dans les statuts, identifiants, cellules PRD, chemins de revue et noms de branche : rien n'est écrit brut dans la page.
+d5_hostile() { # d5_hostile : projet courant = dépôt jetable dont chaque champ lu porte une valeur hostile
+  local img='<img src=x onerror=alert(1)>' scr='"><script>alert(1)</script>' amp="&amp;'" br
+  br="feat/$scr$amp"
+  bs_depot
+  printf '%s\n' "| $img | $scr | P1 | $amp | \`$img\` | $scr |" "| F-02 | B | P1 | $scr | \`$amp\` | $img |" "| F-03 | B | P1 | En cours | \`docs/prd/p.md\` | $amp |" | st_backlog
+  git branch "$br"; git worktree add -q "$racine_tmp/wt-hostile-$$" "$br" > /dev/null 2>&1
+  printf -- '---\nid: %s\ntitre: %s\nbesoin: %s\nprd: %s\nstatut: %s\ndepend_de: [%s, %s]\ncriteres: [CA-01]\nbranche: %s\ncommits: [%s]\nrevue: %s\n---\n\n## Objectif\n%s\n\n## Notes\n%s\n' \
+    "$img" "$scr" "$amp" "$scr" "$amp" "$scr" "$img" "$br" "$amp" "$img" "$img" "$scr" > docs/issues/004-81-x.md
+  printf -- '---\nid: 004-82\ntitre: %s\nbesoin: F-03\nprd: %s\nstatut: En revue\ndepend_de: []\ncriteres: [CA-01]\nbranche: %s\ncommits: []\nrevue: docs/reviews/%s.md\n---\n' "$amp" "$img" "$br" "$img" > docs/issues/004-82-x.md
+  printf -- '---\nid: 004-83\ntitre: T\nbesoin: F-03\nprd: docs/prd/p.md\nstatut: Fait\ndepend_de: []\ncriteres: [CA-01]\nbranche:\ncommits: [%s]\nrevue: %s\n---\n\n## Notes\n%s\n' "$scr" "$scr" "$amp" > docs/issues/004-83-x.md
+}
+d5_hostile; d5_page "$racine_tmp/d5.hostile.html"; d5_c3=$d5_code
+d5_corps() { sed -n '/^<body>/,$p' "$1"; } # le corps de la page (hors feuilles de style)
+d5_brut() { # d5_brut <page> : nombre d'occurrences brutes (non échappées) d'une valeur hostile dans le corps de la page
+  d5_corps "$1" | grep -c -i -e '<img' -e '<script' -e 'alert(1)>' -e "&amp;'" || true
+}
+verifier "cs05_dashboard : valeurs hostiles dans statuts, identifiants, PRD, revues et branches : le dashboard réussit (code $d5_c3) et la section de contrôle liste bien les valeurs (le cas est réel)" 0 "" test "$d5_c3|$(d5_section "$racine_tmp/d5.hostile.html" | grep -c -F -e '&lt;img src=x onerror=alert(1)&gt;')" = "0|4"
+verifier "cs05_dashboard : aucune balise <img> ni <script> ni valeur brute (&amp;', alert(1)>) dans la page" 0 "" test "$(d5_brut "$racine_tmp/d5.hostile.html")" = 0
+verifier "cs05_dashboard : les seules balises du corps sont celles de la page (aucune balise issue d'une valeur)" 0 "" test "$(d5_corps "$racine_tmp/d5.hostile.html" | grep -o '<[a-zA-Z][a-zA-Z0-9]*' | sort -u | tr '\n' ' ')" = "<body <div <h1 <h2 <h3 <li <main <p <section <span <strong <ul "
+verifier "cs05_dashboard : les seuls attributs du corps sont class et id (aucun attribut issu d'une valeur)" 0 "" test "$(d5_corps "$racine_tmp/d5.hostile.html" | grep -o '<[^>]*>' | grep -o ' [a-zA-Z-]*="' | sort -u | tr '\n' ' ')" = ' class="  id=" '
+d5_echappees() { # les cinq caractères sont écrits en entités partout où une valeur est écrite : cartes, section de contrôle et encart des autres travaux
+  local p="$racine_tmp/d5.hostile.html"
+  [ "$(d5_corps "$p" | grep -c -F -e '&lt;img src=x onerror=alert(1)&gt;')" -ge 5 ] && [ "$(d5_corps "$p" | grep -c -F -e '&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;')" -ge 3 ] \
+    && [ "$(d5_corps "$p" | grep -c -F -e '&amp;amp;&#39;')" -ge 3 ] && d5_corps "$p" | grep -q -F -e 'feat/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;amp;&#39;'
+}
+verifier "cs05_dashboard : les valeurs hostiles sont écrites avec &amp; &lt; &gt; &quot; &#39; (cartes, section de contrôle, branches)" 0 "" d5_echappees
+
+# cs06 : une génération puis --boucle (arrêtée après deux générations) n'écrivent que la sortie : backlog.md, issues, refs, index et worktrees identiques octet pour octet.
+ro_riche; mkdir -p "$racine_tmp/cs06"; rm -f "$racine_tmp/cs06"/*
+d5_comptes() { ls "$racine_tmp/cs06" | tr '\n' ' '; }
+ro_instantane "$racine_tmp/cs06.avant"
+scripts/dashboard.sh --sortie "$racine_tmp/cs06/d.html" > /dev/null 2>&1; d5_u=$?
+ro_instantane "$racine_tmp/cs06.apres1"
+mkdir -p "$racine_tmp/cs06-shim"; printf '#!/bin/sh\nn=$(cat "%s/cs06-shim/n" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > "%s/cs06-shim/n"\n[ "$n" -lt 2 ] || kill -TERM $PPID\n' "$racine_tmp" "$racine_tmp" > "$racine_tmp/cs06-shim/sleep"; chmod +x "$racine_tmp/cs06-shim/sleep"; rm -f "$racine_tmp/cs06-shim/n"
+PATH="$racine_tmp/cs06-shim:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/cs06/d.html" --boucle 1 > /dev/null 2>&1; d5_b=$?
+ro_instantane "$racine_tmp/cs06.apres2"
+d5_inchange() { # d5_inchange <état attendu « codes|nombre d'erreurs|sorties »> <état obtenu> <instantané après> : le même état et le même instantané qu'avant
+  [ "$1" = "$2" ] || { echo "état $2 (attendu $1)"; return 1; }; cmp "$racine_tmp/cs06.avant" "$3"
+}
+verifier "cs06_dashboard : une génération avec le contrôle (dépôt à erreurs, code $d5_u) : backlog.md, issues, refs, index et worktrees identiques, seule la sortie est écrite ($(d5_comptes))" 0 "" d5_inchange "0|5|d.html " "$d5_u|$(grep -c constat-erreur "$racine_tmp/cs06/d.html")|$(d5_comptes)" "$racine_tmp/cs06.apres1"
+verifier "cs06_dashboard : --boucle arrêtée après deux générations (sleep n° $(cat "$racine_tmp/cs06-shim/n" 2>/dev/null), code $d5_b) : arbre identique, seule la sortie est écrite" 0 "" d5_inchange "2|143|d.html " "$(cat "$racine_tmp/cs06-shim/n" 2>/dev/null)|$d5_b|$(d5_comptes)" "$racine_tmp/cs06.apres2"
+
+# ca29 (004-05) : le contrôle s'exécute exactement une fois par génération, y compris en --boucle (un appel par génération), statuts.sh de comptage dans le projet jetable.
+d5_compteur() { # d5_compteur : installe un statuts.sh de comptage (une ligne par exécution dans $racine_tmp/d5.appels) qui rend un contrôle cohérent
+  rm -f factory/scripts/statuts.sh; printf '#!/usr/bin/env bash\necho x >> "%s/d5.appels"\necho "STATUTS : 0 erreur(s), 0 avis"\n' "$racine_tmp" > factory/scripts/statuts.sh; chmod +x factory/scripts/statuts.sh; : > "$racine_tmp/d5.appels"
+}
+bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none
+mkdir -p "$racine_tmp/d5-dash"; d5_compteur
+scripts/dashboard.sh --sortie "$racine_tmp/d5-dash/d.html" > /dev/null 2>&1; d5_c=$?
+verifier "ca29_cout : une génération du dashboard exécute le contrôle exactement une fois (code $d5_c)" 0 "" test "$d5_c|$(wc -l < "$racine_tmp/d5.appels" | tr -d ' ')" = "0|1"
+d5_compteur; rm -f "$racine_tmp/cs06-shim/n"
+PATH="$racine_tmp/cs06-shim:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/d5-dash/d.html" --boucle 1 > /dev/null 2>&1; d5_c=$?
+verifier "ca29_cout : --boucle arrêtée après deux générations : le contrôle s'exécute exactement deux fois, une par génération (code $d5_c)" 0 "" test "$d5_c|$(wc -l < "$racine_tmp/d5.appels" | tr -d ' ')" = "143|2"
+
+# Interpréteur de macOS (bash 3.2, awk BSD) : même section, mêmes échappements.
+for ro_sh in $ro_shells; do
+  [ "$ro_sh" = b32 ] || continue
+  ro_riche
+  PATH="$ro_b32:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/d5.b32.html" > /dev/null 2>&1; d5_code=$?
+  cat > "$racine_tmp/d5.attendu" <<'TXT'
+Contrôle des statuts
+STATUTS : 5 erreur(s), 3 avis
+ERREUR E05 besoin F-03 : statut inconnu « Zut » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
+ERREUR E06 besoin F-04 : statut Spécifié sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
+ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
+ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
+AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
+AVIS A01 issue 004-77 : Fait sans champ revue renseigné
+TXT
+  d5_section "$racine_tmp/d5.b32.html" > "$racine_tmp/d5.section"
+  verifier "ca31_dashboard [b32] : bash 3.2 de macOS : la section donne les 8 constats exacts et le dashboard rend 0 (code $d5_code)" 0 "" d5_egal "$racine_tmp/d5.attendu" "$racine_tmp/d5.section"
+  d5_hostile; PATH="$ro_b32:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/d5.b32.html" > /dev/null 2>&1; d5_code=$?
+  verifier "cs05_dashboard [b32] : bash 3.2 de macOS : valeurs hostiles, aucune balise ni valeur brute dans la page (code $d5_code)" 0 "" test "$d5_code|$(d5_brut "$racine_tmp/d5.b32.html")|$(d5_corps "$racine_tmp/d5.b32.html" | grep -o '<[a-zA-Z][a-zA-Z0-9]*' | sort -u | tr '\n' ' ')" = "0|0|<body <div <h1 <h2 <h3 <li <main <p <section <span <strong <ul "
+done
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

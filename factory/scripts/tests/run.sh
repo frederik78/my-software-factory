@@ -4680,7 +4680,7 @@ done
 verifier "ca34_factory/README.md : chaque script de factory/scripts/*.sh figure dans le guide (aucun script non décrit)" 0 "" test -z "$(for f in "$factory"/scripts/*.sh; do b="$(basename "$f")"; contient "$readme_d5" "scripts/$b" || echo "$b"; done)"
 verifier "ca34_factory/README.md : le nombre de scripts annoncé (« Vingt-quatre scripts ») est celui de factory/scripts/*.sh plus run.sh, init-projet.sh, sync.sh, sync-claude.sh et hook-agents-claude.sh ($(ls "$factory"/scripts/*.sh | wc -l | tr -d ' ') + 5)" 0 "" test "$(( $(ls "$factory"/scripts/*.sh | wc -l) + 5 ))|$(contient "$readme_d5" 'Vingt-quatre scripts, en trois groupes : mise en place (3), contrôle et suivi d'"'"'une livraison (11), outils internes (10)' && echo annonce)" = "24|annonce"
 statuts_d5="$(lire_depot "$depot" factory/scripts/statuts.sh | sed -n '1,/^set -/p')"
-for motif in 'lecture seule' 'Abandonnée' 'E01 à E14' 'A01 à A15' 'Contrôle des statuts' 'dashboard.sh' 'Code de sortie' 'statuts.table' 'README'; do
+for motif in 'lecture seule' 'Abandonnée' 'E01 à E14' 'A01 à A16' 'Contrôle des statuts' 'dashboard.sh' 'Code de sortie' 'statuts.table' 'README'; do
   verifier "ca34_en-tête de statuts.sh : « $motif »" 0 "" contient "$statuts_d5" "$motif"
 done
 issues_readme_d5="$(lire_depot "$depot" docs/issues/README.md)"

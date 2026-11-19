@@ -1,0 +1,304 @@
+<body>
+<main>
+<h1>Dashboard</h1>
+<section id="agents-actifs">
+<h2>Agents actifs</h2>
+<p>Aucun agent signalé (journal absent : hooks non installés, ou aucun sous-agent lancé depuis l'installation ; voir factory/sync-claude.sh).</p>
+</section>
+<section id="en-cours">
+<h2>En cours</h2>
+<ul>
+<li><strong>001-02</strong> T001-02 <span class="etiquette statut-encours">En cours</span></li>
+<li><strong>001-04</strong> T001-04 <span class="etiquette statut-encours">En cours</span></li>
+<li><strong>001-06</strong> T001-06 <span class="etiquette statut-enrevue">En revue</span></li>
+</ul>
+</section>
+<section id="besoins">
+<h2>Besoins</h2>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (1)</h3>
+<div class="carte"><strong>F-01</strong> <span class="titre">Premier</span><span class="detail">P1</span><span class="detail">1/9 Fait · 3 À faire · 2 En cours · 1 En revue · 2 Abandonnée</span><span class="detail">à vérifier : des issues sont déjà démarrées</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-clarification">En clarification (1)</h3>
+<div class="carte"><strong>F-02</strong> <span class="titre">Second</span><span class="detail">P2</span><span class="detail desc">cadrage</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-specifie">Spécifié (1)</h3>
+<div class="carte"><strong>F-03</strong> <span class="titre">Troisième</span><span class="detail">P2</span><span class="detail">PRD : `docs/prd/003.md`</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (1)</h3>
+<div class="carte"><strong>F-04</strong> <span class="titre">Quatrième</span><span class="detail">P3</span><span class="detail">PRD : `docs/prd/004.md`</span><span class="detail desc">D-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>F-05</strong> <span class="titre">Cinquième</span><span class="detail">P1</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (1)</h3>
+<div class="carte"><strong>F-06</strong> <span class="titre">Sixième</span><span class="detail">P1</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-inconnu">(autre) (2)</h3>
+<div class="carte"><strong>F-07</strong> <span class="titre">Septième</span><span class="detail">P3</span><span class="detail desc">statut hors cycle</span></div>
+<div class="carte"><strong>F-08</strong> <span class="titre">Huitième</span><span class="detail">P3</span><span class="detail desc">Abandonnée par l utilisateur</span></div>
+</div>
+</div>
+</section>
+<section id="issues">
+<h2>Issues</h2>
+<p>Prochaine issue prête : <strong>001-09</strong></p>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (3)</h3>
+<div class="carte bloquee"><strong>001-03</strong> <span class="titre">T001-03</span><span class="marqueur marqueur-bloquee">bloquée</span><span class="detail">F-01</span><span class="detail">dépend de : 001-02</span></div>
+<div class="carte bloquee"><strong>001-08</strong> <span class="titre">T001-08</span><span class="marqueur marqueur-bloquee">bloquée</span><span class="detail">F-01</span><span class="detail">dépend de : 001-04</span></div>
+<div class="carte prochaine"><strong>001-09</strong> <span class="titre">T001-09</span><span class="marqueur marqueur-prochaine">prochaine</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (2)</h3>
+<div class="carte"><strong>001-02</strong> <span class="titre">T001-02</span><span class="detail">F-01</span></div>
+<div class="carte"><strong>001-04</strong> <span class="titre">T001-04</span><span class="detail">F-01</span><span class="detail">dernier commit : HASH du 2026-11-18</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>001-06</strong> <span class="titre">T001-06</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (1)</h3>
+<div class="carte"><strong>001-01</strong> <span class="titre">T001-01</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-inconnu">(autre) (2)</h3>
+<div class="carte"><strong>001-05</strong> <span class="titre">T001-05</span><span class="detail">F-01</span></div>
+<div class="carte"><strong>001-07</strong> <span class="titre">T001-07</span><span class="detail">F-01</span><span class="detail">dernier commit : HASH du 2026-11-18</span></div>
+</div>
+</div>
+</section>
+<section id="autres-travaux">
+<h2>Autres travaux</h2>
+<p>Aucun autre travail.</p>
+</section>
+</main>
+</body>
+</html>
+== etat-issues
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 001-01 | T001-01 | Fait | : |  |
+| 001-02 | T001-02 | En cours | : |  |
+| 001-03 | T001-03 | À faire | 001-02 |  |
+| 001-04 | T001-04 | À faire | : | feat/001-04-x |
+| 001-05 | T001-05 | Abandonnée | : |  |
+| 001-06 | T001-06 | En revue | : |  |
+| 001-07 | T001-07 | Abandonnée | : | feat/001-07-x |
+| 001-08 | T001-08 | À faire | 001-04 |  |
+| 001-09 | T001-09 | À faire | : |  |
+== etat-issues --prochaine
+001-09
+code 0
+== etat-issues --statut
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 001-03 | T001-03 | À faire | 001-02 |  |
+| 001-04 | T001-04 | À faire | : | feat/001-04-x |
+| 001-08 | T001-08 | À faire | 001-04 |  |
+| 001-09 | T001-09 | À faire | : |  |
+== statuts (dépôt de CA-03)
+ERREUR E07 besoin F-01 : statut À faire en retard : l'issue 001-01 est démarrée
+ERREUR E06 besoin F-03 : statut Spécifié sans PRD valide (fichier absent : docs/prd/003.md)
+ERREUR E06 besoin F-04 : statut En cours sans PRD valide (fichier absent : docs/prd/004.md)
+ERREUR E06 besoin F-05 : statut En revue sans PRD valide (colonne PRD vide)
+ERREUR E06 besoin F-06 : statut Fait sans PRD valide (colonne PRD vide)
+ERREUR E08 besoin F-06 : statut Fait non justifié : aucune issue Fait
+ERREUR E05 besoin F-07 : statut inconnu « Relue » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
+ERREUR E13 issue 001-05 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 001-07 : statut Abandonnée sans raison dans les Notes
+AVIS A12 besoin F-04 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-05 : statut En revue en avance : toutes les issues ne sont pas Fait
+AVIS A01 issue 001-01 : Fait sans champ revue renseigné
+AVIS A04 issue 001-01 : Fait sans ligne « FIN-ISSUE OK 001-01 » dans les Notes
+AVIS A05 issue 001-01 : Fait sans commit déclaré
+AVIS A08 issue 001-02 : En cours sans branche retenue
+AVIS A07 issue 001-06 : En revue sans fichier de revue ()
+AVIS A08 issue 001-06 : En revue sans branche retenue
+STATUTS : 9 erreur(s), 8 avis
+code 1
+== statuts --table
+Statuts d'une issue (dans l'ordre) :
+  À faire
+  En cours
+  En revue
+  Fait
+  Abandonnée (hors cycle)
+Transitions légales d'une issue :
+  À faire -> En cours | déclencheur : /deliver démarre l'issue (commit « docs: issue <id> en cours » sur sa branche) | preuve : une branche retenue pour l'issue
+  En cours -> En revue | déclencheur : le developer a livré, vérification de la session faite, avant la première relecture | preuve : la branche porte les commits de code ; le fichier de revue existe ou va être créé
+  En revue -> En cours | déclencheur : la revue demande des corrections (BLOQUANT ou IMPORTANT) | preuve : constats ouverts dans le fichier de revue
+  En revue -> Fait | déclencheur : /deliver, définition de fini, après FIN-ISSUE OK | preuve : champ revue non vide ; fichier de revue dont la dernière ligne est APPROUVÉ ; ligne FIN-ISSUE OK <id> dans les Notes ; au moins un commit
+  À faire -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+  En cours -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+  En revue -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans les Notes de l'issue
+Statuts d'un besoin (dans l'ordre) :
+  À faire
+  En clarification
+  Spécifié
+  En cours
+  En revue
+  Fait
+  Abandonnée (hors cycle)
+Transitions légales d'un besoin :
+  À faire -> En clarification | déclencheur : l'orchestrateur ouvre le cadrage | preuve : aucune
+  En clarification -> Spécifié | déclencheur : l'utilisateur valide le PRD | preuve : colonne PRD renseignée, fichier présent
+  Spécifié -> En cours | déclencheur : la première issue du besoin passe En cours | preuve : au moins une issue démarrée
+  En cours -> En revue | déclencheur : toutes les issues sont Fait (les Abandonnée ne comptent pas, au moins une Fait) | preuve : au moins une issue Fait, toutes les autres Abandonnée
+  En revue -> Fait | déclencheur : l'utilisateur a fusionné : la branche de chaque issue Fait est fusionnée dans develop | preuve : fusion lue dans Git
+  À faire -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En clarification -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  Spécifié -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En cours -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+  En revue -> Abandonnée | déclencheur : décision de l'utilisateur | preuve : raison écrite dans la colonne Décisions
+code 0
+== section de contrôle de la page de CA-03
+Contrôle des statuts
+STATUTS : 9 erreur(s), 8 avis
+ERREUR E07 besoin F-01 : statut À faire en retard : l&#39;issue 001-01 est démarrée
+ERREUR E06 besoin F-03 : statut Spécifié sans PRD valide (fichier absent : docs/prd/003.md)
+ERREUR E06 besoin F-04 : statut En cours sans PRD valide (fichier absent : docs/prd/004.md)
+ERREUR E06 besoin F-05 : statut En revue sans PRD valide (colonne PRD vide)
+ERREUR E06 besoin F-06 : statut Fait sans PRD valide (colonne PRD vide)
+ERREUR E08 besoin F-06 : statut Fait non justifié : aucune issue Fait
+ERREUR E05 besoin F-07 : statut inconnu « Relue » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
+ERREUR E13 issue 001-05 : statut Abandonnée sans raison dans les Notes
+ERREUR E13 issue 001-07 : statut Abandonnée sans raison dans les Notes
+AVIS A12 besoin F-04 : statut En cours en avance : aucune issue démarrée
+AVIS A12 besoin F-05 : statut En revue en avance : toutes les issues ne sont pas Fait
+AVIS A01 issue 001-01 : Fait sans champ revue renseigné
+AVIS A04 issue 001-01 : Fait sans ligne « FIN-ISSUE OK 001-01 » dans les Notes
+AVIS A05 issue 001-01 : Fait sans commit déclaré
+AVIS A08 issue 001-02 : En cours sans branche retenue
+AVIS A07 issue 001-06 : En revue sans fichier de revue ()
+AVIS A08 issue 001-06 : En revue sans branche retenue
+== dashboard (dépôt à constats) : code 0
+<body>
+<main>
+<h1>Dashboard</h1>
+<section id="agents-actifs">
+<h2>Agents actifs</h2>
+<p>Aucun agent signalé (journal absent : hooks non installés, ou aucun sous-agent lancé depuis l'installation ; voir factory/sync-claude.sh).</p>
+</section>
+<section id="en-cours">
+<h2>En cours</h2>
+<ul>
+<li><strong>004-72</strong> T004-72 <span class="etiquette statut-encours">En cours</span> <span class="signal">aucun fichier non commité · activité il y a moins d'1 min</span></li>
+<li><strong>004-73</strong> T004-73 <span class="etiquette statut-enrevue">En revue</span></li>
+</ul>
+</section>
+<section id="besoins">
+<h2>Besoins</h2>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-clarification">En clarification (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-specifie">Spécifié (1)</h3>
+<div class="carte"><strong>F-04</strong> <span class="titre">B</span><span class="detail">P1</span><span class="detail">0/1 Fait · 1 Abandonnée</span><span class="detail">PRD : `docs/prd/absent.md`</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (1)</h3>
+<div class="carte"><strong>F-01</strong> <span class="titre">B</span><span class="detail">P1</span><span class="detail">1/4 Fait · 1 En cours · 1 En revue · 1 Bof</span><span class="detail">PRD : `docs/prd/p.md`</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (0)</h3>
+<p class="vide">—</p>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (1)</h3>
+<div class="carte"><strong>F-02</strong> <span class="titre">B</span><span class="detail">P1</span><span class="detail">1/1 Fait</span><span class="detail">PRD : `docs/prd/p.md`</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-inconnu">(autre) (1)</h3>
+<div class="carte"><strong>F-03</strong> <span class="titre">B</span><span class="detail">P1</span></div>
+</div>
+</div>
+</section>
+<section id="issues">
+<h2>Issues</h2>
+<p>Prochaine issue prête : <strong>004-75</strong></p>
+<div class="kanban">
+<div class="colonne">
+<h3 class="statut-afaire">À faire (1)</h3>
+<div class="carte prochaine"><strong>004-75</strong> <span class="titre">T004-75</span><span class="marqueur marqueur-prochaine">prochaine</span><span class="detail desc">x</span><span class="detail">F-99</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-encours">En cours (1)</h3>
+<div class="carte"><strong>004-72</strong> <span class="titre">T004-72</span><span class="detail desc">x</span><span class="detail">F-01</span><span class="detail">dernier commit : HASH du DATE</span><span class="detail signal">aucun fichier non commité · activité il y a moins d'1 min</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-enrevue">En revue (1)</h3>
+<div class="carte"><strong>004-73</strong> <span class="titre">T004-73</span><span class="detail desc">x</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-fait">Fait (2)</h3>
+<div class="carte"><strong>004-71</strong> <span class="titre">T004-71</span><span class="detail desc">x</span><span class="detail">F-02</span><span class="detail">dernier commit : HASH du DATE</span></div>
+<div class="carte"><strong>004-77</strong> <span class="titre">T004-77</span><span class="detail desc">x</span><span class="detail">F-01</span></div>
+</div>
+<div class="colonne">
+<h3 class="statut-inconnu">(autre) (2)</h3>
+<div class="carte"><strong>004-74</strong> <span class="titre">T004-74</span><span class="detail desc">x</span><span class="detail">F-01</span></div>
+<div class="carte"><strong>004-76</strong> <span class="titre">T004-76</span><span class="detail desc">x</span><span class="detail">F-04</span></div>
+</div>
+</div>
+</section>
+<section id="autres-travaux">
+<h2>Autres travaux</h2>
+<p>Aucun autre travail.</p>
+</section>
+</main>
+</body>
+</html>
+== section de contrôle (dépôt à constats)
+Contrôle des statuts
+STATUTS : 5 erreur(s), 3 avis
+ERREUR E05 besoin F-03 : statut inconnu « Zut » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
+ERREUR E06 besoin F-04 : statut Spécifié sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
+ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
+ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
+AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
+AVIS A01 issue 004-77 : Fait sans champ revue renseigné
+== statuts (dépôt à constats)
+ERREUR E05 besoin F-03 : statut inconnu « Zut » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
+ERREUR E06 besoin F-04 : statut Spécifié sans PRD valide (fichier absent : docs/prd/absent.md)
+ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
+ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
+ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
+AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
+AVIS A01 issue 004-77 : Fait sans champ revue renseigné
+STATUTS : 5 erreur(s), 3 avis
+code 1
+== etat-issues (dépôt à constats)
+| Id | Titre | Statut | Dépend de | Branche |
+|---|---|---|---|---|
+| 004-71 | T004-71 | Fait | : | feat/b |
+| 004-72 | T004-72 | En cours | : | feat/nf |
+| 004-73 | T004-73 | En revue | : |  |
+| 004-74 | T004-74 | Bof | : |  |
+| 004-75 | T004-75 | À faire | : |  |
+| 004-76 | T004-76 | Abandonnée | : |  |
+| 004-77 | T004-77 | Fait | : | feat/gone |
+== etat-issues --prochaine
+004-75
+code 0
+== statuts (dépôt cohérent)
+STATUTS : 0 erreur(s), 0 avis
+code 0

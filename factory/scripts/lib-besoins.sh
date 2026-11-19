@@ -109,10 +109,9 @@ besoins_issues_lire() {
 # F (terminée), A (abandonnée, écartée de tous les comptes).
 issue_classe() {
   case "$1" in
-    "En cours"|"En revue") classe=D ;;
     Fait) classe=F ;;
     Abandonnée) classe=A ;;
-    *) classe=T ;;
+    *) if statut_en_travail issue "$1"; then classe=D; else classe=T; fi ;;
   esac
 }
 
@@ -179,7 +178,7 @@ besoins_prd() {
   for i in "${!bes_ids[@]}"; do
     [ "${bes_etats[$i]}" = controlee ] || continue
     statut="${bes_statuts[$i]}"
-    case "$statut" in Spécifié|"En cours"|"En revue"|Fait) ;; *) continue ;; esac
+    statut_depuis besoin "$statut" Spécifié || continue
     chemins="${bes_chemins[$i]}"; motif=""
     if [ -z "$chemins" ]; then
       if [ -z "${bes_prds[$i]}" ]; then motif="colonne PRD vide"; else constat_neutraliser "${bes_prds[$i]}"; motif="fichier absent : $neutre"; fi
@@ -206,7 +205,7 @@ besoins_pertinents() {
   local i
   for i in "${!bes_ids[@]}"; do
     [ "${bes_etats[$i]}" = controlee ] || continue
-    case "${bes_statuts[$i]}" in "En cours"|"En revue"|Fait) printf '%s\n' "${bes_ids[$i]}" ;; esac
+    ! statut_depuis besoin "${bes_statuts[$i]}" "En cours" || printf '%s\n' "${bes_ids[$i]}"
   done
 }
 
@@ -270,7 +269,7 @@ besoin_issue() {
   fi
   statut="${iss_effectifs[$1]}"
   if [ "${bes_statuts[$(($2 - 1))]}" = Abandonnée ]; then
-    case "$statut" in "À faire"|"En cours"|"En revue") constat_ajouter AVIS A15 1 "$2" "besoin $besoin" "Abandonnée alors que l'issue ${objet#issue } est $statut" ;; esac
+    if statut_avant_travail issue "$statut" || statut_en_travail issue "$statut"; then constat_ajouter AVIS A15 1 "$2" "besoin $besoin" "Abandonnée alors que l'issue ${objet#issue } est $statut"; fi
   fi
 }
 
@@ -291,23 +290,22 @@ besoin_ecart() {
   local statut id issue
   statut="${bes_statuts[$(($1 - 1))]}"
   constat_neutraliser "${bes_ids[$(($1 - 1))]}"; id="besoin $neutre"
-  case "$statut" in
-    "À faire"|"En clarification"|Spécifié)
-      [ "$4" -eq 0 ] || { constat_neutraliser "${iss_ids[$5]}"; constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : l'issue $neutre est démarrée"; } ;;
-    "En cours"|"En revue")
-      if [ "$2" -gt 0 ] && [ "$3" -eq "$2" ]; then # toutes les issues (hors Abandonnée) sont Fait
-        if [ -z "$7" ] && [ "$8" -eq 0 ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)"
-        elif [ "$statut" = "En cours" ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait (attendu : En revue)"
-        fi
-      elif [ "$statut" = "En revue" ]; then constat_ajouter AVIS A12 1 "$1" "$id" "statut $statut en avance : toutes les issues ne sont pas Fait"
-      elif [ "$4" -eq 0 ]; then constat_ajouter AVIS A12 1 "$1" "$id" "statut $statut en avance : aucune issue démarrée"
-      fi ;;
-    Fait)
-      if [ "$3" -eq 0 ]; then constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : aucune issue Fait"
-      elif [ -n "$6" ]; then constat_neutraliser "${iss_ids[$6]}"; constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : l'issue $neutre n'est ni Fait ni Abandonnée"
-      elif [ -n "$7" ]; then constat_neutraliser "${iss_ids[$7]}"; constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : la branche de l'issue $neutre n'est pas fusionnée dans develop"
-      fi ;;
-  esac
+  if statut_avant_travail besoin "$statut"; then # pas encore démarré : avant « En cours » dans l'ordre de la table
+    [ "$4" -eq 0 ] || { constat_neutraliser "${iss_ids[$5]}"; constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : l'issue $neutre est démarrée"; }
+  elif statut_en_travail besoin "$statut"; then # démarré et pas terminé
+    if [ "$2" -gt 0 ] && [ "$3" -eq "$2" ]; then # toutes les issues (hors Abandonnée) sont Fait
+      if [ -z "$7" ] && [ "$8" -eq 0 ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)"
+      elif [ "$statut" = "En cours" ]; then constat_ajouter ERREUR E07 1 "$1" "$id" "statut $statut en retard : toutes les issues sont Fait (attendu : En revue)"
+      fi
+    elif [ "$statut" = "En revue" ]; then constat_ajouter AVIS A12 1 "$1" "$id" "statut $statut en avance : toutes les issues ne sont pas Fait"
+    elif [ "$4" -eq 0 ]; then constat_ajouter AVIS A12 1 "$1" "$id" "statut $statut en avance : aucune issue démarrée"
+    fi
+  elif [ "$statut" = Fait ]; then
+    if [ "$3" -eq 0 ]; then constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : aucune issue Fait"
+    elif [ -n "$6" ]; then constat_neutraliser "${iss_ids[$6]}"; constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : l'issue $neutre n'est ni Fait ni Abandonnée"
+    elif [ -n "$7" ]; then constat_neutraliser "${iss_ids[$7]}"; constat_ajouter ERREUR E08 1 "$1" "$id" "statut Fait non justifié : la branche de l'issue $neutre n'est pas fusionnée dans develop"
+    fi
+  fi
 }
 
 # besoins_coherence : E06 (besoin sans PRD), E09 (besoin abandonné sans raison) et, pour les issues contrôlées, E12 (issue sans besoin connu), A14 et A15 (PRD de l'issue, besoin

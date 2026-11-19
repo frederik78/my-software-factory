@@ -279,15 +279,56 @@ table_statuts_de() {
 
 statuts_table_charger
 
-# issue_rang_statut <statut> : rang dans le cycle ; code 1 et rien d'écrit pour un statut inconnu.
-issue_rang_statut() {
-  local i=0
-  while [ "$i" -lt "${#statuts_issues[@]}" ]; do
-    [ "${statuts_issues[$i]}" = "$1" ] && { echo "$i"; return 0; }
-    i=$((i + 1))
-  done
+# Rang de chaque statut du cycle, lu en une expansion (sans boucle : appelé pour chaque issue et chaque besoin) : « |<statut>=<rang>|… », rempli par statuts_table_rangs.
+rangs_issues="|"; rangs_besoins="|"
+statuts_table_rangs() {
+  local i
+  rangs_issues="|"; rangs_besoins="|"
+  for i in "${!statuts_issues[@]}"; do rangs_issues="$rangs_issues${statuts_issues[$i]}=$i|"; done
+  for i in "${!statuts_besoins[@]}"; do rangs_besoins="$rangs_besoins${statuts_besoins[$i]}=$i|"; done
+}
+statuts_table_rangs
+
+# statut_rang <issue|besoin> <statut> : met dans $rang_statut le rang du statut dans le cycle de l'entité ; code 1 (rien d'écrit) pour un statut inconnu ou hors cycle.
+# Un statut qui contient « | » ou « = » (donnée non fiable) n'est jamais cherché dans la chaîne des rangs : il serait pris pour plusieurs statuts.
+statut_rang() {
+  local rangs reste
+  case "$2" in *"|"*|*"="*) return 1 ;; esac
+  if [ "$1" = issue ]; then rangs="$rangs_issues"; else rangs="$rangs_besoins"; fi
+  case "$rangs" in
+    *"|$2="*) reste="${rangs#*"|$2="}"; rang_statut="${reste%%"|"*}"; return 0 ;;
+  esac
   return 1
 }
+
+# issue_rang_statut <statut> : rang dans le cycle des issues ; code 1 et rien d'écrit pour un statut inconnu.
+issue_rang_statut() {
+  statut_rang issue "$1" && echo "$rang_statut"
+}
+
+# statut_depuis <issue|besoin> <statut> <seuil> : vrai si le statut et le seuil sont du cycle de l'entité et que le statut est au rang du seuil ou après lui.
+# Les règles par phase (« démarré », « en travail ») se lisent ainsi dans l'ordre de la table au lieu d'énumérer des noms de statut.
+statut_depuis() {
+  local seuil
+  statut_rang "$1" "$3" || return 1; seuil=$rang_statut
+  statut_rang "$1" "$2" && [ "$rang_statut" -ge "$seuil" ]
+}
+
+# statut_en_travail <issue|besoin> <statut> : vrai pour un statut du cycle démarré (depuis « En cours ») et pas terminé (avant « Fait »).
+statut_en_travail() {
+  statut_depuis "$1" "$2" "En cours" || return 1
+  [ "$2" != "Fait" ]
+}
+
+# statut_termine <issue|besoin> <statut> : vrai pour un statut connu de la table qui termine l'entité : le dernier du cycle ou un statut hors cycle (« Abandonnée »). Un statut inconnu n'est pas terminé.
+statut_termine() {
+  table_statut_connu "$1" "$2" || return 1
+  statut_rang "$1" "$2" || return 0
+  if [ "$1" = issue ]; then [ "$rang_statut" -eq $((${#statuts_issues[@]} - 1)) ]; else [ "$rang_statut" -eq $((${#statuts_besoins[@]} - 1)) ]; fi
+}
+
+# statut_avant_travail <issue|besoin> <statut> : vrai pour un statut du cycle placé avant « En cours » (pas encore démarré).
+statut_avant_travail() { statut_rang "$1" "$2" && ! statut_depuis "$1" "$2" "En cours"; }
 
 # Rattachement par convention : une issue dont le champ « branche » est vide est rattachée à la branche LOCALE nommée <type>/<id>-<suffixe>
 # (<type> : un segment, <id> : champ « id » de l'issue, comparé comme texte littéral et suivi d'un tiret, <suffixe> non vide).

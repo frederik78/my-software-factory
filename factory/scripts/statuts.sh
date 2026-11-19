@@ -127,10 +127,9 @@ controle_preuves() {
   issues_effectifs_calculer
   for i in "${!iss_fichiers[@]}"; do
     [ "${iss_etats[$i]}" = controlee ] || continue
-    case "${iss_effectifs[$i]}" in
-      "En cours"|"En revue")
-        [ -n "${iss_refs[$i]}" ] || preuves_branche "${iss_rangs[$i]}" "${iss_ids[$i]}" "${iss_effectifs[$i]}" "${rat_ambigues[$i]:-}" ;;
-    esac
+    if statut_en_travail issue "${iss_effectifs[$i]}"; then
+      [ -n "${iss_refs[$i]}" ] || preuves_branche "${iss_rangs[$i]}" "${iss_ids[$i]}" "${iss_effectifs[$i]}" "${rat_ambigues[$i]:-}"
+    fi
     case "${iss_statuts[$i]}" in
       Fait) preuves_fait "${iss_rangs[$i]}" "$i" "${iss_ids[$i]}" ;;
       "En revue") preuves_en_revue "${iss_rangs[$i]}" "$i" "${iss_ids[$i]}" ;;
@@ -167,7 +166,7 @@ controle_dependances() {
   done
   for i in "${!iss_fichiers[@]}"; do
     [ "${iss_etats[$i]}" = controlee ] || continue
-    [ "${iss_statuts[$i]}" = Fait ] || case "${iss_effectifs[$i]}" in Fait|Abandonnée) continue ;; esac
+    [ "${iss_statuts[$i]}" = Fait ] || ! statut_termine issue "${iss_effectifs[$i]}" || continue
     ent_elements "${ent_dependances[$i]}"
     for dep in "${ent_items[@]+"${ent_items[@]}"}"; do
       case "$dep" in

@@ -164,36 +164,40 @@ besoins_issues=()
 # avancement_besoin <id du besoin> : écrit « <f>/<n> Fait · <k> <statut>… » (RG-16) puis, sur la ligne suivante, le motif de divergence (RG-17) si le statut du backlog
 # <statut du backlog> diverge ; rien pour un besoin sans issue. Les statuts hors cycle sont comptés comme « non Fait » (Q-13). Le dashboard n'écrit jamais dans backlog.md (RG-18).
 avancement_besoin() { # avancement_besoin <id du besoin> <statut du backlog>
-  local i=0 n=0 fait=0 afaire=0 encours=0 enrevue=0 s k ligne="" motif="" autres=() comptes=()
+  local i=0 n=0 fait=0 afaire=0 demarrees=0 s k ligne="" motif="" vus=() comptes=()
   while [ "$i" -lt "${#ids_issues[@]}" ]; do
     if [ "${besoins_issues[$i]}" = "$1" ]; then
       s="${statuts_effectifs[$i]}"; n=$((n + 1))
-      case "$s" in
-        "Fait") fait=$((fait + 1)) ;;
-        "À faire") afaire=$((afaire + 1)) ;;
-        "En cours") encours=$((encours + 1)) ;;
-        "En revue") enrevue=$((enrevue + 1)) ;;
-        *)
-          k=0; while [ "$k" -lt "${#autres[@]}" ] && [ "${autres[$k]}" != "$s" ]; do k=$((k + 1)); done
-          if [ "$k" -eq "${#autres[@]}" ]; then autres+=("$s"); comptes+=(1); else comptes[$k]=$((comptes[k] + 1)); fi ;;
-      esac
+      k=0; while [ "$k" -lt "${#vus[@]}" ] && [ "${vus[$k]}" != "$s" ]; do k=$((k + 1)); done
+      if [ "$k" -eq "${#vus[@]}" ]; then vus+=("$s"); comptes+=(1); else comptes[$k]=$((comptes[k] + 1)); fi
     fi
     i=$((i + 1))
   done
   [ "$n" -gt 0 ] || return 0
+  k=0
+  while [ "$k" -lt "${#vus[@]}" ]; do # démarrées : du rang de « En cours » à « Fait » (l'ordre vient de la table)
+    case "${vus[$k]}" in Fait) fait=${comptes[$k]} ;; "À faire") afaire=${comptes[$k]} ;; esac
+    ! statut_depuis issue "${vus[$k]}" "En cours" || demarrees=$((demarrees + ${comptes[$k]}))
+    k=$((k + 1))
+  done
   ligne="$fait/$n Fait"
-  [ "$afaire" -eq 0 ] || ligne="$ligne · $afaire À faire"
-  [ "$encours" -eq 0 ] || ligne="$ligne · $encours En cours"
-  [ "$enrevue" -eq 0 ] || ligne="$ligne · $enrevue En revue"
-  k=0; while [ "$k" -lt "${#autres[@]}" ]; do ligne="$ligne · ${comptes[$k]} ${autres[$k]}"; k=$((k + 1)); done
-  case "$2" in
-    "À faire"|"En clarification"|"Spécifié") [ $((encours + enrevue + fait)) -eq 0 ] || motif="des issues sont déjà démarrées" ;;
-    "En cours")
-      if [ "$fait" -eq "$n" ]; then motif="toutes les issues sont Fait"
-      elif [ "$afaire" -eq "$n" ]; then motif="aucune issue démarrée"; fi ;;
-    "En revue") [ "$afaire" -ne "$n" ] || motif="aucune issue démarrée" ;;
-    "Fait") if [ "$fait" -lt "$n" ]; then if [ $((n - fait)) -eq 1 ]; then motif="1 issue non Fait"; else motif="$((n - fait)) issues non Fait"; fi; fi ;;
-  esac
+  for s in "${statuts_issues[@]}"; do # les statuts du cycle, dans l'ordre de la table, hors « Fait » déjà écrit
+    [ "$s" != "Fait" ] || continue
+    k=0; while [ "$k" -lt "${#vus[@]}" ]; do [ "${vus[$k]}" != "$s" ] || ligne="$ligne · ${comptes[$k]} $s"; k=$((k + 1)); done
+  done
+  k=0 # puis les statuts hors du cycle des issues, dans l'ordre où ils apparaissent
+  while [ "$k" -lt "${#vus[@]}" ]; do statut_rang issue "${vus[$k]}" || ligne="$ligne · ${comptes[$k]} ${vus[$k]}"; k=$((k + 1)); done
+  if statut_avant_travail besoin "$2"; then
+    [ "$demarrees" -eq 0 ] || motif="des issues sont déjà démarrées"
+  else
+    case "$2" in
+      "En cours")
+        if [ "$fait" -eq "$n" ]; then motif="toutes les issues sont Fait"
+        elif [ "$afaire" -eq "$n" ]; then motif="aucune issue démarrée"; fi ;;
+      "En revue") [ "$afaire" -ne "$n" ] || motif="aucune issue démarrée" ;;
+      "Fait") if [ "$fait" -lt "$n" ]; then if [ $((n - fait)) -eq 1 ]; then motif="1 issue non Fait"; else motif="$((n - fait)) issues non Fait"; fi; fi ;;
+    esac
+  fi
   printf '%s\n%s\n' "$ligne" "$motif"
 }
 
@@ -395,7 +399,7 @@ encart_en_cours() { # encart_en_cours <lignes de issues_dossier> : issues En cou
   local id titre statut retenue signal n=0
   printf '<section id="en-cours">\n<h2>En cours</h2>\n'
   while IFS="$sep" read -r id titre statut _ _ _ _ _ _ _ _ retenue; do
-    parmi "$statut" "En cours" "En revue" || continue
+    statut_en_travail issue "$statut" || continue
     [ "$n" -gt 0 ] || printf '<ul>\n'
     n=$((n + 1))
     signal="$(signal_branche "$retenue")"

@@ -1,12 +1,12 @@
 ---
 id: 008-02
-titre: Erreur de génération sans arrêt
+titre: Boucle du dashboard : erreur de génération sans arrêt, signaux, page atomique
 prd: docs/prd/008-boucle-dashboard-code-a-jour.md
 besoin: F-11
 statut: À faire
 depend_de: [008-01]
 criteres: [CA-07, CA-08, CA-09, CA-10, CS-03, CS-04, CS-05]
-branche: feat/008-02-erreur-de-generation-sans-arret
+branche: feat/008-02-erreur-generation-sans-arret
 commits: []
 revue:
 ---

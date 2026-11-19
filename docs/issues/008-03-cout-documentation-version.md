@@ -1,12 +1,12 @@
 ---
 id: 008-03
-titre: Coût (Git)
+titre: Boucle du dashboard : coût, documentation, version et non-régression
 prd: docs/prd/008-boucle-dashboard-code-a-jour.md
 besoin: F-11
 statut: À faire
 depend_de: [008-01, 008-02]
 criteres: [CA-11, CA-12, CA-13, CA-14, CA-15, CA-16]
-branche: feat/008-03-cout-git
+branche: feat/008-03-cout-documentation-version
 commits: []
 revue:
 ---

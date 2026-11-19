@@ -1,12 +1,12 @@
 ---
 id: 009-03
-titre: Règles à clé (3
+titre: Règles de l'orchestrateur : règles à clé et protection des branches de worktree-issue.sh
 prd: docs/prd/009-regles-orchestrateur-dans-la-factory.md
 besoin: F-14
 statut: À faire
 depend_de: [009-01, 009-02]
 criteres: [CA-10, CA-11, CA-12, CA-13, CS-02, CS-04, CS-07]
-branche: feat/009-03-regles-a-cle-3
+branche: feat/009-03-regles-a-cle-et-protection
 commits: []
 revue:
 ---

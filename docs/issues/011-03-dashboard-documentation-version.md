@@ -1,12 +1,12 @@
 ---
 id: 011-03
-titre: Dashboard (lien sur la carte
+titre: Dépendances entre besoins : dashboard, documentation, version et non-régression
 prd: docs/prd/011-dependances-entre-besoins.md
 besoin: F-15
 statut: À faire
 depend_de: [011-02]
 criteres: [CA-15, CA-16, CA-17, CA-18, CA-19, CA-20, CA-21, CA-22, CS-03]
-branche: feat/011-03-dashboard-lien-sur-la-carte
+branche: feat/011-03-dashboard-documentation-version
 commits: []
 revue:
 ---

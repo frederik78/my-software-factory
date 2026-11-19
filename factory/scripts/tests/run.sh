@@ -5497,6 +5497,53 @@ printf 'NETTOYAGE_APRES_FUSION=$(touch marque)\nBESOIN_FAIT_AUTO=oui; touch marq
 verifier "cs01_sans option, trois valeurs hostiles : liste affichée telle que lue (code 0), rien exécuté" 0 "" sh -c 'scripts/config-factory.sh >/dev/null 2>&1; [ ! -e marque ]'
 rm -f .factory.conf marque
 
+# CA-04, CS-03 : valeurs et commentaires livrés (lus dans HEAD : le .factory.conf de ce dépôt et le modèle copié dans les projets).
+echo "PRD 009 / issue 009-01 : .factory.conf, modèle et défauts (CA-04, CS-03)"
+oo_bloc() { # oo_bloc <chemin> <clé> : les lignes de commentaire contiguës juste au-dessus de la ligne « clé= » (rien si la clé est absente)
+  lire_depot "$depot" "$1" | awk -v k="$2" '/^#/ { b = b $0 "\n"; next } index($0, k "=") == 1 { printf "%s", b; exit } { b = "" }'
+}
+oo_lignes_cle() { lire_depot "$depot" "$1" | grep -c "^$2[[:space:]]*="; } # nombre de lignes qui affectent la clé
+oo_regle() { # phrase propre à chaque clé : la règle qu'elle active et ce que la session fait à oui
+  case "$1" in
+    NETTOYAGE_APRES_FUSION) echo "Règle 4 (nettoyage après fusion) : NETTOYAGE_APRES_FUSION=oui autorise la session à supprimer, sans demande, le worktree et la branche d'une issue fusionnée, après une fusion que vous avez demandée et vérifiée (scripts/worktree-issue.sh nettoyer)." ;;
+    BESOIN_FAIT_AUTO) echo "Règle 3 (besoin clos) : BESOIN_FAIT_AUTO=oui autorise la session à clore, sans demande, un besoin dont toutes les issues sont terminées et fusionnées (sur une branche docs/…, jamais fusionnée sans votre demande)." ;;
+    DEMARRAGE_AUTO) echo "Règle 5 (démarrage) : DEMARRAGE_AUTO=oui autorise la session à démarrer, sans demande, les issues démarrables (scripts/etat-issues.sh --prochaine), 2 ou 3 à la fois au plus." ;;
+  esac
+}
+oo_commentaire_dit() { # oo_commentaire_dit <chemin> <clé> <phrase exacte> : le commentaire de la clé contient la phrase (texte fixe)
+  oo_bloc "$1" "$2" | grep -qF -- "$3"
+}
+for f in .factory.conf factory/templates/.factory.conf; do
+  for cle in $oo_cles; do
+    verifier "ca04_$f : $cle a un commentaire juste au-dessus" 0 "" test -n "$(oo_bloc $f $cle)"
+    verifier "ca04_$f : $cle est affectée une seule fois" 0 "" test "$(oo_lignes_cle $f $cle)" = 1
+    verifier "ca04_$f : le commentaire de $cle dit la règle activée et ce que la session fait à oui" 0 "" oo_commentaire_dit $f $cle "$(oo_regle $cle)"
+    verifier "ca04_$f : le commentaire de $cle dit que non est le défaut" 0 "" oo_commentaire_dit $f $cle "Défaut : non (la session propose l'action à l'utilisateur)."
+    verifier "ca04_$f : le commentaire de $cle dit que la clé ne donne le droit ni de pousser ni de fusionner" 0 "" oo_commentaire_dit $f $cle "Cette clé ne donne le droit ni de pousser ni de fusionner : seul l'utilisateur pousse et fusionne."
+  done
+done
+for cle in $oo_cles; do
+  verifier "ca04_.factory.conf de ce dépôt : $cle=oui" 0 "" test "$(lire_depot "$depot" .factory.conf | grep -c "^$cle=oui\$")" = 1
+  verifier "ca04_modèle de .factory.conf : $cle=non" 0 "" test "$(lire_depot "$depot" factory/templates/.factory.conf | grep -c "^$cle=non\$")" = 1
+done
+p="$(nouveau_projet)"; cd "$p" || exit 1
+lire_depot "$depot" factory/templates/.factory.conf > .factory.conf
+verifier "ca04_copie du modèle non modifiée : le fichier copié n'est pas vide" 0 "" test -s .factory.conf
+for cle in $oo_cles; do
+  verifier "ca04_copie du modèle : valeur effective de $cle = non" 0 "" oo_accepte "$cle" non
+done
+verifier_exact "ca04_copie du modèle : la liste donne trois non" 0 "BESOIN_FAIT_AUTO=non
+DEMARRAGE_AUTO=non
+NETTOYAGE_APRES_FUSION=non" nouvelles_lignes
+verifier "ca04_copie du modèle : la liste complète est acceptée sans erreur (code 0)" 0 "" sh -c 'scripts/config-factory.sh >/dev/null 2>&1'
+for cle in $oo_cles; do
+  verifier "cs03_$cle : défaut non dans factory/scripts/lib-config.sh" 0 "" test "$(lire_depot "$depot" factory/scripts/lib-config.sh | grep -Ec "^${cle}_DEFAUT=non( |\$)")" = 1
+  verifier "cs03_$cle : scripts/config-factory.sh lit ce défaut" 0 "" test "$(lire_depot "$depot" factory/scripts/config-factory.sh | grep -cF "$cle) echo \"\$${cle}_DEFAUT\" ;;")" = 1
+  verifier "cs03_$cle : aucun défaut à oui dans les deux scripts" 0 "" test "$(for f in factory/scripts/lib-config.sh factory/scripts/config-factory.sh; do lire_depot "$depot" $f; done | grep -Ec "$cle(_DEFAUT)?[[:space:]]*=[[:space:]]*oui")" = 0
+  verifier "cs03_$cle : oui n'est pas écrit dans le modèle (aucune affectation)" 0 "" test "$(lire_depot "$depot" factory/templates/.factory.conf | grep -v "^[[:space:]]*#" | grep -Ec "$cle[[:space:]]*=[[:space:]]*oui")" = 0
+  verifier "cs03_$cle : oui est écrit dans le .factory.conf de ce dépôt" 0 "" test "$(lire_depot "$depot" .factory.conf | grep -Ec "^$cle=oui\$")" = 1
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

@@ -3,7 +3,7 @@ id: 005-02
 titre: Avis A16 : fichier de revue mal formé
 prd: docs/prd/005-format-revue-consolide.md
 besoin: F-12
-statut: En revue
+statut: En cours
 depend_de: [005-01, 004-06]
 criteres: [CA-09, CA-10, CA-11, CA-12, CA-13, CA-14, CA-15, CA-16, CS-01, CS-02, CS-03, CS-04, CS-05]
 criteres_justification: Treize critères sur un seul avis (A16) : définition, périmètre, bornes et valeurs hostiles se testent sur la même fonction ; les scinder ferait couvrir un même code par deux issues.

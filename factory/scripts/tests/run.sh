@@ -4915,9 +4915,11 @@ cs02_refus() { # cs02_refus <clé> <valeur> [fichier] : 64, aucune valeur brute 
 }
 for cle in AGENT_MODELE_SECURITE AGENT_EFFORT_SECURITE; do
   for v in $'opus\ntools: Write' 'opus; x' OPUS '../opus' ultra "$long" '$(touch marque)'; do
+    [ "$cle $v" != "AGENT_MODELE_SECURITE ultra" ] || continue # « ultra » est un nom de modèle valide ; hostile seulement pour l'effort
     verifier "cs02_$cle hostile « $(printf '%s' "${v:0:20}" | tr '\n' '|') » (environnement) : 64, aucune enveloppe, aucun champ injecté" 0 "" cs02_refus "$cle" "$v"
   done
   for v in 'opus; x' OPUS '../opus' ultra "$long" '$(touch marque)'; do
+    [ "$cle $v" != "AGENT_MODELE_SECURITE ultra" ] || continue
     verifier "cs02_$cle hostile « ${v:0:20} » (.factory.conf) : 64, aucune enveloppe" 0 "" cs02_refus "$cle" "$v" fichier
   done
 done

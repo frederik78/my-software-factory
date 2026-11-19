@@ -4867,6 +4867,205 @@ f5_tolere="$f5_dir/tolere.md"; printf 'verdict:   approuvé  \n\n## En clair\n' 
 f5_tete() { printf 'VERDICT: %s\n' "$("$verdict" "$1" 2>/dev/null)"; }
 verifier "cs06_un rapport dont la première ligne est « verdict:   approuvé  » donne la ligne de tête VERDICT: APPROUVÉ (valeur du script, pas du texte)" 0 "" test "$(f5_tete "$f5_tolere")" = 'VERDICT: APPROUVÉ'
 
+
+echo "statuts.sh : avis A16, fichier de revue mal formé (PRD 005, issue 005-02)"
+# Dépôts jetables (pr_depot : besoin « En revue », premier commit) ; les issues sont des Fait complètes (revue, FIN-ISSUE OK, commit) pour ne donner aucun autre constat.
+f6_fait() { pr_issue "$1" Fait "${2:-docs/reviews/$1.md}" "[$pr_c]" "$(pr_ok "$1")"; } # f6_fait <id> [champ revue]
+f6_run() { scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; f6_code=$?; }
+f6_nb() { grep -a -c '^AVIS A16 ' "$racine_tmp/st.out"; } # nombre de lignes A16
+f6_a16() { grep -a '^AVIS A16 ' "$racine_tmp/st.out"; }
+f6_a16_de() { grep -a -c "^AVIS A16 issue $1 : " "$racine_tmp/st.out"; } # f6_a16_de <id>
+f6_a16_causes() { # f6_a16_causes <id> : lignes A16 exactes attendues, sur l'entrée standard, pour l'issue <id>
+  [ "$(grep -a "^AVIS A16 issue $1 : " "$racine_tmp/st.out")" = "$(cat)" ]
+}
+F6_PLUS="plus d'une ligne VERDICT:"; F6_PREM="la première ligne n'est pas la ligne VERDICT:"
+f6_msg() { printf 'AVIS A16 issue %s : fichier de revue mal formé docs/reviews/%s.md : %s' "$1" "$1" "$2"; } # f6_msg <id> <cause>
+f6_stderr_vide() { [ ! -s "$racine_tmp/st.err" ]; }
+
+# CA-09 : fichiers conformes (1, 2, 3 itérations, deux verdicts) et fichiers corrigés à la main du dépôt : aucun A16
+pr_depot
+for f6_n in 1 2 3; do
+  f5_consolide "docs/reviews/005-8$f6_n.md" 'APPROUVÉ' "$f6_n"; f6_fait "005-8$f6_n"
+  f5_consolide "docs/reviews/005-7$f6_n.md" 'CHANGEMENTS DEMANDÉS' "$f6_n"; f6_fait "005-7$f6_n"
+done
+for f6_r in 001-01 003-05 004-01; do lire_depot "$depot" "docs/reviews/$f6_r.md" > "docs/reviews/$f6_r.md"; f6_fait "$f6_r"; done
+f6_run
+verifier "ca09_fichiers consolidés conformes (1, 2, 3 itérations, APPROUVÉ et CHANGEMENTS DEMANDÉS) et copies de 001-01, 003-05, 004-01 : aucun A16, 9 issues, sortie d'erreur vide" 0 "" test "$(f6_nb)|$(grep -a -c '^STATUTS : ' "$racine_tmp/st.out")|$(ls docs/reviews | wc -l | tr -d ' ')|$(f6_stderr_vide && echo vide)" = "0|1|9|vide"
+
+# CA-10 : deux lignes de verdict (tête + section), puis trois
+pr_depot
+f5_consolide docs/reviews/005-81.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ'; f6_fait 005-81
+f5_consolide docs/reviews/005-82.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ
+VERDICT: CHANGEMENTS DEMANDÉS'; f6_fait 005-82
+f6_run
+verifier "ca10_deux lignes de verdict : exactement l'avis A16 « plus d'une ligne VERDICT: » pour l'issue, code 0 (aucune erreur)" 0 "" test "$(f6_a16_de 005-81)|$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PLUS")" "$racine_tmp/st.out")|$f6_code" = "1|1|0"
+verifier "ca10_trois lignes de verdict : un seul A16 pour l'issue, de la même cause" 0 "" test "$(f6_a16_de 005-82)|$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PLUS")" "$racine_tmp/st.out")|$(f6_nb)" = "1|1|2"
+
+# CA-11 : première ligne autre que la ligne de verdict
+pr_depot
+printf '# Revue 005-81\n\nVERDICT: APPROUVÉ\n' > docs/reviews/005-81.md; f6_fait 005-81
+printf '\nVERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-82.md; f6_fait 005-82
+printf 'VERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-83.md; f6_fait 005-83
+printf 'VERDICT: CHANGEMENTS DEMANDÉS\n' > docs/reviews/005-84.md; f6_fait 005-84
+printf 'VERDICT: nimporte quoi\n' > docs/reviews/005-85.md; f6_fait 005-85
+f6_run
+verifier "ca11_première ligne = titre ou ligne vide et une seule ligne de verdict plus bas : A16 « la première ligne n'est pas la ligne VERDICT: »" 0 "" test "$(f6_a16_de 005-81)|$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PREM")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PREM")" "$racine_tmp/st.out")" = "1|1|1"
+verifier "ca11_première ligne seule ligne de verdict, quelle que soit sa valeur (APPROUVÉ, CHANGEMENTS DEMANDÉS, valeur invalide) : aucun A16" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-84)|$(f6_a16_de 005-85)" = "0|0|0"
+
+# CA-12 : fichiers d'avant F-01 (copies de 002-01 et 003-01, sans ligne de verdict), non modifiés
+pr_depot
+for f6_r in 002-01 003-01; do lire_depot "$depot" "docs/reviews/$f6_r.md" > "docs/reviews/$f6_r.md"; f6_fait "$f6_r"; done
+printf '# Revue\n\nAPPROUVÉ\n' > docs/reviews/005-81.md; f6_fait 005-81
+f6_avant="$(cksum docs/reviews/*.md)"; f6_run
+verifier "ca12_revues d'avant F-01 (copies de 002-01 et 003-01, dernière ligne APPROUVÉ ou non) : aucun A16, fichiers inchangés" 0 "" test "$(f6_nb)|$(grep -a -c '^AVIS A03 issue 00[23]-01 ' "$racine_tmp/st.out")|$([ "$f6_avant" = "$(cksum docs/reviews/*.md)" ] && echo inchanges)" != "0||inchanges"
+verifier "ca12_revues d'avant F-01 : le décompte exact (aucun A16, A03 seulement pour une dernière ligne autre que APPROUVÉ), sans fichier modifié" 0 "" test "$(f6_nb)|$([ "$f6_avant" = "$(cksum docs/reviews/*.md)" ] && echo inchanges)" = "0|inchanges"
+
+# CA-13 : périmètre (statut local Fait ou En revue), un avis par issue, cause (a) avant (b)
+pr_depot
+printf 'VERDICT: APPROUVÉ\n\n# R\nVERDICT: APPROUVÉ\n' > docs/reviews/mal.md
+for f6_s in Fait "En revue" "En cours" "À faire" Abandonnée; do
+  f6_id="005-$(printf '%s' "$f6_s" | LC_ALL=C tr -cd 'a-zA-Z' | wc -c | tr -d ' ')$(printf '%s' "$f6_s" | wc -c | tr -d ' ')"
+  pr_issue "$f6_id" "$f6_s" "docs/reviews/mal.md" "[$pr_c]" "- 2026-11-19 : Abandonnée : raison.
+$(pr_ok "$f6_id")" "" "feat/x"
+  echo "$f6_s=$f6_id" >> "$racine_tmp/f6.ids"
+done
+git branch feat/x
+f6_run
+f6_ids="$(sed 's/^.*=//' "$racine_tmp/f6.ids" | tr '\n' ' ')"; f6_id_fait="$(grep '^Fait=' "$racine_tmp/f6.ids" | cut -d= -f2)"; f6_id_rev="$(grep '^En revue=' "$racine_tmp/f6.ids" | cut -d= -f2)"
+verifier "ca13_périmètre : un A16 pour l'issue Fait et un pour l'issue En revue qui désignent le même fichier mal formé, aucun pour En cours, À faire, Abandonnée ($f6_ids)" 0 "" test "$(f6_nb)|$(f6_a16_de "$f6_id_fait")|$(f6_a16_de "$f6_id_rev")" = "2|1|1"
+rm -f "$racine_tmp/f6.ids"
+pr_depot
+printf 'titre\nVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/les-deux.md; f6_fait 005-81 docs/reviews/les-deux.md
+verifier "ca13_fichier à la fois à deux lignes de verdict et à première ligne autre : un seul A16 de cause « plus d'une ligne VERDICT: »" 0 "" test "$(f6_run; f6_nb)|$(f6_a16_de 005-81)|$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PLUS")" "$racine_tmp/st.out")" = "1|1|1"
+f6_fait 005-82 docs/reviews/les-deux.md
+verifier "ca13_deux issues qui désignent le même fichier mal formé : un A16 par issue" 0 "" test "$(f6_run; f6_nb)|$(f6_a16_de 005-81)|$(f6_a16_de 005-82)" = "2|1|1"
+
+# CA-14 : indépendance d'A03
+pr_depot
+f5_consolide docs/reviews/005-81.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ
+Fin du fichier'; f6_fait 005-81
+f5_consolide docs/reviews/005-82.md 'CHANGEMENTS DEMANDÉS' 2 'APPROUVÉ'; f6_fait 005-82
+printf 'VERDICT: APPROUVÉ\n\n# R\n\nAPPROUVÉ\n' > docs/reviews/005-83.md; f6_fait 005-83
+f6_run
+verifier "ca14_tête APPROUVÉ puis seconde ligne de verdict : A16 et A03 (texte d'A03 inchangé)" 0 "" test "$(f6_a16_de 005-81)|$(grep -a -c -x -F "AVIS A03 issue 005-81 : Fait : la dernière ligne de docs/reviews/005-81.md n'est pas APPROUVÉ" "$racine_tmp/st.out")" = "1|1"
+verifier "ca14_fichier conforme CHANGEMENTS DEMANDÉS en tête : A03 seul, sans A16 (dernière ligne autre qu'APPROUVÉ)" 0 "" test "$(f6_a16_de 005-82)|$(grep -a -c "^AVIS A03 issue 005-82 " "$racine_tmp/st.out")" = "0|1"
+verifier "ca14_fichier conforme et approuvé : ni A16 ni A03" 0 "" test "$(f6_a16_de 005-83)|$(grep -a -c "^AVIS A03 issue 005-83 " "$racine_tmp/st.out")" = "0|0"
+
+# CA-15 : forme de la ligne, classement, récapitulatif, dashboard
+pr_depot
+pr_issue 005-70 Fini "" "[$pr_c]" "$(pr_ok 005-70)"
+f5_consolide docs/reviews/005-71.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ
+Fin du fichier'; f6_fait 005-71
+printf 'titre\nVERDICT: APPROUVÉ\n\nAPPROUVÉ\n' > docs/reviews/005-72.md; f6_fait 005-72
+st_cas "ca15_classement : l'erreur d'abord, puis par issue A03 avant A16, récapitulatif qui compte l'avis, code 1 (erreur par ailleurs)" 1 <<TXT
+ERREUR E10 issue 005-70 : statut inconnu « Fini » (attendus : $ATTENDUS_I)
+AVIS A03 issue 005-71 : Fait : la dernière ligne de docs/reviews/005-71.md n'est pas APPROUVÉ
+$(f6_msg 005-71 "$F6_PLUS")
+$(f6_msg 005-72 "$F6_PREM")
+STATUTS : 1 erreur(s), 3 avis
+TXT
+scripts/dashboard.sh --sortie "$racine_tmp/f6.html" > /dev/null 2>&1
+verifier "ca15_dashboard : la section « Contrôle des statuts » contient le texte exact de l'avis, échappé en HTML (apostrophe en &#39;)" 0 "" grep -a -F -q "AVIS A16 issue 005-71 : fichier de revue mal formé docs/reviews/005-71.md : plus d&#39;une ligne VERDICT:" "$racine_tmp/f6.html"
+
+# CA-16 : lecture seule, coût Git, fichiers refusés (A02, jamais A16)
+f6_compte() { pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; wc -l < "$racine_tmp/git.args" | tr -d ' '; }
+pr_depot
+for f6_n in 1 2 3 4 5 6; do f5_consolide "docs/reviews/005-8$f6_n.md" 'APPROUVÉ' 2; f6_fait "005-8$f6_n"; done
+f6_propre="$(f6_compte)"; f6_nb_propre="$(f6_nb)"
+for f6_n in 1 2 3; do printf 'VERDICT: APPROUVÉ\n\nVERDICT: APPROUVÉ\n' > "docs/reviews/005-8$f6_n.md"; done
+for f6_n in 4 5; do printf 'titre\nVERDICT: APPROUVÉ\n' > "docs/reviews/005-8$f6_n.md"; done
+f6_trace() { find backlog.md docs -type f -exec cksum {} + | LC_ALL=C sort; git status --porcelain; git for-each-ref; git ls-files -s | cksum; }
+f6_avant="$(f6_trace)"; f6_mal="$(f6_compte)"; f6_nb_mal="$(f6_nb)"
+verifier "ca16_coût : cinq fichiers mal formés = le même nombre d'appels Git que des fichiers conformes ($f6_propre et $f6_mal), $f6_nb_mal A16 contre $f6_nb_propre" 0 "" test "$f6_propre|$f6_nb_propre" = "$f6_mal|0" -a "$f6_nb_mal" = 5
+verifier "ca16_lecture seule : revues, backlog.md, issues, index, refs et arbre identiques après le contrôle" 0 "" test "$f6_avant" = "$(f6_trace)"
+pr_depot
+{ printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n'; head -c $((1048577 - 40)) /dev/zero | tr '\0' 'x'; printf '\n'; } > docs/reviews/005-81.md; f6_fait 005-81
+printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > "$racine_tmp/f6-cible.md"; ln -s "$racine_tmp/f6-cible.md" docs/reviews/005-82.md; f6_fait 005-82
+printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/x.md.bak; f6_fait 005-83 docs/reviews/x.md.bak
+mkdir -p docs/reviews/sub; printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/sub/y.md; f6_fait 005-84 docs/reviews/sub/y.md
+f6_fait 005-85 ../x.md
+f6_run
+verifier "ca16_fichier de plus de 1 Mio, lien symbolique, chemin hors de la forme docs/reviews/<nom>.md, à deux lignes de verdict : A02 et jamais A16" 0 "" test "$(f6_nb)|$(grep -a -c '^AVIS A02 issue 005-8[1-5] ' "$racine_tmp/st.out")" = "0|5"
+
+# CS-01 : A16 est émis exactement quand verdict-revue.sh rend INCONNU pour cause de doublon, sur chaque forme de la deuxième ligne
+pr_depot
+f6_formes=(
+  '  verdict : APPROUVÉ|1' 'Verdict: x|1' 'VERDICT:|1' $'\tVERDICT: APPROUVÉ|1' $'VERDICT: APPROUVÉ\r|1' $'```\nVERDICT: APPROUVÉ\n```|1' $'- liste\n    VERDICT: APPROUVÉ|1'
+  '> VERDICT: APPROUVÉ|0' '- VERDICT: APPROUVÉ|0' "Verdict de l'itération : APPROUVÉ|0" 'VERDICT APPROUVÉ|0' $'\xc2\xa0VERDICT: APPROUVÉ|0'
+)
+f6_k=0
+for f6_f in "${f6_formes[@]}"; do
+  f6_k=$((f6_k + 1)); f6_id="005-$(printf '%02d' "$f6_k")"
+  { printf 'VERDICT: APPROUVÉ\n\n# Revue\n'; printf '%s\n' "${f6_f%|*}"; } > "docs/reviews/$f6_id.md"; f6_fait "$f6_id"
+done
+f6_run
+f6_ecarts=""; f6_k=0
+for f6_f in "${f6_formes[@]}"; do
+  f6_k=$((f6_k + 1)); f6_id="005-$(printf '%02d' "$f6_k")"
+  scripts/verdict-revue.sh "docs/reviews/$f6_id.md" > /dev/null 2> "$racine_tmp/v.err"; f6_script=0
+  grep -a -q 'en double' "$racine_tmp/v.err" && f6_script=1
+  [ "$f6_script" = "${f6_f##*|}" ] && [ "$(f6_a16_de "$f6_id")" = "$f6_script" ] || f6_ecarts="$f6_ecarts $f6_id(script=$f6_script,attendu=${f6_f##*|},a16=$(f6_a16_de "$f6_id"))"
+done
+verifier "cs01_12 formes de la deuxième ligne de verdict : A16 exactement quand verdict-revue.sh rend INCONNU pour doublon (7 comptées, 5 non comptées), jamais de divergence" 0 "" test -z "$f6_ecarts" -a "$(f6_nb)" = 7
+
+# CS-02 : valeurs hostiles (id, contenu de la revue) : une ligne par constat, rien du contenu dans la sortie, rien d'exécuté
+pr_depot
+f6_hostile="$(printf 'ERREUR E01 backlog : forgé\n$(touch${IFS}marque)\n`touch marque`\n; rm -rf x\n\033[31mrouge\033[0m\nVERDICT: APPROUVÉ\n')"
+{ printf 'VERDICT: APPROUVÉ\n%s\n' "$f6_hostile"; } > docs/reviews/005-81.md
+f6_long="$(printf 'y%.0s' $(seq 1 130))"
+for f6_h in "a"$'\r'"b" "a"$'\033'"[31mb" "<img src=x onerror=alert(1)>" "$f6_long"; do
+  f6_k=$((${f6_k:-0} + 1)); f6_hid="005-9$f6_k$f6_h"
+  pr_issue "$f6_hid" Fait "docs/reviews/005-81.md" "[$pr_c]" "$(pr_ok x)"
+  mv "docs/issues/$f6_hid-x.md" "docs/issues/005-9$f6_k-x.md"
+done
+printf -- '---\nid: 005-8\0nul\ntitre: T\nbesoin: F-01\nstatut: Fait\ndepend_de: []\ncriteres: [CA-01]\nbranche:\ncommits: [%s]\nrevue: docs/reviews/005-81.md\n---\n\n## Notes\n- `FIN-ISSUE OK 005-8 abc1234 : 1 test`\n' "$pr_c" > docs/issues/005-80-x.md
+f6_run
+scripts/dashboard.sh --sortie "$racine_tmp/f6.html" > /dev/null 2>&1
+f6_cs02() {
+  [ "$(f6_nb)" -ge 4 ] || { echo "moins de 4 A16 : $(f6_nb)"; return 1; }
+  [ "$(grep -a -c -v -E '^(ERREUR|AVIS) [AE][0-9]{2} (issue|fichier|besoin|backlog) .* : .|^STATUTS : ' "$racine_tmp/st.out")" -eq 0 ] || { echo "ligne hors forme"; return 1; }
+  [ "$(LC_ALL=C grep -a -c "$(printf '[\001-\037\177]')" "$racine_tmp/st.out")" -eq 0 ] || { echo "caractère de contrôle"; return 1; }
+  [ "$(grep -a -c -E 'forgé|touch|rm -rf|rouge' "$racine_tmp/st.out" "$racine_tmp/f6.html" | grep -v ':0$' | wc -l | tr -d ' ')" -eq 0 ] || { echo "contenu de la revue recopié"; return 1; }
+  [ "$(grep -a -c '^ERREUR E01 ' "$racine_tmp/st.out")" -eq 0 ] || { echo "E01 contrefait"; return 1; }
+  ro_sans_marque || { echo "marque"; return 1; }
+  grep -a -q "$(printf 'y%.0s' $(seq 1 120))…" "$racine_tmp/st.out" || { echo "valeur longue non tronquée"; return 1; }
+  [ "$(grep -a -c '<img' "$racine_tmp/f6.html")" -eq 0 ] && grep -a -q '&lt;img' "$racine_tmp/f6.html" || { echo "balise non échappée"; return 1; }
+}
+verifier "cs02_valeurs_hostiles : id avec CR, ESC, NUL, balise HTML ou 130 caractères et revue pleine de \$(…), backticks, « ; rm », faux E01 et ESC : une ligne par constat, aucun contrôle, contenu absent, rien exécuté, valeur tronquée, page échappée" 0 "" f6_cs02
+
+# CS-03 : volumes : 1 Mio exactement (100 000 lignes de verdict), 1 Mio + 1 octet, une ligne de plusieurs Mio
+pr_depot
+f6_gros() { # f6_gros <fichier> <taille> <lignes de verdict>
+  { awk -v n="$3" 'BEGIN { for (i = 0; i < n; i++) print "VERDICT:" }'; head -c $(($2 - $3 * 9)) /dev/zero | tr '\0' 'x'; } > "$1"
+}
+f6_gros docs/reviews/005-81.md 1048576 100000; f6_fait 005-81
+{ head -c 1048577 /dev/zero | tr '\0' 'x'; } > docs/reviews/005-82.md; f6_fait 005-82
+{ head -c 4194304 /dev/zero | tr '\0' 'x'; } > docs/reviews/005-83.md; f6_fait 005-83
+f6_debut=$SECONDS; f6_run; f6_duree=$((SECONDS - f6_debut))
+echo "  mesure cs03 : fichiers de 1 Mio (100 000 lignes de verdict), 1 Mio + 1 octet et 4 Mio : $f6_duree s (borne 10 s)"
+verifier "cs03_volumes : 1 Mio exactement = A16 « plus d'une ligne VERDICT: », 1 Mio + 1 octet et ligne de 4 Mio = A02, rien sur la sortie d'erreur, $f6_duree s au plus 10 s" 0 "" test "$(wc -c < docs/reviews/005-81.md | tr -d ' ')|$(f6_a16_de 005-81)|$(f6_nb)|$(grep -a -c '^AVIS A02 issue 005-8[23] ' "$racine_tmp/st.out")|$(f6_stderr_vide && echo vide)|$([ "$f6_duree" -le 10 ] && echo borne)" = "1048576|1|1|2|vide|borne"
+
+# CS-04 : fins de ligne, espaces de bord, BOM, NUL, fichier vide
+pr_depot
+printf 'VERDICT: APPROUVÉ\r\n\r\n# Revue\r\nVERDICT: APPROUVÉ\r\n' > docs/reviews/005-81.md; f6_fait 005-81
+printf '  \t VERDICT: APPROUVÉ\n\n# Revue\n \tVerdict : x\n' > docs/reviews/005-82.md; f6_fait 005-82
+printf '\xef\xbb\xbfVERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-83.md; f6_fait 005-83
+printf 'VERDICT: APPR\0OUVÉ\n\n# Revue\n' > docs/reviews/005-84.md; f6_fait 005-84
+: > docs/reviews/005-85.md; f6_fait 005-85
+printf '\xef\xbb\xbfVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/005-86.md; f6_fait 005-86
+printf '  VERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-87.md; f6_fait 005-87
+f6_run
+verifier "cs04_octets : CRLF et espaces ou tabulations de bord lus comme lignes de verdict (A16 pour les deux fichiers à deux lignes)" 0 "" test "$(f6_a16_de 005-81)|$(f6_a16_de 005-82)|$(f6_a16_de 005-87)" = "1|1|0"
+verifier "cs04_octets : BOM seul (ligne masquée), octet NUL, fichier vide : aucun A16 ; A03 comme avant ; BOM puis seconde ligne de verdict = A16 (première ligne autre) ; rien sur la sortie d'erreur" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-84)|$(f6_a16_de 005-85)|$(f6_a16_de 005-86)|$(grep -a -c '^AVIS A03 issue 005-8[345] ' "$racine_tmp/st.out")|$(f6_stderr_vide && echo vide)" = "0|0|0|1|3|vide"
+
+# CS-05 : champs revue hostiles et lien symbolique : A02, aucune lecture hors dépôt
+pr_depot
+printf 'SECRET-HORS-DEPOT\nVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > "$racine_tmp/f6-secret.md"
+ln -s "$racine_tmp/f6-secret.md" docs/reviews/005-84.md
+f6_fait 005-81 'docs/reviews/../../etc/hostname'; f6_fait 005-82 '/etc/hostname'; f6_fait 005-83 'docs/reviews/x/../y.md'; f6_fait 005-84
+f6_run
+verifier "cs05_chemins : ../.. , chemin absolu, x/../y.md et lien symbolique vers un fichier hors dépôt : A02 pour chacun, aucun A16, le contenu visé n'apparaît nulle part" 0 "" test "$(grep -a -c '^AVIS A02 issue 005-8[1-4] ' "$racine_tmp/st.out")|$(f6_nb)|$(grep -a -c -e SECRET-HORS-DEPOT "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -v ':0$' | wc -l | tr -d ' ')" = "4|0|0"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

@@ -4364,6 +4364,99 @@ for ro_sh in $ro_shells; do
   verifier "cs03_chemins [$ro_sh] : le contenu du fichier visé (SECRET-HORS-DEPOT) n'apparaît ni sur la sortie standard ni sur la sortie d'erreur" 1 "" grep -a -q SECRET-HORS-DEPOT "$racine_tmp/st.out" "$racine_tmp/st.err"
 done
 
+# cs04 : volumes : 5 000 besoins, 2 000 issues (1 900 Fait avec leur revue et leur commit, 50 En cours, 50 À faire), une cellule de statut de 1 Mio, une cellule de décisions
+# de 1 Mio et un fichier de revue de 5 Mio. Borne de temps : 2 s par centaine d'issues (de l'ordre de la seconde, avec une marge pour les machines chargées) ; la durée mesurée est consignée.
+ro_volume() { # ro_volume <issues> <besoins> : projet jetable ; issue n (Fait si n <= 95 % des issues, En cours jusqu'à 97,5 %, À faire ensuite) du besoin F-<n>, de même statut
+  bs_depot
+  awk -v n="$2" -v m="$1" -v c="$bs_c" 'BEGIN {
+    f = "backlog.md"; fait = int(m * 19 / 20); cours = int(m * 39 / 40)
+    print "# Backlog\n\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|" > f
+    gros = sprintf("%1048576s", ""); gsub(/ /, "z", gros)
+    for (i = 1; i <= n; i++) {
+      s = "À faire"; if (i <= fait) s = "Fait"; else if (i <= cours) s = "En cours"
+      if (i == n) printf "| F-%05d | B | P1 | %s | `docs/prd/p.md` | |\n", i, gros > f
+      else if (i == n - 1) printf "| F-%05d | B | P1 | %s | `docs/prd/p.md` | %s |\n", i, s, gros > f
+      else printf "| F-%05d | B | P1 | %s | `docs/prd/p.md` | |\n", i, s > f
+    }
+    close(f)
+    for (i = 1; i <= m; i++) {
+      s = "À faire"; if (i <= fait) s = "Fait"; else if (i <= cours) s = "En cours"
+      g = sprintf("docs/issues/004-%04d-x.md", i)
+      printf "---\nid: 004-%04d\ntitre: T\nbesoin: F-%05d\nprd: docs/prd/p.md\nstatut: %s\ndepend_de: [%s]\ncriteres: [CA-01]\nbranche: %s\ncommits: [%s]\nrevue: %s\n---\n\n## Objectif\nx\n\n## Notes\n- `FIN-ISSUE OK 004-%04d abc1234 : 1 test`\n", \
+        i, i, s, (i > 1 && i <= fait ? sprintf("004-%04d", i - 1) : ""), (s == "À faire" ? "" : "feat/b"), (s == "Fait" ? c : ""), (s == "Fait" ? sprintf("docs/reviews/004-%04d.md", i) : ""), i > g
+      close(g)
+      if (s == "Fait") { r = sprintf("docs/reviews/004-%04d.md", i); printf "VERDICT: APPROUVÉ\n\n# Revue\nx\n" > r; close(r) }
+    }
+  }'
+  awk 'BEGIN { l = sprintf("%1023s", ""); gsub(/ /, "r", l); for (i = 0; i < 5120; i++) print l }' > docs/reviews/gros.md # 5 Mio
+  ro_issue 004-9999 Fait F-00001 "[]" feat/b "[$bs_c]" docs/reviews/gros.md
+}
+ro_chrono() { # ro_chrono <shell> : durée en secondes de statuts.sh dans $ro_duree, code dans $ro_c
+  local debut=$SECONDS
+  ro_statuts "$1" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; ro_c=$?
+  ro_duree=$((SECONDS - debut))
+}
+ro_volume 2000 5000
+ro_gros_attendu="ERREUR E05 besoin F-05000 : statut inconnu « 1 Mio »"
+for ro_sh in $ro_shells; do
+  ro_chrono "$ro_sh"
+  echo "  mesure cs04 [$ro_sh] : 2 000 issues, 5 000 besoins, cellules de 1 Mio, revue de 5 Mio : $ro_duree s (borne 40 s)"
+  verifier "cs04_volumes [$ro_sh] : se termine sans échec de mémoire (code 1 = l'erreur E05 de la cellule de 1 Mio), rien sur la sortie d'erreur, récapitulatif exact ($ro_duree s)" 0 "" test "$ro_c|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')|$(tail -1 "$racine_tmp/st.out")" = "1|0|STATUTS : 1 erreur(s), 1 avis"
+  verifier "cs04_volumes [$ro_sh] : temps borné : $ro_duree s au plus 40 s pour 2 000 issues (2 s par centaine)" 0 "" test "$ro_duree" -le 40
+  verifier "cs04_volumes [$ro_sh] : revue de 5 Mio refusée (A02) et cellule de statut de 1 Mio tronquée à 120 caractères suivis de « … »" 0 "" ro_contient "$racine_tmp/st.out" \
+    "AVIS A02 issue 004-9999 : Fait : fichier de revue introuvable ou illisible (docs/reviews/gros.md)" \
+    "ERREUR E05 besoin F-05000 : statut inconnu « $(printf 'z%.0s' $(seq 1 120))… » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)"
+done
+
+# cs04 : lecture groupée des en-têtes (un processus pour toutes les issues) = lecture fichier par fichier (issue_champ, issue_liste) sur des en-têtes de toutes les formes ;
+# les valeurs attendues de la section Notes (FIN-ISSUE OK, mot « Abandonnée » dans une puce) et de la fermeture de l'en-tête sont des littéraux, jamais un recalcul.
+st_depot
+printf -- '---\nid: 004-01\nstatut: Fait\nbesoin: F-01\nprd: docs/prd/p.md\nbranche: feat/a\nrevue: docs/reviews/x.md\ndepend_de: [004-02, "004-03", '"'"'004-04'"'"']\ncommits: [abc1234, def5678]\n---\n\n## Notes\n- `FIN-ISSUE OK 004-01 abc1234 : 1 test`\n' > docs/issues/004-01-x.md
+printf -- '---\nid: 004-02\nstatut:\tFait\t\nbesoin:\nprd: docs/prd/p.md # commentaire\nbranche: feat/a:b\nrevue: a: b\ndepend_de:\n  - 004-01\n  - "004-03" # commentaire\n\n  - 004-04\ncommits:\n  - abc1234\n---\n\n## Notes\n- FIN-ISSUE OK 004-0 x\n- FIN-ISSUE OK 004-02x\n' > docs/issues/004-02-x.md
+printf -- '---\nid: 004-03\nid: 004-99\nstatut: Abandonnée\nbesoin_x: F-9\nbesoin: F-03\ndepend_de: []\ncommits: []\n---\n\n## Notes\n\n- 2026-11-18 : Abandonnée, remplacée.\n## Autre\n- FIN-ISSUE OK 004-03 hors section\n' > docs/issues/004-03-x.md
+printf -- '---\nid:  "004-04"  \nstatut: En cours\ndepend_de: [004-01,004-02]\nbranche: " feat/b "\n' > docs/issues/004-04-x.md
+printf -- 'id: 004-05\nstatut: Fait\n---\n' > docs/issues/004-05-x.md
+printf -- '---\r\nid: 004-06\r\nstatut: Fait\r\n---\r\n' > docs/issues/004-06-x.md
+printf -- '---\nid: 004-07\nstatut: Fait\ncommits: [ , a,, b ]\ndepend_de:\n  -\n  - x\n---\n## Notes\n  * Abandonnée sans puce ?\nAbandonnée hors puce\n' > docs/issues/004-07-x.md
+printf -- '---\n---\n# Notes\n- FIN-ISSUE OK  vide\n' > docs/issues/004-08-x.md
+: > docs/issues/004-09-x.md
+cat > "$racine_tmp/eq.sh" <<'SH'
+. scripts/lib-issues.sh
+issues_en_tetes_charger
+for i in "${!ent_fichiers[@]}"; do
+  ent_elements "${ent_dependances[$i]}"; deps="${#ent_items[@]}:${ent_items[*]+"${ent_items[*]}"}"
+  ent_elements "${ent_commits[$i]}"; coms="${#ent_items[@]}:${ent_items[*]+"${ent_items[*]}"}"
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "${ent_fichiers[$i]}" "${ent_ids[$i]}" "${ent_statuts[$i]}" "${ent_besoins[$i]}" "${ent_prds[$i]}" "${ent_branches[$i]}" "${ent_revues[$i]}" "$deps" "$coms"
+  printf '%s|ok=%s|fin=%s|abandon=%s\n' "${ent_fichiers[$i]##*/}" "${ent_ok[$i]}" "${ent_fin_ok[$i]}" "${ent_abandon[$i]}" >&2
+done
+SH
+cat > "$racine_tmp/eq1.sh" <<'SH'
+. scripts/lib-issues.sh
+for f in docs/issues/[0-9]*.md; do
+  deps=(); while IFS= read -r x; do deps+=("$x"); done < <(issue_liste "$f" depend_de)
+  coms=(); while IFS= read -r x; do coms+=("$x"); done < <(issue_liste "$f" commits)
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$f" "$(issue_champ "$f" id)" "$(issue_champ "$f" statut)" "$(issue_champ "$f" besoin)" "$(issue_champ "$f" prd)" "$(issue_champ "$f" branche)" "$(issue_champ "$f" revue)" "${#deps[@]}:${deps[*]+"${deps[*]}"}" "${#coms[@]}:${coms[*]+"${coms[*]}"}"
+done
+SH
+cat > "$racine_tmp/eq.attendu" <<'TXT'
+004-01-x.md|ok=1|fin=1|abandon=0
+004-02-x.md|ok=1|fin=0|abandon=0
+004-03-x.md|ok=1|fin=0|abandon=1
+004-04-x.md|ok=0|fin=0|abandon=0
+004-05-x.md|ok=0|fin=0|abandon=0
+004-06-x.md|ok=0|fin=0|abandon=0
+004-07-x.md|ok=1|fin=0|abandon=1
+004-08-x.md|ok=1|fin=0|abandon=0
+004-09-x.md|ok=0|fin=0|abandon=0
+TXT
+for ro_sh in $ro_shells; do
+  if [ "$ro_sh" = b32 ]; then PATH="$ro_b32:$PATH" bash "$racine_tmp/eq.sh" > "$racine_tmp/eq.groupe" 2> "$racine_tmp/eq.drapeaux"; else bash "$racine_tmp/eq.sh" > "$racine_tmp/eq.groupe" 2> "$racine_tmp/eq.drapeaux"; fi
+  bash "$racine_tmp/eq1.sh" > "$racine_tmp/eq.fichier" 2>&1
+  verifier "cs04_lecture_groupee [$ro_sh] : identifiant, statut, besoin, prd, branche, revue, depend_de et commits identiques à issue_champ et issue_liste sur 9 formes d'en-tête" 0 "" cmp "$racine_tmp/eq.fichier" "$racine_tmp/eq.groupe"
+  verifier "cs04_lecture_groupee [$ro_sh] : en-tête fermé, ligne FIN-ISSUE OK <id> et raison d'abandon de la section Notes (littéraux attendus)" 0 "" cmp "$racine_tmp/eq.attendu" "$racine_tmp/eq.drapeaux"
+done
+verifier "cs04_lecture_groupee : les 9 fichiers sont bien lus (au moins un identifiant et une liste non vides)" 0 "" test "$(grep -c '^docs/issues/004-0' "$racine_tmp/eq.groupe")|$(grep -c -F '004-01|Fait|F-01|docs/prd/p.md|feat/a|docs/reviews/x.md|3:004-02 004-03 004-04|2:abc1234 def5678' "$racine_tmp/eq.groupe")" = "9|1"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

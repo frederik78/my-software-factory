@@ -4900,6 +4900,14 @@ printf 'MODE_REVUE=unique\n' > .factory.conf
 verifier "ca04_MODE_REVUE=unique : les trois enveloppes sont générées, aucune avec Write ni Edit" 0 "" ca04_sans_ecriture
 printf 'MODE_REVUE=parallele\n' > .factory.conf
 verifier "ca04_MODE_REVUE=parallele : les trois enveloppes sont générées, aucune avec Write ni Edit" 0 "" ca04_sans_ecriture
+ca04_outil_refuse() { # ca04_outil_refuse <outil> : un relecteur qui déclare cet outil (casse comprise) ne l'a pas dans son enveloppe ; les autres outils restent
+  prompt_relecteur securite opus high "Read, $1, mcp__savvy-progress__step, Grep"
+  rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 || return 1
+  champ_agent code-reviewer-securite 'tools: Read, mcp__savvy-progress__step, Grep'
+}
+for outil in Write Edit MultiEdit NotebookEdit write EDIT multiedit notebookedit; do
+  verifier "ca04_outil d'écriture « $outil » retiré de l'enveloppe d'un relecteur, les autres outils conservés" 0 "" ca04_outil_refuse "$outil"
+done
 rm -f .factory.conf
 
 # CS-02

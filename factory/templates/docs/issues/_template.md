@@ -6,7 +6,7 @@ besoin: F-xx
 statut: À faire
 depend_de: []
 criteres: [CA-xx, CS-xx]
-branche:
+branche: feat/<prd>-<nn>-<slug>
 commits: []
 revue:
 ---

@@ -21,11 +21,11 @@ cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib-config.sh
 . factory/scripts/lib-config.sh
 # Ces valeurs sont écrites dans un en-tête YAML : une valeur hors format pourrait y ajouter un champ, par exemple des outils.
-valider_modele() { # valider_modele <clé> <valeur> : minuscules, chiffres, points, tirets, 64 caractères au plus, ou vide ; sinon code 64 sans recopier la valeur
+modele_valide() { # modele_valide <clé> <valeur> : minuscules, chiffres, points, tirets, 64 caractères au plus, ou vide ; sinon code 64 sans recopier la valeur
   [[ "$2" =~ ^([a-z0-9][a-z0-9.-]*)?$ ]] && [ "${#2}" -le 64 ] && return 0
   echo "$1 invalide : minuscules, chiffres, points et tirets, ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_$1)." >&2; exit 64
 }
-valider_effort() { # valider_effort <clé> <valeur>
+effort_valide() { # effort_valide <clé> <valeur>
   case "$2" in
     ''|low|medium|high|xhigh|max) return 0 ;;
   esac
@@ -33,13 +33,13 @@ valider_effort() { # valider_effort <clé> <valeur>
 }
 modele_defaut="$(config_valeur AGENT_MODELE "$AGENT_MODELE_DEFAUT")"
 effort_defaut="$(config_valeur AGENT_EFFORT "$AGENT_EFFORT_DEFAUT")"
-valider_modele AGENT_MODELE "$modele_defaut"
-valider_effort AGENT_EFFORT "$effort_defaut"
+modele_valide AGENT_MODELE "$modele_defaut"
+effort_valide AGENT_EFFORT "$effort_defaut"
 # Les six clés des relecteurs (PRD 006) : validées toutes, avant toute écriture, même si le prompt du rôle est absent ; valeur vide = pas de surcharge.
 # Lues sans perdre un saut de ligne final (config_valeur_exacte) : « opus » suivi d'un saut de ligne reste invalide.
 for role in CONFORMITE QUALITE SECURITE; do
-  config_valeur_exacte "AGENT_MODELE_$role" ""; valider_modele "AGENT_MODELE_$role" "$CONFIG_VALEUR"; printf -v "surcharge_modele_$role" '%s' "$CONFIG_VALEUR"
-  config_valeur_exacte "AGENT_EFFORT_$role" ""; valider_effort "AGENT_EFFORT_$role" "$CONFIG_VALEUR"; printf -v "surcharge_effort_$role" '%s' "$CONFIG_VALEUR"
+  config_valeur_exacte "AGENT_MODELE_$role" ""; modele_valide "AGENT_MODELE_$role" "$CONFIG_VALEUR"; printf -v "modele_surcharge_$role" '%s' "$CONFIG_VALEUR"
+  config_valeur_exacte "AGENT_EFFORT_$role" ""; effort_valide "AGENT_EFFORT_$role" "$CONFIG_VALEUR"; printf -v "effort_surcharge_$role" '%s' "$CONFIG_VALEUR"
 done
 
 mkdir -p .claude
@@ -76,8 +76,8 @@ for prompt in factory/prompts/*.md; do
   role=; case "$nom" in code-reviewer-conformite) role=CONFORMITE ;; code-reviewer-qualite) role=QUALITE ;; code-reviewer-securite) role=SECURITE ;; esac
   modele="$(champ "$prompt" model)"; effort="$(champ "$prompt" effort)"
   if [ -n "$role" ]; then
-    surcharge="surcharge_modele_$role"; [ -z "${!surcharge}" ] || modele="${!surcharge}"
-    surcharge="surcharge_effort_$role"; [ -z "${!surcharge}" ] || effort="${!surcharge}"
+    surcharge="modele_surcharge_$role"; [ -z "${!surcharge}" ] || modele="${!surcharge}"
+    surcharge="effort_surcharge_$role"; [ -z "${!surcharge}" ] || effort="${!surcharge}"
   fi
   [ -n "$modele" ] || modele="$modele_defaut"
   [ -n "$effort" ] || effort="$effort_defaut"

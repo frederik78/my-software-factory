@@ -4711,7 +4711,7 @@ upgrade_d5="$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="(1.24.0)" 'inde
 for motif in 'remplacez `factory/`' 'aucune migration de données' 'init-projet.sh' 'scripts/lib-' 'statuts.sh' 'Abandonnée' '1 Mio' 'lib-verdict.sh'; do
   verifier "ca35_factory/UPGRADE.md, section 1.24.0 : « $motif »" 0 "" contient "$upgrade_d5" "$motif"
 done
-verifier "ca35_factory/UPGRADE.md : la section 1.24.0 est la première des sections de version (avant 1.23.0)" 0 "" test "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -E '^## .*\(1\.[0-9]+\.[0-9]+\)$')" = "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -F '(1.24.0)')"
+verifier "ca35_factory/UPGRADE.md : la section 1.24.0 est suivie de la section 1.23.0 (les versions plus récentes viennent avant)" 0 "" test "$(lire_depot "$depot" factory/UPGRADE.md | grep -E '^## .*\(1\.[0-9]+\.[0-9]+\)$' | grep -A1 -F '(1.24.0)' | tail -n1 | grep -o '(1\.[0-9.]*)')" = "(1.23.0)"
 
 # ca36 : tous les cas du besoin figurent dans la suite, avec dépôts Git jetables et environnement isolé. CA-38 à CA-41 relèvent de l'issue 004-06 (listés dans son en-tête, pas implémentés ici).
 verifier "ca36_chaque critère du PRD 004 (CA-01 à CA-41, CS-01 à CS-06 : 47) est couvert par exactement une issue (couverture-prd.sh)" 0 "OK .*47 critère" "$depot/scripts/couverture-prd.sh" docs/prd/004-machines-a-etats-statuts.md
@@ -5095,6 +5095,65 @@ verifier "ca13_En revue, cause « plus d'une ligne VERDICT: » (lecture par grep
 verifier "ca11_En revue, cause « la première ligne n'est pas la ligne VERDICT: » (lecture par grep) : message exact, y compris BOM (ligne masquée) puis une ligne de verdict" 0 "" test "$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PREM")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-86 "$F6_PREM")" "$racine_tmp/st.out")" = "1|1"
 verifier "cs04_En revue : conforme, NUL, vide, sans ligne de verdict : aucun A16 ; fichier de plus de 1 Mio : A07 et jamais A16 ; au total 4 A16, rien sur la sortie d'erreur" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-85)|$(f6_a16_de 005-87)|$(f6_a16_de 005-88)|$(f6_a16_de 005-89)|$(grep -a -c '^AVIS A07 issue 005-89 ' "$racine_tmp/st.out")|$(f6_nb)|$(f6_stderr_vide && echo vide)" = "0|0|0|0|0|1|4|vide"
 
+
+# PRD 005, issue 005-03 : documentation du format consolidé, version 1.25.0, tests regroupés, non-régression de F-01.
+echo "documentation, version et non-régression (PRD 005, issue 005-03)"
+f7_rr="docs/reviews/README.md"; f7_phrase() { lire_depot "$depot" "$f5_rf" | grep -F "L'orchestrateur lit d'abord"; } # le dernier paragraphe du rapport du reviewer
+# CA-19 : documentation du format.
+verifier "ca19_docs/reviews/README.md est identique à son modèle (factory/templates/docs/reviews/README.md)" 0 "" test "$(lire_depot "$depot" "$f7_rr")" = "$(lire_depot "$depot" "$f5_tpl")"
+for f7_d in "$f7_rr" "$f5_tpl"; do
+  verifier "ca19_$f7_d : première ligne unique VERDICT: <valeur>, seule ligne VERDICT: du fichier, tenue par la session" 0 "" f5_ligne "$f7_d" 'Première ligne.*`VERDICT: <valeur>`.*seule ligne `VERDICT:`.*La session la met à jour'
+  verifier "ca19_$f7_d : « Verdict de l'itération : <valeur> » remplace la ligne VERDICT: du rapport, écrit par la session" 0 "" f5_ligne "$f7_d" 'Verdict de l.itération : <valeur>.*remplace la ligne `VERDICT:` du rapport'
+  verifier "ca19_$f7_d : l'orchestrateur seul écrit le fichier, le relecteur reste en lecture seule" 0 "" f5_ligne "$f7_d" "seul écrit ce fichier ; le relecteur reste en lecture seule"
+done
+verifier "ca19_report-format.md, dernier paragraphe du rapport du reviewer : la session écrit la ligne de tête et remplace la ligne VERDICT: du rapport par « Verdict de l'itération »" 0 "" test -n "$(f7_phrase | grep -F 'ligne de tête' | grep -F 'remplace' | grep -F 'Verdict de l'"'"'itération' | grep -F 'verdict-revue.sh')"
+verifier "ca19_report-format.md : le paragraphe ne dit plus de sauvegarder le rapport « tel quel »" 0 "" test -z "$(f7_phrase | grep -F 'tel quel')"
+verifier "ca19_report-format.md : la carte « Pour l'humain » reste écrite par la session, jamais par le reviewer" 0 "" test -n "$(f7_phrase | grep -F 'Pour l'"'"'humain' | grep -F 'jamais par le reviewer')"
+f7_rd="$(lire_depot "$depot" factory/README.md)"
+verifier "ca19_factory/README.md : l'avis A16 figure au catalogue avec son texte exact" 0 "" test "$(grep -c -x -F '| A16 | avis | `issue <id>` | `fichier de revue mal formé <chemin> : <cause>` ; causes : `plus d'"'"'une ligne VERDICT:`, `la première ligne n'"'"'est pas la ligne VERDICT:` |' <<<"$f7_rd")" = 1
+verifier "ca19_factory/README.md : le format consolidé est décrit (ligne de tête unique, Verdict de l'itération, écrit par la session, rapport du relecteur non écrit tel quel)" 0 "" test -n "$(grep -F 'ligne de tête' <<<"$f7_rd" | grep -F 'Verdict de l'"'"'itération' | grep -F 'session')"
+verifier "ca19_factory/README.md : l'avis A16 est décrit dans le guide d'utilisation de statuts.sh et dans la nouveauté 1.25.0" 0 "" test "$(grep -c 'A16' <<<"$f7_rd")" -ge 4
+# CA-20 : version, CHANGELOG, UPGRADE, README.
+f7_v="$(lire_depot "$depot" factory/VERSION | head -n1)"; f7_cl="$(lire_depot "$depot" factory/CHANGELOG.md)"
+f7_entree="$(awk '/^## /{p = ($0 == "## 1.25.0")} p' <<<"$f7_cl")"
+f7_up="$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="(1.25.0)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')"
+verifier "ca20_factory/VERSION ($f7_v) est au moins 1.25.0, la suivante libre après 1.24.1" 0 "" plus_recente_ou_egale "$f7_v" "1.25.0"
+verifier "ca20_le CHANGELOG a une entrée 1.25.0, une seule fois" 0 "" test "$(grep -c -x '## 1.25.0' <<<"$f7_cl")" = 1
+for f7_m in 'VERDICT:' "Verdict de l'itération" 'A16' 'report-format.md' 'verdict-revue.sh' 'deliver' 'docs/reviews/README.md' 'Migration : remplacer `factory/`' 'aucune migration de données' "avis attendus sur les revues d'avant F-01" 'plusieurs lignes de verdict'; do
+  verifier "ca20_entrée 1.25.0 du CHANGELOG : « $f7_m »" 0 "" contient "$f7_entree" "$f7_m"
+done
+for f7_m in 'remplacez `factory/`' 'aucune migration de données' 'docs/reviews/README.md' 'A16' 'plusieurs lignes' 'ligne de tête'; do
+  verifier "ca20_factory/UPGRADE.md, section 1.25.0 : « $f7_m »" 0 "" contient "$f7_up" "$f7_m"
+done
+verifier "ca20_factory/UPGRADE.md : la section 1.25.0 est la première des sections de version" 0 "" test "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -E '^## .*\(1\.[0-9]+\.[0-9]+\)$')" = "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -F '(1.25.0)')"
+verifier "ca20_factory/README.md mentionne la nouveauté (1.25.0)" 0 "" contient "$f7_rd" "(1.25.0)"
+# CA-21 : les cas de CA-01 à CA-19 et CS-01 à CS-06 figurent dans la suite, avec dépôts jetables et environnement isolé.
+f7_suite() { sed -n '/^# PRD 005, issue 005-01/,/^echo "PRD 006 \/ issue 006-01/p' "$ici/run.sh"; }
+f7_manquants() { local id; for id in ca01 ca02 ca03 ca04 ca05 ca06 ca07 ca08 ca09 ca10 ca11 ca12 ca13 ca14 ca15 ca16 ca17 ca18 ca19 cs01 cs02 cs03 cs04 cs05 cs06; do
+  f7_suite | grep -Eq "^[[:space:]]*(verifier|verdict_cas|st_cas) \"${id}_" || echo "$id"; done; }
+verifier "ca21_chaque critère CA-01 à CA-19 et CS-01 à CS-06 de PRD 005 a un cas nommé par son identifiant dans la suite" 0 "" test -z "$(f7_manquants)"
+verifier "ca21_chaque critère de PRD 005 (CA-01 à CA-22, CS-01 à CS-06 : 28) est couvert par exactement une issue (couverture-prd.sh)" 0 "OK .*28 critère" "$depot/scripts/couverture-prd.sh" docs/prd/005-format-revue-consolide.md
+verifier "ca21_environnement isolé : GIT_CONFIG_GLOBAL et GIT_CONFIG_SYSTEM valent /dev/null, HOME est un dossier jetable de la suite" 0 "" d5_isole
+verifier "ca21_dépôts jetables : le projet courant est sous le dossier jetable de la suite, sans remote" 0 "" d5_jetable
+f7_reseau="$(printf '%s|%s|%s|%s' cu''rl wg''et ss''h n''c)" # les noms sont coupés : le garde-fou « sans réseau » de ca36 lit tout ce fichier
+verifier "ca21_sans réseau : les cas de PRD 005 n'appellent aucune commande réseau ni d'échange avec un dépôt distant" 0 "" test "$(f7_suite | grep -c -E -e "(^|[^a-z_-])($f7_reseau)([^a-z]|\$)" -e 'git[^|;]* (fe''tch|pu''ll|clo''ne|ls-re''mote)')" = 0
+# CA-22 : rien d'autre n'a changé (scripts de lecture, leurs tests, revues existantes).
+base_f12="57b96dd"
+commits_f12() { git -C "$depot" log --no-merges --format=%H -E --grep='005-0[1-3]' "$base_f12..HEAD"; }
+f12_fichiers() { local c; for c in $(commits_f12); do git -C "$depot" show --no-renames --name-only --format= "$c" -- "$@"; done; }
+f12_modifie() { # revues présentes à la base de F-12, modifiées ou supprimées par un commit de F-12
+  local c f; for c in $(commits_f12); do git -C "$depot" show --no-renames --diff-filter=MD --name-only --format= "$c" -- 'docs/reviews/[0-9]*.md'; done | sort -u |
+    while read -r f; do git -C "$depot" cat-file -e "$base_f12:$f" 2>/dev/null && echo "$f"; done
+}
+f12_lignes_retirees() { local c; for c in $(commits_f12); do git -C "$depot" show -U0 --format= "$c" -- factory/scripts/tests/run.sh | grep '^-[^-]'; done; }
+if depot_git "$depot" && git -C "$depot" cat-file -e "$base_f12^{commit}" 2>/dev/null && [ -n "$(commits_f12)" ]; then
+  verifier "ca22_l'historique de F-12 est lisible (au moins un commit de F-12 trouvé)" 0 "" test -n "$(commits_f12)"
+  verifier "ca22_aucun commit de F-12 ne touche verdict-revue.sh, fin-issue.sh, etat-issues.sh, dashboard.sh ni tests/golden (comparaison vide)" 0 "" test -z "$(f12_fichiers factory/scripts/verdict-revue.sh factory/scripts/fin-issue.sh factory/scripts/etat-issues.sh factory/scripts/dashboard.sh factory/scripts/tests/golden)"
+  verifier "ca22_aucun commit de F-12 ne retire de ligne de run.sh qui nomme verdict-revue, fin-issue, dashboard ou etat-issues (hors ca22_)" 0 "" test -z "$(f12_lignes_retirees | grep -v 'ca22_' | grep -E 'verdict-revue|fin-issue|dashboard|etat-issues')"
+  verifier "ca22_aucune revue de docs/reviews présente avant F-12 n'est modifiée par F-12 (comparaison vide)" 0 "" test -z "$(f12_modifie)"
+else
+  ok "ca22_historique Git de F-12 absent (copie propre ou clone partiel) : comparaison des commits non faite"
+fi
 
 echo "PRD 006 / issue 006-01 : MODE_REVUE, clés de modèle et d'effort des relecteurs, enveloppes (CA-01 à CA-04, CS-01, CS-02)"
 # mr_* : cas de config-factory.sh --mode-revue ; la configuration vient des fichiers du dépôt courant ou, pour mr_env_*, de FACTORY_MODE_REVUE.

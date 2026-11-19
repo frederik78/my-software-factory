@@ -54,3 +54,19 @@ verdict_lire() {
     *) verdict_refuser "verdict-revue : valeur de la ligne VERDICT différente de « APPROUVÉ » et de « CHANGEMENTS DEMANDÉS » (ligne VERDICT invalide)"; return 1 ;;
   esac
 }
+
+# verdict_forme <fichier> : met dans $verdict_forme « plus » (plus d'une ligne VERDICT:), « premiere » (au moins une ligne VERDICT: et la première ligne n'en est pas une)
+# ou « » (bien formé, ou aucune ligne de verdict : revue d'avant F-01). Même définition de la ligne de verdict que verdict_lire (même motif, mêmes options de grep), lue en une seule
+# passe : grep s'arrête à la deuxième ligne trouvée (m = 2), la première est reconnue à son numéro. Appelant : fichier déjà admis (régulier, non lien, 1 Mio au plus).
+# Aucun contenu du fichier n'est conservé : seuls les numéros de ligne sont lus.
+verdict_forme() {
+  local LC_ALL=C trouvees
+  verdict_forme=""
+  trouvees="$(grep -a -i -n -m 2 -o -E '^[[:blank:]]*verdict[[:blank:]]*:' -- "$1" 2>/dev/null)"
+  case "$trouvees" in
+    '') ;;
+    *$'\n'*) verdict_forme="plus" ;;
+    1:*) ;;
+    *) verdict_forme="premiere" ;;
+  esac
+}

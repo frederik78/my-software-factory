@@ -20,11 +20,13 @@ revue_chemin() {
 }
 
 # revue_derniere_ligne <fichier> : met dans $revue_ligne la dernière ligne non vide du fichier, sans retour chariot ni espaces de fin (64 octets au plus : une ligne plus longue
-# ne peut pas valoir « APPROUVÉ »), et dans $revue_verdict 1 si sa première ligne a la forme d'une ligne « VERDICT: » (clé seule, la valeur est lue par verdict-revue.sh), sinon 0.
+# ne peut pas valoir « APPROUVÉ »), dans $revue_verdict 1 si sa première ligne a la forme d'une ligne « VERDICT: » (clé seule, la valeur est lue par verdict-revue.sh), sinon 0,
+# et dans $revue_nb le nombre de lignes de verdict du fichier (même définition que verdict_lire, lib-verdict.sh : un seul passage, pas de processus de plus par revue pour l'avis A16).
 revue_derniere_ligne() {
-  local sortie
-  sortie="$(LC_ALL=C awk 'NR == 1 { v = ($0 ~ /^[ \t]*[Vv][Ee][Rr][Dd][Ii][Cc][Tt][ \t]*:/) } { sub(/[[:space:]]+$/, "") } $0 != "" { derniere = substr($0, 1, 64) } END { printf "%d\n%s", v, derniere }' "$1" 2>/dev/null)"
-  revue_verdict="${sortie:0:1}"; revue_ligne="${sortie#?
+  local sortie reste
+  sortie="$(LC_ALL=C awk '{ m = ($0 ~ /^[ \t]*[Vv][Ee][Rr][Dd][Ii][Cc][Tt][ \t]*:/) } NR == 1 { v = m } { n += m; sub(/[[:space:]]+$/, "") } $0 != "" { derniere = substr($0, 1, 64) } END { printf "%d %d\n%s", v, n, derniere }' "$1" 2>/dev/null)"
+  revue_verdict="${sortie:0:1}"; reste="${sortie#* }"; revue_nb="${reste%%
+*}"; revue_ligne="${reste#*
 }"
 }
 
@@ -32,7 +34,7 @@ revue_derniere_ligne() {
 # $revue_chemin (vide si le champ n'a pas la forme attendue) et, si demandé, $revue_ligne.
 # Un lien symbolique (le fichier ou le dossier docs/reviews), un fichier de plus de 1 Mio ou non lisible équivaut à un fichier introuvable.
 revue_examiner() {
-  revue_lisible=0; revue_ligne=""; revue_verdict=0
+  revue_lisible=0; revue_ligne=""; revue_verdict=0; revue_nb=""
   revue_chemin "$1"
   [ -n "$revue_chemin" ] || return 0
   [ ! -L docs/reviews ] || return 0
@@ -104,6 +106,24 @@ preuves_commits_verifier() {
   done
 }
 
+# revue_forme_signaler <rang> <objet neutralisé> : avis A16 si le fichier de revue examiné (revue_examiner a donné revue_lisible = 1) est mal formé (RG-08 à RG-11 du PRD 005) :
+# plus d'une ligne de verdict, ou première ligne qui n'est pas une ligne de verdict alors qu'il en a une (un fichier sans ligne de verdict, d'avant F-01, ne l'est jamais). Un avis au plus
+# par issue (la cause « plus d'une » l'emporte). Cause = texte fixe, jamais un morceau du fichier. Décompte : celui de revue_derniere_ligne, ou un seul grep (verdict_forme, lib-verdict.sh) sans lui ; aucun appel Git.
+revue_forme_signaler() {
+  local chemin
+  if [ -n "$revue_nb" ]; then # décompte déjà fait par revue_derniere_ligne (revue_examiner ... 1)
+    if [ "$revue_nb" -gt 1 ]; then verdict_forme=plus; elif [ "$revue_nb" -eq 1 ] && [ "$revue_verdict" -eq 0 ]; then verdict_forme=premiere; else verdict_forme=""; fi
+  else
+    verdict_forme "$revue_chemin"
+  fi
+  [ -n "$verdict_forme" ] || return 0
+  constat_neutraliser "$revue_chemin"; chemin="$neutre"
+  case "$verdict_forme" in
+    plus) constat_ajouter AVIS A16 2 "$1" "$2" "fichier de revue mal formé $chemin : plus d'une ligne VERDICT:" ;;
+    *) constat_ajouter AVIS A16 2 "$1" "$2" "fichier de revue mal formé $chemin : la première ligne n'est pas la ligne VERDICT:" ;;
+  esac
+}
+
 # preuves_fait <rang> <indice> <id> : avis A01 à A06 d'une issue dont le statut local est Fait. <indice> : rang de l'issue dans les en-têtes lus (issues_en_tetes_charger).
 preuves_fait() {
   local rang="$1" indice="$2" id="$3" revue objet chemin
@@ -116,9 +136,12 @@ preuves_fait() {
     if [ "$revue_lisible" -eq 0 ]; then
       constat_neutraliser "${revue_chemin:-$revue}"
       constat_ajouter AVIS A02 2 "$rang" "$objet" "Fait : fichier de revue introuvable ou illisible ($neutre)"
-    elif ! revue_approuvee; then
-      constat_neutraliser "$revue_chemin"; chemin="$neutre"
-      constat_ajouter AVIS A03 2 "$rang" "$objet" "Fait : la dernière ligne de $chemin n'est pas APPROUVÉ"
+    else
+      if ! revue_approuvee; then
+        constat_neutraliser "$revue_chemin"; chemin="$neutre"
+        constat_ajouter AVIS A03 2 "$rang" "$objet" "Fait : la dernière ligne de $chemin n'est pas APPROUVÉ"
+      fi
+      revue_forme_signaler "$rang" "$objet"
     fi
   fi
   [ "${ent_fin_ok[$indice]}" -eq 1 ] || constat_ajouter AVIS A04 2 "$rang" "$objet" "Fait sans ligne « FIN-ISSUE OK ${objet#issue } » dans les Notes"
@@ -131,7 +154,10 @@ preuves_en_revue() {
   local revue valeur
   revue="${ent_revues[$2]}"
   revue_examiner "$revue" 0
-  [ "$revue_lisible" -eq 0 ] || return 0
+  if [ "$revue_lisible" -eq 1 ]; then
+    constat_neutraliser "$3"; revue_forme_signaler "$1" "issue $neutre"
+    return 0
+  fi
   constat_neutraliser "${revue_chemin:-$revue}"; valeur="$neutre"
   constat_neutraliser "$3"
   constat_ajouter AVIS A07 2 "$1" "issue $neutre" "En revue sans fichier de revue ($valeur)"

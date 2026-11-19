@@ -46,6 +46,7 @@ Si le schéma de base de données est géré par une migration, tout changement 
     Comportement visible (interface) : des captures ou une vidéo si l'environnement le permet, sinon la sortie d'un test de contrat. Si ta preuve « après » montre que le travail n'est pas fini, retourne à la construction avant de rendre ton rapport.
 13. **Écris pour un lecteur sans contexte** (un développeur embauché plus tard, un autre agent) : une responsabilité par module, pas de duplication, pas de code mort, pas de fonctions éparpillées, noms explicites,
     la structure d'`AGENTS.md` respectée. Fonctionner ne suffit pas.
+14. **Test de texte sur une consigne** : ancre la formulation exacte attendue plutôt qu'une liste de formulations rejetées ; vérifie par mutation que l'inversion, la reformulation (majorité, premier, deux sur trois) et le retrait font échouer le test.
 
 Termine par un rapport au format de `factory/prompts/report-format.md` (court, avec la commande et les nombres de la vérification, les critères
 couverts, les décisions prises seul, ce qui n'est pas fait) et un point par catégorie OWASP touchée. Un rapport vide ou sans preuve est un échec.

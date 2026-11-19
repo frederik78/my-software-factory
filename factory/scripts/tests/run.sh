@@ -4787,7 +4787,7 @@ done
 verifier "ca39_skill deliver : la consigne de 004-05 est gardée (scripts/statuts.sh après chaque fusion demandée par l'utilisateur)" 0 "" contient "$(lire_depot "$depot" factory/skills/deliver/SKILL.md)" 'après chaque fusion demandée par l'"'"'utilisateur, lance `scripts/statuts.sh`'
 verifier "ca40_les tests retirés sont énumérés avec leur raison dans les Notes de l'issue 004-06" 0 "" contient "$(lire_depot "$depot" docs/issues/004-06-retrait-anciennes-listes.md | sed -n '/^## Notes/,$p')" 'Tests retirés'
 verifier "ca40_l'issue 004-06 : chaque critère CA/CS a un test de cette suite dont le nom contient son identifiant (criteres-sans-test.sh)" 0 "^OK " "$depot/scripts/criteres-sans-test.sh" 004-06
-verifier "ca41_le CHANGELOG mentionne le retrait des anciennes listes de statuts" 0 "" contient "$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## / { n++ } n == 1')" 'retrait'
+verifier "ca41_le CHANGELOG mentionne le retrait des anciennes listes de statuts" 0 "" contient "$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{ p = ($0 == "## 1.24.1") } p')" 'retrait'
 # ca41 : sorties de référence prises AVANT le retrait (tests/golden/ca41-sorties.txt) sur les dépôts de CA-03 (fixtures de la table), de CA-07 (contrôle) et de CA-31 (dashboard à constats).
 r6_normaliser() { # r6_normaliser : filtre (entrée standard) : retire les chemins jetables, les hachages et les dates de commit
   sed -E -e "s#$racine_tmp#TMP#g" -e 's/[0-9a-f]{7,40} du [0-9]{4}-[0-9]{2}-[0-9]{2}/HASH du DATE/g' -e 's/dernier commit : [0-9a-f]+ du/dernier commit : HASH du/' -e 's/[0-9a-f]{7,40}/HASH/g'
@@ -5107,12 +5107,12 @@ for f7_d in "$f7_rr" "$f5_tpl"; do
   verifier "ca19_$f7_d : l'orchestrateur seul écrit le fichier, le relecteur reste en lecture seule" 0 "" f5_ligne "$f7_d" "seul écrit ce fichier ; le relecteur reste en lecture seule"
 done
 verifier "ca19_report-format.md, dernier paragraphe du rapport du reviewer : la session écrit la ligne de tête et remplace la ligne VERDICT: du rapport par « Verdict de l'itération »" 0 "" test -n "$(f7_phrase | grep -F 'ligne de tête' | grep -F 'remplace' | grep -F 'Verdict de l'"'"'itération' | grep -F 'verdict-revue.sh')"
-verifier "ca19_report-format.md : le paragraphe ne dit plus de sauvegarder le rapport « tel quel »" 0 "" test -z "$(f7_phrase | grep -F 'tel quel')"
+verifier "ca19_report-format.md : le paragraphe ne dit plus que le rapport est sauvegardé tel quel" 0 "" test -z "$(f7_phrase | grep -F 'sauvegarde le rapport du reviewer tel quel')"
 verifier "ca19_report-format.md : la carte « Pour l'humain » reste écrite par la session, jamais par le reviewer" 0 "" test -n "$(f7_phrase | grep -F 'Pour l'"'"'humain' | grep -F 'jamais par le reviewer')"
 f7_rd="$(lire_depot "$depot" factory/README.md)"
 verifier "ca19_factory/README.md : l'avis A16 figure au catalogue avec son texte exact" 0 "" test "$(grep -c -x -F '| A16 | avis | `issue <id>` | `fichier de revue mal formé <chemin> : <cause>` ; causes : `plus d'"'"'une ligne VERDICT:`, `la première ligne n'"'"'est pas la ligne VERDICT:` |' <<<"$f7_rd")" = 1
-verifier "ca19_factory/README.md : le format consolidé est décrit (ligne de tête unique, Verdict de l'itération, écrit par la session, rapport du relecteur non écrit tel quel)" 0 "" test -n "$(grep -F 'ligne de tête' <<<"$f7_rd" | grep -F 'Verdict de l'"'"'itération' | grep -F 'session')"
-verifier "ca19_factory/README.md : l'avis A16 est décrit dans le guide d'utilisation de statuts.sh et dans la nouveauté 1.25.0" 0 "" test "$(grep -c 'A16' <<<"$f7_rd")" -ge 4
+verifier "ca19_factory/README.md : le format consolidé est décrit (ligne de tête unique, Verdict de l'itération qui remplace la ligne du rapport, écrit par la session)" 0 "" test -n "$(grep -F '*Format*' <<<"$f7_rd" | grep -F 'ligne de tête' | grep -F 'seule ligne `VERDICT:`' | grep -F 'Verdict de l'"'"'itération' | grep -F 'remplace la ligne `VERDICT:` du rapport')" -a -n "$(grep -F '*Qui écrit*' <<<"$f7_rd" | grep -F 'session seule')"
+verifier "ca19_factory/README.md : l'avis A16 est décrit dans le guide d'utilisation de statuts.sh et dans la nouveauté 1.25.0" 0 "" test -n "$(grep -F 'scripts/statuts.sh [--table]' <<<"$f7_rd" | grep -F 'A16' | grep -F '1.25.0')" -a -n "$(grep -F '*Avis A16*' <<<"$f7_rd" | grep -F 'mal formé' | grep -F 'sans le remplacer')"
 # CA-20 : version, CHANGELOG, UPGRADE, README.
 f7_v="$(lire_depot "$depot" factory/VERSION | head -n1)"; f7_cl="$(lire_depot "$depot" factory/CHANGELOG.md)"
 f7_entree="$(awk '/^## /{p = ($0 == "## 1.25.0")} p' <<<"$f7_cl")"
@@ -5129,8 +5129,8 @@ verifier "ca20_factory/UPGRADE.md : la section 1.25.0 est la première des secti
 verifier "ca20_factory/README.md mentionne la nouveauté (1.25.0)" 0 "" contient "$f7_rd" "(1.25.0)"
 # CA-21 : les cas de CA-01 à CA-19 et CS-01 à CS-06 figurent dans la suite, avec dépôts jetables et environnement isolé.
 f7_suite() { sed -n '/^# PRD 005, issue 005-01/,/^echo "PRD 006 \/ issue 006-01/p' "$ici/run.sh"; }
-f7_manquants() { local id; for id in ca01 ca02 ca03 ca04 ca05 ca06 ca07 ca08 ca09 ca10 ca11 ca12 ca13 ca14 ca15 ca16 ca17 ca18 ca19 cs01 cs02 cs03 cs04 cs05 cs06; do
-  f7_suite | grep -Eq "^[[:space:]]*(verifier|verdict_cas|st_cas) \"${id}_" || echo "$id"; done; }
+f7_manquants() { local id sec; sec="$(f7_suite)"; for id in ca01 ca02 ca03 ca04 ca05 ca06 ca07 ca08 ca09 ca10 ca11 ca12 ca13 ca14 ca15 ca16 ca17 ca18 ca19 cs01 cs02 cs03 cs04 cs05 cs06; do
+  grep -Eq "^[[:space:]]*(verifier|verdict_cas|st_cas) \"${id}_" <<<"$sec" || echo "$id"; done; } # (le texte est lu avant : pipefail et grep -q coupent le tube)
 verifier "ca21_chaque critère CA-01 à CA-19 et CS-01 à CS-06 de PRD 005 a un cas nommé par son identifiant dans la suite" 0 "" test -z "$(f7_manquants)"
 verifier "ca21_chaque critère de PRD 005 (CA-01 à CA-22, CS-01 à CS-06 : 28) est couvert par exactement une issue (couverture-prd.sh)" 0 "OK .*28 critère" "$depot/scripts/couverture-prd.sh" docs/prd/005-format-revue-consolide.md
 verifier "ca21_environnement isolé : GIT_CONFIG_GLOBAL et GIT_CONFIG_SYSTEM valent /dev/null, HOME est un dossier jetable de la suite" 0 "" d5_isole
@@ -5356,7 +5356,7 @@ verifier "ca09_report_format_bloc_en_clair" 0 "" rl_a_section "^## En clair$"
 verifier "ca09_report_format_quatre_vingts_lignes_au_plus" 0 "" rl_a_section "80 lignes au plus"
 verifier "ca09_report_format_aucune_autre_ligne_ne_commence_par_verdict" 0 "" rl_a_section "[Aa]ucune autre ligne.*commence par .VERDICT:"
 verifier "ca09_report_format_constats_bloquant_important_mineur_avec_fichier_ligne" 0 "" rl_a_section "BLOQUANT / IMPORTANT / MINEUR.*fichier:ligne"
-verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "5ad5475e0ba6c3525ec86fb63c6f56055e046634869a0ebd687808b8a69b1ea7"
+verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "60f428948214c163f7d34d0a250e4b4350aef420a381f2cede051d6667fd7c5a"
 verifier "ca09_report_format_le_reste_du_fichier_avant_le_reviewer_est_inchange" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { exit } 1' | shasum -a 256 | cut -d' ' -f1)" = "65580ddcf62120548fbd4ef17dc9995fe395942d9ef38287b11eb0ad5ca832b9"
 
 # CA-10 : brief commun des relecteurs ; l'ancien brief et le prompt du mode unique sont inchangés.

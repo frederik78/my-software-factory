@@ -3,7 +3,7 @@ id: 008-01
 titre: Boucle du dashboard : une génération par tour depuis le disque
 prd: docs/prd/008-boucle-dashboard-code-a-jour.md
 besoin: F-11
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CS-01, CS-02]
 branche: feat/008-01-une-generation-par-tour

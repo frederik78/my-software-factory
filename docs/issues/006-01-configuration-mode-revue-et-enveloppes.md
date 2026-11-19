@@ -3,7 +3,7 @@ id: 006-01
 titre: `MODE_REVUE`, six clés de modèle et d'effort et enveloppes d'agents
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: En revue
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CS-01, CS-02]
 branche: feat/006-01-configuration-mode-revue-et-enveloppes

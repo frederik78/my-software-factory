@@ -3147,7 +3147,7 @@ STATUTS : 0 erreur(s), 12 avis
 TXT
 st_depot
 printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
-st_issue 004-91 " Relue"; st_table_inserer issue "En revue" Relue
+st_issue 004-91 " Relue"; st_table_inserer issue "À faire" Relue # avant « En cours » : ni démarré ni en travail, aucune règle de preuve
 st_cas "ca02_statuts : un statut ajouté à la table des issues n'est plus une erreur E10" 0 <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
@@ -3168,7 +3168,7 @@ ERREUR E05 besoin F-04 : statut inconnu «  » (attendus : $ATTENDUS_B)
 STATUTS : 4 erreur(s), 0 avis
 TXT
 st_depot
-printf '| F-01 | B | P1 | Relue | | |\n' | st_backlog; st_table_inserer besoin "En revue" Relue
+printf '| F-01 | B | P1 | Relue | | |\n' | st_backlog; st_table_inserer besoin "À faire" Relue # avant « En cours » : aucune règle de cohérence
 st_cas "ca02_statuts : un statut de besoin ajouté à la table n'est plus une erreur E05" 0 <<'TXT'
 STATUTS : 0 erreur(s), 0 avis
 TXT
@@ -4637,7 +4637,7 @@ for etape in '## 0. Préparer' '## 3. Relire' '## 4. Corriger' '## 5. Terminer';
   verifier "ca33_skill deliver : l'étape « $etape » renvoie au contrôle (scripts/statuts.sh)" 0 "" contient "$(d5_titre "$deliver_d5" "$etape")" 'scripts/statuts.sh'
 done
 verifier "ca33_skill deliver : la définition de fini (étape 5) exige le contrôle avant Fait" 0 "" contient "$(d5_titre "$deliver_d5" '## 5. Terminer')" 'aucune erreur ne vise'
-for motif in "après chaque fusion demandée par l'utilisateur" 'lance `scripts/statuts.sh`' 'en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)' 'passe à `Fait` dans `backlog.md`' 'branche `docs/' 'ne la fusionne pas sans demande de l'"'"'utilisateur'; do
+for motif in "après chaque fusion demandée par l'utilisateur" 'lance `scripts/statuts.sh`' 'en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)' 'est clos dans `backlog.md` selon la table' 'branche `docs/' 'ne la fusionne pas sans demande de l'"'"'utilisateur'; do
   verifier "ca33_skill deliver, clôture des besoins après fusion : « $motif »" 0 "" contient "$controle_d5" "$motif"
 done
 f09_fin() { git -C "$depot" log --no-merges --format=%H -E --grep='004-0[1-6]' -- factory/scripts/fin-issue.sh; } # commits de F-09 (sujet citant 004-01 à 004-06) qui touchent fin-issue.sh
@@ -4658,7 +4658,7 @@ for fichier_d5 in AGENTS.md factory/templates/AGENTS.md; do
   verifier "ca34_$fichier_d5 : la commande du dashboard cite la section « Contrôle des statuts »" 0 "" contient "$(grep -F -e '- `scripts/dashboard.sh' <<<"$texte_d5")" 'Contrôle des statuts'
   verifier "ca34_$fichier_d5 : « Séquence d'un besoin » renvoie à la table (scripts/statuts.sh --table)" 0 "" contient "$sequence_d5" 'scripts/statuts.sh --table'
   verifier "ca34_$fichier_d5 : « Séquence d'un besoin » : /deliver lance scripts/statuts.sh à chaque changement de statut" 0 "" contient "$sequence_d5" 'à chaque changement de statut'
-  for motif in "après chaque fusion demandée par l'utilisateur" 'lancer `scripts/statuts.sh`' 'en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)' 'passe à `Fait` dans `backlog.md`' 'branche `docs/' 'ne la fusionne pas sans demande de l'"'"'utilisateur'; do
+  for motif in "après chaque fusion demandée par l'utilisateur" 'lancer `scripts/statuts.sh`' 'en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)' 'est clos dans `backlog.md` selon la table' 'branche `docs/' 'ne la fusionne pas sans demande de l'"'"'utilisateur'; do
     verifier "ca34_$fichier_d5 : clôture des besoins après fusion (étape 6) : « $motif »" 0 "" contient "$(grep -F -e '6. **Clôture**' <<<"$sequence_d5")" "$motif"
   done
 done
@@ -4734,6 +4734,12 @@ r6_garde_docs() { # r6_garde_docs <copie> : trouvailles du garde-fou dans AGENTS
   awk -v noms="$(r6_noms)" -v mode=doc -f "$ici/garde-statuts.awk" "$1/AGENTS.md" "$1/factory/templates/AGENTS.md" "$1/factory/skills/deliver/SKILL.md"
 }
 r6_vide() { [ -z "$("$@")" ] || { "$@" | head -5; return 1; }; } # r6_vide <commande...> : réussit si la commande n'écrit rien (affiche les cinq premières lignes sinon)
+st_depot; printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog; st_issue 004-91 " Relue"; st_table_inserer issue "En revue" Relue
+st_cas "ca38_statuts : un statut ajouté à la table après « En revue » suit les règles de son rang dans le cycle (démarré, en travail) au lieu d'être ignoré : besoin À faire en retard, issue sans branche retenue" 1 <<'TXT'
+ERREUR E07 besoin F-01 : statut À faire en retard : l'issue 004-91 est démarrée
+AVIS A08 issue 004-91 : Relue sans branche retenue
+STATUTS : 1 erreur(s), 1 avis
+TXT
 r6_dossier="$racine_tmp/r6-copie"; rm -rf "$r6_dossier"; r6_copie "$r6_dossier"
 verifier "ca38_les noms de statut du garde-fou viennent de la table (7 noms, issue et besoin confondus)" 0 "" test "$(r6_noms | tr '|' '\n' | wc -l | tr -d ' ')" = 7
 verifier "ca38_recherche d'absence dans les scripts de la factory : aucune liste, tableau, suite de trois statuts ou plus, alternative ni appartenance à une liste de statuts (hors table et fin-issue.sh, commentaires, textes du catalogue)" 0 "" r6_vide r6_garde_scripts "$r6_dossier"

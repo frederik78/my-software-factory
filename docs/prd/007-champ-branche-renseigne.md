@@ -48,7 +48,7 @@ Vocabulaire : **champ vide** = voir RG-07 ; **issue démarrée et non terminée*
 
 ### 2.2 Avis A17 de `scripts/statuts.sh` (D-42)
 - **RG-05 (condition)** Une issue **démarrée et non terminée** dont le champ `branche:` est **vide** donne l'avis A17. Le statut est le statut **effectif** (une issue `À faire` dans `develop` dont le fichier est `En cours` sur sa branche retenue est concernée) ; le champ lu est celui du **fichier local** de l'issue, là où le dashboard le lit.
-- **RG-06 (hors condition)** Aucun A17 pour une issue `À faire` ou `Abandonnée` (elle n'est pas démarrée), ni pour une issue dont le champ est rempli, quelle que soit sa valeur. Une issue `Fait` : voir Q-01 (lecture provisoire : aucun A17). Une issue en erreur E10, E11 ou E14 n'émet aucun autre constat (PRD 004, après RG-23) donc aucun A17.
+- **RG-06 (hors condition)** Aucun A17 pour une issue `À faire` ou `Abandonnée` (elle n'est pas démarrée), ni pour une issue dont le champ est rempli, quelle que soit sa valeur. Une issue `Fait` : aucun A17 (D-44). Une issue en erreur E10, E11 ou E14 n'émet aucun autre constat (PRD 004, après RG-23) donc aucun A17.
 - **RG-07 (champ vide)** Le champ est vide s'il est absent de l'en-tête ou si sa valeur, une fois retirés les espaces, tabulations, retour chariot de bord et les guillemets de bord (PRD 004 RG-06), est vide. Seul l'en-tête YAML (entre les deux lignes `---`) compte : une ligne `branche: …` dans le corps (Notes) ne remplit rien. A17 ne juge pas la valeur : `null`, `[]`, un nom de branche absent, un nom invalide comptent comme « renseigné » (le champ rempli l'emporte, PRD 003 RG-01).
 - **RG-08 (indépendance d'A08 et du dashboard)** A17 s'ajoute aux avis existants sans les modifier : une issue `En cours`, champ vide et aucune branche trouvée donne A08 **et** A17 ; champ vide et branche déduite donne A17 seul ; champ rempli désignant une branche absente donne A08 seul (PRD 004 RG-13). Le dashboard et `etat-issues.sh` ne changent pas (déduction, « (déduite) », « ambiguë » inchangés).
 - **RG-09 (lecture seule, coût)** Le contrôle lit seulement le champ déjà lu dans l'en-tête : aucun appel Git de plus (PRD 004 RG-25), aucune écriture (RG-24), aucun fichier supplémentaire lu. La valeur du champ n'est jamais recopiée dans un message.
@@ -150,21 +150,12 @@ Identifiants au format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les 
 | D-13 | Le remplissage à la création était hors périmètre de F-08 : c'est F-06 | RG-01 |
 | D-42 | F-06 réduit : modèle, jumeau et README disent de remplir `feat/<id>-<slug>` ; avis de `statuts.sh` (jamais une erreur) pour une issue démarrée à champ vide ; `/to-tickets` intact ; seuil lu dans la table | RG-01 à RG-10, CA-01 à CA-14, CS-01 à CS-03 |
 | D-43 | Issues existantes à champ vide complétées d'après l'historique, noms vérifiés, avec preuve | RG-11, RG-12, CA-15, CA-16, CS-04 |
+| D-44 | Une issue `Fait` au champ vide ne donne pas A17 (option (a), choisie par l'utilisateur) | RG-06 |
 
-## 8. Questions
-Une lacune du cadrage : l'avis vaut-il aussi pour une issue `Fait` ? D-42 dit « `En cours` ou au-delà », ce qui inclut `Fait`.
+## 8. Question tranchée
+Une issue `Fait` au champ vide ne donne pas A17 : l'avis ne vise que les issues démarrées et non terminées (D-44, réponse de l'utilisateur du 2026-11-19, option (a)). Raison : le champ sert à rattacher l'issue à sa branche avant la fusion ; un projet qui met à jour la factory ne verrait pas un avis par ancienne issue `Fait`.
 
-- **Q-01** (RG-06, F-06) Une issue `Fait` au champ vide donne-t-elle A17 ?
-  - (a) Non, A17 ne vise que les issues démarrées et non terminées. Lecture retenue provisoirement dans ce PRD.
-  - (b) Oui, toute issue du rang de `En cours` ou après, `Fait` compris (lecture littérale de D-42).
-  - (c) Oui pour `Fait` aussi, mais seulement si la branche de l'issue n'a pas été supprimée (déduction possible).
-
-  Recommandation : (a). Le champ sert à rattacher une issue à sa branche **avant** la fusion ; une fois la branche fusionnée et supprimée, il n'apporte plus rien au dashboard et corriger une issue close coûte un commit. Avec (b), tout projet qui met à jour la factory verrait un avis par ancienne issue `Fait` à champ vide, alors que la migration promise est « aucune ». Ici, aucune issue `Fait` du dépôt n'est concernée (le champ vide ne touche que 005-01 à 005-03), donc le choix ne change rien aujourd'hui. Si (b), seul le seuil change (`Fait` inclus) : RG-05, RG-06, CA-09 et la définition de « démarrée et non terminée » sont à ajuster.
-
-[À CLARIFIER Q-01] à RG-06 : lecture provisoire (a), aucun A17 pour `Fait`.
-
-## QUESTIONS
-- **Q-01** (F-06, RG-06) Une issue `Fait` au champ `branche:` vide donne-t-elle A17 ? Options : (a) non, seulement `En cours` et `En revue` ; (b) oui, `Fait` compris ; (c) oui, si la branche existe encore. Recommandation : (a).
+## QUESTIONS : aucune
 
 ## 9. Découpage en issues (indicatif)
 Chaque critère est couvert par exactement une issue ; dépendances : 01, puis 02 (l'avis renvoie au README de 01), 03 en dernier (la reprise s'éprouve avec l'avis en place : A17 absent après reprise). 007-02 est la plus grosse (12 critères, tests d'un script) et le justifie, comme 005-02.

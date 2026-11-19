@@ -89,3 +89,4 @@ L'orchestrateur ne met à jour ici que les statuts et les décisions ; il ne ref
 | D-41 | 2026-11-19 | `/code-review` suit `MODE_REVUE` et, en mode parallèle, consigne un fichier `docs/reviews/branche-<branche>.md` (écrit par la session seule) ; PRD 006 validé | F-02 |
 | D-42 | 2026-11-19 | F-06 réduit : F-08 rattache déjà une issue à sa branche par convention de nommage ; reste à écrire `branche:` à la création (modèle `_template.md` et README des issues) et à signaler par un avis de `statuts.sh` (jamais une erreur) une issue `En cours` ou au-delà dont `branche:` est vide ; la skill `/to-tickets` n'est pas modifiée (réservée à l'utilisateur, bibliothèque externe) | F-06 |
 | D-43 | 2026-11-19 | Les issues existantes dont `branche:` est vide sont complétées d'après l'historique, noms de branche vérifiés | F-06 |
+| D-44 | 2026-11-19 | Une issue `Fait` au champ `branche:` vide ne donne pas l'avis A17 (seules les issues démarrées et non terminées sont visées) | F-06 |

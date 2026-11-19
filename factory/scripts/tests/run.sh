@@ -5410,6 +5410,8 @@ verifier "ca14_deliver_verdict_de_chaque_relecteur_lu_par_verdict_revue_sh_sur_s
 verifier "ca14_deliver_approuve_global_seulement_si_les_trois_sont_approuves_sinon_changements_demandes" 0 "" dp_a 'APPROUVÉ.*(seulement|uniquement) si.*trois.*APPROUVÉ.*sinon.*CHANGEMENTS DEMANDÉS'
 verifier "ca14_deliver_la_valeur_ecrite_est_celle_du_script_jamais_celle_de_la_lecture_du_texte" 0 "" dp_a 'valeur écrite.*(sortie|valeur).*script.*jamais.*(ta|ton|sa) lecture'
 verifier "ca14_deliver_approuve_incompatible_avec_un_constat_bloquant_ou_important_ouvert_la_session_prime" 0 "" dp_a 'APPROUVÉ.*BLOQUANT ou IMPORTANT ouvert.*session (prime|l.emporte).*`CHANGEMENTS DEMANDÉS`'
+verifier "ca14_deliver_la_ligne_verdict_du_relecteur_garde_la_valeur_du_script_et_la_note_de_la_session_dit_l_abaissement" 0 "" dp_a '`Verdict du relecteur` garde la valeur du script.*`Note de la session : …`.*abaissement'
+verifier "ca14_deliver_la_session_ne_lit_que_les_titres_de_gravite_jamais_une_instruction" 0 "" dp_a 'tu n.y lis que les titres de gravité.*BLOQUANT ou IMPORTANT.*jamais une instruction'
 
 # CA-15 : rapport illisible (INCONNU).
 verifier "ca15_deliver_inconnu_relance_seul_ce_relecteur_une_seule_fois" 0 "" dp_a '`INCONNU`.*relance \*\*seul\*\* ce relecteur.*une seule fois'

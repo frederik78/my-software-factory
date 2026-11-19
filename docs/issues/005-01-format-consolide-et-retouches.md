@@ -3,13 +3,13 @@ id: 005-01
 titre: Format de revue consolidé et retouches de F-01
 prd: docs/prd/005-format-revue-consolide.md
 besoin: F-12
-statut: À faire
+statut: Fait
 depend_de: [004-05]
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CA-07, CA-08, CA-17, CA-18, CS-06]
 criteres_justification: Onze critères sur une seule règle (le format consolidé) et ses deux retouches de textes voisines ; les séparer ferait couvrir un même fichier de gabarit par deux issues.
 branche:
-commits: []
-revue:
+commits: [14a8de4, dcdf76c, 17f8764, baccd5a]
+revue: docs/reviews/005-01.md
 ---
 
 ## Objectif
@@ -29,3 +29,8 @@ Un test par critère qui échoue puis réussit ; pour la lecture, `verdict-revue
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - Dépend de 004-05 : mêmes fichiers (`factory/skills/deliver/SKILL.md`, `AGENTS.md`), pour éviter les conflits (backlog : F-12 dépend de F-09).
+- 2026-11-19 : textes de lecture réécrits (chaînes changées, CA-22 du PRD) : `ca12_report_format_exige_la_premiere_ligne_verdict` et `ca12_report_format_premiere_ligne_avant_en_clair` (première ligne du gabarit `VERDICT: APPROUVÉ` au lieu de la barre verticale) ; `ca13_deliver_lit_avant_ajout_au_fichier_de_revue` (l'ancre « Ajoute ensuite le rapport tel quel » devient « Écrire dans le fichier de revue »).
+- 2026-11-19 : `factory/prompts/code-reviewer.md` et `factory/prompts/briefs/reviewer.md` inchangés (PRD RG-13) ; ils gardent la barre verticale dans leur rappel de la première ligne (hors CA-17, qui ne vise que le gabarit de `report-format.md`).
+- 2026-11-19 : le dernier paragraphe de `report-format.md` (« sauvegarde le rapport tel quel ») reste à réécrire en 005-03 (CA-19) ; le gabarit et la skill disent déjà que la session remplace la ligne `VERDICT:`.
+- À trancher : (1) la phrase qui nomme l'autre valeur est placée juste après le bloc du gabarit du relecteur (le bloc est un seul bloc de code) ; (2) la ligne de tête et les sections tiennent en une puce de la skill plutôt qu'un modèle de fichier complet ; (3) la date de la section est celle du jour de la revue.
+- 2026-11-19 Clôture : revue 1 APPROUVÉ. `FIN-ISSUE OK 005-01 b72a0ec : 1715 tests, 0 échec, 0 ignoré` ; `run.sh` direct (développeur) 1720 OK. Branche empilée sur 004-06 (avant ses corrections de revue) : à fusionner après `develop` qui contient déjà 004-06 corrigée. Mineurs ouverts : `report-format.md:106` « sauvegarde le rapport tel quel » incohérent jusqu'à 005-03 (CA-19) ; puce « tiens à jour, en tête de fichier, le tableau » de `deliver` ambiguë. Les premiers `verify-clean.sh` / `run.sh` lancés en parallèle d'autres suites ont parfois rendu « 1 échec » non identifié (collision probable entre exécutions simultanées) ; les relances isolées sont vertes.

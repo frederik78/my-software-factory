@@ -68,7 +68,7 @@ Une ligne par fichier ajouté ou modifié qui joue un rôle couvert par la réf�
 La **première ligne du rapport du reviewer** est exactement `VERDICT: APPROUVÉ` ou `VERDICT: CHANGEMENTS DEMANDÉS` (mot-clé, deux-points, une espace, l'une des deux valeurs seules), avant tout titre, sans ligne vide ni texte au-dessus. La session la lit avec `scripts/verdict-revue.sh` ; tout autre contenu en première ligne donne `INCONNU` et le rapport est redemandé. La section `## Verdict` reprend la même valeur, suivie d'une phrase.
 
 ```
-VERDICT: APPROUVÉ|CHANGEMENTS DEMANDÉS
+VERDICT: APPROUVÉ
 
 ## En clair
 Pour un lecteur sans contexte (qui n'a lu ni l'issue, ni le PRD, ni la conversation). Pas de jargon non expliqué, aucun identifiant nu.
@@ -102,5 +102,7 @@ Une ligne par point : corrigé / non corrigé / partiellement, avec la preuve (t
 ## Documents devenus faux
 PRD, backlog, ADR, AGENTS.md : passages à mettre à jour, sans les modifier toi-même.
 ```
+
+La première ligne du gabarit est un exemple à valeur unique ; l'autre valeur possible est `VERDICT: CHANGEMENTS DEMANDÉS` (une seule des deux, jamais les deux sur la même ligne).
 
 L'orchestrateur lit d'abord la première ligne (`scripts/verdict-revue.sh`, voir la skill `deliver`), puis sauvegarde le rapport du reviewer tel quel dans `docs/reviews/<id-issue>.md` (une section par itération). Si l'issue reste bloquée après `MAX_ITERATIONS_REVUE` revues, la session ajoute à la fin de la section de la dernière itération une section `## Pour l'humain` (carte en trois rubriques), écrite par la session, jamais par le reviewer.

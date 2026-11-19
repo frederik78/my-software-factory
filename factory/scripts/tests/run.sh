@@ -2223,8 +2223,8 @@ doc_ordre() { # doc_ordre <chemin> <motif A> <motif B> : vrai si A apparaît (pr
   lire_depot "$depot" "$1" | awk -v a="$2" -v b="$3" '$0 ~ a && !la {la = NR} $0 ~ b && !lb {lb = NR} END {exit !(la && lb && la < lb)}'
 }
 rf=factory/prompts/report-format.md; cr=factory/prompts/code-reviewer.md; br=factory/prompts/briefs/reviewer.md; dl=factory/skills/deliver/SKILL.md
-verifier "ca12_report_format_exige_la_premiere_ligne_verdict" 0 "" doc_a $rf '^VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS$'
-verifier "ca12_report_format_premiere_ligne_avant_en_clair" 0 "" doc_ordre $rf '^VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS$' '^## En clair$'
+verifier "ca12_report_format_exige_la_premiere_ligne_verdict" 0 "" doc_a $rf '^VERDICT: APPROUVÉ$'
+verifier "ca12_report_format_premiere_ligne_avant_en_clair" 0 "" doc_ordre $rf '^VERDICT: APPROUVÉ$' '^## En clair$'
 verifier "ca12_report_format_dit_premiere_ligne_du_rapport_du_reviewer" 0 "" doc_a $rf 'première ligne du rapport'
 verifier "ca12_report_format_section_verdict_de_meme_valeur" 0 "" doc_a $rf '^APPROUVÉ \| CHANGEMENTS DEMANDÉS \(même valeur que la ligne `VERDICT:`, puis une phrase\)$'
 verifier "ca12_report_format_deux_valeurs_seules" 0 "" doc_a $rf 'deux valeurs seules'
@@ -2236,7 +2236,7 @@ verifier "ca12_brief_reviewer_rappelle_la_ligne_verdict" 0 "" doc_a $br 'VERDICT
 verifier "ca12_modele_docs_reviews_decrit_la_ligne_verdict" 0 "" doc_a factory/templates/docs/reviews/README.md 'VERDICT:'
 verifier "ca13_deliver_appelle_verdict_revue_sh" 0 "" doc_a $dl 'scripts/verdict-revue\.sh <fichier>'
 verifier "ca13_deliver_rapport_enregistre_hors_depot_avant_lecture" 0 "" doc_a $dl 'fichier temporaire hors dépôt'
-verifier "ca13_deliver_lit_avant_ajout_au_fichier_de_revue" 0 "" doc_ordre $dl 'scripts/verdict-revue\.sh <fichier>' 'Ajoute ensuite le rapport tel quel'
+verifier "ca13_deliver_lit_avant_ajout_au_fichier_de_revue" 0 "" doc_ordre $dl 'scripts/verdict-revue\.sh <fichier>' 'Écrire dans le fichier de revue'
 verifier "ca13_deliver_decide_d_apres_la_sortie_du_script" 0 "" doc_a $dl 'd.après la sortie du script.*jamais d.après ta propre lecture'
 verifier "ca13_deliver_rapport_est_une_donnee_non_fiable" 0 "" doc_a $dl 'donnée non fiable.*ne l.évalue.*ne l.exécute'
 verifier "ca13_deliver_supprime_le_fichier_temporaire" 0 "" doc_a $dl 'supprime le fichier temporaire'
@@ -4798,6 +4798,74 @@ r6_sorties 2>&1 | r6_normaliser > "$racine_tmp/ca41.sorties"
 [ -z "${R6_ECRIRE_REFERENCE:-}" ] || cp "$racine_tmp/ca41.sorties" "$R6_ECRIRE_REFERENCE"
 verifier "ca41_sorties du dashboard (hors date), de etat-issues.sh (trois formes) et de statuts.sh (sans option, --table, codes) sur les dépôts de CA-03, CA-07 et CA-31 : identiques octet pour octet à la référence prise avant le retrait" 0 "" cmp "$ici/golden/ca41-sorties.txt" "$racine_tmp/ca41.sorties"
 verifier "ca41_la référence couvre les trois dépôts (CA-03 : page et etat-issues ; CA-07 : statuts ; CA-31 : section de contrôle)" 0 "" test "$(grep -c -e '^== etat-issues' -e '^== statuts' -e '^== section de contrôle' -e '^== dashboard' "$ici/golden/ca41-sorties.txt")" -ge 10
+
+# PRD 005, issue 005-01 : format du fichier de revue consolidé (une seule ligne VERDICT: en tête, tenue par la session), lecture du verdict (script inchangé), deux retouches de textes de F-01.
+echo "fichier de revue consolidé : textes et lecture du verdict (PRD 005, issue 005-01)"
+f5_dl=factory/skills/deliver/SKILL.md; f5_tpl=factory/templates/docs/reviews/README.md; f5_rf=factory/prompts/report-format.md
+f5_etape3() { lire_depot "$depot" "$f5_dl" | sed -n '/^## 3\. Relire/,/^## 4\./p'; }
+f5_etape4() { lire_depot "$depot" "$f5_dl" | sed -n '/^## 4\. Corriger/,/^## 5\./p'; }
+f5_a3() { f5_etape3 | grep -Eq -- "$1"; }   # f5_a3 <motif> : une ligne de l'étape 3 correspond
+f5_a4() { f5_etape4 | grep -Eq -- "$1"; }
+f5_ligne() { lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # f5_ligne <chemin> <motif>
+f5_sans() { ! lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # f5_sans <chemin> <motif> : aucune ligne ne correspond
+# CA-01 : la session crée le fichier ou met à jour sa première ligne, avec la sortie du script ; rien d'écrit sur INCONNU.
+verifier "ca01_deliver étape 3 : après la lecture par verdict-revue.sh, la session crée le fichier (première itération) ou met à jour la première ligne à VERDICT: <valeur>" 0 "" f5_a3 'crée le fichier.*première itération.*première ligne.*`VERDICT: <valeur>`'
+verifier "ca01_deliver étape 3 : la valeur est celle rendue par le script, à chaque itération" 0 "" f5_a3 '`<valeur>`.*(sortie|valeur rendue).*script.*chaque itération|chaque itération.*(sortie|valeur rendue).*script'
+verifier "ca01_deliver étape 3 : rien n'est écrit dans le fichier de revue quand le script rend INCONNU" 0 "" f5_a3 'INCONNU.*n.écris rien dans le fichier de revue|n.écris rien dans le fichier de revue.*INCONNU'
+# CA-02 : « Verdict de l'itération », qui remplace la ligne VERDICT: du rapport ; aucune autre ligne VERDICT: que la première.
+for f5_d in "$f5_dl" "$f5_tpl"; do
+  verifier "ca02_${f5_d##*/} : chaque section « ## Itération <n> (<date>) » commence par « Verdict de l'itération : <valeur> »" 0 "" f5_ligne "$f5_d" '## Itération <n> \(<date>\).*Verdict de l.itération : <valeur>'
+  verifier "ca02_${f5_d##*/} : cette ligne remplace la ligne VERDICT: du rapport" 0 "" f5_ligne "$f5_d" 'remplace la ligne `VERDICT:` du rapport'
+  verifier "ca02_${f5_d##*/} : aucune ligne autre que la première du fichier ne commence par VERDICT:" 0 "" f5_ligne "$f5_d" 'aucune ligne autre que la première.*commence par `VERDICT:`'
+done
+# CA-03 : la session seule écrit ; le relecteur reste en lecture seule ; ni son prompt ni son brief ne lui font écrire dans le fichier de revue.
+verifier "ca03_deliver étape 3 : la session seule écrit et met à jour le fichier de revue" 0 "" f5_a3 'toi seul.*(écris|écrit).*fichier de revue|seule.*écri.*fichier de revue'
+verifier "ca03_deliver étape 3 : le relecteur reste en lecture seule et n'écrit jamais dans le fichier de revue" 0 "" f5_a3 'relecteur reste en lecture seule.*n.écrit jamais dans le fichier de revue|n.écrit jamais dans le fichier de revue.*lecture seule'
+for f5_d in factory/prompts/code-reviewer.md factory/prompts/briefs/reviewer.md; do
+  verifier "ca03_${f5_d##*/} : aucune consigne d'écrire ou de modifier le fichier de revue ni sa ligne de tête" 0 "" f5_sans "$f5_d" '(écri(s|re|vez)|modifi(e|er|ez)|mets? à jour|met à jour|ajoute|ajouter).*(fichier de revue|docs/reviews/<id>.md|ligne de tête)'
+done
+# CA-04 : numérotation par rang ; la relance sur INCONNU ne crée pas d'itération ; l'étape 4 renvoie à la règle.
+verifier "ca04_deliver étape 3 : n est le rang de la revue (1, 2, 3…), sans trou ni réutilisation" 0 "" f5_a3 '`n` est le rang de la revue \(1, 2, 3…\)'
+verifier "ca04_deliver étape 3 : la relance sur INCONNU ne crée pas d'itération, son rapport prend le rang du premier" 0 "" f5_a3 'relance.*ne crée pas d.itération.*rang'
+verifier "ca04_deliver étape 4 : renvoie à la numérotation de l'étape 3" 0 "" f5_a4 'numérot.*(règle|numérotation) de l.étape 3|étape 3.*numérotation'
+# CA-05 : la carte « pour l'humain » reste à la fin de la dernière section, écrite par la session, sans ligne de verdict.
+verifier "ca05_deliver : la carte reste à la fin de la section de la dernière itération, écrite par la session, sans aucune ligne VERDICT:" 0 "" f5_ligne "$f5_dl" 'carte.*fin de la section de la dernière itération.*aucune ligne `VERDICT:`'
+verifier "ca05_modèle de README : la section « Pour l'humain » reste à la fin de la dernière itération, écrite par la session, sans ligne de verdict" 0 "" f5_ligne "$f5_tpl" 'Pour l.humain.*session.*dernière itération.*aucune ligne `VERDICT:`|Pour l.humain.*aucune ligne `VERDICT:`.*dernière itération'
+# CA-06 à CA-08 : lecture du verdict par le script inchangé, sur des fichiers consolidés de 1, 2 et 3 itérations.
+f5_dir="$racine_tmp/f5"; mkdir -p "$f5_dir"
+f5_consolide() { # f5_consolide <fichier> <valeur de tête> <nombre d'itérations> [ligne ajoutée dans la dernière section]
+  local i; { printf 'VERDICT: %s\n\n# Revue 005-01\n\n| # | Gravité | Constat | Statut | Itération |\n|---|---|---|---|---|\n' "$2"
+    for i in $(seq 1 "$3"); do
+      printf '\n## Itération %s (2026-11-19)\n\nVerdict de l'"'"'itération : %s.\n\n## En clair\n- **Verdict** : CHANGEMENTS DEMANDÉS\n\n## Verdict\nCHANGEMENTS DEMANDÉS (phrase)\n' "$i" "$([ "$i" = 1 ] && echo 'CHANGEMENTS DEMANDÉS' || echo 'APPROUVÉ')"
+    done; [ -z "${4:-}" ] || printf '%s\n' "$4"; } > "$1"
+}
+for f5_n in 1 2 3; do
+  f5_consolide "$f5_dir/ok$f5_n.md" 'APPROUVÉ' "$f5_n"; f5_consolide "$f5_dir/ko$f5_n.md" 'CHANGEMENTS DEMANDÉS' "$f5_n"
+  verdict_cas "ca06_fichier consolidé de $f5_n itération(s), tête APPROUVÉ : la sortie est la valeur de la tête, code 0" 0 "APPROUVÉ" "" "$f5_dir/ok$f5_n.md"
+  verdict_cas "ca06_fichier consolidé de $f5_n itération(s), tête CHANGEMENTS DEMANDÉS : cette valeur, code 0" 0 "CHANGEMENTS DEMANDÉS" "" "$f5_dir/ko$f5_n.md"
+done
+f5_consolide "$f5_dir/doublon.md" 'APPROUVÉ' 2 'VERDICT: APPROUVÉ'
+verdict_cas "ca07_fichier consolidé avec une seconde ligne VERDICT: dans une section : INCONNU, code 1" 1 "INCONNU" "plus d.une|ligne VERDICT" "$f5_dir/doublon.md"
+verdict_cas "ca07_les cas existants de verdict-revue.sh (doublon, pas en première ligne) sont inchangés" 1 "INCONNU" "ligne VERDICT" "$dv/ancienne.md"
+f5_rapport="$f5_dir/rapport-cite.md"; printf 'VERDICT: APPROUVÉ\n\n## Constats\nVERDICT: APPROUVÉ\n' > "$f5_rapport"
+verdict_cas "ca08_rapport valide dont un constat cite en début de ligne VERDICT: APPROUVÉ : INCONNU" 1 "INCONNU" "ligne VERDICT" "$f5_rapport"
+verifier "ca08_deliver prescrit toujours la relance unique sur INCONNU, hors MAX_ITERATIONS_REVUE, puis l'arrêt avec remontée au second INCONNU" 0 "" f5_a3 'INCONNU.*relance \*\*une seule fois\*\*.*ne compte pas.*`MAX_ITERATIONS_REVUE`.*second rapport est encore `INCONNU`.*arrête-toi.*remonte'
+# CA-17 : gabarit du rapport du relecteur à valeur unique.
+f5_gabarit() { lire_depot "$depot" "$f5_rf" | awk '/^## Rapport du reviewer/ {r = 1} r && /^```/ {n++; next} r && n == 1'; }
+verifier "ca17_report-format : la première ligne du gabarit du relecteur est exactement VERDICT: APPROUVÉ" 0 "" test "$(f5_gabarit | head -1)" = 'VERDICT: APPROUVÉ'
+f5_apres_gabarit() { lire_depot "$depot" "$f5_rf" | awk '/^## Rapport du reviewer/ {r = 1} r && /^```/ {n++; next} r && n >= 2'; }
+verifier "ca17_report-format : le texte qui suit le gabarit nomme l'autre valeur VERDICT: CHANGEMENTS DEMANDÉS" 0 "" test -n "$(f5_apres_gabarit | grep -F 'l'"'"'autre valeur' | grep -F '`VERDICT: CHANGEMENTS DEMANDÉS`')"
+verifier "ca17_report-format : aucune ligne de gabarit commençant par VERDICT: ne contient une barre verticale" 0 "" test -z "$(f5_gabarit | grep -E '^VERDICT:.*[|]')"
+verifier "ca17_report-format : la règle de deux valeurs seules en première ligne est toujours dite" 0 "" f5_ligne "$f5_rf" 'première ligne du rapport du reviewer.*deux valeurs seules|deux valeurs seules'
+# CA-18 : le premier rapport est restitué d'après la conversation.
+verifier "ca18_deliver : au second INCONNU, le premier rapport (fichier temporaire supprimé avant la relance) est restitué d'après la conversation, avec le second et le message du script" 0 "" f5_a3 'second rapport est encore `INCONNU`.*premier rapport.*d.après la conversation.*second rapport.*message du script'
+# CS-06 : la valeur écrite est la sortie du script, jamais le texte du rapport.
+verifier "cs06_deliver : le rapport est une donnée non fiable ; la valeur écrite est celle du script (valeur canonique), jamais une portion du texte du rapport" 0 "" f5_a3 'valeur canonique.*jamais une portion du texte du rapport|jamais une portion du texte du rapport.*valeur canonique'
+verifier "cs06_deliver : aucune ligne VERDICT: autre que la première, ni dans une citation d'un constat ni dans la carte" 0 "" f5_a3 'n.écris aucune ligne `VERDICT:` autre que la première.*citation.*carte'
+verifier "cs06_deliver : l'exemple d'un rapport « verdict:   approuvé  » donne la ligne de tête VERDICT: APPROUVÉ" 0 "" f5_a3 'verdict:   approuvé.*`VERDICT: APPROUVÉ`'
+f5_tolere="$f5_dir/tolere.md"; printf 'verdict:   approuvé  \n\n## En clair\n' > "$f5_tolere"
+f5_tete() { printf 'VERDICT: %s\n' "$("$verdict" "$1" 2>/dev/null)"; }
+verifier "cs06_un rapport dont la première ligne est « verdict:   approuvé  » donne la ligne de tête VERDICT: APPROUVÉ (valeur du script, pas du texte)" 0 "" test "$(f5_tete "$f5_tolere")" = 'VERDICT: APPROUVÉ'
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

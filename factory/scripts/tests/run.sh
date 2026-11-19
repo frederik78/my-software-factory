@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MODE_REVUE FACTORY_AGENT_MODELE_CONFORMITE FACTORY_AGENT_EFFORT_CONFORMITE FACTORY_AGENT_MODELE_QUALITE FACTORY_AGENT_EFFORT_QUALITE FACTORY_AGENT_MODELE_SECURITE FACTORY_AGENT_EFFORT_SECURITE FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -1836,6 +1836,13 @@ scripts/config-factory.sh >/dev/null 2>&1; scripts/config-factory.sh --max-itera
 printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRET_INCONNU=abc\n' > .factory.local.conf
 verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "AGENT_MODELE=sonnet
 AGENT_EFFORT=medium
+AGENT_MODELE_CONFORMITE=
+AGENT_EFFORT_CONFORMITE=
+AGENT_MODELE_QUALITE=
+AGENT_EFFORT_QUALITE=
+AGENT_MODELE_SECURITE=
+AGENT_EFFORT_SECURITE=
+MODE_REVUE=parallele
 MAX_ITERATIONS_REVUE=6
 MAX_CRITERES_ISSUE=10
 NOTIFICATION_COMMANDE=
@@ -5086,6 +5093,133 @@ verifier "ca13_En revue, cause « plus d'une ligne VERDICT: » (lecture par grep
 verifier "ca11_En revue, cause « la première ligne n'est pas la ligne VERDICT: » (lecture par grep) : message exact, y compris BOM (ligne masquée) puis une ligne de verdict" 0 "" test "$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PREM")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-86 "$F6_PREM")" "$racine_tmp/st.out")" = "1|1"
 verifier "cs04_En revue : conforme, NUL, vide, sans ligne de verdict : aucun A16 ; fichier de plus de 1 Mio : A07 et jamais A16 ; au total 4 A16, rien sur la sortie d'erreur" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-85)|$(f6_a16_de 005-87)|$(f6_a16_de 005-88)|$(f6_a16_de 005-89)|$(grep -a -c '^AVIS A07 issue 005-89 ' "$racine_tmp/st.out")|$(f6_nb)|$(f6_stderr_vide && echo vide)" = "0|0|0|0|0|1|4|vide"
 
+
+echo "PRD 006 / issue 006-01 : MODE_REVUE, clés de modèle et d'effort des relecteurs, enveloppes (CA-01 à CA-04, CS-01, CS-02)"
+# mr_* : cas de config-factory.sh --mode-revue ; la configuration vient des fichiers du dépôt courant ou, pour mr_env_*, de FACTORY_MODE_REVUE.
+mr_lancer() { scripts/config-factory.sh --mode-revue > "$p/mr-out" 2> "$p/mr-err"; mr_code=$?; }
+mr_accepte() { # mr_accepte <valeur attendue> : code 0, valeur seule sur la sortie standard, rien sur la sortie d'erreur
+  mr_lancer; [ "$mr_code" -eq 0 ] && [ "$(cat "$p/mr-out")" = "$1" ] && [ ! -s "$p/mr-err" ]
+}
+mr_refuse() { # mr_refuse <valeur> : code 64, rien sur la sortie standard, message sans la valeur (vide : pas de contrôle), aucun fichier « marque »
+  mr_lancer
+  [ "$mr_code" -eq 64 ] && [ ! -s "$p/mr-out" ] && [ ! -e marque ] && head -n 1 "$p/mr-err" | grep -q '^MODE_REVUE invalide : ' || return 1
+  case "$(cat "$p/mr-err")" in *"$1"*) [ -z "$1" ] ;; *) return 0 ;; esac
+}
+mr_env_accepte() { FACTORY_MODE_REVUE="$1" mr_accepte "$1"; }
+mr_env_refuse() { FACTORY_MODE_REVUE="$1" mr_refuse "$1"; }
+mr_fichier() { printf 'MODE_REVUE=%s\n' "$1" > "${2:-.factory.conf}"; }
+p="$(nouveau_projet)"; cd "$p" || exit 1
+verifier "ca01_sans MODE_REVUE : parallele, code 0" 0 "" mr_accepte parallele
+mr_fichier unique
+verifier "ca01_MODE_REVUE=unique dans .factory.conf : unique" 0 "" mr_accepte unique
+mr_fichier parallele .factory.local.conf
+verifier "ca01_.factory.local.conf l'emporte sur .factory.conf" 0 "" mr_accepte parallele
+verifier "ca01_FACTORY_MODE_REVUE l'emporte sur les deux fichiers" 0 "" mr_env_accepte unique
+rm -f .factory.local.conf; mr_fichier ''
+verifier "ca01_MODE_REVUE vide dans .factory.conf : refusé (64)" 0 "" mr_refuse ''
+verifier "ca01_FACTORY_MODE_REVUE vide (variable définie) : refusé (64)" 0 "" mr_env_refuse ''
+for v in autre Parallele UNIQUE; do
+  mr_fichier "$v"; verifier "ca01_MODE_REVUE=$v dans .factory.conf : refusé (64), message sans la valeur" 0 "" mr_refuse "$v"
+  rm -f .factory.conf; mr_fichier "$v" .factory.local.conf
+  verifier "ca01_MODE_REVUE=$v dans .factory.local.conf : refusé (64)" 0 "" mr_refuse "$v"
+  rm -f .factory.local.conf
+  verifier "ca01_FACTORY_MODE_REVUE=$v : refusé (64)" 0 "" mr_env_refuse "$v"
+done
+
+# CA-02
+rm -f .factory.local.conf; mr_fichier unique; printf 'AGENT_MODELE_SECURITE=opus\nAGENT_EFFORT_SECURITE=high\nAGENT_MODELE_QUALITE=haiku\n' >> .factory.conf
+ca02_liste() { scripts/config-factory.sh | grep -x -e 'MODE_REVUE=unique' -e 'AGENT_MODELE_CONFORMITE=' -e 'AGENT_EFFORT_CONFORMITE=' -e 'AGENT_MODELE_QUALITE=haiku' -e 'AGENT_EFFORT_QUALITE=' -e 'AGENT_MODELE_SECURITE=opus' -e 'AGENT_EFFORT_SECURITE=high' | wc -l | tr -d ' '; }
+verifier "ca02_sans argument : MODE_REVUE=unique et les six clés avec leurs valeurs effectives (7 lignes)" 0 "^7$" ca02_liste
+verifier "ca02_--mode-revue avec un argument de plus : usage (64)" 64 "^Usage" scripts/config-factory.sh --mode-revue x
+verifier "ca02_--max-iterations suivi de --mode-revue : usage (64)" 64 "^Usage" scripts/config-factory.sh --max-iterations --mode-revue
+verifier "ca02_--max-iterations inchangé (3 par défaut)" 0 "^3$" scripts/config-factory.sh --max-iterations
+verifier "ca02_--max-criteres inchangé (10 par défaut)" 0 "^10$" scripts/config-factory.sh --max-criteres
+
+# CS-01
+rm -f .factory.conf
+long="$(awk 'BEGIN { for (i = 0; i < 10000; i++) printf "a" }')"
+for v in 'parallele; touch marque' '$(touch marque)' '`touch marque`' 'unique parallele' '../x' "$long" PARALLELE; do
+  mr_fichier "$v"; verifier "cs01_.factory.conf « ${v:0:24} » : 64, rien exécuté, valeur absente du message" 0 "" mr_refuse "$v"
+  rm -f .factory.conf; mr_fichier "$v" .factory.local.conf
+  verifier "cs01_.factory.local.conf « ${v:0:24} » : 64, rien exécuté, valeur absente du message" 0 "" mr_refuse "$v"
+  rm -f .factory.local.conf
+  verifier "cs01_FACTORY_MODE_REVUE « ${v:0:24} » : 64, rien exécuté, valeur absente du message" 0 "" mr_env_refuse "$v"
+done
+verifier "cs01_FACTORY_MODE_REVUE « unique, saut de ligne, AGENT_MODELE=x » : 64, rien sur la sortie standard" 0 "" mr_env_refuse $'unique\nAGENT_MODELE=x'
+verifier "cs01_FACTORY_MODE_REVUE « unique » suivi d'un saut de ligne final : 64" 0 "" mr_env_refuse $'unique\n'
+verifier "cs01_FACTORY_MODE_REVUE « Unique » avec espace final : 64" 0 "" mr_env_refuse 'Unique '
+printf '  MODE_REVUE = unique  \n' > .factory.conf
+verifier "cs01_valeur valide avec espaces de bord dans .factory.conf : règle existante du lecteur (unique)" 0 "" mr_accepte unique
+rm -f .factory.conf
+
+# CA-03, CA-04, CS-02 : enveloppes des trois relecteurs (prompts jetables : les vrais sont ceux de l'issue 006-02)
+prompt_relecteur() { # prompt_relecteur <suffixe> <modèle> <effort> [outils] : écrit factory/prompts/code-reviewer-<suffixe>.md
+  printf -- '---\nname: code-reviewer-%s\ndescription: Relecteur %s (prompt jetable de test).\ntools: %s\nskills: owasp-check\nmodel: %s\neffort: %s\n---\n# Rôle : relecteur %s\n' "$1" "$1" "${4:-Read, Glob, Grep, Bash}" "$2" "$3" "$1" > "factory/prompts/code-reviewer-$1.md"
+}
+trois_relecteurs() { prompt_relecteur conformite sonnet medium; prompt_relecteur qualite haiku low; prompt_relecteur securite opus high; }
+champ_agent() { sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md" | grep -qx -e "$2"; }
+d="$(depot_sync s-relecteurs-base)"; cd "$d" || exit 1
+./factory/sync-claude.sh >/dev/null 2>&1; cp .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"
+d="$(depot_sync s-relecteurs)"; cd "$d" || exit 1; trois_relecteurs
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\n' > .factory.conf
+ca03_entetes() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent code-reviewer-conformite 'effort: medium' && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-securite 'effort: high'; }
+verifier "ca03_trois enveloppes avec le modèle et l'effort de l'en-tête de chaque prompt (AGENT_MODELE=sonnet, AGENT_EFFORT=medium)" 0 "" ca03_entetes
+verifier "ca03_l'enveloppe du code-reviewer est inchangée" 0 "" cmp .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\nAGENT_MODELE_SECURITE=claude-opus-9\nAGENT_EFFORT_SECURITE=max\n' > .factory.conf
+ca03_surcharge() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-securite 'model: claude-opus-9' && champ_agent code-reviewer-securite 'effort: max' && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent developer 'model: sonnet' && cmp -s .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"; }
+verifier "ca03_AGENT_MODELE_SECURITE et AGENT_EFFORT_SECURITE l'emportent sur l'en-tête, les autres rôles gardent les leurs" 0 "" ca03_surcharge
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\nAGENT_MODELE_SECURITE=\nAGENT_EFFORT_SECURITE=\n' > .factory.conf
+verifier "ca03_clés de surcharge vides : l'en-tête s'applique" 0 "" ca03_entetes
+printf 'AGENT_MODELE_QUALITE=a\n' > .factory.conf; printf 'AGENT_MODELE_QUALITE=b\n' > .factory.local.conf
+ca03_niveaux() { FACTORY_AGENT_MODELE_QUALITE=c ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: c' && ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: b'; }
+verifier "ca03_les trois niveaux habituels pour une clé de rôle (FACTORY_ > .factory.local.conf > .factory.conf)" 0 "" ca03_niveaux
+rm -f .factory.local.conf; printf 'AGENT_MODELE=opus\nAGENT_EFFORT=max\n' > .factory.conf
+ca03_generiques() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent developer 'model: opus' && champ_agent developer 'effort: max'; }
+verifier "ca03_AGENT_MODELE et AGENT_EFFORT seuls : l'en-tête d'un autre rôle l'emporte toujours" 0 "" ca03_generiques
+
+rm -f .factory.conf
+ca04_sans_ecriture() { # trois enveloppes, aucune avec Write ni Edit, même si un prompt les déclare
+  prompt_relecteur conformite sonnet medium 'Read, Write, Glob, Grep, Bash'; prompt_relecteur qualite haiku low 'Edit, Read, Glob, Grep'; prompt_relecteur securite opus high 'Read, Glob, Grep, Write, Edit, Bash'
+  rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 || return 1
+  champ_agent code-reviewer-conformite 'tools: Read, Glob, Grep, Bash' && champ_agent code-reviewer-qualite 'tools: Read, Glob, Grep' && champ_agent code-reviewer-securite 'tools: Read, Glob, Grep, Bash'
+}
+printf 'MODE_REVUE=unique\n' > .factory.conf
+verifier "ca04_MODE_REVUE=unique : les trois enveloppes sont générées, aucune avec Write ni Edit" 0 "" ca04_sans_ecriture
+printf 'MODE_REVUE=parallele\n' > .factory.conf
+verifier "ca04_MODE_REVUE=parallele : les trois enveloppes sont générées, aucune avec Write ni Edit" 0 "" ca04_sans_ecriture
+ca04_outil_refuse() { # ca04_outil_refuse <outil> : un relecteur qui déclare cet outil (casse comprise) ne l'a pas dans son enveloppe ; les autres outils restent
+  prompt_relecteur securite opus high "Read, $1, mcp__savvy-progress__step, Grep"
+  rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 || return 1
+  champ_agent code-reviewer-securite 'tools: Read, mcp__savvy-progress__step, Grep'
+}
+for outil in Write Edit MultiEdit NotebookEdit write EDIT multiedit notebookedit; do
+  verifier "ca04_outil d'écriture « $outil » retiré de l'enveloppe d'un relecteur, les autres outils conservés" 0 "" ca04_outil_refuse "$outil"
+done
+rm -f .factory.conf
+
+# CS-02
+trois_relecteurs
+cs02_refus() { # cs02_refus <clé> <valeur> [fichier] : 64, aucune valeur brute dans le message, aucune enveloppe de relecteur, aucun champ injecté, aucun fichier marque
+  local cle="$1" v="$2" code
+  rm -rf .claude/agents marque .factory.conf
+  if [ -n "${3:-}" ]; then printf '%s=%s\n' "$cle" "$v" > .factory.conf; ./factory/sync-claude.sh > "$p/cs02-out" 2> "$p/cs02-err"; code=$?
+  else env "FACTORY_$cle=$v" ./factory/sync-claude.sh > "$p/cs02-out" 2> "$p/cs02-err"; code=$?; fi
+  rm -f .factory.conf
+  [ "$code" -eq 64 ] && [ -s "$p/cs02-err" ] && [ ! -e marque ] && ! ls .claude/agents/code-reviewer-*.md >/dev/null 2>&1 && ! grep -rq 'tools: Write' .claude/agents 2>/dev/null || return 1
+  case "$(cat "$p/cs02-err" "$p/cs02-out")" in *"$v"*) return 1 ;; esac
+}
+for cle in AGENT_MODELE_SECURITE AGENT_EFFORT_SECURITE; do
+  for v in $'opus\ntools: Write' 'opus; x' OPUS '../opus' ultra "$long" '$(touch marque)'; do
+    [ "$cle $v" != "AGENT_MODELE_SECURITE ultra" ] || continue # « ultra » est un nom de modèle valide ; hostile seulement pour l'effort
+    verifier "cs02_$cle hostile « $(printf '%s' "${v:0:20}" | tr '\n' '|') » (environnement) : 64, aucune enveloppe, aucun champ injecté" 0 "" cs02_refus "$cle" "$v"
+  done
+  for v in 'opus; x' OPUS '../opus' ultra "$long" '$(touch marque)'; do
+    [ "$cle $v" != "AGENT_MODELE_SECURITE ultra" ] || continue
+    verifier "cs02_$cle hostile « ${v:0:20} » (.factory.conf) : 64, aucune enveloppe" 0 "" cs02_refus "$cle" "$v" fichier
+  done
+done
+verifier "cs02_AGENT_MODELE_QUALITE hostile : 64 aussi (les six clés sont validées)" 0 "" cs02_refus AGENT_MODELE_QUALITE 'opus; x'
+verifier "cs02_AGENT_EFFORT_CONFORMITE hostile : 64 aussi (les six clés sont validées)" 0 "" cs02_refus AGENT_EFFORT_CONFORMITE ultra
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

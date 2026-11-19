@@ -27,3 +27,6 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, `sc
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-19 : les trois clés sont placées après `MAX_CRITERES_ISSUE` dans `CONFIG_CLES` (donc dans la liste sans option) ; défaut `non` porté par `lib-config.sh` (`<CLÉ>_DEFAUT`), relu par `config-factory.sh`.
+- 2026-11-19 : validation unique `config_oui_non` (lib-config.sh), calquée sur `config_mode_revue` : comparaison textuelle, saut de ligne final conservé, message sans la valeur, code 64.
+- 2026-11-19 : les commentaires de `.factory.conf` et de son modèle sont identiques (seule la valeur change) ; les tests ancrent leurs phrases exactes.

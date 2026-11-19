@@ -27,3 +27,4 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, `sc
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-19 : CA-02 et CA-04 sont des invariants (verts dès le départ, RED impossible) ; leurs tests ont été éprouvés par mutation exécutée. CA-04 lit l'historique (commits citant 007-01) et se déclare non vérifiable hors dépôt git. Les deux README gardent leurs différences existantes ; seules trois lignes identiques y sont ajoutées.

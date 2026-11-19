@@ -31,3 +31,5 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-19 : les modèles (`AGENT_MODELE` compris) sont limités à 64 caractères (CS-02 : valeur de 10 000 caractères refusée) ; message de `AGENT_MODELE` inchangé.
 - 2026-11-19 : les six clés sont validées en entier avant toute écriture, même si le prompt du rôle est absent ; un saut de ligne final de la valeur la rend invalide (`config_valeur_exacte`).
 - 2026-11-19 : ordre de `CONFIG_CLES` : les six clés après `AGENT_EFFORT`, puis `MODE_REVUE` ; le test « sans option » de `run.sh` est mis à jour en conséquence.
+- 2026-11-19 : `sync-claude.sh` retire des relecteurs Write, Edit, MultiEdit et NotebookEdit, casse indifférente (revue 1, constats 1 et 2) ; pas de liste blanche (l'outil de progression est ajouté aux enveloppes).
+- 2026-11-19 : divergence de lecture de CS-02 : `ultra` est exclu des cas de `AGENT_MODELE_SECURITE` (nom de modèle valide selon la règle de `AGENT_MODELE`), il reste hostile pour `AGENT_EFFORT_SECURITE` (revue 1, constat 4).

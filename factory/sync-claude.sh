@@ -54,9 +54,9 @@ champ() { # champ <fichier> <clé>
   ' "$1"
 }
 
-# Un relecteur est en lecture seule : ni Write ni Edit, quel que soit le mode de revue et même si son prompt les déclare.
+# Un relecteur est en lecture seule : ni Write, Edit, MultiEdit ni NotebookEdit (casse indifférente), quel que soit le mode de revue et même si son prompt les déclare.
 sans_ecriture() { # sans_ecriture <outils séparés par des virgules>
-  printf '%s' "$1" | awk -v RS=, '{ gsub(/^[ \t]+|[ \t]+$/, "") } $0 != "" && $0 != "Write" && $0 != "Edit" { printf "%s%s", (n++ ? ", " : ""), $0 }'
+  printf '%s' "$1" | awk -v RS=, '{ gsub(/^[ \t]+|[ \t]+$/, "") } $0 != "" && tolower($0) !~ /^(write|edit|multiedit|notebookedit)$/ { printf "%s%s", (n++ ? ", " : ""), $0 }'
 }
 
 progression=0

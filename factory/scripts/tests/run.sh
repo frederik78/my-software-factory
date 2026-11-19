@@ -4622,6 +4622,96 @@ TXT
   verifier "cs05_dashboard [b32] : bash 3.2 de macOS : valeurs hostiles, aucune balise ni valeur brute dans la page (code $d5_code)" 0 "" test "$d5_code|$(d5_brut "$racine_tmp/d5.b32.html")|$(d5_corps "$racine_tmp/d5.b32.html" | grep -o '<[a-zA-Z][a-zA-Z0-9]*' | sort -u | tr '\n' ' ')" = "0|0|<body <div <h1 <h2 <h3 <li <main <p <section <span <strong <ul "
 done
 
+echo "documentation : skill deliver, AGENTS.md, modèle, guide, en-tête de statuts.sh (PRD 004, issue 004-05)"
+d5_titre() { awk -v t="$2" 'index($0, t) == 1 { p = 1; print; next } /^## / { p = 0 } p' <<<"$1"; } # d5_titre <texte markdown> <début du titre « ## … »> : la section
+deliver_d5="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"
+controle_d5="$(d5_titre "$deliver_d5" "## Contrôle des statuts")"
+verifier "ca33_skill deliver : une section « Contrôle des statuts » existe" 0 "" test -n "$controle_d5"
+for motif in 'scripts/statuts.sh' 'chaque changement de statut' 'au début' 'au passage `En revue`' 'retour en corrections' 'pour `Fait`' "statut de besoin" 'scripts/statuts.sh --table' 'ne corrige rien' 'lecture seule' "qui vise l'issue" 'son besoin' 'arrête le passage' 'ne les recopie pas'; do
+  verifier "ca33_skill deliver, section « Contrôle des statuts » : « $motif »" 0 "" contient "$controle_d5" "$motif"
+done
+for etape in '## 0. Préparer' '## 3. Relire' '## 4. Corriger' '## 5. Terminer'; do
+  verifier "ca33_skill deliver : l'étape « $etape » renvoie au contrôle (scripts/statuts.sh)" 0 "" contient "$(d5_titre "$deliver_d5" "$etape")" 'scripts/statuts.sh'
+done
+verifier "ca33_skill deliver : la définition de fini (étape 5) exige le contrôle avant Fait" 0 "" contient "$(d5_titre "$deliver_d5" '## 5. Terminer')" 'aucune erreur ne vise'
+for motif in "après chaque fusion demandée par l'utilisateur" 'lance `scripts/statuts.sh`' 'en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)' 'passe à `Fait` dans `backlog.md`' 'branche `docs/' 'ne la fusionne pas sans demande de l'"'"'utilisateur'; do
+  verifier "ca33_skill deliver, clôture des besoins après fusion : « $motif »" 0 "" contient "$controle_d5" "$motif"
+done
+f09_fin() { git -C "$depot" log --no-merges --format=%H -E --grep='004-0[1-6]' -- factory/scripts/fin-issue.sh; } # commits de F-09 (sujet citant 004-01 à 004-06) qui touchent fin-issue.sh
+if depot_git "$depot" && [ -n "$(git -C "$depot" log --no-merges --format=%H -E --grep='004-0[1-6]' -1)" ]; then
+  verifier "ca33_aucun commit de F-09 (004-01 à 004-06) ne modifie factory/scripts/fin-issue.sh (RG-28, D-21)" 0 "" test -z "$(f09_fin)"
+  verifier "ca37_aucun commit de F-09 ne modifie factory/scripts/tests/golden/ca03-sorties.txt après son ajout (référence d'avant le besoin)" 0 "" test "$(git -C "$depot" log --no-merges --diff-filter=M --format=%H -E --grep='004-0[1-6]' -- factory/scripts/tests/golden/ca03-sorties.txt | wc -l | tr -d ' ')" = 0
+else
+  ok "ca33_historique Git de F-09 absent (copie propre) : comparaison des commits non faite"
+fi
+agents_d5="$(lire_depot "$depot" AGENTS.md)"; modele_d5="$(lire_depot "$depot" factory/templates/AGENTS.md)"
+for fichier_d5 in AGENTS.md factory/templates/AGENTS.md; do
+  texte_d5="$(lire_depot "$depot" "$fichier_d5")"
+  commande_d5="$(grep -F -e '- `scripts/statuts.sh' <<<"$texte_d5")"
+  sequence_d5="$(awk '/^\*\*Séquence d.un besoin\*\*/ { p = 1 } /^## / { p = 0 } p' <<<"$texte_d5")"
+  for motif in '[--table]' 'lecture seule' 'ne corrige rien' 'ERREUR' 'AVIS' 'E01 à E14' 'A01 à A15' 'STATUTS : <e> erreur(s), <a> avis' 'code 1' 'Abandonnée' 'hors cycle' 'factory/scripts/statuts.table'; do
+    verifier "ca34_$fichier_d5 : commande scripts/statuts.sh : « $motif »" 0 "" contient "$commande_d5" "$motif"
+  done
+  verifier "ca34_$fichier_d5 : la commande du dashboard cite la section « Contrôle des statuts »" 0 "" contient "$(grep -F -e '- `scripts/dashboard.sh' <<<"$texte_d5")" 'Contrôle des statuts'
+  verifier "ca34_$fichier_d5 : « Séquence d'un besoin » renvoie à la table (scripts/statuts.sh --table)" 0 "" contient "$sequence_d5" 'scripts/statuts.sh --table'
+  verifier "ca34_$fichier_d5 : « Séquence d'un besoin » : /deliver lance scripts/statuts.sh à chaque changement de statut" 0 "" contient "$sequence_d5" 'à chaque changement de statut'
+  for motif in "après chaque fusion demandée par l'utilisateur" 'lancer `scripts/statuts.sh`' 'en retard : toutes les issues sont Fait et fusionnées dans develop (attendu : Fait)' 'passe à `Fait` dans `backlog.md`' 'branche `docs/' 'ne la fusionne pas sans demande de l'"'"'utilisateur'; do
+    verifier "ca34_$fichier_d5 : clôture des besoins après fusion (étape 6) : « $motif »" 0 "" contient "$(grep -F -e '6. **Clôture**' <<<"$sequence_d5")" "$motif"
+  done
+done
+verifier "ca34_AGENTS.md et factory/templates/AGENTS.md ont les mêmes lignes sur le contrôle (commande, dashboard, clôture)" 0 "" test -n "$(grep -F -e 'statuts.sh' <<<"$agents_d5")" -a "$(grep -F -e 'statuts.sh' <<<"$agents_d5")" = "$(grep -F -e 'statuts.sh' <<<"$modele_d5")"
+
+readme_d5="$(lire_depot "$depot" factory/README.md)"
+prd_d5="$(lire_depot "$depot" docs/prd/004-machines-a-etats-statuts.md)"
+for motif in '`scripts/statuts.sh [--table]`' 'Contrôle des statuts' 'Contrôle indisponible' 'Aucune incohérence.' 'lecture seule' 'Abandonnée' 'ERREUR <code> <objet> : <texte>' 'STATUTS : <e> erreur(s), <a> avis' 'code 1' '64' 'statuts.table' 'init-projet.sh' '(1.24.0)'; do
+  verifier "ca34_factory/README.md : « $motif »" 0 "" contient "$readme_d5" "$motif"
+done
+d5_codes() { grep -E '^\| (E(0[1-9]|1[0-4])|A(0[1-9]|1[0-5])) \|' | LC_ALL=C sort; } # les lignes du catalogue des messages (RG-23)
+verifier "ca34_factory/README.md : le catalogue des messages (29 codes E01 à E14 et A01 à A15) est identique à celui du PRD 004 (RG-23), ligne à ligne" 0 "" test "$(d5_codes <<<"$prd_d5" | wc -l | tr -d ' ')|$(d5_codes <<<"$readme_d5" | diff - <(d5_codes <<<"$prd_d5") | wc -l | tr -d ' ')" = "29|0"
+for script_d5 in statuts.sh statuts.table lib-constats.sh lib-preuves.sh lib-dependances.sh lib-besoins.sh lib-fusion.sh lib-verdict.sh; do
+  verifier "ca34_factory/README.md : le script « scripts/$script_d5 » est décrit" 0 "" contient "$readme_d5" "scripts/$script_d5"
+done
+verifier "ca34_factory/README.md : chaque script de factory/scripts/*.sh figure dans le guide (aucun script non décrit)" 0 "" test -z "$(for f in "$factory"/scripts/*.sh; do b="$(basename "$f")"; contient "$readme_d5" "scripts/$b" || echo "$b"; done)"
+verifier "ca34_factory/README.md : le nombre de scripts annoncé (« Vingt-quatre scripts ») est celui de factory/scripts/*.sh plus run.sh, init-projet.sh, sync.sh, sync-claude.sh et hook-agents-claude.sh ($(ls "$factory"/scripts/*.sh | wc -l | tr -d ' ') + 5)" 0 "" test "$(( $(ls "$factory"/scripts/*.sh | wc -l) + 5 ))|$(contient "$readme_d5" 'Vingt-quatre scripts, en trois groupes : mise en place (3), contrôle et suivi d'"'"'une livraison (11), outils internes (10)' && echo annonce)" = "24|annonce"
+statuts_d5="$(lire_depot "$depot" factory/scripts/statuts.sh | sed -n '1,/^set -/p')"
+for motif in 'lecture seule' 'Abandonnée' 'E01 à E14' 'A01 à A15' 'Contrôle des statuts' 'dashboard.sh' 'Code de sortie' 'statuts.table' 'README'; do
+  verifier "ca34_en-tête de statuts.sh : « $motif »" 0 "" contient "$statuts_d5" "$motif"
+done
+issues_readme_d5="$(lire_depot "$depot" docs/issues/README.md)"
+verifier "ca34_docs/issues/README.md : les statuts renvoient à la table (scripts/statuts.sh --table) et citent Abandonnée" 0 "" test "$(contient "$issues_readme_d5" 'scripts/statuts.sh --table' && contient "$issues_readme_d5" 'Abandonnée' && echo oui)" = oui
+
+# ca35 : la version suivante libre (supérieure à toute version livrée), CHANGELOG, migration, README.
+version_d5="$(lire_depot "$depot" factory/VERSION | head -n1)"
+changelog_d5="$(lire_depot "$depot" factory/CHANGELOG.md)"
+verifier "ca35_factory/VERSION ($version_d5) est au moins 1.24.0, la suivante libre après 1.23.0" 0 "" plus_recente_ou_egale "$version_d5" "1.24.0"
+verifier "ca35_factory/VERSION est la version de la première entrée du CHANGELOG" 0 "" test "$(grep -m1 '^## ' <<<"$changelog_d5")" = "## $version_d5"
+verifier "ca35_aucune entrée du CHANGELOG ne dépasse factory/VERSION (version supérieure à toute version déjà livrée)" 0 "" test -z "$(grep '^## [0-9]' <<<"$changelog_d5" | sed 's/^## //' | while read -r v; do plus_recente_ou_egale "$version_d5" "$v" || echo "$v"; done)"
+verifier "ca35_les entrées du CHANGELOG sont sans doublon de version" 0 "" test -z "$(grep '^## [0-9]' <<<"$changelog_d5" | sort | uniq -d)"
+entree_d5="$(awk '/^## 1\.24\.0$/ { p = 1; next } /^## / { p = 0 } p' <<<"$changelog_d5")"
+for motif in 'scripts/statuts.sh' 'Abandonnée' 'Contrôle des statuts' 'lecture seule' 'E01 à E14' 'A01 à A15' 'statuts.table' 'scripts/dashboard.sh' '/deliver' 'Migration : remplacer `factory/`' 'aucune migration de données' 'init-projet.sh' 'scripts/lib-' 'lib-verdict.sh' 'verdict-revue.sh' 'comportement inchangé' '1 Mio' 'etat-issues.sh' 'fin-issue.sh' 'en retard' 'aucune ligne modifiée'; do
+  verifier "ca35_entrée 1.24.0 du CHANGELOG : « $motif »" 0 "" contient "$entree_d5" "$motif"
+done
+verifier "ca35_factory/README.md mentionne la nouveauté (1.24.0)" 0 "" contient "$readme_d5" "(1.24.0)"
+upgrade_d5="$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="(1.24.0)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')"
+for motif in 'remplacez `factory/`' 'aucune migration de données' 'init-projet.sh' 'scripts/lib-' 'statuts.sh' 'Abandonnée' '1 Mio' 'lib-verdict.sh'; do
+  verifier "ca35_factory/UPGRADE.md, section 1.24.0 : « $motif »" 0 "" contient "$upgrade_d5" "$motif"
+done
+verifier "ca35_factory/UPGRADE.md : la section 1.24.0 est la première des sections de version (avant 1.23.0)" 0 "" test "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -E '^## .*\(1\.[0-9]+\.[0-9]+\)$')" = "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -F '(1.24.0)')"
+
+# ca36 : tous les cas du besoin figurent dans la suite, avec dépôts Git jetables et environnement isolé. CA-38 à CA-41 relèvent de l'issue 004-06 (listés dans son en-tête, pas implémentés ici).
+verifier "ca36_chaque critère du PRD 004 (CA-01 à CA-41, CS-01 à CS-06 : 47) est couvert par exactement une issue (couverture-prd.sh)" 0 "OK .*47 critère" "$depot/scripts/couverture-prd.sh" docs/prd/004-machines-a-etats-statuts.md
+for issue_d5 in 004-01 004-02 004-03 004-04 004-05; do
+  verifier "ca36_issue $issue_d5 : chaque critère CA/CS a un test de cette suite dont le nom contient son identifiant (criteres-sans-test.sh)" 0 "^OK " "$depot/scripts/criteres-sans-test.sh" "$issue_d5"
+done
+verifier "ca36_CA-38 à CA-41 sont déclarés par l'issue 004-06 (retrait des anciennes listes), leurs tests sont les siens" 0 "" test "$(grep -m1 '^criteres:' "$depot"/docs/issues/004-06-*.md)" = "criteres: [CA-38, CA-39, CA-40, CA-41]"
+verifier "ca36_environnement isolé : GIT_CONFIG_GLOBAL et GIT_CONFIG_SYSTEM valent /dev/null, HOME est un dossier jetable de la suite" 0 "" test "$GIT_CONFIG_GLOBAL|$GIT_CONFIG_SYSTEM|$HOME" = "/dev/null|/dev/null|$racine_tmp/home"
+d5_jetable() { case "$PWD" in "$racine_tmp"/*) [ "$(git remote | wc -l | tr -d ' ')" = 0 ] ;; *) return 1 ;; esac; }
+verifier "ca36_dépôts jetables : le projet courant est sous le dossier jetable de la suite, sans remote ni dépôt réel" 0 "" d5_jetable
+verifier "ca36_sans réseau : les cas de l'issue 004-05 n'appellent ni curl, wget, ssh, nc, ni fetch, pull, push, clone ou ls-remote" 0 "" test "$(sed -n '/^echo "dashboard.sh : section « Contrôle des statuts »/,$p' "$ici/run.sh" | grep -v '^verifier "ca36_sans réseau' | grep -c -E -e '(^|[^a-z])(curl|wget|ssh|nc)([^a-z]|$)' -e 'git (fetch|pull|push|clone|ls-remote)')" = 0
+
+# ca37 : sans « Abandonnée » dans les données, la page (hors section de contrôle) et les sorties de etat-issues.sh sont celles d'avant le besoin ; fin-issue.sh est inchangé (ca33).
+verifier "ca37_dépôt de référence de ca03 : la page contient la section de contrôle une fois, et hors section elle est identique à la référence figée d'avant le besoin (page et etat-issues.sh)" 0 "" test "$(grep -c '<section id="controle-statuts"' "$racine_tmp/ca03.html")|$(cmp "$ici/golden/ca03-sorties.txt" "$racine_tmp/ca03.sorties" && echo identique)" = "1|identique"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

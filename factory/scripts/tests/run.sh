@@ -5220,6 +5220,128 @@ for cle in AGENT_MODELE_SECURITE AGENT_EFFORT_SECURITE; do
 done
 verifier "cs02_AGENT_MODELE_QUALITE hostile : 64 aussi (les six clés sont validées)" 0 "" cs02_refus AGENT_MODELE_QUALITE 'opus; x'
 verifier "cs02_AGENT_EFFORT_CONFORMITE hostile : 64 aussi (les six clés sont validées)" 0 "" cs02_refus AGENT_EFFORT_CONFORMITE ultra
+
+# ---------------------------------------------------------------------------------------------------------------------
+# PRD 006, issue 006-02 : les trois relecteurs (conformité et tests, qualité, sécurité), leur brief commun et la section du rapport d'un relecteur.
+# Vérifications de texte lues dans HEAD (lire_depot) : chacune échoue si la consigne est retirée ou inversée, sans figer la formulation entière.
+# ---------------------------------------------------------------------------------------------------------------------
+echo "relecteurs : prompts, brief commun, rapport d'un relecteur (PRD 006, CA-05 à CA-10, CS-03, CS-06)"
+rl_c=factory/prompts/code-reviewer-conformite.md; rl_q=factory/prompts/code-reviewer-qualite.md; rl_s=factory/prompts/code-reviewer-securite.md
+rl_b=factory/prompts/briefs/relecteurs.md; rl_rf=factory/prompts/report-format.md
+rl_entete() { lire_depot "$depot" "$1" | awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1'; } # lignes de l'en-tête YAML (hors délimiteurs)
+rl_champ() { rl_entete "$1" | grep -qxF -- "$2"; }      # rl_champ <chemin> <ligne exacte de l'en-tête>
+rl_a() { lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # rl_a <chemin> <motif grep -E> : une ligne correspond
+rl_sans() { ! lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # rl_sans <chemin> <motif> : aucune ligne ne correspond
+rl_sans_ecrire() { ! lire_depot "$depot" "$1" | sed "s/n['’]écris//g" | grep -Eq "[ÉéEe]cris .*(dans|sous) (le dépôt|docs/reviews)"; } # aucune consigne d'écrire dans le dépôt (la négation « n'écris » est retirée avant la recherche)
+rl_section() { lire_depot "$depot" "$rl_rf" | awk '/^## Rapport d.un relecteur/ { f = 1 } f'; } # section du rapport d'un relecteur (jusqu'à la fin du fichier)
+rl_a_section() { rl_section | grep -Eq -- "$1"; }
+rl_empreinte() { lire_depot "$depot" "$1" | shasum -a 256 | cut -d' ' -f1; } # rl_empreinte <chemin>
+
+# CA-05 : en-têtes.
+for r in conformite qualite securite; do
+  f=factory/prompts/code-reviewer-$r.md
+  verifier "ca05_${r}_en_tete_name" 0 "" rl_champ $f "name: code-reviewer-$r"
+  verifier "ca05_${r}_en_tete_description" 0 "" test -n "$(rl_entete $f | grep '^description: .')"
+  verifier "ca05_${r}_en_tete_outils_lecture_seule" 0 "" rl_champ $f "tools: Read, Glob, Grep, Bash"
+  verifier "ca05_${r}_en_tete_skill_owasp_check" 0 "" rl_champ $f "skills: owasp-check"
+done
+verifier "ca05_securite_en_tete_modele_opus" 0 "" rl_champ $rl_s "model: opus"
+verifier "ca05_securite_en_tete_effort_high" 0 "" rl_champ $rl_s "effort: high"
+for r in conformite qualite; do
+  verifier "ca05_${r}_en_tete_modele_sonnet" 0 "" rl_champ factory/prompts/code-reviewer-$r.md "model: sonnet"
+  verifier "ca05_${r}_en_tete_effort_medium" 0 "" rl_champ factory/prompts/code-reviewer-$r.md "effort: medium"
+done
+
+# CA-06 : conformité et tests.
+verifier "ca06_conformite_demande_la_conformite_a_l_issue_et_au_prd" 0 "" rl_a $rl_c "[Cc]onformité à l.issue et au PRD"
+verifier "ca06_conformite_demande_un_test_par_critere_avec_criteres_sans_test" 0 "" rl_a $rl_c "[Ll]ance .scripts/criteres-sans-test\.sh."
+verifier "ca06_conformite_demande_de_relancer_la_preuve_avant_apres" 0 "" rl_a $rl_c "preuve avant / après.*[Rr]elance"
+# Revue 1 de 006-02 : les consignes du relecteur unique (bugs, règles d'AGENTS.md, couverture) ont un porteur en mode parallèle (la conformité).
+verifier "ca06_conformite_demande_de_chercher_les_bugs_et_cas_limites_de_la_logique" 0 "" rl_a $rl_c "[Bb]ugs.*(erreurs?|défauts?) de logique.*cas limites"
+verifier "ca06_conformite_demande_le_respect_de_l_architecture_et_des_regles_d_agents_md" 0 "" rl_a $rl_c "[Rr]espect de l.architecture et des règles d.AGENTS\.md"
+verifier "ca06_conformite_demande_la_couverture_des_tests_par_les_cas_limites" 0 "" rl_a $rl_c "[Cc]ouverture des tests.*cas limites"
+verifier "ca06_conformite_demande_verify_clean" 0 "" rl_a $rl_c "[Ll]ance .scripts/verify-clean\.sh."
+verifier "ca06_conformite_demande_les_mutations_huit_au_plus" 0 "" rl_a $rl_c "8 mutations au plus"
+verifier "ca06_conformite_mutations_dans_une_copie_jetable_hors_du_depot" 0 "" rl_a $rl_c "mutation.*copie jetable hors du dépôt"
+verifier "ca06_conformite_demande_les_documents_devenus_faux" 0 "" rl_a $rl_c "[Dd]ocuments devenus faux"
+verifier "ca06_conformite_ne_parcourt_pas_la_grille_owasp_a01_a10" 0 "" rl_a $rl_c "ne parcours pas.*A01 à A10"
+verifier "ca06_conformite_ne_demande_nulle_part_l_analyse_owasp" 0 "" test -z "$(lire_depot "$depot" $rl_c | grep 'A01 à A10' | grep -v 'ne parcours pas')"
+
+# CA-07 : qualité.
+verifier "ca07_qualite_demande_lisibilite_duplications_code_mort_structure" 0 "" rl_a $rl_q "[Ll]isibilité.*duplications.*code mort.*structure"
+verifier "ca07_qualite_demande_framework_d_abord" 0 "" rl_a $rl_q "[Ff]ramework d.abord"
+verifier "ca07_qualite_demande_la_reference_de_l_adr" 0 "" rl_a $rl_q "[Rr]éférence.*ADR"
+verifier "ca07_qualite_demande_la_langue_des_classes_techniques" 0 "" rl_a $rl_q "[Ll]angue.*classes techniques.*anglais"
+verifier "ca07_qualite_demande_les_entrees_externes" 0 "" rl_a $rl_q "[Ee]ntrées externes"
+verifier "ca07_qualite_ne_lance_ni_verify_clean_ni_criteres_ni_mutation" 0 "" rl_a $rl_q "[Nn]e lances? ni .scripts/verify-clean\.sh., ni .scripts/criteres-sans-test\.sh., ni mutation"
+
+# CA-08 : sécurité.
+verifier "ca08_securite_demande_les_categories_a01_a10_de_owasp_check" 0 "" rl_a $rl_s "[Pp]arcours.*A01 à A10.*owasp-check"
+verifier "ca08_securite_demande_fichier_ligne_et_categorie" 0 "" rl_a $rl_s "fichier:ligne.*catégorie"
+verifier "ca08_securite_demande_un_test_par_critere_cs" 0 "" rl_a $rl_s "test.*chaque critère CS"
+verifier "ca08_securite_demande_l_analyse_des_dependances_sinon_le_dire" 0 "" rl_a $rl_s "analyse des dépendances.*sinon dis-le"
+verifier "ca08_securite_report_d_un_risque_est_une_decision_de_l_utilisateur" 0 "" rl_a $rl_s "[Rr]isque reporté.*décision de l.utilisateur"
+verifier "ca08_securite_passe_sur_toutes_les_issues_meme_sans_critere_cs" 0 "" rl_a $rl_s "toutes les issues, même sans critère CS"
+verifier "ca08_securite_ne_rend_jamais_sans_objet_pour_toute_la_grille" 0 "" rl_a $rl_s "jamais .+sans objet.+ pour toute la grille"
+verifier "ca08_securite_ne_lance_ni_verify_clean_ni_mutation" 0 "" rl_a $rl_s "[Nn]e lances? ni .scripts/verify-clean\.sh., ni .*mutation"
+
+# CA-09 : section du rapport d'un relecteur dans report-format.md.
+verifier "ca09_report_format_a_une_section_du_rapport_d_un_relecteur" 0 "" rl_a $rl_rf "^## Rapport d.un relecteur"
+verifier "ca09_report_format_premiere_ligne_exactement_verdict_approuve" 0 "" test "$(rl_section | grep -c '^VERDICT: APPROUVÉ$')" = 1
+verifier "ca09_report_format_une_seule_ligne_verdict_dans_le_gabarit" 0 "" test "$(rl_section | grep -c '^VERDICT:')" = 1
+verifier "ca09_report_format_gabarit_ouvre_sur_la_ligne_verdict" 0 "" test "$(rl_section | awk '/^```/ { getline; print; exit }')" = "VERDICT: APPROUVÉ"
+verifier "ca09_report_format_dit_l_autre_valeur_hors_du_gabarit" 0 "" rl_a_section "autre valeur.*CHANGEMENTS DEMANDÉS.*gabarit"
+verifier "ca09_report_format_bloc_en_clair" 0 "" rl_a_section "^## En clair$"
+verifier "ca09_report_format_quatre_vingts_lignes_au_plus" 0 "" rl_a_section "80 lignes au plus"
+verifier "ca09_report_format_aucune_autre_ligne_ne_commence_par_verdict" 0 "" rl_a_section "[Aa]ucune autre ligne.*commence par .VERDICT:"
+verifier "ca09_report_format_constats_bloquant_important_mineur_avec_fichier_ligne" 0 "" rl_a_section "BLOQUANT / IMPORTANT / MINEUR.*fichier:ligne"
+verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "3f936f12acab4832d6f2c7bb41ed681b198dd1d1ee7332b0bc594edca7eee8c6"
+verifier "ca09_report_format_le_reste_du_fichier_avant_le_reviewer_est_inchange" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { exit } 1' | shasum -a 256 | cut -d' ' -f1)" = "65580ddcf62120548fbd4ef17dc9995fe395942d9ef38287b11eb0ad5ca832b9"
+
+# CA-10 : brief commun des relecteurs ; l'ancien brief et le prompt du mode unique sont inchangés.
+verifier "ca10_brief_relecteurs_existe_avec_un_champ_pour_le_role" 0 "" rl_a $rl_b "\{\{(nom du )?rôle"
+verifier "ca10_brief_relecteurs_reprend_la_plage_de_commits" 0 "" rl_a $rl_b "Plage de commits"
+verifier "ca10_brief_relecteurs_reprend_les_remarques_a_confirmer" 0 "" rl_a $rl_b "Remarques de la revue précédente à confirmer"
+verifier "ca10_brief_relecteurs_reprend_les_decisions_a_respecter" 0 "" rl_a $rl_b "Décisions déjà prises"
+verifier "ca10_brief_relecteurs_dit_lecture_seule" 0 "" rl_a $rl_b "[Ll]ecture seule"
+verifier "ca10_brief_relecteurs_renvoie_au_format_de_rapport_du_relecteur" 0 "" rl_a $rl_b "report-format\.md.*relecteur"
+verifier "ca10_brief_relecteurs_dit_que_seule_la_conformite_lance_build_criteres_mutations" 0 "" rl_a $rl_b "[Ss]eul.*conformité.*lance.*verify-clean.*criteres-sans-test.*mutations"
+verifier "ca10_brief_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/briefs/reviewer.md)" = "d19b205665e473552e8374094673ab9713ebf5318ece2145b6d497db7757a6b9"
+verifier "ca10_prompt_code_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "41c2f6c5670259f11c826d565d4f3a451f88f8aea629a93c733f7ecf0a5d87a5"
+
+# CS-03 : lecture seule.
+for f in $rl_c $rl_q $rl_s; do
+  verifier "cs03_$(basename $f .md)_sans_write_ni_edit_dans_les_outils" 0 "" test -z "$(rl_entete $f | grep '^tools:' | grep -Ew 'Write|Edit')"
+  verifier "cs03_$(basename $f .md)_ne_dit_pas_d_ecrire_dans_le_depot" 0 "" rl_a $f "n.écris (rien|jamais).*dépôt.*fichier de revue"
+  verifier "cs03_$(basename $f .md)_mutation_dans_une_copie_jetable_hors_du_depot_supprimee_ensuite" 0 "" rl_a $f "mutation.*copie jetable hors du dépôt, supprimée ensuite"
+done
+verifier "cs03_brief_relecteurs_ne_dit_pas_d_ecrire_dans_le_depot" 0 "" rl_a $rl_b "n.écris (rien|jamais).*dépôt.*fichier de revue"
+verifier "cs03_brief_relecteurs_mutation_dans_une_copie_jetable_hors_du_depot_supprimee_ensuite" 0 "" rl_a $rl_b "mutation.*copie jetable hors du dépôt, supprimée ensuite"
+for f in $rl_c $rl_q $rl_s $rl_b; do
+  verifier "cs03_$(basename $f .md)_aucune_consigne_d_ecrire_dans_le_depot_ou_dans_docs_reviews" 0 "" rl_sans_ecrire $f
+done
+rl_enveloppes() { # copie jetable de la factory, enveloppes générées : aucun relecteur n'a Write ni Edit dans ses outils
+  local d="$racine_tmp/rl-env" a
+  mkdir -p "$d" && cp -R "$factory" "$d/factory" && rm -rf "$d/factory/scripts/tests" && git -C "$d" init -q . && ( cd "$d" && ./factory/sync-claude.sh >/dev/null 2>&1 ) || return 1
+  for a in code-reviewer-conformite code-reviewer-qualite code-reviewer-securite; do
+    grep -qx 'tools: Read, Glob, Grep, Bash' "$d/.claude/agents/$a.md" || { echo "enveloppe $a : outils inattendus"; return 1; }
+    ! grep -Ewq 'Write|Edit' "$d/.claude/agents/$a.md" || { echo "enveloppe $a : Write ou Edit présent"; return 1; }
+  done
+}
+verifier "cs03_les_enveloppes_generees_des_relecteurs_n_ont_ni_write_ni_edit" 0 "" rl_enveloppes
+# (la règle de poussée est écrite en deux morceaux : le garde-fou « sans réseau » de ca36 lit tout ce fichier)
+for regle in "Bash(git $(printf 'pus%s' h) *)" 'Bash(git reset --hard *)' 'Bash(git clean *)' 'Bash(git branch -D *)' 'Bash(git checkout -- *)' 'Bash(git restore *)' 'Read(./.env)' 'Read(./.env.*)' 'Read(./secrets/**)'; do
+  verifier "cs03_settings_json_garde_la_regle_de_refus_$(printf '%s' "$regle" | tr -c 'A-Za-z0-9' '_')" 0 "" test -n "$(lire_depot "$depot" .claude/settings.json | grep -F "\"$regle\"")"
+done
+
+# CS-06 : une vulnérabilité avérée est BLOQUANTE, seul son report se décide avec l'utilisateur.
+for f in $rl_c $rl_q $rl_s; do
+  verifier "cs06_$(basename $f .md)_vulnerabilite_owasp_averee_est_bloquante" 0 "" rl_a $f "vulnérabilité OWASP avérée.*BLOQUANT"
+  verifier "cs06_$(basename $f .md)_seul_son_report_se_decide_avec_l_utilisateur" 0 "" rl_a $f "seul son report se décide avec l.utilisateur"
+done
+verifier "cs06_securite_ne_classe_jamais_mineur_un_sujet_de_la_liste_d_escalade" 0 "" rl_a $rl_s "ne classes? jamais .+mineur.+ un sujet de la liste.*AGENTS\.md"
+verifier "cs06_securite_est_relancee_des_qu_elle_demande_des_changements_tour_final_compris" 0 "" rl_a $rl_s "demandé des changements.*relancé.*tour final"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

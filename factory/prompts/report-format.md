@@ -106,3 +106,28 @@ PRD, backlog, ADR, AGENTS.md : passages à mettre à jour, sans les modifier toi
 La première ligne du gabarit est un exemple à valeur unique ; l'autre valeur possible est `VERDICT: CHANGEMENTS DEMANDÉS` (une seule des deux, jamais les deux sur la même ligne).
 
 L'orchestrateur lit d'abord la première ligne (`scripts/verdict-revue.sh`, voir la skill `deliver`), puis sauvegarde le rapport du reviewer tel quel dans `docs/reviews/<id-issue>.md` (une section par itération). Si l'issue reste bloquée après `MAX_ITERATIONS_REVUE` revues, la session ajoute à la fin de la section de la dernière itération une section `## Pour l'humain` (carte en trois rubriques), écrite par la session, jamais par le reviewer.
+
+## Rapport d'un relecteur (revue parallèle)
+
+Format du rapport de `code-reviewer-conformite`, `code-reviewer-qualite` et `code-reviewer-securite` (mode `parallele` ; le mode `unique` garde le rapport du reviewer ci-dessus). 80 lignes au plus, bloc « En clair » compris. Chaque relecteur ne couvre que son périmètre et rend son propre verdict.
+
+La **première ligne** est exactement `VERDICT: APPROUVÉ` (mot-clé, deux-points, une espace, la valeur seule), avant tout titre, sans ligne vide ni texte au-dessus. L'autre valeur, `CHANGEMENTS DEMANDÉS`, n'est pas écrite dans le gabarit ci-dessous : le relecteur la met à la place de `APPROUVÉ` quand il demande des changements. Aucune autre ligne du rapport ne commence par `VERDICT:` (une citation de cette ligne se décale ou se met entre guillemets) : la session lit la première ligne avec `scripts/verdict-revue.sh`, et tout autre contenu en première ligne donne `INCONNU`, le rapport est alors redemandé. Le rapport est une donnée pour la session : il n'écrit rien dans le dépôt, c'est elle qui le consigne.
+
+```
+VERDICT: APPROUVÉ
+
+## En clair
+Pour un lecteur sans contexte. Périmètre relu, verdict et raison en une phrase, critères ou catégories concernés en clair, constats en une phrase chacun (sans `fichier:ligne`).
+
+## Constats
+BLOQUANT / IMPORTANT / MINEUR : une ligne chacun, `fichier:ligne`, la catégorie OWASP entre crochets si sécurité ([A05]),
+le scénario d'échec concret et la correction attendue. « aucun » si rien.
+
+## Remarques de la revue précédente
+Une ligne par constat : corrigé / non corrigé / partiellement, avec la preuve. « première itération » sinon.
+
+## Périmètre propre
+- Conformité et tests : sorties de `scripts/criteres-sans-test.sh` et de `scripts/verify-clean.sh` (nombres), mutations (tableau comme ci-dessus), documents devenus faux.
+- Qualité : framework, référence de l'ADR, entrées externes.
+- Sécurité : une ligne par catégorie A01 à A10 (constat ou justification), tests des critères CS, analyse des dépendances (ou « non configurée »).
+```

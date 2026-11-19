@@ -3,7 +3,7 @@ id: 007-01
 titre: Modèle d'issue et README des issues : champ branche rempli à la création
 prd: docs/prd/007-champ-branche-renseigne.md
 besoin: F-06
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05]
 branche: feat/007-01-modele-issue-et-readme

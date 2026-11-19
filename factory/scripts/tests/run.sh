@@ -4835,6 +4835,10 @@ done
 verifier "ca06_conformite_demande_la_conformite_a_l_issue_et_au_prd" 0 "" rl_a $rl_c "[Cc]onformité à l.issue et au PRD"
 verifier "ca06_conformite_demande_un_test_par_critere_avec_criteres_sans_test" 0 "" rl_a $rl_c "[Ll]ance .scripts/criteres-sans-test\.sh."
 verifier "ca06_conformite_demande_de_relancer_la_preuve_avant_apres" 0 "" rl_a $rl_c "preuve avant / après.*[Rr]elance"
+# Revue 1 de 006-02 : les consignes du relecteur unique (bugs, règles d'AGENTS.md, couverture) ont un porteur en mode parallèle (la conformité).
+verifier "ca06_conformite_demande_de_chercher_les_bugs_et_cas_limites_de_la_logique" 0 "" rl_a $rl_c "[Bb]ugs.*(erreurs?|défauts?) de logique.*cas limites"
+verifier "ca06_conformite_demande_le_respect_de_l_architecture_et_des_regles_d_agents_md" 0 "" rl_a $rl_c "[Rr]espect de l.architecture et des règles d.AGENTS\.md"
+verifier "ca06_conformite_demande_la_couverture_des_tests_par_les_cas_limites" 0 "" rl_a $rl_c "[Cc]ouverture des tests.*cas limites"
 verifier "ca06_conformite_demande_verify_clean" 0 "" rl_a $rl_c "[Ll]ance .scripts/verify-clean\.sh."
 verifier "ca06_conformite_demande_les_mutations_huit_au_plus" 0 "" rl_a $rl_c "8 mutations au plus"
 verifier "ca06_conformite_mutations_dans_une_copie_jetable_hors_du_depot" 0 "" rl_a $rl_c "mutation.*copie jetable hors du dépôt"

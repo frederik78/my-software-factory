@@ -5406,7 +5406,7 @@ verifier "ca15_deliver_rien_n_est_ecrit_dans_le_fichier_de_revue_tant_qu_un_rapp
 # CA-16 : format du fichier de revue consolidé, dans la skill et dans le modèle de README.
 for dp_n in dp_a dp_t; do
   dp_pre="ca16_$([ $dp_n = dp_a ] && echo deliver || echo modele_readme)"
-  verifier "${dp_pre}_ligne_de_tete_unique_et_globale" 0 "" $dp_n 'VERDICT: <valeur>.*(globale|global)|(globale|global).*VERDICT: <valeur>'
+  verifier "${dp_pre}_ligne_de_tete_unique_et_globale" 0 "" $dp_n 'VERDICT: <valeur[^>]*>.*(globale|global)|(globale|global).*VERDICT: <valeur[^>]*>'
   verifier "${dp_pre}_verdict_de_l_iteration" 0 "" $dp_n "Verdict de l.itération : <valeur"
   verifier "${dp_pre}_section_relecteur_conformite_et_tests" 0 "" $dp_n '### Relecteur : conformité et tests'
   verifier "${dp_pre}_section_relecteur_qualite" 0 "" $dp_n '### Relecteur : qualité'

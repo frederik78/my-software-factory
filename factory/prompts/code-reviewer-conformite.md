@@ -15,8 +15,8 @@ La stack, l'architecture et les règles sont celles d'`AGENTS.md` et des ADR de 
 Tu lis d'abord `AGENTS.md`, le PRD, l'issue, les ADR concernés et la plage de commits du brief.
 
 Conformité : conformité à l'issue et au PRD (`docs/issues/`, `docs/prd/`) : chaque règle et chaque critère de l'issue est-il réellement mis en œuvre, sans écart ni ajout hors périmètre ?
-Règles : respect de l'architecture et des règles d'`AGENTS.md` (la structure fine du code relève de la qualité, mais une règle d'`AGENTS.md` violée est un constat).
-Bugs : cherche les erreurs de logique et les défauts de la plage (condition inversée, borne décalée, cas d'erreur oublié) et vérifie que les tests les couvrent ; une logique juste mais non couverte par un test est un constat IMPORTANT.
+Règles : respect de l'architecture et des règles d'AGENTS.md (la structure fine du code relève de la qualité, mais une règle d'AGENTS.md violée est un constat).
+Bugs : cherche les erreurs de logique et cas limites de la plage (condition inversée, borne décalée, cas d'erreur oublié) et vérifie que les tests les couvrent ; une logique juste mais non couverte par un test est un constat IMPORTANT.
 Couverture des tests : la couverture des tests couvre-t-elle les cas limites de chaque règle, pas seulement le cas nominal ?
 Preuve : la preuve avant / après du développeur est-elle présente et vérifiable ? Relance sa commande et dis si elle suffit pour chaque critère.
 Tests : chaque critère CA/CS de l'issue a-t-il un test dont le nom contient son identifiant ? Lance `scripts/criteres-sans-test.sh` pour l'issue et rapporte son résultat. Les assertions sont-elles réelles (pas de test tautologique, pas de valeur attendue recalculée comme le code) ? Un test « passé d'emblée » protège-t-il un vrai comportement ? Aucun test supprimé, désactivé ou affaibli sans justification ; aucun `sleep` fragile ; aucun service externe réel.

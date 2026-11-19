@@ -112,13 +112,13 @@ preuves_commits_verifier() {
 revue_forme_signaler() {
   local chemin
   if [ -n "$revue_nb" ]; then # décompte déjà fait par revue_derniere_ligne (revue_examiner ... 1)
-    if [ "$revue_nb" -gt 1 ]; then verdict_forme=plus; elif [ "$revue_nb" -eq 1 ] && [ "$revue_verdict" -eq 0 ]; then verdict_forme=premiere; else verdict_forme=""; fi
+    if [ "$revue_nb" -gt 1 ]; then verdict_forme_cause=plus; elif [ "$revue_nb" -eq 1 ] && [ "$revue_verdict" -eq 0 ]; then verdict_forme_cause=premiere; else verdict_forme_cause=""; fi
   else
     verdict_forme "$revue_chemin"
   fi
-  [ -n "$verdict_forme" ] || return 0
+  [ -n "$verdict_forme_cause" ] || return 0
   constat_neutraliser "$revue_chemin"; chemin="$neutre"
-  case "$verdict_forme" in
+  case "$verdict_forme_cause" in
     plus) constat_ajouter AVIS A16 2 "$1" "$2" "fichier de revue mal formé $chemin : plus d'une ligne VERDICT:" ;;
     *) constat_ajouter AVIS A16 2 "$1" "$2" "fichier de revue mal formé $chemin : la première ligne n'est pas la ligne VERDICT:" ;;
   esac

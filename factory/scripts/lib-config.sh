@@ -12,10 +12,11 @@
 # Si une clé apparaît plusieurs fois, la dernière gagne.
 # Compatible bash 3.2 (macOS).
 
-CONFIG_CLES="AGENT_MODELE AGENT_EFFORT MAX_ITERATIONS_REVUE MAX_CRITERES_ISSUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR FIN_ISSUE_ARGUMENTS FIN_ISSUE_IGNORES_AUTORISES AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES DASHBOARD_THEME TESTS_BASH_FONCTIONS DOSSIER_TESTS"
+CONFIG_CLES="AGENT_MODELE AGENT_EFFORT AGENT_MODELE_CONFORMITE AGENT_EFFORT_CONFORMITE AGENT_MODELE_QUALITE AGENT_EFFORT_QUALITE AGENT_MODELE_SECURITE AGENT_EFFORT_SECURITE MODE_REVUE MAX_ITERATIONS_REVUE MAX_CRITERES_ISSUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR FIN_ISSUE_ARGUMENTS FIN_ISSUE_IGNORES_AUTORISES AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES DASHBOARD_THEME TESTS_BASH_FONCTIONS DOSSIER_TESTS"
 
 AGENT_MODELE_DEFAUT=sonnet
 AGENT_EFFORT_DEFAUT=medium
+MODE_REVUE_DEFAUT=parallele       # unique = un seul code-reviewer ; parallele = trois relecteurs (PRD 006)
 AGENTS_SILENCE_MINUTES_DEFAUT=5   # bandeau « Agents actifs » de dashboard.sh
 AGENTS_RETRAIT_MINUTES_DEFAUT=60
 DASHBOARD_THEME_DEFAUT=clair      # thème de dashboard.sh : clair, sombre ou auto
@@ -52,6 +53,24 @@ config_valeur() {
   config_fichier_valeur .factory.local.conf "$cle" && return 0
   config_fichier_valeur .factory.conf "$cle" && return 0
   printf '%s\n' "$defaut"
+}
+
+# config_valeur_exacte <clé> <défaut> : comme config_valeur, mais range la valeur dans la variable CONFIG_VALEUR (et non sur la sortie standard) : une
+# substitution de commande retirerait les sauts de ligne finaux d'une valeur hostile (« unique » suivi d'un saut de ligne), qui doit rester invalide.
+config_valeur_exacte() {
+  local brut
+  brut="$(config_valeur "$1" "$2"; printf x)"
+  CONFIG_VALEUR="${brut%x}"; CONFIG_VALEUR="${CONFIG_VALEUR%$'\n'}" # le retour à la ligne ajouté par config_valeur
+}
+
+# config_mode_revue : affiche le mode de revue (MODE_REVUE) : exactement « unique » ou « parallele » (défaut), sinon code 64.
+# La valeur est une donnée non fiable : comparée comme texte, jamais évaluée ni recopiée dans le message (vide, casse et espaces refusés).
+config_mode_revue() {
+  config_valeur_exacte MODE_REVUE "$MODE_REVUE_DEFAUT"
+  case "$CONFIG_VALEUR" in
+    unique|parallele) printf '%s\n' "$CONFIG_VALEUR" ;;
+    *) echo "MODE_REVUE invalide : unique ou parallele attendu (voir .factory.conf, .factory.local.conf, FACTORY_MODE_REVUE)." >&2; return 64 ;;
+  esac
 }
 
 # config_tests_bash_fonctions : affiche les noms de fonctions de test bash (TESTS_BASH_FONCTIONS), un par ligne, validés.

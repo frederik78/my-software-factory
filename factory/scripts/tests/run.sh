@@ -1836,6 +1836,13 @@ scripts/config-factory.sh >/dev/null 2>&1; scripts/config-factory.sh --max-itera
 printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRET_INCONNU=abc\n' > .factory.local.conf
 verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "AGENT_MODELE=sonnet
 AGENT_EFFORT=medium
+AGENT_MODELE_CONFORMITE=
+AGENT_EFFORT_CONFORMITE=
+AGENT_MODELE_QUALITE=
+AGENT_EFFORT_QUALITE=
+AGENT_MODELE_SECURITE=
+AGENT_EFFORT_SECURITE=
+MODE_REVUE=parallele
 MAX_ITERATIONS_REVUE=6
 MAX_CRITERES_ISSUE=10
 NOTIFICATION_COMMANDE=

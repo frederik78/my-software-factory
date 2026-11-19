@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MODE_REVUE FACTORY_AGENT_MODELE_CONFORMITE FACTORY_AGENT_EFFORT_CONFORMITE FACTORY_AGENT_MODELE_QUALITE FACTORY_AGENT_EFFORT_QUALITE FACTORY_AGENT_MODELE_SECURITE FACTORY_AGENT_EFFORT_SECURITE FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -1836,6 +1836,13 @@ scripts/config-factory.sh >/dev/null 2>&1; scripts/config-factory.sh --max-itera
 printf 'MAX_ITERATIONS_REVUE=6\nNOTIFICATION_DESTINATAIRE=moi@example.com\nSECRET_INCONNU=abc\n' > .factory.local.conf
 verifier_exact "sans option : configuration effective, clés connues seulement (dans l'ordre)" 0 "AGENT_MODELE=sonnet
 AGENT_EFFORT=medium
+AGENT_MODELE_CONFORMITE=
+AGENT_EFFORT_CONFORMITE=
+AGENT_MODELE_QUALITE=
+AGENT_EFFORT_QUALITE=
+AGENT_MODELE_SECURITE=
+AGENT_EFFORT_SECURITE=
+MODE_REVUE=parallele
 MAX_ITERATIONS_REVUE=6
 MAX_CRITERES_ISSUE=10
 NOTIFICATION_COMMANDE=
@@ -3437,11 +3444,12 @@ pr_cas 004-80 "docs/reviews/x.md.bak"; pr_cas 004-79 "/home/u/docs/reviews/004-7
 pr_cas 004-78 "revue faite"
 pr_revue 004-71 'texte\nCHANGEMENTS DEMANDÉS\n'; pr_revue 004-72 'texte\napprouvé\n'; pr_revue 004-73 'texte\nAPPROUVÉ.\n'; pr_revue 004-74 'texte\nVERDICT: APPROUVÉ\n'
 pr_revue 004-75 'APPROUVÉ\ntexte\n'; pr_revue 004-76 ''; pr_revue 004-77 '\n  \n\n'
-st_cas "ca11_preuves : revue vide = A01 ; absente, lien symbolique, 1 Mio + 1 octet, ../x.md, chemin absolu, sous-dossier, texte sans chemin = A02 ; dernière ligne autre = A03 ; 1 Mio exactement accepté ; code 0" 0 <<'TXT'
+st_cas "ca11_preuves : revue vide = A01 ; absente, lien symbolique, 1 Mio + 1 octet, ../x.md, chemin absolu, sous-dossier, texte sans chemin = A02 ; dernière ligne autre = A03 (et A16 pour une ligne VERDICT: qui n'est pas la première, issue 005-02) ; 1 Mio exactement accepté ; code 0" 0 <<'TXT'
 AVIS A03 issue 004-71 : Fait : la dernière ligne de docs/reviews/004-71.md n'est pas APPROUVÉ
 AVIS A03 issue 004-72 : Fait : la dernière ligne de docs/reviews/004-72.md n'est pas APPROUVÉ
 AVIS A03 issue 004-73 : Fait : la dernière ligne de docs/reviews/004-73.md n'est pas APPROUVÉ
 AVIS A03 issue 004-74 : Fait : la dernière ligne de docs/reviews/004-74.md n'est pas APPROUVÉ
+AVIS A16 issue 004-74 : fichier de revue mal formé docs/reviews/004-74.md : la première ligne n'est pas la ligne VERDICT:
 AVIS A03 issue 004-75 : Fait : la dernière ligne de docs/reviews/004-75.md n'est pas APPROUVÉ
 AVIS A03 issue 004-76 : Fait : la dernière ligne de docs/reviews/004-76.md n'est pas APPROUVÉ
 AVIS A03 issue 004-77 : Fait : la dernière ligne de docs/reviews/004-77.md n'est pas APPROUVÉ
@@ -3456,7 +3464,7 @@ AVIS A02 issue 004-86 : Fait : fichier de revue introuvable ou illisible (../x.m
 AVIS A02 issue 004-87 : Fait : fichier de revue introuvable ou illisible (/etc/hostname)
 AVIS A02 issue 004-88 : Fait : fichier de revue introuvable ou illisible (docs/reviews/sub/x.md)
 AVIS A02 issue 004-89 : Fait : fichier de revue introuvable ou illisible (docs/reviews/../../etc/hostname)
-STATUTS : 0 erreur(s), 18 avis
+STATUTS : 0 erreur(s), 19 avis
 TXT
 
 
@@ -3546,6 +3554,8 @@ pr_reel() { # pr_reel <dossier> : chemins des fichiers 001-* à 003-* du dossier
   if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD "$1/"; else (cd "$depot" && ls "$1"/*); fi | grep -E "^$1/00[123]-"
 }
 for pr_f in $(pr_reel docs/issues) $(pr_reel docs/reviews); do lire_depot "$depot" "$pr_f" > "$pr_f"; done
+# 002-01 et 002-03 ont été rattrapées depuis (commits et revue renseignés) : la copie rétablit leur état d'avant F-09 (champs vides), pour garder la garde « Fait d'avant F-09 à champs vides = avis, jamais erreur »
+for pr_f in docs/issues/002-01-*.md docs/issues/002-03-*.md; do sed -e 's/^commits: .*/commits: []/' -e 's/^revue: .*/revue:/' "$pr_f" > "$pr_f.tmp" && mv "$pr_f.tmp" "$pr_f"; done
 # leurs besoins (F-01, F-05, F-08) et PRD, dans un état cohérent avec des issues terminées et non fusionnées : « En revue »
 for pr_f in 001-verdict-revue 002-criteres-tests-bash 003-dashboard-a-jour; do lire_depot "$depot" "docs/prd/$pr_f.md" > "docs/prd/$pr_f.md"; done
 printf '%s\n' '| F-01 | B | P1 | En revue | `docs/prd/001-verdict-revue.md` | |' '| F-05 | B | P1 | En revue | `docs/prd/002-criteres-tests-bash.md` | |' '| F-08 | B | P1 | En revue | `docs/prd/003-dashboard-a-jour.md` | |' | st_backlog
@@ -3761,13 +3771,15 @@ pr_revue 004-65 'VERDICT: APPROUVE\nsuite\n'
 pr_revue 004-66 'VERDICT: INCONNU\nsuite\n'
 pr_revue 004-67 'texte\n\nAPPROUVÉ\n'
 pr_revue 004-68 'VERDICT: CHANGEMENTS DEMANDÉS\n\nVERDICT: APPROUVÉ\n'
-st_cas "ca11_verdict : première ligne VERDICT: APPROUVÉ (casse, espaces, CRLF tolérés) ou dernière ligne APPROUVÉ = aucun avis ; CHANGEMENTS DEMANDÉS, INCONNU, sans accent, deux lignes VERDICT = A03" 0 <<'TXT'
+st_cas "ca11_verdict : première ligne VERDICT: APPROUVÉ (casse, espaces, CRLF tolérés) ou dernière ligne APPROUVÉ = aucun avis ; CHANGEMENTS DEMANDÉS, INCONNU, sans accent, deux lignes VERDICT = A03 (et A16 pour les deux lignes VERDICT, issue 005-02)" 0 <<'TXT'
 AVIS A03 issue 004-63 : Fait : la dernière ligne de docs/reviews/004-63.md n'est pas APPROUVÉ
 AVIS A03 issue 004-64 : Fait : la dernière ligne de docs/reviews/004-64.md n'est pas APPROUVÉ
+AVIS A16 issue 004-64 : fichier de revue mal formé docs/reviews/004-64.md : plus d'une ligne VERDICT:
 AVIS A03 issue 004-65 : Fait : la dernière ligne de docs/reviews/004-65.md n'est pas APPROUVÉ
 AVIS A03 issue 004-66 : Fait : la dernière ligne de docs/reviews/004-66.md n'est pas APPROUVÉ
 AVIS A03 issue 004-68 : Fait : la dernière ligne de docs/reviews/004-68.md n'est pas APPROUVÉ
-STATUTS : 0 erreur(s), 5 avis
+AVIS A16 issue 004-68 : fichier de revue mal formé docs/reviews/004-68.md : plus d'une ligne VERDICT:
+STATUTS : 0 erreur(s), 7 avis
 TXT
 
 
@@ -4677,7 +4689,7 @@ done
 verifier "ca34_factory/README.md : chaque script de factory/scripts/*.sh figure dans le guide (aucun script non décrit)" 0 "" test -z "$(for f in "$factory"/scripts/*.sh; do b="$(basename "$f")"; contient "$readme_d5" "scripts/$b" || echo "$b"; done)"
 verifier "ca34_factory/README.md : le nombre de scripts annoncé (« Vingt-quatre scripts ») est celui de factory/scripts/*.sh plus run.sh, init-projet.sh, sync.sh, sync-claude.sh et hook-agents-claude.sh ($(ls "$factory"/scripts/*.sh | wc -l | tr -d ' ') + 5)" 0 "" test "$(( $(ls "$factory"/scripts/*.sh | wc -l) + 5 ))|$(contient "$readme_d5" 'Vingt-quatre scripts, en trois groupes : mise en place (3), contrôle et suivi d'"'"'une livraison (11), outils internes (10)' && echo annonce)" = "24|annonce"
 statuts_d5="$(lire_depot "$depot" factory/scripts/statuts.sh | sed -n '1,/^set -/p')"
-for motif in 'lecture seule' 'Abandonnée' 'E01 à E14' 'A01 à A15' 'Contrôle des statuts' 'dashboard.sh' 'Code de sortie' 'statuts.table' 'README'; do
+for motif in 'lecture seule' 'Abandonnée' 'E01 à E14' 'A01 à A16' 'Contrôle des statuts' 'dashboard.sh' 'Code de sortie' 'statuts.table' 'README'; do
   verifier "ca34_en-tête de statuts.sh : « $motif »" 0 "" contient "$statuts_d5" "$motif"
 done
 issues_readme_d5="$(lire_depot "$depot" docs/issues/README.md)"
@@ -4866,6 +4878,471 @@ verifier "cs06_deliver : l'exemple d'un rapport « verdict:   approuvé  » donn
 f5_tolere="$f5_dir/tolere.md"; printf 'verdict:   approuvé  \n\n## En clair\n' > "$f5_tolere"
 f5_tete() { printf 'VERDICT: %s\n' "$("$verdict" "$1" 2>/dev/null)"; }
 verifier "cs06_un rapport dont la première ligne est « verdict:   approuvé  » donne la ligne de tête VERDICT: APPROUVÉ (valeur du script, pas du texte)" 0 "" test "$(f5_tete "$f5_tolere")" = 'VERDICT: APPROUVÉ'
+
+
+echo "statuts.sh : avis A16, fichier de revue mal formé (PRD 005, issue 005-02)"
+# Dépôts jetables (pr_depot : besoin « En revue », premier commit) ; les issues sont des Fait complètes (revue, FIN-ISSUE OK, commit) pour ne donner aucun autre constat.
+f6_fait() { pr_issue "$1" Fait "${2:-docs/reviews/$1.md}" "[$pr_c]" "$(pr_ok "$1")"; } # f6_fait <id> [champ revue]
+f6_run() { scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; f6_code=$?; }
+f6_nb() { grep -a -c '^AVIS A16 ' "$racine_tmp/st.out"; } # nombre de lignes A16
+f6_a16() { grep -a '^AVIS A16 ' "$racine_tmp/st.out"; }
+f6_a16_de() { grep -a -c "^AVIS A16 issue $1 : " "$racine_tmp/st.out"; } # f6_a16_de <id>
+f6_a16_causes() { # f6_a16_causes <id> : lignes A16 exactes attendues, sur l'entrée standard, pour l'issue <id>
+  [ "$(grep -a "^AVIS A16 issue $1 : " "$racine_tmp/st.out")" = "$(cat)" ]
+}
+F6_PLUS="plus d'une ligne VERDICT:"; F6_PREM="la première ligne n'est pas la ligne VERDICT:"
+f6_msg() { printf 'AVIS A16 issue %s : fichier de revue mal formé docs/reviews/%s.md : %s' "$1" "$1" "$2"; } # f6_msg <id> <cause>
+f6_stderr_vide() { [ ! -s "$racine_tmp/st.err" ]; }
+
+# CA-09 : fichiers conformes (1, 2, 3 itérations, deux verdicts) et fichiers corrigés à la main du dépôt : aucun A16
+pr_depot
+for f6_n in 1 2 3; do
+  f5_consolide "docs/reviews/005-8$f6_n.md" 'APPROUVÉ' "$f6_n"; f6_fait "005-8$f6_n"
+  f5_consolide "docs/reviews/005-7$f6_n.md" 'CHANGEMENTS DEMANDÉS' "$f6_n"; f6_fait "005-7$f6_n"
+done
+for f6_r in 001-01 003-05 004-01; do lire_depot "$depot" "docs/reviews/$f6_r.md" > "docs/reviews/$f6_r.md"; f6_fait "$f6_r"; done
+f6_run
+verifier "ca09_fichiers consolidés conformes (1, 2, 3 itérations, APPROUVÉ et CHANGEMENTS DEMANDÉS) et copies de 001-01, 003-05, 004-01 : aucun A16, 9 issues, sortie d'erreur vide" 0 "" test "$(f6_nb)|$(grep -a -c '^STATUTS : ' "$racine_tmp/st.out")|$(ls docs/reviews | wc -l | tr -d ' ')|$(f6_stderr_vide && echo vide)" = "0|1|9|vide"
+
+# CA-10 : deux lignes de verdict (tête + section), puis trois
+pr_depot
+f5_consolide docs/reviews/005-81.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ'; f6_fait 005-81
+f5_consolide docs/reviews/005-82.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ
+VERDICT: CHANGEMENTS DEMANDÉS'; f6_fait 005-82
+f6_run
+verifier "ca10_deux lignes de verdict : exactement l'avis A16 « plus d'une ligne VERDICT: » pour l'issue, code 0 (aucune erreur)" 0 "" test "$(f6_a16_de 005-81)|$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PLUS")" "$racine_tmp/st.out")|$f6_code" = "1|1|0"
+verifier "ca10_trois lignes de verdict : un seul A16 pour l'issue, de la même cause" 0 "" test "$(f6_a16_de 005-82)|$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PLUS")" "$racine_tmp/st.out")|$(f6_nb)" = "1|1|2"
+
+# CA-11 : première ligne autre que la ligne de verdict
+pr_depot
+printf '# Revue 005-81\n\nVERDICT: APPROUVÉ\n' > docs/reviews/005-81.md; f6_fait 005-81
+printf '\nVERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-82.md; f6_fait 005-82
+printf 'VERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-83.md; f6_fait 005-83
+printf 'VERDICT: CHANGEMENTS DEMANDÉS\n' > docs/reviews/005-84.md; f6_fait 005-84
+printf 'VERDICT: nimporte quoi\n' > docs/reviews/005-85.md; f6_fait 005-85
+f6_run
+verifier "ca11_première ligne = titre ou ligne vide et une seule ligne de verdict plus bas : A16 « la première ligne n'est pas la ligne VERDICT: »" 0 "" test "$(f6_a16_de 005-81)|$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PREM")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PREM")" "$racine_tmp/st.out")" = "1|1|1"
+verifier "ca11_première ligne seule ligne de verdict, quelle que soit sa valeur (APPROUVÉ, CHANGEMENTS DEMANDÉS, valeur invalide) : aucun A16" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-84)|$(f6_a16_de 005-85)" = "0|0|0"
+
+# CA-12 : fichiers d'avant F-01 (sans ligne de verdict), non modifiés. Les revues 002-01 et 003-01 du dépôt portent en fait des lignes de verdict (écart avec le PRD, voir les Notes de
+# l'issue) : les copies utilisées ici en sont privées, pour représenter une revue d'avant F-01 sans ligne de verdict.
+pr_depot
+for f6_r in 002-01 003-01; do lire_depot "$depot" "docs/reviews/$f6_r.md" | grep -a -v -i -E '^[[:blank:]]*verdict[[:blank:]]*:' > "docs/reviews/$f6_r.md"; f6_fait "$f6_r"; done
+printf '# Revue\n\nAPPROUVÉ\n' > docs/reviews/005-81.md; f6_fait 005-81
+printf '# Revue\n\nCHANGEMENTS DEMANDÉS\n' > docs/reviews/005-82.md; f6_fait 005-82
+f6_avant="$(cksum docs/reviews/*.md)"; f6_run
+verifier "ca12_revues d'avant F-01 (copies de 002-01 et 003-01 privées de leurs lignes de verdict, et deux fichiers sans ligne de verdict) : aucun A16, fichiers inchangés, 4 issues" 0 "" test "$(f6_nb)|$([ "$f6_avant" = "$(cksum docs/reviews/*.md)" ] && echo inchanges)|$(ls docs/reviews | wc -l | tr -d ' ')" = "0|inchanges|4"
+
+# CA-13 : périmètre (statut local Fait ou En revue), un avis par issue, cause (a) avant (b)
+pr_depot
+printf 'VERDICT: APPROUVÉ\n\n# R\nVERDICT: APPROUVÉ\n' > docs/reviews/mal.md
+git branch feat/x
+pr_issue 005-81 Fait docs/reviews/mal.md "[$pr_c]" "$(pr_ok 005-81)"
+pr_issue 005-82 "En revue" docs/reviews/mal.md "[$pr_c]" "" "" feat/x
+pr_issue 005-83 "En cours" docs/reviews/mal.md "[$pr_c]" "" "" feat/x
+pr_issue 005-84 "À faire" docs/reviews/mal.md "[$pr_c]" ""
+pr_issue 005-85 Abandonnée docs/reviews/mal.md "[$pr_c]" "- 2026-11-19 : Abandonnée : raison."
+f6_run
+verifier "ca13_périmètre : un A16 pour l'issue Fait et un pour l'issue En revue qui désignent le même fichier mal formé, aucun pour En cours, À faire, Abandonnée" 0 "" test "$(f6_nb)|$(f6_a16_de 005-81)|$(f6_a16_de 005-82)|$(f6_a16_de 005-83)|$(f6_a16_de 005-84)|$(f6_a16_de 005-85)" = "2|1|1|0|0|0"
+pr_depot
+printf 'titre\nVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/les-deux.md; f6_fait 005-81 docs/reviews/les-deux.md
+f6_run
+verifier "ca13_fichier à la fois à deux lignes de verdict et à première ligne autre : un seul A16 de cause « plus d'une ligne VERDICT: »" 0 "" test "$(f6_nb)|$(f6_a16_de 005-81)|$(grep -a -c -x -F "AVIS A16 issue 005-81 : fichier de revue mal formé docs/reviews/les-deux.md : $F6_PLUS" "$racine_tmp/st.out")" = "1|1|1"
+f6_fait 005-82 docs/reviews/les-deux.md
+verifier "ca13_deux issues qui désignent le même fichier mal formé : un A16 par issue" 0 "" test "$(f6_run; f6_nb)|$(f6_a16_de 005-81)|$(f6_a16_de 005-82)" = "2|1|1"
+
+# CA-14 : indépendance d'A03
+pr_depot
+f5_consolide docs/reviews/005-81.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ
+Fin du fichier'; f6_fait 005-81
+f5_consolide docs/reviews/005-82.md 'CHANGEMENTS DEMANDÉS' 2 'APPROUVÉ'; f6_fait 005-82
+printf 'VERDICT: APPROUVÉ\n\n# R\n\nAPPROUVÉ\n' > docs/reviews/005-83.md; f6_fait 005-83
+f6_run
+verifier "ca14_tête APPROUVÉ puis seconde ligne de verdict : A16 et A03 (texte d'A03 inchangé)" 0 "" test "$(f6_a16_de 005-81)|$(grep -a -c -x -F "AVIS A03 issue 005-81 : Fait : la dernière ligne de docs/reviews/005-81.md n'est pas APPROUVÉ" "$racine_tmp/st.out")" = "1|1"
+verifier "ca14_fichier conforme CHANGEMENTS DEMANDÉS en tête : A03 seul, sans A16 (dernière ligne autre qu'APPROUVÉ)" 0 "" test "$(f6_a16_de 005-82)|$(grep -a -c "^AVIS A03 issue 005-82 " "$racine_tmp/st.out")" = "0|1"
+verifier "ca14_fichier conforme et approuvé : ni A16 ni A03" 0 "" test "$(f6_a16_de 005-83)|$(grep -a -c "^AVIS A03 issue 005-83 " "$racine_tmp/st.out")" = "0|0"
+
+# CA-15 : forme de la ligne, classement, récapitulatif, dashboard
+pr_depot
+pr_issue 005-70 Fini "" "[$pr_c]" "$(pr_ok 005-70)"
+f5_consolide docs/reviews/005-71.md 'APPROUVÉ' 2 'VERDICT: APPROUVÉ
+Fin du fichier'; f6_fait 005-71
+printf 'titre\nVERDICT: APPROUVÉ\n\nAPPROUVÉ\n' > docs/reviews/005-72.md; f6_fait 005-72
+st_cas "ca15_classement : l'erreur d'abord, puis par issue A03 avant A16, récapitulatif qui compte l'avis, code 1 (erreur par ailleurs)" 1 <<TXT
+ERREUR E10 issue 005-70 : statut inconnu « Fini » (attendus : $ATTENDUS_I)
+AVIS A03 issue 005-71 : Fait : la dernière ligne de docs/reviews/005-71.md n'est pas APPROUVÉ
+$(f6_msg 005-71 "$F6_PLUS")
+$(f6_msg 005-72 "$F6_PREM")
+STATUTS : 1 erreur(s), 3 avis
+TXT
+scripts/dashboard.sh --sortie "$racine_tmp/f6.html" > /dev/null 2>&1
+verifier "ca15_dashboard : la section « Contrôle des statuts » contient le texte exact de l'avis, échappé en HTML (apostrophe en &#39;)" 0 "" grep -a -F -q "AVIS A16 issue 005-71 : fichier de revue mal formé docs/reviews/005-71.md : plus d&#39;une ligne VERDICT:" "$racine_tmp/f6.html"
+
+# CA-16 : lecture seule, coût Git, fichiers refusés (A02, jamais A16)
+f6_compte() { pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; wc -l < "$racine_tmp/git.args" | tr -d ' '; }
+pr_depot
+for f6_n in 1 2 3 4 5 6; do f5_consolide "docs/reviews/005-8$f6_n.md" 'APPROUVÉ' 2; f6_fait "005-8$f6_n"; done
+f6_propre="$(f6_compte)"; f6_nb_propre="$(f6_nb)"
+for f6_n in 1 2 3; do printf 'VERDICT: APPROUVÉ\n\nVERDICT: APPROUVÉ\n' > "docs/reviews/005-8$f6_n.md"; done
+for f6_n in 4 5; do printf 'titre\nVERDICT: APPROUVÉ\n' > "docs/reviews/005-8$f6_n.md"; done
+f6_trace() { find backlog.md docs -type f -exec cksum {} + | LC_ALL=C sort; git status --porcelain; git for-each-ref; git ls-files -s | cksum; }
+f6_avant="$(f6_trace)"; f6_mal="$(f6_compte)"; f6_nb_mal="$(f6_nb)"
+verifier "ca16_coût : cinq fichiers mal formés = le même nombre d'appels Git que des fichiers conformes ($f6_propre et $f6_mal), $f6_nb_mal A16 contre $f6_nb_propre" 0 "" test "$f6_propre|$f6_nb_propre" = "$f6_mal|0" -a "$f6_nb_mal" = 5
+verifier "ca16_lecture seule : revues, backlog.md, issues, index, refs et arbre identiques après le contrôle" 0 "" test "$f6_avant" = "$(f6_trace)"
+pr_depot
+{ printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n'; head -c 1048577 /dev/zero | tr '\0' 'x'; printf '\n'; } > docs/reviews/005-81.md; f6_fait 005-81
+printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > "$racine_tmp/f6-cible.md"; ln -s "$racine_tmp/f6-cible.md" docs/reviews/005-82.md; f6_fait 005-82
+printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/x.md.bak; f6_fait 005-83 docs/reviews/x.md.bak
+mkdir -p docs/reviews/sub; printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/sub/y.md; f6_fait 005-84 docs/reviews/sub/y.md
+f6_fait 005-85 ../x.md
+f6_run
+verifier "ca16_fichier de plus de 1 Mio, lien symbolique, chemin hors de la forme docs/reviews/<nom>.md, à deux lignes de verdict : A02 et jamais A16" 0 "" test "$(f6_nb)|$(grep -a -c '^AVIS A02 issue 005-8[1-5] ' "$racine_tmp/st.out")" = "0|5"
+
+# CS-01 : A16 est émis exactement quand verdict-revue.sh rend INCONNU pour cause de doublon, sur chaque forme de la deuxième ligne
+pr_depot
+f6_formes=(
+  '  verdict : APPROUVÉ|1' 'Verdict: x|1' 'VERDICT:|1' $'\tVERDICT: APPROUVÉ|1' $'VERDICT: APPROUVÉ\r|1' $'```\nVERDICT: APPROUVÉ\n```|1' $'- liste\n    VERDICT: APPROUVÉ|1'
+  '> VERDICT: APPROUVÉ|0' '- VERDICT: APPROUVÉ|0' "Verdict de l'itération : APPROUVÉ|0" 'VERDICT APPROUVÉ|0' $'\xc2\xa0VERDICT: APPROUVÉ|0'
+)
+f6_k=0
+for f6_f in "${f6_formes[@]}"; do
+  f6_k=$((f6_k + 1)); f6_id="005-$(printf '%02d' "$f6_k")"
+  { printf 'VERDICT: APPROUVÉ\n\n# Revue\n'; printf '%s\n' "${f6_f%|*}"; } > "docs/reviews/$f6_id.md"; f6_fait "$f6_id"
+done
+f6_run
+f6_ecarts=""; f6_k=0
+for f6_f in "${f6_formes[@]}"; do
+  f6_k=$((f6_k + 1)); f6_id="005-$(printf '%02d' "$f6_k")"
+  scripts/verdict-revue.sh "docs/reviews/$f6_id.md" > /dev/null 2> "$racine_tmp/v.err"; f6_script=0
+  grep -a -q 'en double' "$racine_tmp/v.err" && f6_script=1
+  [ "$f6_script" = "${f6_f##*|}" ] && [ "$(f6_a16_de "$f6_id")" = "$f6_script" ] || f6_ecarts="$f6_ecarts $f6_id(script=$f6_script,attendu=${f6_f##*|},a16=$(f6_a16_de "$f6_id"))"
+done
+verifier "cs01_12 formes de la deuxième ligne de verdict : A16 exactement quand verdict-revue.sh rend INCONNU pour doublon (7 comptées, 5 non comptées), jamais de divergence" 0 "" test -z "$f6_ecarts" -a "$(f6_nb)" = 7
+
+# CS-02 : valeurs hostiles (id, contenu de la revue) : une ligne par constat, rien du contenu dans la sortie, rien d'exécuté
+pr_depot
+f6_hostile="$(printf 'ERREUR E01 backlog : forgé\n$(touch${IFS}marque)\n`touch marque`\n; rm -rf x\n\033[31mrouge\033[0m\nVERDICT: APPROUVÉ\n')"
+{ printf 'VERDICT: APPROUVÉ\n%s\n' "$f6_hostile"; } > docs/reviews/005-81.md
+f6_long="$(printf 'y%.0s' $(seq 1 130))"
+for f6_h in "a"$'\r'"b" "a"$'\033'"[31mb" "<img src=x onerror=alert(1)>" "$f6_long"; do
+  f6_k=$((${f6_k:-0} + 1)); f6_hid="005-9$f6_k$f6_h"
+  pr_issue "$f6_hid" Fait "docs/reviews/005-81.md" "[$pr_c]" "$(pr_ok x)"
+  mv "docs/issues/$f6_hid-x.md" "docs/issues/005-9$f6_k-x.md"
+done
+printf -- '---\nid: 005-8\0nul\ntitre: T\nbesoin: F-01\nstatut: Fait\ndepend_de: []\ncriteres: [CA-01]\nbranche:\ncommits: [%s]\nrevue: docs/reviews/005-81.md\n---\n\n## Notes\n- `FIN-ISSUE OK 005-8 abc1234 : 1 test`\n' "$pr_c" > docs/issues/005-80-x.md
+f6_run
+scripts/dashboard.sh --sortie "$racine_tmp/f6.html" > /dev/null 2>&1
+f6_cs02() {
+  [ "$(f6_nb)" -ge 4 ] || { echo "moins de 4 A16 : $(f6_nb)"; return 1; }
+  [ "$(grep -a -c -v -E '^(ERREUR|AVIS) [AE][0-9]{2} (issue|fichier|besoin|backlog) .* : .|^STATUTS : ' "$racine_tmp/st.out")" -eq 0 ] || { echo "ligne hors forme"; return 1; }
+  [ "$(LC_ALL=C grep -a -c "$(printf '[\001-\037\177]')" "$racine_tmp/st.out")" -eq 0 ] || { echo "caractère de contrôle"; return 1; }
+  [ "$(grep -a -c -E 'forgé|touch|rm -rf|rouge' "$racine_tmp/st.out" "$racine_tmp/f6.html" | grep -v ':0$' | wc -l | tr -d ' ')" -eq 0 ] || { echo "contenu de la revue recopié"; return 1; }
+  [ "$(grep -a -c '^ERREUR E01 ' "$racine_tmp/st.out")" -eq 0 ] || { echo "E01 contrefait"; return 1; }
+  ro_sans_marque || { echo "marque"; return 1; }
+  grep -a -q "y\{100,\}…" "$racine_tmp/st.out" && ! grep -a -q "y\{121,\}" "$racine_tmp/st.out" || { echo "valeur longue non tronquée"; return 1; }
+  [ "$(grep -a -c '<img' "$racine_tmp/f6.html")" -eq 0 ] && grep -a -q '&lt;img' "$racine_tmp/f6.html" || { echo "balise non échappée"; return 1; }
+}
+verifier "cs02_valeurs_hostiles : id avec CR, ESC, NUL, balise HTML ou 130 caractères et revue pleine de \$(…), backticks, « ; rm », faux E01 et ESC : une ligne par constat, aucun contrôle, contenu absent, rien exécuté, valeur tronquée, page échappée" 0 "" f6_cs02
+
+# CS-03 : volumes : 1 Mio exactement (100 000 lignes de verdict), 1 Mio + 1 octet, une ligne de plusieurs Mio
+pr_depot
+f6_gros() { # f6_gros <fichier> <taille> <lignes de verdict>
+  { awk -v n="$3" 'BEGIN { for (i = 0; i < n; i++) print "VERDICT:" }'; head -c $(($2 - $3 * 9)) /dev/zero | tr '\0' 'x'; } > "$1"
+}
+f6_gros docs/reviews/005-81.md 1048576 100000; f6_fait 005-81
+{ head -c 1048577 /dev/zero | tr '\0' 'x'; } > docs/reviews/005-82.md; f6_fait 005-82
+{ head -c 4194304 /dev/zero | tr '\0' 'x'; } > docs/reviews/005-83.md; f6_fait 005-83
+f6_debut=$SECONDS; f6_run; f6_duree=$((SECONDS - f6_debut))
+echo "  mesure cs03 : fichiers de 1 Mio (100 000 lignes de verdict), 1 Mio + 1 octet et 4 Mio : $f6_duree s (borne 10 s)"
+verifier "cs03_volumes : 1 Mio exactement = A16 « plus d'une ligne VERDICT: », 1 Mio + 1 octet et ligne de 4 Mio = A02, rien sur la sortie d'erreur, $f6_duree s au plus 10 s" 0 "" test "$(wc -c < docs/reviews/005-81.md | tr -d ' ')|$(f6_a16_de 005-81)|$(f6_nb)|$(grep -a -c '^AVIS A02 issue 005-8[23] ' "$racine_tmp/st.out")|$(f6_stderr_vide && echo vide)|$([ "$f6_duree" -le 10 ] && echo borne)" = "1048576|1|1|2|vide|borne"
+
+# CS-04 : fins de ligne, espaces de bord, BOM, NUL, fichier vide
+pr_depot
+printf 'VERDICT: APPROUVÉ\r\n\r\n# Revue\r\nVERDICT: APPROUVÉ\r\n' > docs/reviews/005-81.md; f6_fait 005-81
+printf '  \t VERDICT: APPROUVÉ\n\n# Revue\n \tVerdict : x\n' > docs/reviews/005-82.md; f6_fait 005-82
+printf '\xef\xbb\xbfVERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-83.md; f6_fait 005-83
+printf 'VERDICT: APPR\0OUVÉ\n\n# Revue\n' > docs/reviews/005-84.md; f6_fait 005-84
+: > docs/reviews/005-85.md; f6_fait 005-85
+printf '\xef\xbb\xbfVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/005-86.md; f6_fait 005-86
+printf '  VERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-87.md; f6_fait 005-87
+f6_run
+verifier "cs04_octets : CRLF et espaces ou tabulations de bord lus comme lignes de verdict (A16 pour les deux fichiers à deux lignes)" 0 "" test "$(f6_a16_de 005-81)|$(f6_a16_de 005-82)|$(f6_a16_de 005-87)" = "1|1|0"
+verifier "cs04_octets : BOM seul (ligne masquée), octet NUL, fichier vide : aucun A16 ; A03 comme avant ; BOM puis seconde ligne de verdict = A16 (première ligne autre) ; rien sur la sortie d'erreur" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-84)|$(f6_a16_de 005-85)|$(f6_a16_de 005-86)|$(grep -a -c '^AVIS A03 issue 005-8[345] ' "$racine_tmp/st.out")|$(f6_stderr_vide && echo vide)" = "0|0|0|1|3|vide"
+
+# CS-05 : champs revue hostiles et lien symbolique : A02, aucune lecture hors dépôt
+pr_depot
+printf 'SECRET-HORS-DEPOT\nVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > "$racine_tmp/f6-secret.md"
+ln -s "$racine_tmp/f6-secret.md" docs/reviews/005-84.md
+f6_fait 005-81 'docs/reviews/../../etc/hostname'; f6_fait 005-82 '/etc/hostname'; f6_fait 005-83 'docs/reviews/x/../y.md'; f6_fait 005-84
+f6_run
+verifier "cs05_chemins : ../.. , chemin absolu, x/../y.md et lien symbolique vers un fichier hors dépôt : A02 pour chacun, aucun A16, le contenu visé n'apparaît nulle part" 0 "" test "$(grep -a -c '^AVIS A02 issue 005-8[1-4] ' "$racine_tmp/st.out")|$(f6_nb)|$(grep -a -c -e SECRET-HORS-DEPOT "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -v ':0$' | wc -l | tr -d ' ')" = "4|0|0"
+
+# Issue En revue : le décompte se fait par grep (verdict_forme), pas par le passage awk de l'issue Fait ; chaque cause, CRLF, NUL, BOM et la borne de 1 Mio y sont vérifiés
+pr_depot
+git branch feat/x
+f6_revue() { pr_issue "$1" "En revue" "docs/reviews/$1.md" "[$pr_c]" "" "" feat/x; } # f6_revue <id> : issue En revue (branche existante) qui désigne docs/reviews/<id>.md
+printf 'VERDICT: APPROUVÉ\n\n# R\nVERDICT: APPROUVÉ\n' > docs/reviews/005-81.md; f6_revue 005-81
+printf '# Revue\n\nVERDICT: APPROUVÉ\n' > docs/reviews/005-82.md; f6_revue 005-82
+printf 'VERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-83.md; f6_revue 005-83
+printf 'VERDICT: APPROUVÉ\r\n\r\nVERDICT: APPROUVÉ\r\n' > docs/reviews/005-84.md; f6_revue 005-84
+printf 'VERDICT: APPR\0OUVÉ\n\n# Revue\n' > docs/reviews/005-85.md; f6_revue 005-85
+printf '\xef\xbb\xbfVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/005-86.md; f6_revue 005-86
+: > docs/reviews/005-87.md; f6_revue 005-87
+printf 'sans verdict\n' > docs/reviews/005-88.md; f6_revue 005-88
+{ printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n'; head -c 1048577 /dev/zero | tr '\0' 'x'; printf '\n'; } > docs/reviews/005-89.md; f6_revue 005-89
+f6_run
+verifier "ca13_En revue, cause « plus d'une ligne VERDICT: » (lecture par grep) : message exact pour deux lignes et pour CRLF" 0 "" test "$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PLUS")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-84 "$F6_PLUS")" "$racine_tmp/st.out")" = "1|1"
+verifier "ca11_En revue, cause « la première ligne n'est pas la ligne VERDICT: » (lecture par grep) : message exact, y compris BOM (ligne masquée) puis une ligne de verdict" 0 "" test "$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PREM")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-86 "$F6_PREM")" "$racine_tmp/st.out")" = "1|1"
+verifier "cs04_En revue : conforme, NUL, vide, sans ligne de verdict : aucun A16 ; fichier de plus de 1 Mio : A07 et jamais A16 ; au total 4 A16, rien sur la sortie d'erreur" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-85)|$(f6_a16_de 005-87)|$(f6_a16_de 005-88)|$(f6_a16_de 005-89)|$(grep -a -c '^AVIS A07 issue 005-89 ' "$racine_tmp/st.out")|$(f6_nb)|$(f6_stderr_vide && echo vide)" = "0|0|0|0|0|1|4|vide"
+
+
+echo "PRD 006 / issue 006-01 : MODE_REVUE, clés de modèle et d'effort des relecteurs, enveloppes (CA-01 à CA-04, CS-01, CS-02)"
+# mr_* : cas de config-factory.sh --mode-revue ; la configuration vient des fichiers du dépôt courant ou, pour mr_env_*, de FACTORY_MODE_REVUE.
+mr_lancer() { scripts/config-factory.sh --mode-revue > "$p/mr-out" 2> "$p/mr-err"; mr_code=$?; }
+mr_accepte() { # mr_accepte <valeur attendue> : code 0, valeur seule sur la sortie standard, rien sur la sortie d'erreur
+  mr_lancer; [ "$mr_code" -eq 0 ] && [ "$(cat "$p/mr-out")" = "$1" ] && [ ! -s "$p/mr-err" ]
+}
+mr_refuse() { # mr_refuse <valeur> : code 64, rien sur la sortie standard, message sans la valeur (vide : pas de contrôle), aucun fichier « marque »
+  mr_lancer
+  [ "$mr_code" -eq 64 ] && [ ! -s "$p/mr-out" ] && [ ! -e marque ] && head -n 1 "$p/mr-err" | grep -q '^MODE_REVUE invalide : ' || return 1
+  case "$(cat "$p/mr-err")" in *"$1"*) [ -z "$1" ] ;; *) return 0 ;; esac
+}
+mr_env_accepte() { FACTORY_MODE_REVUE="$1" mr_accepte "$1"; }
+mr_env_refuse() { FACTORY_MODE_REVUE="$1" mr_refuse "$1"; }
+mr_fichier() { printf 'MODE_REVUE=%s\n' "$1" > "${2:-.factory.conf}"; }
+p="$(nouveau_projet)"; cd "$p" || exit 1
+verifier "ca01_sans MODE_REVUE : parallele, code 0" 0 "" mr_accepte parallele
+mr_fichier unique
+verifier "ca01_MODE_REVUE=unique dans .factory.conf : unique" 0 "" mr_accepte unique
+mr_fichier parallele .factory.local.conf
+verifier "ca01_.factory.local.conf l'emporte sur .factory.conf" 0 "" mr_accepte parallele
+verifier "ca01_FACTORY_MODE_REVUE l'emporte sur les deux fichiers" 0 "" mr_env_accepte unique
+rm -f .factory.local.conf; mr_fichier ''
+verifier "ca01_MODE_REVUE vide dans .factory.conf : refusé (64)" 0 "" mr_refuse ''
+verifier "ca01_FACTORY_MODE_REVUE vide (variable définie) : refusé (64)" 0 "" mr_env_refuse ''
+for v in autre Parallele UNIQUE; do
+  mr_fichier "$v"; verifier "ca01_MODE_REVUE=$v dans .factory.conf : refusé (64), message sans la valeur" 0 "" mr_refuse "$v"
+  rm -f .factory.conf; mr_fichier "$v" .factory.local.conf
+  verifier "ca01_MODE_REVUE=$v dans .factory.local.conf : refusé (64)" 0 "" mr_refuse "$v"
+  rm -f .factory.local.conf
+  verifier "ca01_FACTORY_MODE_REVUE=$v : refusé (64)" 0 "" mr_env_refuse "$v"
+done
+
+# CA-02
+rm -f .factory.local.conf; mr_fichier unique; printf 'AGENT_MODELE_SECURITE=opus\nAGENT_EFFORT_SECURITE=high\nAGENT_MODELE_QUALITE=haiku\n' >> .factory.conf
+ca02_liste() { scripts/config-factory.sh | grep -x -e 'MODE_REVUE=unique' -e 'AGENT_MODELE_CONFORMITE=' -e 'AGENT_EFFORT_CONFORMITE=' -e 'AGENT_MODELE_QUALITE=haiku' -e 'AGENT_EFFORT_QUALITE=' -e 'AGENT_MODELE_SECURITE=opus' -e 'AGENT_EFFORT_SECURITE=high' | wc -l | tr -d ' '; }
+verifier "ca02_sans argument : MODE_REVUE=unique et les six clés avec leurs valeurs effectives (7 lignes)" 0 "^7$" ca02_liste
+verifier "ca02_--mode-revue avec un argument de plus : usage (64)" 64 "^Usage" scripts/config-factory.sh --mode-revue x
+verifier "ca02_--max-iterations suivi de --mode-revue : usage (64)" 64 "^Usage" scripts/config-factory.sh --max-iterations --mode-revue
+verifier "ca02_--max-iterations inchangé (3 par défaut)" 0 "^3$" scripts/config-factory.sh --max-iterations
+verifier "ca02_--max-criteres inchangé (10 par défaut)" 0 "^10$" scripts/config-factory.sh --max-criteres
+
+# CS-01
+rm -f .factory.conf
+long="$(awk 'BEGIN { for (i = 0; i < 10000; i++) printf "a" }')"
+for v in 'parallele; touch marque' '$(touch marque)' '`touch marque`' 'unique parallele' '../x' "$long" PARALLELE; do
+  mr_fichier "$v"; verifier "cs01_.factory.conf « ${v:0:24} » : 64, rien exécuté, valeur absente du message" 0 "" mr_refuse "$v"
+  rm -f .factory.conf; mr_fichier "$v" .factory.local.conf
+  verifier "cs01_.factory.local.conf « ${v:0:24} » : 64, rien exécuté, valeur absente du message" 0 "" mr_refuse "$v"
+  rm -f .factory.local.conf
+  verifier "cs01_FACTORY_MODE_REVUE « ${v:0:24} » : 64, rien exécuté, valeur absente du message" 0 "" mr_env_refuse "$v"
+done
+verifier "cs01_FACTORY_MODE_REVUE « unique, saut de ligne, AGENT_MODELE=x » : 64, rien sur la sortie standard" 0 "" mr_env_refuse $'unique\nAGENT_MODELE=x'
+verifier "cs01_FACTORY_MODE_REVUE « unique » suivi d'un saut de ligne final : 64" 0 "" mr_env_refuse $'unique\n'
+verifier "cs01_FACTORY_MODE_REVUE « Unique » avec espace final : 64" 0 "" mr_env_refuse 'Unique '
+printf '  MODE_REVUE = unique  \n' > .factory.conf
+verifier "cs01_valeur valide avec espaces de bord dans .factory.conf : règle existante du lecteur (unique)" 0 "" mr_accepte unique
+rm -f .factory.conf
+
+# CA-03, CA-04, CS-02 : enveloppes des trois relecteurs (prompts jetables : les vrais sont ceux de l'issue 006-02)
+prompt_relecteur() { # prompt_relecteur <suffixe> <modèle> <effort> [outils] : écrit factory/prompts/code-reviewer-<suffixe>.md
+  printf -- '---\nname: code-reviewer-%s\ndescription: Relecteur %s (prompt jetable de test).\ntools: %s\nskills: owasp-check\nmodel: %s\neffort: %s\n---\n# Rôle : relecteur %s\n' "$1" "$1" "${4:-Read, Glob, Grep, Bash}" "$2" "$3" "$1" > "factory/prompts/code-reviewer-$1.md"
+}
+trois_relecteurs() { prompt_relecteur conformite sonnet medium; prompt_relecteur qualite haiku low; prompt_relecteur securite opus high; }
+champ_agent() { sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md" | grep -qx -e "$2"; }
+d="$(depot_sync s-relecteurs-base)"; cd "$d" || exit 1
+./factory/sync-claude.sh >/dev/null 2>&1; cp .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"
+d="$(depot_sync s-relecteurs)"; cd "$d" || exit 1; trois_relecteurs
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\n' > .factory.conf
+ca03_entetes() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent code-reviewer-conformite 'effort: medium' && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-securite 'effort: high'; }
+verifier "ca03_trois enveloppes avec le modèle et l'effort de l'en-tête de chaque prompt (AGENT_MODELE=sonnet, AGENT_EFFORT=medium)" 0 "" ca03_entetes
+verifier "ca03_l'enveloppe du code-reviewer est inchangée" 0 "" cmp .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\nAGENT_MODELE_SECURITE=claude-opus-9\nAGENT_EFFORT_SECURITE=max\n' > .factory.conf
+ca03_surcharge() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-securite 'model: claude-opus-9' && champ_agent code-reviewer-securite 'effort: max' && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent developer 'model: sonnet' && cmp -s .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"; }
+verifier "ca03_AGENT_MODELE_SECURITE et AGENT_EFFORT_SECURITE l'emportent sur l'en-tête, les autres rôles gardent les leurs" 0 "" ca03_surcharge
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\nAGENT_MODELE_SECURITE=\nAGENT_EFFORT_SECURITE=\n' > .factory.conf
+verifier "ca03_clés de surcharge vides : l'en-tête s'applique" 0 "" ca03_entetes
+printf 'AGENT_MODELE_QUALITE=a\n' > .factory.conf; printf 'AGENT_MODELE_QUALITE=b\n' > .factory.local.conf
+ca03_niveaux() { FACTORY_AGENT_MODELE_QUALITE=c ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: c' && ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: b'; }
+verifier "ca03_les trois niveaux habituels pour une clé de rôle (FACTORY_ > .factory.local.conf > .factory.conf)" 0 "" ca03_niveaux
+rm -f .factory.local.conf; printf 'AGENT_MODELE=opus\nAGENT_EFFORT=max\n' > .factory.conf
+ca03_generiques() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent developer 'model: opus' && champ_agent developer 'effort: max'; }
+verifier "ca03_AGENT_MODELE et AGENT_EFFORT seuls : l'en-tête d'un autre rôle l'emporte toujours" 0 "" ca03_generiques
+
+rm -f .factory.conf
+ca04_sans_ecriture() { # trois enveloppes, aucune avec Write ni Edit, même si un prompt les déclare
+  prompt_relecteur conformite sonnet medium 'Read, Write, Glob, Grep, Bash'; prompt_relecteur qualite haiku low 'Edit, Read, Glob, Grep'; prompt_relecteur securite opus high 'Read, Glob, Grep, Write, Edit, Bash'
+  rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 || return 1
+  champ_agent code-reviewer-conformite 'tools: Read, Glob, Grep, Bash' && champ_agent code-reviewer-qualite 'tools: Read, Glob, Grep' && champ_agent code-reviewer-securite 'tools: Read, Glob, Grep, Bash'
+}
+printf 'MODE_REVUE=unique\n' > .factory.conf
+verifier "ca04_MODE_REVUE=unique : les trois enveloppes sont générées, aucune avec Write ni Edit" 0 "" ca04_sans_ecriture
+printf 'MODE_REVUE=parallele\n' > .factory.conf
+verifier "ca04_MODE_REVUE=parallele : les trois enveloppes sont générées, aucune avec Write ni Edit" 0 "" ca04_sans_ecriture
+ca04_outil_refuse() { # ca04_outil_refuse <outil> : un relecteur qui déclare cet outil (casse comprise) ne l'a pas dans son enveloppe ; les autres outils restent
+  prompt_relecteur securite opus high "Read, $1, mcp__savvy-progress__step, Grep"
+  rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 || return 1
+  champ_agent code-reviewer-securite 'tools: Read, mcp__savvy-progress__step, Grep'
+}
+for outil in Write Edit MultiEdit NotebookEdit write EDIT multiedit notebookedit; do
+  verifier "ca04_outil d'écriture « $outil » retiré de l'enveloppe d'un relecteur, les autres outils conservés" 0 "" ca04_outil_refuse "$outil"
+done
+rm -f .factory.conf
+
+# CS-02
+trois_relecteurs
+cs02_refus() { # cs02_refus <clé> <valeur> [fichier] : 64, aucune valeur brute dans le message, aucune enveloppe de relecteur, aucun champ injecté, aucun fichier marque
+  local cle="$1" v="$2" code
+  rm -rf .claude/agents marque .factory.conf
+  if [ -n "${3:-}" ]; then printf '%s=%s\n' "$cle" "$v" > .factory.conf; ./factory/sync-claude.sh > "$p/cs02-out" 2> "$p/cs02-err"; code=$?
+  else env "FACTORY_$cle=$v" ./factory/sync-claude.sh > "$p/cs02-out" 2> "$p/cs02-err"; code=$?; fi
+  rm -f .factory.conf
+  [ "$code" -eq 64 ] && [ -s "$p/cs02-err" ] && [ ! -e marque ] && ! ls .claude/agents/code-reviewer-*.md >/dev/null 2>&1 && ! grep -rq 'tools: Write' .claude/agents 2>/dev/null || return 1
+  case "$(cat "$p/cs02-err" "$p/cs02-out")" in *"$v"*) return 1 ;; esac
+}
+for cle in AGENT_MODELE_SECURITE AGENT_EFFORT_SECURITE; do
+  for v in $'opus\ntools: Write' 'opus; x' OPUS '../opus' ultra "$long" '$(touch marque)'; do
+    [ "$cle $v" != "AGENT_MODELE_SECURITE ultra" ] || continue # « ultra » est un nom de modèle valide ; hostile seulement pour l'effort
+    verifier "cs02_$cle hostile « $(printf '%s' "${v:0:20}" | tr '\n' '|') » (environnement) : 64, aucune enveloppe, aucun champ injecté" 0 "" cs02_refus "$cle" "$v"
+  done
+  for v in 'opus; x' OPUS '../opus' ultra "$long" '$(touch marque)'; do
+    [ "$cle $v" != "AGENT_MODELE_SECURITE ultra" ] || continue
+    verifier "cs02_$cle hostile « ${v:0:20} » (.factory.conf) : 64, aucune enveloppe" 0 "" cs02_refus "$cle" "$v" fichier
+  done
+done
+verifier "cs02_AGENT_MODELE_QUALITE hostile : 64 aussi (les six clés sont validées)" 0 "" cs02_refus AGENT_MODELE_QUALITE 'opus; x'
+verifier "cs02_AGENT_EFFORT_CONFORMITE hostile : 64 aussi (les six clés sont validées)" 0 "" cs02_refus AGENT_EFFORT_CONFORMITE ultra
+
+# ---------------------------------------------------------------------------------------------------------------------
+# PRD 006, issue 006-02 : les trois relecteurs (conformité et tests, qualité, sécurité), leur brief commun et la section du rapport d'un relecteur.
+# Vérifications de texte lues dans HEAD (lire_depot) : chacune échoue si la consigne est retirée ou inversée, sans figer la formulation entière.
+# ---------------------------------------------------------------------------------------------------------------------
+echo "relecteurs : prompts, brief commun, rapport d'un relecteur (PRD 006, CA-05 à CA-10, CS-03, CS-06)"
+rl_c=factory/prompts/code-reviewer-conformite.md; rl_q=factory/prompts/code-reviewer-qualite.md; rl_s=factory/prompts/code-reviewer-securite.md
+rl_b=factory/prompts/briefs/relecteurs.md; rl_rf=factory/prompts/report-format.md
+rl_entete() { lire_depot "$depot" "$1" | awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1'; } # lignes de l'en-tête YAML (hors délimiteurs)
+rl_champ() { rl_entete "$1" | grep -qxF -- "$2"; }      # rl_champ <chemin> <ligne exacte de l'en-tête>
+rl_a() { lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # rl_a <chemin> <motif grep -E> : une ligne correspond
+rl_sans() { ! lire_depot "$depot" "$1" | grep -Eq -- "$2"; } # rl_sans <chemin> <motif> : aucune ligne ne correspond
+rl_sans_ecrire() { ! lire_depot "$depot" "$1" | sed "s/n['’]écris//g" | grep -Eq "[ÉéEe]cris .*(dans|sous) (le dépôt|docs/reviews)"; } # aucune consigne d'écrire dans le dépôt (la négation « n'écris » est retirée avant la recherche)
+rl_section() { lire_depot "$depot" "$rl_rf" | awk '/^## Rapport d.un relecteur/ { f = 1 } f'; } # section du rapport d'un relecteur (jusqu'à la fin du fichier)
+rl_a_section() { rl_section | grep -Eq -- "$1"; }
+rl_empreinte() { lire_depot "$depot" "$1" | shasum -a 256 | cut -d' ' -f1; } # rl_empreinte <chemin>
+
+# CA-05 : en-têtes.
+for r in conformite qualite securite; do
+  f=factory/prompts/code-reviewer-$r.md
+  verifier "ca05_${r}_en_tete_name" 0 "" rl_champ $f "name: code-reviewer-$r"
+  verifier "ca05_${r}_en_tete_description" 0 "" test -n "$(rl_entete $f | grep '^description: .')"
+  verifier "ca05_${r}_en_tete_outils_lecture_seule" 0 "" rl_champ $f "tools: Read, Glob, Grep, Bash"
+  verifier "ca05_${r}_en_tete_skill_owasp_check" 0 "" rl_champ $f "skills: owasp-check"
+done
+verifier "ca05_securite_en_tete_modele_opus" 0 "" rl_champ $rl_s "model: opus"
+verifier "ca05_securite_en_tete_effort_high" 0 "" rl_champ $rl_s "effort: high"
+for r in conformite qualite; do
+  verifier "ca05_${r}_en_tete_modele_sonnet" 0 "" rl_champ factory/prompts/code-reviewer-$r.md "model: sonnet"
+  verifier "ca05_${r}_en_tete_effort_medium" 0 "" rl_champ factory/prompts/code-reviewer-$r.md "effort: medium"
+done
+
+# CA-06 : conformité et tests.
+verifier "ca06_conformite_demande_la_conformite_a_l_issue_et_au_prd" 0 "" rl_a $rl_c "[Cc]onformité à l.issue et au PRD"
+verifier "ca06_conformite_demande_un_test_par_critere_avec_criteres_sans_test" 0 "" rl_a $rl_c "[Ll]ance .scripts/criteres-sans-test\.sh."
+verifier "ca06_conformite_demande_de_relancer_la_preuve_avant_apres" 0 "" rl_a $rl_c "preuve avant / après.*[Rr]elance"
+# Revue 1 de 006-02 : les consignes du relecteur unique (bugs, règles d'AGENTS.md, couverture) ont un porteur en mode parallèle (la conformité).
+verifier "ca06_conformite_demande_de_chercher_les_bugs_et_cas_limites_de_la_logique" 0 "" rl_a $rl_c "[Bb]ugs.*(erreurs?|défauts?) de logique.*cas limites"
+verifier "ca06_conformite_demande_le_respect_de_l_architecture_et_des_regles_d_agents_md" 0 "" rl_a $rl_c "[Rr]espect de l.architecture et des règles d.AGENTS\.md"
+verifier "ca06_conformite_demande_la_couverture_des_tests_par_les_cas_limites" 0 "" rl_a $rl_c "[Cc]ouverture des tests.*cas limites"
+verifier "ca06_conformite_demande_verify_clean" 0 "" rl_a $rl_c "[Ll]ance .scripts/verify-clean\.sh."
+verifier "ca06_conformite_demande_les_mutations_huit_au_plus" 0 "" rl_a $rl_c "8 mutations au plus"
+verifier "ca06_conformite_mutations_dans_une_copie_jetable_hors_du_depot" 0 "" rl_a $rl_c "mutation.*copie jetable hors du dépôt"
+verifier "ca06_conformite_demande_les_documents_devenus_faux" 0 "" rl_a $rl_c "[Dd]ocuments devenus faux"
+verifier "ca06_conformite_ne_parcourt_pas_la_grille_owasp_a01_a10" 0 "" rl_a $rl_c "ne parcours pas.*A01 à A10"
+verifier "ca06_conformite_ne_demande_nulle_part_l_analyse_owasp" 0 "" test -z "$(lire_depot "$depot" $rl_c | grep 'A01 à A10' | grep -v 'ne parcours pas')"
+
+# CA-07 : qualité.
+verifier "ca07_qualite_demande_lisibilite_duplications_code_mort_structure" 0 "" rl_a $rl_q "[Ll]isibilité.*duplications.*code mort.*structure"
+verifier "ca07_qualite_demande_framework_d_abord" 0 "" rl_a $rl_q "[Ff]ramework d.abord"
+verifier "ca07_qualite_demande_la_reference_de_l_adr" 0 "" rl_a $rl_q "[Rr]éférence.*ADR"
+verifier "ca07_qualite_demande_la_langue_des_classes_techniques" 0 "" rl_a $rl_q "[Ll]angue.*classes techniques.*anglais"
+verifier "ca07_qualite_demande_les_entrees_externes" 0 "" rl_a $rl_q "[Ee]ntrées externes"
+verifier "ca07_qualite_ne_lance_ni_verify_clean_ni_criteres_ni_mutation" 0 "" rl_a $rl_q "[Nn]e lances? ni .scripts/verify-clean\.sh., ni .scripts/criteres-sans-test\.sh., ni mutation"
+
+# CA-08 : sécurité.
+verifier "ca08_securite_demande_les_categories_a01_a10_de_owasp_check" 0 "" rl_a $rl_s "[Pp]arcours.*A01 à A10.*owasp-check"
+verifier "ca08_securite_demande_fichier_ligne_et_categorie" 0 "" rl_a $rl_s "fichier:ligne.*catégorie"
+verifier "ca08_securite_demande_un_test_par_critere_cs" 0 "" rl_a $rl_s "test.*chaque critère CS"
+verifier "ca08_securite_demande_l_analyse_des_dependances_sinon_le_dire" 0 "" rl_a $rl_s "analyse des dépendances.*sinon dis-le"
+verifier "ca08_securite_report_d_un_risque_est_une_decision_de_l_utilisateur" 0 "" rl_a $rl_s "[Rr]isque reporté.*décision de l.utilisateur"
+verifier "ca08_securite_passe_sur_toutes_les_issues_meme_sans_critere_cs" 0 "" rl_a $rl_s "toutes les issues, même sans critère CS"
+verifier "ca08_securite_ne_rend_jamais_sans_objet_pour_toute_la_grille" 0 "" rl_a $rl_s "jamais .+sans objet.+ pour toute la grille"
+verifier "ca08_securite_ne_lance_ni_verify_clean_ni_mutation" 0 "" rl_a $rl_s "[Nn]e lances? ni .scripts/verify-clean\.sh., ni .*mutation"
+
+# CA-09 : section du rapport d'un relecteur dans report-format.md.
+verifier "ca09_report_format_a_une_section_du_rapport_d_un_relecteur" 0 "" rl_a $rl_rf "^## Rapport d.un relecteur"
+verifier "ca09_report_format_premiere_ligne_exactement_verdict_approuve" 0 "" test "$(rl_section | grep -c '^VERDICT: APPROUVÉ$')" = 1
+verifier "ca09_report_format_une_seule_ligne_verdict_dans_le_gabarit" 0 "" test "$(rl_section | grep -c '^VERDICT:')" = 1
+verifier "ca09_report_format_gabarit_ouvre_sur_la_ligne_verdict" 0 "" test "$(rl_section | awk '/^```/ { getline; print; exit }')" = "VERDICT: APPROUVÉ"
+verifier "ca09_report_format_dit_l_autre_valeur_hors_du_gabarit" 0 "" rl_a_section "autre valeur.*CHANGEMENTS DEMANDÉS.*gabarit"
+verifier "ca09_report_format_bloc_en_clair" 0 "" rl_a_section "^## En clair$"
+verifier "ca09_report_format_quatre_vingts_lignes_au_plus" 0 "" rl_a_section "80 lignes au plus"
+verifier "ca09_report_format_aucune_autre_ligne_ne_commence_par_verdict" 0 "" rl_a_section "[Aa]ucune autre ligne.*commence par .VERDICT:"
+verifier "ca09_report_format_constats_bloquant_important_mineur_avec_fichier_ligne" 0 "" rl_a_section "BLOQUANT / IMPORTANT / MINEUR.*fichier:ligne"
+verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "5ad5475e0ba6c3525ec86fb63c6f56055e046634869a0ebd687808b8a69b1ea7"
+verifier "ca09_report_format_le_reste_du_fichier_avant_le_reviewer_est_inchange" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { exit } 1' | shasum -a 256 | cut -d' ' -f1)" = "65580ddcf62120548fbd4ef17dc9995fe395942d9ef38287b11eb0ad5ca832b9"
+
+# CA-10 : brief commun des relecteurs ; l'ancien brief et le prompt du mode unique sont inchangés.
+verifier "ca10_brief_relecteurs_existe_avec_un_champ_pour_le_role" 0 "" rl_a $rl_b "\{\{(nom du )?rôle"
+verifier "ca10_brief_relecteurs_reprend_la_plage_de_commits" 0 "" rl_a $rl_b "Plage de commits"
+verifier "ca10_brief_relecteurs_reprend_les_remarques_a_confirmer" 0 "" rl_a $rl_b "Remarques de la revue précédente à confirmer"
+verifier "ca10_brief_relecteurs_reprend_les_decisions_a_respecter" 0 "" rl_a $rl_b "Décisions déjà prises"
+verifier "ca10_brief_relecteurs_dit_lecture_seule" 0 "" rl_a $rl_b "[Ll]ecture seule"
+verifier "ca10_brief_relecteurs_renvoie_au_format_de_rapport_du_relecteur" 0 "" rl_a $rl_b "report-format\.md.*relecteur"
+verifier "ca10_brief_relecteurs_dit_que_seule_la_conformite_lance_build_criteres_mutations" 0 "" rl_a $rl_b "[Ss]eul.*conformité.*lance.*verify-clean.*criteres-sans-test.*mutations"
+verifier "ca10_brief_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/briefs/reviewer.md)" = "d19b205665e473552e8374094673ab9713ebf5318ece2145b6d497db7757a6b9"
+verifier "ca10_prompt_code_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "41c2f6c5670259f11c826d565d4f3a451f88f8aea629a93c733f7ecf0a5d87a5"
+
+# CS-03 : lecture seule.
+for f in $rl_c $rl_q $rl_s; do
+  verifier "cs03_$(basename $f .md)_sans_write_ni_edit_dans_les_outils" 0 "" test -z "$(rl_entete $f | grep '^tools:' | grep -Ew 'Write|Edit')"
+  verifier "cs03_$(basename $f .md)_ne_dit_pas_d_ecrire_dans_le_depot" 0 "" rl_a $f "n.écris (rien|jamais).*dépôt.*fichier de revue"
+  verifier "cs03_$(basename $f .md)_mutation_dans_une_copie_jetable_hors_du_depot_supprimee_ensuite" 0 "" rl_a $f "mutation.*copie jetable hors du dépôt, supprimée ensuite"
+done
+verifier "cs03_brief_relecteurs_ne_dit_pas_d_ecrire_dans_le_depot" 0 "" rl_a $rl_b "n.écris (rien|jamais).*dépôt.*fichier de revue"
+verifier "cs03_brief_relecteurs_mutation_dans_une_copie_jetable_hors_du_depot_supprimee_ensuite" 0 "" rl_a $rl_b "mutation.*copie jetable hors du dépôt, supprimée ensuite"
+for f in $rl_c $rl_q $rl_s $rl_b; do
+  verifier "cs03_$(basename $f .md)_aucune_consigne_d_ecrire_dans_le_depot_ou_dans_docs_reviews" 0 "" rl_sans_ecrire $f
+done
+rl_enveloppes() { # copie jetable de la factory, enveloppes générées : aucun relecteur n'a Write ni Edit dans ses outils
+  local d="$racine_tmp/rl-env" a
+  mkdir -p "$d" && cp -R "$factory" "$d/factory" && rm -rf "$d/factory/scripts/tests" && git -C "$d" init -q . && ( cd "$d" && ./factory/sync-claude.sh >/dev/null 2>&1 ) || return 1
+  for a in code-reviewer-conformite code-reviewer-qualite code-reviewer-securite; do
+    grep -qx 'tools: Read, Glob, Grep, Bash' "$d/.claude/agents/$a.md" || { echo "enveloppe $a : outils inattendus"; return 1; }
+    ! grep -Ewq 'Write|Edit' "$d/.claude/agents/$a.md" || { echo "enveloppe $a : Write ou Edit présent"; return 1; }
+  done
+}
+verifier "cs03_les_enveloppes_generees_des_relecteurs_n_ont_ni_write_ni_edit" 0 "" rl_enveloppes
+# (la règle de poussée est écrite en deux morceaux : le garde-fou « sans réseau » de ca36 lit tout ce fichier)
+for regle in "Bash(git $(printf 'pus%s' h) *)" 'Bash(git reset --hard *)' 'Bash(git clean *)' 'Bash(git branch -D *)' 'Bash(git checkout -- *)' 'Bash(git restore *)' 'Read(./.env)' 'Read(./.env.*)' 'Read(./secrets/**)'; do
+  verifier "cs03_settings_json_garde_la_regle_de_refus_$(printf '%s' "$regle" | tr -c 'A-Za-z0-9' '_')" 0 "" test -n "$(lire_depot "$depot" .claude/settings.json | grep -F "\"$regle\"")"
+done
+
+# CS-06 : une vulnérabilité avérée est BLOQUANTE, seul son report se décide avec l'utilisateur.
+for f in $rl_c $rl_q $rl_s; do
+  verifier "cs06_$(basename $f .md)_vulnerabilite_owasp_averee_est_bloquante" 0 "" rl_a $f "vulnérabilité OWASP avérée.*BLOQUANT"
+  verifier "cs06_$(basename $f .md)_seul_son_report_se_decide_avec_l_utilisateur" 0 "" rl_a $f "seul son report se décide avec l.utilisateur"
+done
+verifier "cs06_securite_ne_classe_jamais_mineur_un_sujet_de_la_liste_d_escalade" 0 "" rl_a $rl_s "ne classes? jamais .+mineur.+ un sujet de la liste.*AGENTS\.md"
+verifier "cs06_securite_est_relancee_des_qu_elle_demande_des_changements_tour_final_compris" 0 "" rl_a $rl_s "demandé des changements.*relancé.*tour final"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

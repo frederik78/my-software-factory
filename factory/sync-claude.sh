@@ -5,6 +5,8 @@
 #             Source unique : l'en-tête du prompt (name, description, tools, skills, model et effort facultatifs). Un prompt sans `name:` n'a pas
 #             d'enveloppe (l'orchestrateur n'a pas de prompt : c'est la session principale, décrite dans AGENTS.md).
 #             Modèle et effort : en-tête du prompt, sinon AGENT_MODELE et AGENT_EFFORT (voir lib-config.sh) ; valeur vide = champ absent, l'agent hérite de la session.
+#             Exception : les trois relecteurs (code-reviewer-conformite, -qualite, -securite) ont chacun deux clés (AGENT_MODELE_<RÔLE>, AGENT_EFFORT_<RÔLE>)
+#             qui l'emportent sur l'en-tête ; leurs enveloppes n'ont jamais Write ni Edit, quel que soit MODE_REVUE (la génération ne dépend pas du mode).
 #  - suivi de progression : si le plugin savvy-progress est installé, son outil est ajouté aux agents et leur consigne l'utilise.
 #  - agents actifs : hooks SubagentStart / SubagentStop (factory/hook-agents-claude.sh) dans .claude/settings.local.json, lus par scripts/dashboard.sh.
 #
@@ -18,16 +20,27 @@ cd "$(dirname "$0")/.."
 
 # shellcheck source=scripts/lib-config.sh
 . factory/scripts/lib-config.sh
+# Ces valeurs sont écrites dans un en-tête YAML : une valeur hors format pourrait y ajouter un champ, par exemple des outils.
+modele_valide() { # modele_valide <clé> <valeur> : minuscules, chiffres, points, tirets, 64 caractères au plus, ou vide ; sinon code 64 sans recopier la valeur
+  [[ "$2" =~ ^([a-z0-9][a-z0-9.-]*)?$ ]] && [ "${#2}" -le 64 ] && return 0
+  echo "$1 invalide : minuscules, chiffres, points et tirets, ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_$1)." >&2; exit 64
+}
+effort_valide() { # effort_valide <clé> <valeur>
+  case "$2" in
+    ''|low|medium|high|xhigh|max) return 0 ;;
+  esac
+  echo "$1 invalide : low, medium, high, xhigh, max ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_$1)." >&2; exit 64
+}
 modele_defaut="$(config_valeur AGENT_MODELE "$AGENT_MODELE_DEFAUT")"
 effort_defaut="$(config_valeur AGENT_EFFORT "$AGENT_EFFORT_DEFAUT")"
-# Ces valeurs sont écrites dans un en-tête YAML : une valeur hors format pourrait y ajouter un champ, par exemple des outils.
-if ! [[ "$modele_defaut" =~ ^([a-z0-9][a-z0-9.-]*)?$ ]]; then
-  echo "AGENT_MODELE invalide : minuscules, chiffres, points et tirets, ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_AGENT_MODELE)." >&2; exit 64
-fi
-case "$effort_defaut" in
-  ''|low|medium|high|xhigh|max) ;;
-  *) echo "AGENT_EFFORT invalide : low, medium, high, xhigh, max ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_AGENT_EFFORT)." >&2; exit 64 ;;
-esac
+modele_valide AGENT_MODELE "$modele_defaut"
+effort_valide AGENT_EFFORT "$effort_defaut"
+# Les six clés des relecteurs (PRD 006) : validées toutes, avant toute écriture, même si le prompt du rôle est absent ; valeur vide = pas de surcharge.
+# Lues sans perdre un saut de ligne final (config_valeur_exacte) : « opus » suivi d'un saut de ligne reste invalide.
+for role in CONFORMITE QUALITE SECURITE; do
+  config_valeur_exacte "AGENT_MODELE_$role" ""; modele_valide "AGENT_MODELE_$role" "$CONFIG_VALEUR"; printf -v "modele_surcharge_$role" '%s' "$CONFIG_VALEUR"
+  config_valeur_exacte "AGENT_EFFORT_$role" ""; effort_valide "AGENT_EFFORT_$role" "$CONFIG_VALEUR"; printf -v "effort_surcharge_$role" '%s' "$CONFIG_VALEUR"
+done
 
 mkdir -p .claude
 ln -sfn ../factory/skills .claude/skills
@@ -39,6 +52,11 @@ champ() { # champ <fichier> <clé>
     NR > 1 && $0 == "---" { exit }
     NR > 1 && index($0, k ":") == 1 { sub("^" k ":[[:space:]]*", ""); print; exit }
   ' "$1"
+}
+
+# Un relecteur est en lecture seule : ni Write, Edit, MultiEdit ni NotebookEdit (casse indifférente), quel que soit le mode de revue et même si son prompt les déclare.
+sans_ecriture() { # sans_ecriture <outils séparés par des virgules>
+  printf '%s' "$1" | awk -v RS=, '{ gsub(/^[ \t]+|[ \t]+$/, "") } $0 != "" && tolower($0) !~ /^(write|edit|multiedit|notebookedit)$/ { printf "%s%s", (n++ ? ", " : ""), $0 }'
 }
 
 progression=0
@@ -54,9 +72,17 @@ for prompt in factory/prompts/*.md; do
   desc="$(champ "$prompt" description)"
   outils="$(champ "$prompt" tools)"
   skills="$(champ "$prompt" skills)"
-  modele="$(champ "$prompt" model)"; [ -n "$modele" ] || modele="$modele_defaut"
-  effort="$(champ "$prompt" effort)"; [ -n "$effort" ] || effort="$effort_defaut"
+  # Précédence d'un relecteur : sa clé de configuration, puis l'en-tête de son prompt, puis AGENT_MODELE / AGENT_EFFORT (exception à « l'en-tête l'emporte »).
+  role=; case "$nom" in code-reviewer-conformite) role=CONFORMITE ;; code-reviewer-qualite) role=QUALITE ;; code-reviewer-securite) role=SECURITE ;; esac
+  modele="$(champ "$prompt" model)"; effort="$(champ "$prompt" effort)"
+  if [ -n "$role" ]; then
+    surcharge="modele_surcharge_$role"; [ -z "${!surcharge}" ] || modele="${!surcharge}"
+    surcharge="effort_surcharge_$role"; [ -z "${!surcharge}" ] || effort="${!surcharge}"
+  fi
+  [ -n "$modele" ] || modele="$modele_defaut"
+  [ -n "$effort" ] || effort="$effort_defaut"
   [ -n "$desc" ] && [ -n "$outils" ] || { echo "En-tête incomplet (description et tools requis) : $prompt" >&2; exit 1; }
+  [ -z "$role" ] || outils="$(sans_ecriture "$outils")"
   [ "$progression" -eq 1 ] && outils="$outils, mcp__savvy-progress__step"
   {
     echo "---"

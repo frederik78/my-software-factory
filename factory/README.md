@@ -221,6 +221,7 @@ le code de sortie du dashboard ne dépend pas du résultat. `/deliver` lance le 
 | A13 | avis | `backlog` | `branche develop absente : fusion non vérifiable` |
 | A14 | avis | `issue <id>` | `PRD <chemin> non listé dans le backlog pour le besoin <id>` \| `PRD <chemin> introuvable` |
 | A15 | avis | `besoin <id>` | `Abandonnée alors que l'issue <id> est <statut>` |
+| A16 | avis | `issue <id>` | `fichier de revue mal formé <chemin> : <cause>` ; causes : `plus d'une ligne VERDICT:`, `la première ligne n'est pas la ligne VERDICT:` |
 
 ### Configuration du projet : limite des revues et notification
 Trois niveaux, du moins au plus prioritaire : `.factory.conf` (versionné, créé par `init-projet.sh`, jamais écrasé), `.factory.local.conf` (mêmes clés, **ignoré par git** : vos valeurs personnelles), variables d'environnement `FACTORY_<CLÉ>`.

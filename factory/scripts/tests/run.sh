@@ -3554,6 +3554,8 @@ pr_reel() { # pr_reel <dossier> : chemins des fichiers 001-* à 003-* du dossier
   if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD "$1/"; else (cd "$depot" && ls "$1"/*); fi | grep -E "^$1/00[123]-"
 }
 for pr_f in $(pr_reel docs/issues) $(pr_reel docs/reviews); do lire_depot "$depot" "$pr_f" > "$pr_f"; done
+# 002-01 et 002-03 ont été rattrapées depuis (commits et revue renseignés) : la copie rétablit leur état d'avant F-09 (champs vides), pour garder la garde « Fait d'avant F-09 à champs vides = avis, jamais erreur »
+for pr_f in docs/issues/002-01-*.md docs/issues/002-03-*.md; do sed -e 's/^commits: .*/commits: []/' -e 's/^revue: .*/revue:/' "$pr_f" > "$pr_f.tmp" && mv "$pr_f.tmp" "$pr_f"; done
 # leurs besoins (F-01, F-05, F-08) et PRD, dans un état cohérent avec des issues terminées et non fusionnées : « En revue »
 for pr_f in 001-verdict-revue 002-criteres-tests-bash 003-dashboard-a-jour; do lire_depot "$depot" "docs/prd/$pr_f.md" > "docs/prd/$pr_f.md"; done
 printf '%s\n' '| F-01 | B | P1 | En revue | `docs/prd/001-verdict-revue.md` | |' '| F-05 | B | P1 | En revue | `docs/prd/002-criteres-tests-bash.md` | |' '| F-08 | B | P1 | En revue | `docs/prd/003-dashboard-a-jour.md` | |' | st_backlog
@@ -5295,7 +5297,7 @@ verifier "ca09_report_format_bloc_en_clair" 0 "" rl_a_section "^## En clair$"
 verifier "ca09_report_format_quatre_vingts_lignes_au_plus" 0 "" rl_a_section "80 lignes au plus"
 verifier "ca09_report_format_aucune_autre_ligne_ne_commence_par_verdict" 0 "" rl_a_section "[Aa]ucune autre ligne.*commence par .VERDICT:"
 verifier "ca09_report_format_constats_bloquant_important_mineur_avec_fichier_ligne" 0 "" rl_a_section "BLOQUANT / IMPORTANT / MINEUR.*fichier:ligne"
-verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "3f936f12acab4832d6f2c7bb41ed681b198dd1d1ee7332b0bc594edca7eee8c6"
+verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "5ad5475e0ba6c3525ec86fb63c6f56055e046634869a0ebd687808b8a69b1ea7"
 verifier "ca09_report_format_le_reste_du_fichier_avant_le_reviewer_est_inchange" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { exit } 1' | shasum -a 256 | cut -d' ' -f1)" = "65580ddcf62120548fbd4ef17dc9995fe395942d9ef38287b11eb0ad5ca832b9"
 
 # CA-10 : brief commun des relecteurs ; l'ancien brief et le prompt du mode unique sont inchangés.

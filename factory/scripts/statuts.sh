@@ -166,7 +166,7 @@ controle_dependances() {
   done
   for i in "${!iss_fichiers[@]}"; do
     [ "${iss_etats[$i]}" = controlee ] || continue
-    [ "${iss_statuts[$i]}" = Fait ] || { [ "${iss_effectifs[$i]}" != Fait ] && [ "${iss_effectifs[$i]}" != Abandonnée ]; } || continue
+    [ "${iss_statuts[$i]}" = Fait ] || ! statut_termine issue "${iss_effectifs[$i]}" || continue
     ent_elements "${ent_dependances[$i]}"
     for dep in "${ent_items[@]+"${ent_items[@]}"}"; do
       case "$dep" in

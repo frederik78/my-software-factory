@@ -315,7 +315,17 @@ statut_depuis() {
 }
 
 # statut_en_travail <issue|besoin> <statut> : vrai pour un statut du cycle démarré (depuis « En cours ») et pas terminé (avant « Fait »).
-statut_en_travail() { statut_depuis "$1" "$2" "En cours" && [ "$2" != "Fait" ]; }
+statut_en_travail() {
+  statut_depuis "$1" "$2" "En cours" || return 1
+  [ "$2" != "Fait" ]
+}
+
+# statut_termine <issue|besoin> <statut> : vrai pour un statut connu de la table qui termine l'entité : le dernier du cycle ou un statut hors cycle (« Abandonnée »). Un statut inconnu n'est pas terminé.
+statut_termine() {
+  table_statut_connu "$1" "$2" || return 1
+  statut_rang "$1" "$2" || return 0
+  if [ "$1" = issue ]; then [ "$rang_statut" -eq $((${#statuts_issues[@]} - 1)) ]; else [ "$rang_statut" -eq $((${#statuts_besoins[@]} - 1)) ]; fi
+}
 
 # statut_avant_travail <issue|besoin> <statut> : vrai pour un statut du cycle placé avant « En cours » (pas encore démarré).
 statut_avant_travail() { statut_rang "$1" "$2" && ! statut_depuis "$1" "$2" "En cours"; }

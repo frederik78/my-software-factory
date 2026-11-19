@@ -2,7 +2,7 @@
 # Les noms de statut ne sont pas écrits ici : ils viennent de la table (variable noms, séparés par « | »), donc un statut ajouté à la table est gardé aussitôt.
 # Usage : awk -v noms="À faire|Fait|…" -v mode=script|doc -f garde-statuts.awk <fichiers...> ; une ligne « fichier:ligne: motif : texte » par trouvaille, rien si tout est conforme.
 #   mode=script : scripts de la factory. Signale une ligne qui cite trois statuts ou plus, une déclaration de tableau qui contient un statut, une alternative de statuts d'un « case »
-#                 (a|b) et un appel de « parmi » avec un statut littéral. Ignore les commentaires et les lignes qui portent un texte du catalogue (constat_ajouter, RG-23).
+#                 (a|b), deux statuts reliés par ||, && ou une virgule et un appel de « parmi » avec un statut littéral. Ignore les commentaires et les lignes qui portent un texte du catalogue (constat_ajouter, RG-23).
 #   mode=doc    : AGENTS.md, son modèle, skill deliver. Signale trois statuts ou plus sur une ligne, deux statuts ou plus reliés par une flèche, et une phrase de règle de transition
 #                 (verbe de changement de statut et statut sur la même ligne).
 function est_lettre(c) { return c ~ /^[A-Za-z0-9_]$/ || c >= "\200" }
@@ -32,6 +32,11 @@ FNR == 1 { fichier = FILENAME }
     for (i = 1; i <= n && motif == ""; i++) for (j = 1; j <= n; j++) {
       a = N[i]; b = N[j]
       if (index(l, a "\"|\"" b) || index(l, a "\"|" b) || index(l, a "|\"" b) || index(l, a "|" b)) { motif = "alternative de statuts (case)"; break }
+    }
+    for (i = 1; i <= n && motif == ""; i++) for (j = i + 1; j <= n; j++) if (presente(l, N[i]) && presente(l, N[j])) {
+      p1 = index(l, N[i]); p2 = index(l, N[j]); if (p1 > p2) { t = p1; p1 = p2; p2 = t }
+      entre = substr(l, p1, p2 - p1)
+      if (entre ~ /\|\||&&|,/) { motif = "deux statuts reliés par ||, && ou une virgule"; break }
     }
     if (motif == "" && l ~ /parmi .*"/) motif = "appartenance à une liste de statuts (parmi)"
   } else {

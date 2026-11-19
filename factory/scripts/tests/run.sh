@@ -1972,12 +1972,12 @@ printf 'fichier\n' > "$d/copie/AGENTS.md"; mkdir "$d/copie/docs"; printf 'motif-
 [ "$(lire_depot "$d/copie" AGENTS.md)" = "fichier" ] && [ "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | wc -l | tr -d ' ')" = "1" ] && chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | grep -q 'docs/x.md' && ok "hors dépôt git (copie de verify-clean.sh) : lecture et recherche dans les fichiers, exclusions respectées" || ko "lecture hors dépôt git" "$(chercher_depot "$d/copie" 'motif-copie' docs/exclu.md | tr '\n' '|')"
 
 echo "limite des itérations de revue (documentation)"
-restes="$(chercher_depot "$depot" -i "3 itérations|trois itérations" factory/CHANGELOG.md factory/scripts/tests/run.sh "docs/prd/*" | head -5 | tr '\n' '|')"
+restes="$(chercher_depot "$depot" -i "3 itérations|trois itérations" factory/CHANGELOG.md factory/scripts/tests/run.sh "docs/prd/*" "docs/issues/*" "docs/reviews/*" | head -5 | tr '\n' '|')"
 deliver="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"; conf_modele="$(lire_depot "$depot" factory/templates/.factory.conf)"
-[ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG, PRD et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
+[ -z "$restes" ] && ok "plus aucune limite « 3 itérations » écrite en dur (hors CHANGELOG, PRD, issues, revues et ce test)" || ko "limite « 3 itérations » écrite en dur" "$restes"
 printf '%s\n' "$deliver" | grep -q 'scripts/config-factory.sh --max-iterations' && printf '%s\n' "$deliver" | grep -q 'scripts/notifier.sh' && ok "/deliver : limite lue par config-factory.sh, blocage notifié par notifier.sh" || ko "/deliver : limite et notification"
 printf '%s\n' "$deliver" | grep -q "au moins un BLOQUANT" && printf '%s\n' "$deliver" | grep -q "IMPORTANT.*sans courriel" && ok "/deliver : courriel seulement s'il reste au moins un BLOQUANT (IMPORTANT seuls : remontés sans courriel)" || ko "/deliver : courriel réservé aux BLOQUANT"
-printf '%s\n' "$deliver" | grep -q 'statut: En revue' && printf '%s\n' "$deliver" | grep -q 'docs: issue <id> en revue' && printf '%s\n' "$deliver" | grep -q 'remets `statut: En cours`' && ok "/deliver : l'issue passe En revue au lancement de la première relecture, et revient En cours quand les corrections repartent au développeur" || ko "/deliver : statut En revue"
+printf '%s\n' "$deliver" | grep -q 'transition de mise en revue' && printf '%s\n' "$deliver" | grep -q 'docs: issue <id> en revue' && printf '%s\n' "$deliver" | grep -q 'transition de retour en corrections' && printf '%s\n' "$deliver" | grep -q 'docs: issue <id> en cours' && ok "/deliver : la mise en revue précède la première relecture et le retour en corrections repart au développeur, par les transitions de la table (commits « docs: issue <id> en revue » et « … en cours »)" || ko "/deliver : transitions de mise en revue et de retour en corrections"
 printf '%s\n' "$conf_modele" | grep -qx 'NOTIFICATION_COMMANDE=' && printf '%s\n' "$conf_modele" | grep -q 'NOTIFICATION_COMMANDE=sendmail -oi' && [ -z "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh)" ] && ok "exemple sendmail -oi (destinataire en argument), aucun exemple avec -t (sendmail ou mail)" || ko "exemple avec -t" "$(chercher_depot "$depot" -i '(sendmail|mail) +-t([^a-z]|$)' factory/CHANGELOG.md factory/scripts/tests/run.sh | head -5 | tr '\n' '|')"
 [ "$(lire_depot "$depot" AGENTS.md | grep -c 'MAX_ITERATIONS_REVUE')" -ge 2 ] && [ "$(lire_depot "$depot" factory/templates/AGENTS.md | grep -c 'MAX_ITERATIONS_REVUE')" -ge 2 ] && ok "AGENTS.md et son modèle : limite MAX_ITERATIONS_REVUE aux étapes 4 et 5" || ko "AGENTS.md : MAX_ITERATIONS_REVUE aux étapes 4 et 5"
 adresses="$({ printf '%s\n' "$conf_modele"; lire_depot "$depot" .factory.conf; } | grep -oE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+' | grep -v '@example\.com$' | tr '\n' ' ')"
@@ -4630,7 +4630,7 @@ d5_titre() { awk -v t="$2" 'index($0, t) == 1 { p = 1; print; next } /^## / { p 
 deliver_d5="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"
 controle_d5="$(d5_titre "$deliver_d5" "## Contrôle des statuts")"
 verifier "ca33_skill deliver : une section « Contrôle des statuts » existe" 0 "" test -n "$controle_d5"
-for motif in 'scripts/statuts.sh' 'chaque changement de statut' 'au début' 'au passage `En revue`' 'retour en corrections' 'pour `Fait`' "statut de besoin" 'scripts/statuts.sh --table' 'ne corrige rien' 'lecture seule' "qui vise l'issue" 'son besoin' 'arrête le passage' 'ne les recopie pas'; do
+for motif in 'scripts/statuts.sh' 'chaque changement de statut' 'au début' 'au passage en revue' 'retour en corrections' 'à la clôture' "statut de besoin" 'scripts/statuts.sh --table' 'ne corrige rien' 'lecture seule' "qui vise l'issue" 'son besoin' 'arrête le passage' 'ne les recopie pas'; do
   verifier "ca33_skill deliver, section « Contrôle des statuts » : « $motif »" 0 "" contient "$controle_d5" "$motif"
 done
 for etape in '## 0. Préparer' '## 3. Relire' '## 4. Corriger' '## 5. Terminer'; do
@@ -4716,6 +4716,79 @@ verifier "ca36_sans réseau : les cas de l'issue 004-05 n'appellent ni curl, wge
 
 # ca37 : sans « Abandonnée » dans les données, la page (hors section de contrôle) et les sorties de etat-issues.sh sont celles d'avant le besoin ; fin-issue.sh est inchangé (ca33).
 verifier "ca37_dépôt de référence de ca03 : la page contient la section de contrôle une fois, et hors section elle est identique à la référence figée d'avant le besoin (page et etat-issues.sh)" 0 "" test "$(grep -c '<section id="controle-statuts"' "$racine_tmp/ca03.html")|$(cmp "$ici/golden/ca03-sorties.txt" "$racine_tmp/ca03.sorties" && echo identique)" = "1|identique"
+
+echo "retrait des anciennes listes de statuts (PRD 004, issue 004-06)"
+# Garde-fou de recherche d'absence (tests/garde-statuts.awk) : les noms de statut viennent de la table, jamais d'une liste écrite ici.
+r6_noms() { lire_depot "$depot" factory/scripts/statuts.table | awk -F'|' '$1 ~ /^[[:space:]]*statut[[:space:]]*$/ { v = $3; gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); print v }' | sort -u | paste -sd'|' -; }
+r6_copie() { # r6_copie <dossier> : copie (lue dans HEAD) des scripts de la factory, de la table et des trois documents gardés
+  local f; mkdir -p "$1/factory/scripts" "$1/factory/templates" "$1/factory/skills/deliver"
+  for f in "$factory"/scripts/*.sh; do lire_depot "$depot" "factory/scripts/${f##*/}" > "$1/factory/scripts/${f##*/}"; done
+  lire_depot "$depot" factory/scripts/statuts.table > "$1/factory/scripts/statuts.table"
+  lire_depot "$depot" AGENTS.md > "$1/AGENTS.md"; lire_depot "$depot" factory/templates/AGENTS.md > "$1/factory/templates/AGENTS.md"; lire_depot "$depot" factory/skills/deliver/SKILL.md > "$1/factory/skills/deliver/SKILL.md"
+}
+r6_garde_scripts() { # r6_garde_scripts <copie> : trouvailles du garde-fou dans les scripts (hors fin-issue.sh, exception de CA-38)
+  local f; set -- "$1" "$(r6_noms)"
+  for f in "$1"/factory/scripts/*.sh; do [ "${f##*/}" = fin-issue.sh ] || awk -v noms="$2" -v mode=script -f "$ici/garde-statuts.awk" "$f"; done
+}
+r6_garde_docs() { # r6_garde_docs <copie> : trouvailles du garde-fou dans AGENTS.md, son modèle et la skill deliver
+  awk -v noms="$(r6_noms)" -v mode=doc -f "$ici/garde-statuts.awk" "$1/AGENTS.md" "$1/factory/templates/AGENTS.md" "$1/factory/skills/deliver/SKILL.md"
+}
+r6_vide() { [ -z "$("$@")" ] || { "$@" | head -5; return 1; }; } # r6_vide <commande...> : réussit si la commande n'écrit rien (affiche les cinq premières lignes sinon)
+r6_dossier="$racine_tmp/r6-copie"; rm -rf "$r6_dossier"; r6_copie "$r6_dossier"
+verifier "ca38_les noms de statut du garde-fou viennent de la table (7 noms, issue et besoin confondus)" 0 "" test "$(r6_noms | tr '|' '\n' | wc -l | tr -d ' ')" = 7
+verifier "ca38_recherche d'absence dans les scripts de la factory : aucune liste, tableau, suite de trois statuts ou plus, alternative ni appartenance à une liste de statuts (hors table et fin-issue.sh, commentaires, textes du catalogue)" 0 "" r6_vide r6_garde_scripts "$r6_dossier"
+r6_intrus() { # r6_intrus <script> <ligne ajoutée> : copie du dossier où la ligne est ajoutée au script, puis trouvailles du garde-fou
+  local c="$racine_tmp/r6-intrus"; rm -rf "$c"; r6_copie "$c"; printf '%s\n' "$2" >> "$c/factory/scripts/$1"; r6_garde_scripts "$c"
+}
+verifier "ca38_le garde-fou voit une liste de trois statuts réintroduite (dashboard.sh)" 0 "dashboard.sh:[0-9]+: trois statuts.*ordre_garde" r6_intrus dashboard.sh 'ordre_garde=("À faire" "En cours" "Fait")'
+verifier "ca38_le garde-fou voit un tableau de statuts réintroduit, même de deux statuts (etat-issues.sh)" 0 "etat-issues.sh:[0-9]+: déclaration de tableau.*cycle_garde" r6_intrus etat-issues.sh 'cycle_garde=(Spécifié Fait)'
+verifier "ca38_le garde-fou voit une alternative de statuts d'un case réintroduite (lib-besoins.sh)" 0 "lib-besoins.sh:[0-9]+: alternative.*x_garde" r6_intrus lib-besoins.sh 'case "$s" in "En cours"|"En revue") x_garde=1 ;; esac'
+verifier "ca38_le garde-fou voit un appel de parmi avec un statut littéral (dashboard.sh)" 0 "dashboard.sh:[0-9]+: appartenance.*statut_garde" r6_intrus dashboard.sh 'parmi "$statut_garde" "En cours" || continue'
+verifier "ca38_le garde-fou ne signale pas un statut seul, un commentaire ni un texte du catalogue (statuts.sh)" 0 "" r6_vide r6_intrus statuts.sh '# À faire, En cours, En revue, Fait, Abandonnée
+[ "$s" = Fait ] || constat_ajouter AVIS A99 2 1 x "À faire puis En cours puis En revue"'
+verifier "ca38_les exceptions sont listées et justifiées dans les Notes de l'issue 004-06 (fin-issue.sh, textes du catalogue, commentaires, données de test)" 0 "" test "$(for m in 'fin-issue.sh' 'catalogue' 'commentaires' 'données de test'; do lire_depot "$depot" docs/issues/004-06-retrait-anciennes-listes.md | sed -n '/^## Notes/,$p' | grep -c -i -e "exception.*$m" ; done | tr '\n' ' ')" = "1 1 1 1 "
+verifier "ca39_recherche d'absence dans AGENTS.md, son modèle et la skill deliver : aucune chaîne de statuts à flèche, aucune liste de trois statuts, aucune phrase de règle de transition" 0 "" r6_vide r6_garde_docs "$r6_dossier"
+r6_intrus_doc() { # r6_intrus_doc <document relatif> <ligne ajoutée> : trouvailles du garde-fou dans la copie où la ligne est ajoutée au document
+  local c="$racine_tmp/r6-intrus-doc"; rm -rf "$c"; r6_copie "$c"; printf '%s\n' "$2" >> "$c/$1"; r6_garde_docs "$c"
+}
+verifier "ca39_le garde-fou voit une chaîne de statuts à flèche réintroduite" 0 "AGENTS.md" r6_intrus_doc AGENTS.md 'Statuts : À faire -> En cours -> Fait'
+verifier "ca39_le garde-fou voit une phrase de règle de transition réintroduite" 0 "SKILL.md" r6_intrus_doc factory/skills/deliver/SKILL.md 'L'"'"'issue passe à Fait quand la revue approuve.'
+verifier "ca39_le garde-fou voit une liste de trois statuts réintroduite dans le modèle" 0 "templates" r6_intrus_doc factory/templates/AGENTS.md 'Statuts : À faire, En cours, Fait.'
+for r6_doc in AGENTS.md factory/templates/AGENTS.md factory/skills/deliver/SKILL.md; do
+  verifier "ca39_${r6_doc} : renvoi à la table (scripts/statuts.sh --table)" 0 "" contient "$(lire_depot "$depot" "$r6_doc")" 'scripts/statuts.sh --table'
+done
+for r6_doc in AGENTS.md factory/templates/AGENTS.md; do
+  for r6_etape in '**Cadrage**' '**PRD**' '**Issues**' '**Livraison**' '**Revue indépendante**' '**Clôture**'; do
+    verifier "ca39_${r6_doc} : l'enchaînement des étapes du travail garde l'étape $r6_etape" 0 "" contient "$(lire_depot "$depot" "$r6_doc")" "$r6_etape"
+  done
+  verifier "ca39_${r6_doc} : la consigne de 004-05 est gardée (scripts/statuts.sh après chaque fusion demandée par l'utilisateur)" 0 "" contient "$(lire_depot "$depot" "$r6_doc" | grep -F -e 'Clôture')" 'après chaque fusion demandée par l'"'"'utilisateur, lancer `scripts/statuts.sh`'
+done
+verifier "ca39_skill deliver : la consigne de 004-05 est gardée (scripts/statuts.sh après chaque fusion demandée par l'utilisateur)" 0 "" contient "$(lire_depot "$depot" factory/skills/deliver/SKILL.md)" 'après chaque fusion demandée par l'"'"'utilisateur, lance `scripts/statuts.sh`'
+verifier "ca40_les tests retirés sont énumérés avec leur raison dans les Notes de l'issue 004-06" 0 "" contient "$(lire_depot "$depot" docs/issues/004-06-retrait-anciennes-listes.md | sed -n '/^## Notes/,$p')" 'Tests retirés'
+verifier "ca40_l'issue 004-06 : chaque critère CA/CS a un test de cette suite dont le nom contient son identifiant (criteres-sans-test.sh)" 0 "^OK " "$depot/scripts/criteres-sans-test.sh" 004-06
+verifier "ca41_le CHANGELOG mentionne le retrait des anciennes listes de statuts" 0 "" contient "$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## / { n++ } n == 1')" 'retrait'
+# ca41 : sorties de référence prises AVANT le retrait (tests/golden/ca41-sorties.txt) sur les dépôts de CA-03 (fixtures de la table), de CA-07 (contrôle) et de CA-31 (dashboard à constats).
+r6_normaliser() { # r6_normaliser : filtre (entrée standard) : retire les chemins jetables, les hachages et les dates de commit
+  sed -E -e "s#$racine_tmp#TMP#g" -e 's/[0-9a-f]{7,40} du [0-9]{4}-[0-9]{2}-[0-9]{2}/HASH du DATE/g' -e 's/dernier commit : [0-9a-f]+ du/dernier commit : HASH du/' -e 's/[0-9a-f]{7,40}/HASH/g'
+}
+r6_sorties() { # r6_sorties : écrit sur la sortie standard les sorties du dashboard (hors date), de etat-issues.sh (sans option, --prochaine, --statut) et de statuts.sh (sans option, --table) avec leurs codes
+  st_sorties_ca03 # dépôt de CA-03 : page, etat-issues.sh (trois formes)
+  printf '== statuts (dépôt de CA-03)\n'; scripts/statuts.sh; printf 'code %s\n' "$?"
+  printf '== statuts --table\n'; scripts/statuts.sh --table; printf 'code %s\n' "$?"
+  printf '== section de contrôle de la page de CA-03\n'; d5_section "$racine_tmp/ca03.html"
+  ro_riche # dépôt à erreurs et avis de CA-31 et de CA-07
+  scripts/dashboard.sh --sortie "$racine_tmp/r6.html" > /dev/null 2>&1; printf '== dashboard (dépôt à constats) : code %s\n' "$?"
+  d5_hors_section "$racine_tmp/r6.html" | sed -n '/^<body>/,$p'
+  printf '== section de contrôle (dépôt à constats)\n'; d5_section "$racine_tmp/r6.html"
+  printf '== statuts (dépôt à constats)\n'; scripts/statuts.sh; printf 'code %s\n' "$?"
+  printf '== etat-issues (dépôt à constats)\n'; scripts/etat-issues.sh; printf '== etat-issues --prochaine\n'; scripts/etat-issues.sh --prochaine; printf 'code %s\n' "$?"
+  st_depot; printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog
+  printf '== statuts (dépôt cohérent)\n'; scripts/statuts.sh; printf 'code %s\n' "$?"
+}
+r6_sorties 2>&1 | r6_normaliser > "$racine_tmp/ca41.sorties"
+[ -z "${R6_ECRIRE_REFERENCE:-}" ] || cp "$racine_tmp/ca41.sorties" "$R6_ECRIRE_REFERENCE"
+verifier "ca41_sorties du dashboard (hors date), de etat-issues.sh (trois formes) et de statuts.sh (sans option, --table, codes) sur les dépôts de CA-03, CA-07 et CA-31 : identiques octet pour octet à la référence prise avant le retrait" 0 "" cmp "$ici/golden/ca41-sorties.txt" "$racine_tmp/ca41.sorties"
+verifier "ca41_la référence couvre les trois dépôts (CA-03 : page et etat-issues ; CA-07 : statuts ; CA-31 : section de contrôle)" 0 "" test "$(grep -c -e '^== etat-issues' -e '^== statuts' -e '^== section de contrôle' -e '^== dashboard' "$ici/golden/ca41-sorties.txt")" -ge 10
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

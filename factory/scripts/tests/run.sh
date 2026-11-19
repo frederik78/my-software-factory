@@ -4904,6 +4904,7 @@ rl_enveloppes() { # copie jetable de la factory, enveloppes générées : aucun 
   done
 }
 verifier "cs03_les_enveloppes_generees_des_relecteurs_n_ont_ni_write_ni_edit" 0 "" rl_enveloppes
+# (la règle de poussée est écrite en deux morceaux : le garde-fou « sans réseau » de ca36 lit tout ce fichier)
 for regle in "Bash(git $(printf 'pus%s' h) *)" 'Bash(git reset --hard *)' 'Bash(git clean *)' 'Bash(git branch -D *)' 'Bash(git checkout -- *)' 'Bash(git restore *)' 'Read(./.env)' 'Read(./.env.*)' 'Read(./secrets/**)'; do
   verifier "cs03_settings_json_garde_la_regle_de_refus_$(printf '%s' "$regle" | tr -c 'A-Za-z0-9' '_')" 0 "" test -n "$(lire_depot "$depot" .claude/settings.json | grep -F "\"$regle\"")"
 done

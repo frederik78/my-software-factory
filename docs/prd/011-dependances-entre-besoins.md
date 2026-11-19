@@ -3,7 +3,7 @@
 ## En clair
 *Lecture sans contexte : ce bloc résume le document ; les règles et critères qui suivent sont destinés aux tests.*
 
-**Le problème.** Depuis le 2026-11-18, le tableau des besoins de `backlog.md` a une colonne « Dépend de » (les besoins à terminer avant celui-ci). Elle est écrite à la main et rien ne la contrôle : une faute de frappe (`F-99`), une dépendance circulaire ou un besoin démarré dont une dépendance n'est pas terminée passent inaperçus. Le dashboard n'affiche pas ces liens ; à la lecture du code, il lit les colonnes du backlog par position, donc la nouvelle colonne y prend la place de « Décisions » sur la carte du besoin (observé, à confirmer par le premier test).
+**Le problème.** Depuis le 2026-11-18, le tableau des besoins de `backlog.md` a une colonne « Dépend de » (les besoins à terminer avant celui-ci). Elle est écrite à la main et rien ne la contrôle : une faute de frappe (`F-99`), une dépendance circulaire ou un besoin démarré dont une dépendance n'est pas terminée passent inaperçus. Le dashboard n'affiche pas ces liens ; il lit les colonnes du backlog par position (confirmé à la lecture de `scripts/dashboard.sh`, lecture des champs 2 à 7 d'une ligne découpée sur `|`), donc la nouvelle colonne prend la place de « Décisions » dans la description de la carte du besoin.
 
 **Ce que ce besoin change**
 1. **Une erreur E15 quand le graphe est cassé** : une dépendance vers un besoin qui n'existe pas, ou en cycle (un besoin qui dépend de lui-même, deux ou trois besoins qui se renvoient l'un à l'autre). Code de sortie 1.
@@ -11,13 +11,13 @@
 3. **Le dashboard affiche les liens** : la carte du besoin montre « dépend de F-xx (statut) » pour chaque dépendance ; les colonnes du backlog y sont lues par leur nom.
 4. **Sûr, sans surprise** : la colonne est une donnée non fiable (vide, `-`, virgules, identifiant inconnu, cycle, très longue, caractères de contrôle, HTML) ; le contrôle reste en lecture seule, sans appel Git de plus, et son coût est borné.
 
-**Hors de ce besoin** : modifier `backlog.md` (le contrôle ne corrige rien), les dépendances entre issues (`depend_de`, PRD 004 A09 à A11, inchangées), refuser ou retarder un besoin (lien d'ordre seulement), reconstruire l'ordre de livraison, les besoins non fonctionnels.
+**Hors de ce besoin** : modifier `backlog.md` (le contrôle ne corrige rien), les dépendances entre issues (`depend_de`, PRD 004 A09 à A11, inchangées), tout effet sur `etat-issues.sh --prochaine` (D-53), refuser ou retarder un besoin (lien d'ordre seulement), reconstruire l'ordre de livraison, les besoins non fonctionnels.
 
-**Comment lire la suite** : section 2, les règles (RG-xx) et les messages ; section 5, les 22 critères CA et section 6, les 4 critères CS ; section 7, les décisions ; section 8, la question à trancher ; section 9, le découpage en 3 issues.
+**Comment lire la suite** : section 2, les règles (RG-xx) et les messages ; section 5, les 22 critères CA et section 6, les 4 critères CS ; section 7, les décisions ; section 8, la question tranchée ; section 9, le découpage en 3 issues.
 
-Besoin : F-15 (`backlog.md`). Décision de cadrage reprise telle quelle : D-48 (dépendance inconnue ou en cycle = erreur ; besoin démarré dont une dépendance n'est pas `Fait` = avis ; carte « dépend de F-xx (statut) »). Ce PRD ne la rouvre pas.
+Besoin : F-15 (`backlog.md`). Décisions de cadrage reprises telles quelles : D-48 (dépendance inconnue ou en cycle = erreur ; besoin démarré dont une dépendance n'est pas `Fait` = avis ; carte « dépend de F-xx (statut) ») et D-53 (`--prochaine` ignore les dépendances entre besoins). Ce PRD ne les rouvre pas.
 Préalable : le PRD 004 (F-09) est livré : le contrôle prolonge `scripts/statuts.sh` (tables de statuts, lecture du tableau des besoins RG-04, forme de sortie RG-20, neutralisation RG-21, lecture seule RG-24, coût RG-25, catalogue RG-23). Le « produit » est la factory elle-même (scripts bash, Markdown) : les noms de commande, de code et de message sont des contrats ; aucune structure de code n'est décrite.
-**Amendement du catalogue RG-23 du PRD 004 (à signaler)** : ce PRD ajoute E15 et A18, comme les PRD 005 (A16) et 007 (A17) l'ont fait ; l'amendement est répercuté par la session, pas par ce PRD. Aucun PRD lu ne réserve E15 ni A18 à la date de rédaction (à revérifier avant la livraison : les codes se tiennent dans l'ordre de livraison, d'autres PRD en cours de rédaction pouvant en réserver).
+**Amendement du catalogue RG-23 du PRD 004 (à signaler)** : ce PRD ajoute E15 et A18, comme les PRD 005 (A16) et 007 (A17) l'ont fait ; l'amendement est répercuté par la session, pas par ce PRD. A17 est réservé par le PRD 007 (branche `docs/f-06-cadrage`, non fusionnée) ; E15 et A18 sont libres à la date de rédaction (à revérifier avant la livraison : les codes se tiennent dans l'ordre de livraison).
 
 ## 1. Contexte et besoin
 
@@ -29,9 +29,9 @@ Préalable : le PRD 004 (F-09) est livré : le contrôle prolonge `scripts/statu
 ### Existant (observé)
 - Le tableau des besoins a pour colonnes `ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions`. Convention du backlog : identifiants séparés par une virgule, `-` si aucun ; l'en-tête du backlog dit « lien d'ordre, pas encore contrôlé par la machine à états ». Exemples réels : `-`, `F-01`, `F-01, F-08, F-02`.
 - `scripts/statuts.sh` lit le tableau par le nom des colonnes `ID`, `Statut`, `PRD`, `Décisions` (RG-04) ; il ne lit pas « Dépend de ». Dernier code d'erreur : E14 ; avis : A15 (A16 réservé au PRD 005, A17 au PRD 007).
-- Le dashboard lit les six premières colonnes après `ID` par position : `Besoin`, `Priorité`, `Statut`, `PRD`, puis la cinquième (aujourd'hui « Dépend de », hier « Décisions ») ; la carte d'un besoin affiche priorité, avancement, « à vérifier », PRD et ce dernier texte.
+- Le dashboard lit les six premières colonnes après `ID` par position : `Besoin`, `Priorité`, `Statut`, `PRD`, puis la cinquième (aujourd'hui « Dépend de », hier « Décisions ») ; la carte d'un besoin affiche priorité, avancement, « à vérifier », PRD et ce dernier texte comme description.
 - Les dépendances entre issues (`depend_de`) sont déjà contrôlées (A09 à A11, PRD 004) ; celles entre besoins ne le sont pas.
-- État du backlog au 2026-11-19 : aucune dépendance inconnue ni circulaire ; `F-02` et `F-12` (`En cours`) dépendent de besoins `Fait` ou en cours de livraison selon la ligne (à vérifier par le critère CA-07, pas supposé).
+- État du backlog au 2026-11-19 : aucune dépendance inconnue ni circulaire ; `F-02` et `F-12` (`En cours`) ne dépendent que de besoins `Fait` (`F-01`, `F-09`).
 
 ### Besoin
 Que la machine à états lise « Dépend de » : signaler un graphe cassé (inconnu, cycle) et un besoin démarré avant ses dépendances, afficher les liens sur la carte du besoin, sans jamais modifier `backlog.md`.
@@ -58,7 +58,7 @@ Vocabulaire : **dépendance d'un besoin** = un identifiant listé dans sa cellul
 - **RG-11 (règle)** Pour un besoin source démarré (`En cours` ou `En revue`), chaque dépendance connue (RG-04) dont le statut au backlog est un statut connu autre que le dernier du cycle (donc `À faire`, `En clarification`, `Spécifié`, `En cours`, `En revue` ou `Abandonnée`) donne un avis A18, dans l'ordre de la cellule. Avis, jamais erreur : l'empilement de branches permet de commencer avant la fin d'une dépendance, et le code de sortie n'est pas modifié.
 - **RG-12 (hors règle)** Aucun avis A18 pour un besoin `À faire`, `En clarification`, `Spécifié`, `Fait` ou `Abandonnée` (pas démarré, ou fini : un besoin `Fait` dont une dépendance ne l'est pas relève de la décision de l'utilisateur) ; aucun pour une dépendance inconnue (E15 le dit déjà), à ligne illisible ou à statut inconnu (E03, E04, E05 le disent déjà). Une dépendance `Abandonnée` n'est jamais levée : A18, comme A09 pour les issues.
 - **RG-13 (le statut du backlog)** Le statut d'une dépendance est celui de sa ligne du backlog, jamais recalculé à partir de ses issues (le statut d'un besoin reste décidé par l'utilisateur, PRD 004).
-- **RG-14 (effet sur les issues)** [À CLARIFIER Q-01] Lecture retenue : aucun. `etat-issues.sh --prochaine`, les cartes d'issues et les statuts effectifs sont inchangés ; le lien entre besoins est un contrôle, pas une règle d'ordonnancement.
+- **RG-14 (effet sur les issues, D-53)** Aucun. `etat-issues.sh --prochaine`, les cartes d'issues et les statuts effectifs sont inchangés ; le lien entre besoins est un contrôle (avis A18), pas une règle d'ordonnancement.
 
 ### 2.4 Dashboard (D-48)
 - **RG-15 (carte du besoin)** La carte d'un besoin affiche une ligne « dépend de <id> (<statut>) » par dépendance (RG-02, 64 au plus, dans l'ordre de la cellule), où `<statut>` est le statut de la dépendance au backlog tel que la table le connaît, ou `inconnu` si l'identifiant ne désigne aucun besoin ou si son statut n'est pas dans la table. Rien n'est affiché pour un besoin sans dépendance (RG-02) ni sans colonne (RG-01). Texte échappé en HTML, valeurs neutralisées (PRD 004 RG-21).
@@ -124,7 +124,7 @@ Format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les tests créent de
 - **CA-19** Given la documentation (RG-22), When on la lit après livraison, Then `factory/README.md` donne E15 et A18 avec leur texte exact de RG-18 et décrit la colonne (contrôle et carte), l'en-tête de `scripts/statuts.sh` et de `scripts/dashboard.sh` aussi, les plages de codes citées incluent E15 et A18, et aucun fichier de propriété de l'utilisateur (`backlog.md`) n'est modifié par la livraison.
 - **CA-20** Given le dépôt après livraison, When on lit `factory/VERSION`, `CHANGELOG.md`, la section `UPGRADE` et `factory/README.md`, Then la version est la suivante libre (supérieure à toute version déjà livrée), le CHANGELOG décrit le changement, la migration « remplacer `factory/` » et l'absence de migration de données, et le README mentionne la nouveauté.
 - **CA-21** Given `factory/scripts/tests/run.sh`, When on le lance, Then les cas CA-01 à CA-22 et CS-01 à CS-04 y figurent, leur nom contient l'identifiant (`ca01_…`), ils passent avec des dépôts jetables isolés (`GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`, `HOME`), et `scripts/criteres-sans-test.sh` répond OK pour les trois issues.
-- **CA-22** Given des dépôts dont les colonnes « Dépend de » sont absentes ou ne contiennent que `-`, When on lance la suite existante de `run.sh`, `statuts.sh`, `etat-issues.sh` (sans option et `--prochaine`), `dashboard.sh` (hors section de contrôle, date et durées) et `fin-issue.sh` sur une issue, Then tout passe comme avant ce besoin (mêmes sorties et codes) ; `scripts/fin-issue.sh` n'a aucune ligne modifiée ; `etat-issues.sh --prochaine` est identique avec et sans dépendances de besoins non terminées (RG-14).
+- **CA-22** Given des dépôts dont les colonnes « Dépend de » sont absentes ou ne contiennent que `-`, When on lance la suite existante de `run.sh`, `statuts.sh`, `etat-issues.sh` (sans option et `--prochaine`), `dashboard.sh` (hors section de contrôle, date et durées) et `fin-issue.sh` sur une issue, Then tout passe comme avant ce besoin (mêmes sorties et codes) ; `scripts/fin-issue.sh` n'a aucune ligne modifiée ; `etat-issues.sh --prochaine` est identique avec et sans dépendances de besoins non terminées (RG-14, D-53).
 
 ## 6. Sécurité (owasp-check)
 
@@ -161,13 +161,13 @@ Format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les tests créent de
 | Décision | Contenu | Reflété dans |
 |---|---|---|
 | D-48 | dépendance inconnue ou en cycle = erreur ; besoin démarré dont une dépendance n'est pas `Fait` = avis ; carte « dépend de F-xx (statut) » | RG-07 à RG-12, RG-15, RG-18, CA-03, CA-04, CA-08, CA-15, CA-16 |
+| D-53 | `etat-issues.sh --prochaine` ne tient pas compte des dépendances entre besoins : l'avis A18 suffit (réponse de l'utilisateur à Q-01, 2026-11-19) | RG-14, CA-22 |
 | D-21 (PRD 004) | le contrôle lit l'état courant, en lecture seule, sans rien corriger | RG-20, RG-21, CA-13, CS-04 |
 
 ## 8. Questions
-- **Q-01** (RG-14, F-15) Un besoin dont une dépendance n'est pas `Fait` doit-il avoir un effet sur `etat-issues.sh --prochaine` (ses issues « prêtes » seraient écartées) ? Le backlog le note « à cadrer » ; D-48 ne le dit pas. Options : (a) aucun effet, le lien entre besoins est un contrôle (avis A18 seulement) ; (b) écarter les issues d'un besoin dont une dépendance n'est pas `Fait` ; (c) les écarter seulement si la dépendance n'est pas démarrée. Recommandation : (a), l'empilement de branches permet de commencer avant et l'avis suffit ; (b) et (c) demanderaient des critères de plus.
+- **Q-01** (RG-14, F-15) `--prochaine` doit-il tenir compte des dépendances entre besoins ? Réponse de l'utilisateur : option (a), non, l'avis A18 suffit (D-53). Appliquée en RG-14 et CA-22.
 
-## QUESTIONS
-- **Q-01** (F-15) `--prochaine` doit-il tenir compte des dépendances entre besoins ? Options : (a) non, avis seulement ; (b) oui, écarter ; (c) oui seulement si la dépendance n'est pas démarrée. Recommandation : (a).
+## QUESTIONS : aucune
 
 ## 9. Découpage en issues (indicatif)
 Chaque critère est couvert par exactement une issue ; dépendances : 011-01, puis 011-02, puis 011-03. Aucune issue ne dépasse 9 critères.

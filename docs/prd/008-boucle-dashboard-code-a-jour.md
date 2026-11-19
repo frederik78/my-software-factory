@@ -8,15 +8,15 @@
 **Ce que ce besoin change (D-45)**
 1. **Chaque tour relit le code sur le disque.** À chaque tour, la boucle relance le script depuis le disque, dans un processus séparé, pour une seule génération : le script et ses bibliothèques sont donc relus à chaque fois.
 2. **Une erreur n'arrête pas la boucle.** Si une génération échoue (par exemple pendant qu'une mise à jour remplace les fichiers), la page précédente reste en place, l'erreur est écrite sur la sortie d'erreur, et la boucle réessaie au tour suivant. Seul Ctrl-C l'arrête.
-3. **Les options sont fixées au lancement.** `--sortie`, `--attente` et `--theme` (et `--boucle`) gardent leur valeur de départ ; seul le code est rechargé. Pour les changer, on relance.
+3. **Les options sont fixées au lancement.** `--sortie`, `--attente` et `--theme` (et `--boucle`) gardent leur valeur de départ, y compris le thème issu de la configuration (D-50) ; seul le code est rechargé. Pour les changer, on relance.
 4. **La page reste écrite de façon atomique** : la page précédente n'est jamais tronquée, y compris sur erreur ou Ctrl-C.
 5. **Le rappel du README** « relancez la boucle après une mise à jour » est remplacé par une phrase qui dit que la boucle recharge le code à chaque tour, sauf ses propres options.
 
-**Hors de ce besoin** : recharger les options ou la configuration en cours de boucle (voir Q-01 pour le thème issu de la configuration), changer le contenu de la page, le mode une génération, le calcul des statuts, l'ajout d'un délai maximal de génération (bash 3.2 de macOS n'a pas de commande de délai), tout nouveau coût Git.
+**Hors de ce besoin** : recharger les options ou la configuration en cours de boucle (y compris le thème issu de la configuration, D-50), changer le contenu de la page, le mode une génération, le calcul des statuts, l'ajout d'un délai maximal de génération (bash 3.2 de macOS n'a pas de commande de délai), tout nouveau coût Git.
 
-**Comment lire la suite** : section 2, les règles (RG-xx) ; section 5, 16 critères ; section 6, 5 critères de sécurité ; section 7, décisions reprises ; section 8, la question ouverte ; section 9, le découpage en 3 issues.
+**Comment lire la suite** : section 2, les règles (RG-xx) ; section 5, 16 critères ; section 6, 5 critères de sécurité ; section 7, décisions reprises ; section 8, question tranchée ; section 9, le découpage en 3 issues.
 
-Besoin : F-11 (`backlog.md`). Décision de cadrage reprise telle quelle : D-45 (principe voisin : D-26, pas de duplication de code mort ; ici, pas d'ancien code qui survit). Ce PRD ne rouvre pas cette décision.
+Besoin : F-11 (`backlog.md`). Décisions de cadrage reprises telles quelles : D-45 et D-50. Principe voisin : D-26 (pas de duplication de code mort ; ici, pas d'ancien code qui survit). Ce PRD ne rouvre aucune de ces décisions.
 Le « produit » est la factory elle-même (scripts bash, Markdown). Les noms de commande, d'option et de message visibles par les utilisateurs sont des contrats ; aucune structure de code n'est décrite.
 Contraintes de plateforme : bash 3.2 de macOS (pas de commande de délai, pas d'options GNU) ; aucune dépendance ajoutée.
 
@@ -43,7 +43,7 @@ Vocabulaire : **tour** = une génération de la page suivie de l'attente de `<s>
 ### 2.1 Rechargement (D-45)
 - **RG-01 (une génération par tour, relue du disque)** À chaque tour, la génération est une exécution du script **telle qu'il est sur le disque à cet instant**, dans un processus séparé de celui de la boucle, pour une seule génération (équivalente à un lancement sans `--boucle` avec les mêmes options de lancement). Le script et ses bibliothèques sont relus à chaque tour.
 - **RG-02 (le script lancé est celui de la factory)** Le script relancé est le fichier même qui a démarré la boucle (son emplacement au démarrage), jamais un script trouvé par le répertoire courant ou le `PATH` au moment du tour.
-- **RG-03 (options fixées)** Les options de lancement (valeurs et défauts résolus au démarrage) sont les mêmes à tous les tours : une modification du code ou de la configuration pendant la boucle ne change ni la sortie, ni le délai d'attente de la page, ni l'intervalle de la boucle, ni le thème (voir Q-01 pour le thème issu de la configuration).
+- **RG-03 (options fixées, D-45 et D-50)** Les options de lancement (valeurs et défauts résolus au démarrage) sont les mêmes à tous les tours : une modification du code ou de la configuration pendant la boucle ne change ni la sortie, ni le délai d'attente de la page, ni l'intervalle de la boucle, ni le thème. Le thème est la valeur **résolue au démarrage** (option `--theme`, sinon `DASHBOARD_THEME` de la configuration, sinon le défaut), transmise à chaque tour ; une modification de `DASHBOARD_THEME` en cours de boucle n'est pas prise en compte (D-50).
 - **RG-04 (validation au lancement)** Les options sont validées au démarrage comme aujourd'hui (usage ou dossier de sortie inexistant : message et code 64, la boucle ne démarre pas). Ce n'est pas une « génération en erreur ».
 - **RG-05 (message de démarrage)** Le message « Régénération de <sortie> toutes les <s> s (Ctrl-C pour arrêter). » est conservé tel quel.
 
@@ -78,7 +78,7 @@ Identifiants au format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les 
 - **CA-01** Given une boucle (`--boucle 1`) lancée dans un projet jetable, When le script est modifié sur le disque (une marque lisible dans la page) pendant qu'elle tourne, Then la page produite au plus deux tours plus tard contient la marque, sans relancer la boucle.
 - **CA-02** Given la même boucle, When une bibliothèque `lib-*` chargée par le script est modifiée de la même façon, Then la page produite au tour suivant reflète la nouvelle bibliothèque.
 - **CA-03** Given une boucle arrêtée après N générations, When on compte les exécutions du contrôle de statuts et les processus de génération (script de comptage dans le projet jetable), Then il y en a exactement une par tour, chacune dans un processus distinct de celui de la boucle.
-- **CA-04** Given une boucle lancée avec `--sortie`, `--attente 7` et `--theme sombre`, When le code et la configuration (`DASHBOARD_THEME`, `.factory.local.conf`) sont modifiés pendant la boucle, Then chaque page produite a le même fichier de sortie, le même délai de rafraîchissement (7) et le thème sombre (hors Q-01).
+- **CA-04** Given une boucle lancée avec `--sortie`, `--attente 7` et `--theme sombre`, puis une autre lancée sans `--theme` avec `DASHBOARD_THEME` valant `sombre` dans la configuration, When le code et la configuration (`DASHBOARD_THEME` mis à `clair`, `.factory.local.conf`) sont modifiés pendant la boucle, Then chaque page produite a le même fichier de sortie, le même délai de rafraîchissement (7) et le thème sombre (valeur résolue au démarrage, D-50).
 - **CA-05** Given des options invalides (délai non numérique, dossier de sortie inexistant), When on lance `--boucle`, Then message d'usage ou d'erreur et code 64 immédiat, aucune boucle, aucune page.
 - **CA-06** Given une boucle valide, When elle démarre, Then la sortie standard commence par `Régénération de <sortie> toutes les <s> s (Ctrl-C pour arrêter).` ; Given aucun `--boucle`, Then sortie, page et codes de sortie (0 ; 64 sur usage ; 1 sur échec d'écriture) sont identiques à ceux de la version précédente, les tests existants du mode une génération passant sans modification.
 
@@ -135,13 +135,11 @@ Identifiants au format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les 
 | Décision | Contenu | Reflété dans |
 |---|---|---|
 | D-45 | Une génération par tour relancée depuis le disque en processus séparé ; erreur : page gardée, message sur la sortie d'erreur, nouvel essai ; options fixées au lancement ; README remplacé | RG-01 à RG-14, CA-01 à CA-16, CS-01 à CS-05 |
+| D-50 | Q-01 (2026-11-19), option A : le thème issu de la configuration est la valeur résolue au démarrage, fixée comme les options ; une modification de `DASHBOARD_THEME` en cours de boucle n'est pas prise en compte | RG-03, CA-04 |
 | Cadrage (2026-11-19) | Page atomique, jamais tronquée, y compris sur erreur ou Ctrl-C ; aucun nouveau coût Git ; code de sortie du mode une génération inchangé ; tests à durées bornées | RG-10, RG-11, RG-12, CA-06, CA-10, CA-11, CA-14 |
 
 ## 8. Questions
-- **Q-01 (F-11) Thème issu de la configuration.** D-45 fixe `--theme` au lancement ; la clé `DASHBOARD_THEME` de la configuration est lue à chaque génération par le code relancé. Lecture provisoire retenue : la valeur **résolue au démarrage** (option ou configuration) est transmise à chaque tour, donc fixée ; RG-03 et CA-04 l'écrivent ainsi `[À CLARIFIER Q-01]`.
-
-## QUESTIONS
-- **Q-01 (F-11)** Une modification de `DASHBOARD_THEME` dans la configuration, pendant que la boucle tourne et sans `--theme`, doit-elle être prise en compte ? Options : (A) non, la valeur résolue au démarrage est fixée (cohérent avec D-45 « options fixées au lancement ») ; (B) oui seulement si `--theme` n'a pas été donné (la configuration est du « code » rechargé) ; (C) oui toujours, sauf option explicite. **Recommandation : A** (une seule règle simple, les options et leurs valeurs par défaut sont figées ensemble).
+Tranchée par l'utilisateur le 2026-11-19 (Q-01, réponse consignée en section 7, D-50).
 
 ## 9. Découpage en issues (indicatif)
 Chaque critère est couvert par exactement une issue ; dépendances : 01, puis 02 (le rechargement existe avant la gestion d'erreur), 03 en dernier.
@@ -151,3 +149,5 @@ Chaque critère est couvert par exactement une issue ; dépendances : 01, puis 0
 | 008-01 | Une génération par tour relancée du disque, options fixées, validation au lancement, mode une génération inchangé, arguments et script relancé non interprétés | CA-01 à CA-06, CS-01, CS-02 |
 | 008-02 | Erreur de génération sans arrêt, signaux, page atomique, pas de boucle serrée, sortie d'erreur et temporaires | CA-07 à CA-10, CS-03 à CS-05 |
 | 008-03 | Coût (Git), documentation, version, CHANGELOG et UPGRADE, tests regroupés à durée bornée, non-régression | CA-11 à CA-16 |
+
+## QUESTIONS : aucune

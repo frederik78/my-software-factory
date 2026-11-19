@@ -1,12 +1,12 @@
 ---
 id: 010-02
-titre: Lecture
+titre: Constats récurrents : lecture par les briefs et la skill deliver
 prd: docs/prd/010-constats-recurrents.md
 besoin: F-13
 statut: À faire
 depend_de: [010-01]
 criteres: [CA-06, CA-07, CA-08, CA-09, CA-10, CA-15, CS-01]
-branche: feat/010-02-lecture
+branche: feat/010-02-lecture-briefs-deliver
 commits: []
 revue:
 ---

@@ -1,12 +1,12 @@
 ---
 id: 010-01
-titre: Le recueil
+titre: Constats récurrents : le recueil, son modèle et ses contrôles
 prd: docs/prd/010-constats-recurrents.md
 besoin: F-13
 statut: À faire
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CS-02, CS-03, CS-05]
-branche: feat/010-01-le-recueil
+branche: feat/010-01-recueil-modele-controles
 commits: []
 revue:
 ---

@@ -3,7 +3,7 @@ id: 009-01
 titre: Règles de l'orchestrateur : trois clés de configuration
 prd: docs/prd/009-regles-orchestrateur-dans-la-factory.md
 besoin: F-14
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CS-01, CS-03]
 branche: feat/009-01-trois-cles-configuration

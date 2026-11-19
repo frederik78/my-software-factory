@@ -3,7 +3,7 @@ id: 005-01
 titre: Format de revue consolidé et retouches de F-01
 prd: docs/prd/005-format-revue-consolide.md
 besoin: F-12
-statut: En cours
+statut: En revue
 depend_de: [004-05]
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CA-07, CA-08, CA-17, CA-18, CS-06]
 criteres_justification: Onze critères sur une seule règle (le format consolidé) et ses deux retouches de textes voisines ; les séparer ferait couvrir un même fichier de gabarit par deux issues.

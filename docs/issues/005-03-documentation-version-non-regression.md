@@ -28,3 +28,8 @@ Un test par critère qui échoue puis réussit.
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - Version 1.25.0 attendue (suivante libre après 1.24.0 de F-09) ; à confirmer au moment de la livraison.
+- 2026-11-19 Version : 1.25.0 confirmée (la version courante au départ était 1.24.1, livrée par 004-06 ; aucune autre version prise depuis).
+- 2026-11-19 Cas de lecture de textes réécrits (CA-22), liste justifiée : (1) `ca35` (UPGRADE : « la section 1.24.0 est la première ») devient « suivie de la section 1.23.0 », car la section 1.25.0 passe devant ; (2) `ca41` (« le CHANGELOG mentionne le retrait ») lit désormais l'entrée 1.24.1 et non la première entrée ; (3) `ca09_report_format_la_section_du_code_reviewer_est_inchangee` (PRD 006) : empreinte de la section « Rapport du reviewer » mise à jour, car CA-19 impose de réécrire son dernier paragraphe (la session écrit la ligne de tête). Aucun autre cas existant n'est modifié.
+- 2026-11-19 `docs/reviews/README.md` est rendu identique à son modèle (CA-19) ; aucun fichier de revue (`docs/reviews/<id>.md`) n'est touché. Les motifs « A01 à A15 » du CHANGELOG (entrée 1.24.0) et de l'UPGRADE (section 1.24.0) sont de l'historique exact de cette version et exigés par `ca35` : ils restent ; la version courante dit A01 à A16 (catalogue de `factory/README.md`, entrée 1.25.0).
+- 2026-11-19 Les avis A16 attendus sur les revues d'avant F-01 sont une décision de l'utilisateur en attente : mentionnés au CHANGELOG, non corrigés.
+- 2026-11-19 Non-régression CA-22 : base = commit du PRD 005 (57b96dd) ; commits de F-12 repérés par leur sujet (`005-01` à `005-03`), comme pour F-01 (`ca17`) ; limite : un commit de F-12 sans cette mention échappe au contrôle.

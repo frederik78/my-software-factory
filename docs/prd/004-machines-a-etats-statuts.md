@@ -145,6 +145,7 @@ Vocabulaire : **issue démarrée** = statut effectif `En cours`, `En revue` ou `
 | A14 | avis | `issue <id>` | `PRD <chemin> non listé dans le backlog pour le besoin <id>` \| `PRD <chemin> introuvable` |
 | A15 | avis | `besoin <id>` | `Abandonnée alors que l'issue <id> est <statut>` |
 | A16 | avis | `issue <id>` | `fichier de revue mal formé <chemin> : <cause>` ; causes : `plus d'une ligne VERDICT:`, `la première ligne n'est pas la ligne VERDICT:` (PRD 005) |
+| A17 | avis | `issue <id>` | `<statut> sans champ branche renseigné` (PRD 007) |
 
   Un fichier d'issue en erreur E10, E11 ou E14 n'est comptée pour aucun besoin (sa propre ligne l'indique) et n'émet aucun autre constat. Une valeur inconnue est une erreur, pas un avis, parce qu'elle fausse tous les comptes. Les textes de ce catalogue citent des noms de statut : ils sont des messages (contrats), pas des listes (RG-32).
 

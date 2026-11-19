@@ -27,3 +27,6 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, `sc
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-19 : choix du développeur (à trancher par l'utilisateur) : un `VERDICT: APPROUVÉ` d'un relecteur dont le rapport contient un constat BLOQUANT ou IMPORTANT ouvert est consigné `CHANGEMENTS DEMANDÉS` en verdict global (la session prime), alors que `Verdict du relecteur` garde la valeur du script ; le PRD ne le prévoit pas (RG-09), choix le plus sûr.
+- 2026-11-19 : la skill ajoute une étape « 3 bis » (mode parallèle) entre les étapes 3 et 4 ; l'étape 3 n'est pas réécrite (chaque ligne d'avant le besoin est gardée, fixture `golden/ca12-deliver-etapes-3-4-unique.txt`). Les itérations suivantes, le tour final, le suivi fusionné et l'arrêt du mode parallèle restent à 006-04.
+- 2026-11-19 : CA-12 « octet pour octet » est vérifié par la conservation de chaque ligne des étapes 3 et 4 du mode `unique` et les empreintes de `code-reviewer.md` et `briefs/reviewer.md`, pas par l'exécution de la skill (impossible en test).

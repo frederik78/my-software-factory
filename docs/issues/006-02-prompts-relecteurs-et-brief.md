@@ -27,3 +27,7 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, `sc
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-19 : brief commun nommé `factory/prompts/briefs/relecteurs.md` (nom non fixé par le PRD) ; `code-reviewer.md` et `briefs/reviewer.md` contrôlés octet pour octet par empreinte SHA-256 dans `run.sh`.
+- 2026-11-19 : section « Rapport d'un relecteur (revue parallèle) » ajoutée en fin de `report-format.md` (le reste du fichier, dont la section du reviewer, est inchangé, contrôlé par empreinte) ; limite 80 lignes écrite dans cette section, pas dans les règles générales.
+- 2026-11-19 : conformité et qualité disent aussi qu'une vulnérabilité OWASP avérée aperçue est BLOQUANTE (CS-06 vise les trois prompts) ; seule la sécurité parcourt A01 à A10.
+- 2026-11-19 : suite `run.sh` 1686 -> 1780 vérifications (+94) ; RED constaté avant les prompts (39 échecs sur 81 nouveaux cas, les autres sont des gardes d'absence ou d'inchangé).

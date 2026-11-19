@@ -1504,6 +1504,9 @@ echo "0.0.1" > .factory-version
 verifier "init : version différente signalée et mise à jour" 0 "mis à jour .factory-version \(0.0.1 ->" ./factory/init-projet.sh
 echo "MODIFIÉ" >> AGENTS.md
 verifier "init : relance sans rien écraser" 0 "conservé +AGENTS.md" ./factory/init-projet.sh
+d5_liens() { local f cible manque=""; for f in factory/scripts/statuts.sh factory/scripts/lib-*.sh; do cible="scripts/$(basename "$f")"; { [ -L "$cible" ] && [ "$(readlink "$cible")" = "../$f" ] && [ -f "$cible" ]; } || manque="$manque $cible"; done; [ -x scripts/statuts.sh ] || manque="$manque (scripts/statuts.sh non exécutable)"; [ -z "$manque" ] || { echo "liens manquants :$manque"; return 1; }; }
+verifier "ca34_init : les liens scripts/statuts.sh et scripts/lib-*.sh (bibliothèques du contrôle) sont créés vers factory/scripts/" 0 "" d5_liens
+verifier "ca34_init : scripts/statuts.sh --table fonctionne par son lien dans le projet initialisé (bibliothèques et table trouvées)" 0 "Statuts d'une issue" ./scripts/statuts.sh --table
 tail -1 AGENTS.md | grep -q MODIFIÉ && ok "AGENTS.md modifié est conservé" || ko "AGENTS.md modifié est conservé"
 [ -f .claude/agents/developer.md ] && grep -q '^tools: Read, Write, Edit, Glob, Grep, Bash$' .claude/agents/developer.md && ok "agent généré avec les outils de l'en-tête (sans suivi de progression)" || ko "agent généré" "$(cat .claude/agents/developer.md 2>&1 | head -6)"
 [ ! -e factory/prompts/orchestrator.md ] && [ ! -e .claude/agents/orchestrator.md ] && ok "pas de prompt ni d'agent orchestrateur (rôle de la session principale)" || ko "pas de prompt ni d'agent orchestrateur"
@@ -4704,8 +4707,10 @@ for issue_d5 in 004-01 004-02 004-03 004-04 004-05; do
   verifier "ca36_issue $issue_d5 : chaque critère CA/CS a un test de cette suite dont le nom contient son identifiant (criteres-sans-test.sh)" 0 "^OK " "$depot/scripts/criteres-sans-test.sh" "$issue_d5"
 done
 verifier "ca36_CA-38 à CA-41 sont déclarés par l'issue 004-06 (retrait des anciennes listes), leurs tests sont les siens" 0 "" test "$(grep -m1 '^criteres:' "$depot"/docs/issues/004-06-*.md)" = "criteres: [CA-38, CA-39, CA-40, CA-41]"
-verifier "ca36_environnement isolé : GIT_CONFIG_GLOBAL et GIT_CONFIG_SYSTEM valent /dev/null, HOME est un dossier jetable de la suite" 0 "" test "$GIT_CONFIG_GLOBAL|$GIT_CONFIG_SYSTEM|$HOME" = "/dev/null|/dev/null|$racine_tmp/home"
-d5_jetable() { case "$PWD" in "$racine_tmp"/*) [ "$(git remote | wc -l | tr -d ' ')" = 0 ] ;; *) return 1 ;; esac; }
+d5_sous_la_suite() { local base; base="$(cd "$racine_tmp" && pwd -P)"; case "$(cd "$1" && pwd -P)" in "$base"/*) return 0 ;; *) return 1 ;; esac; } # d5_sous_la_suite <dossier> : le dossier est sous le dossier jetable de la suite
+d5_isole() { [ "$GIT_CONFIG_GLOBAL|$GIT_CONFIG_SYSTEM" = "/dev/null|/dev/null" ] && d5_sous_la_suite "$HOME"; }
+verifier "ca36_environnement isolé : GIT_CONFIG_GLOBAL et GIT_CONFIG_SYSTEM valent /dev/null, HOME est un dossier jetable sous celui de la suite" 0 "" d5_isole
+d5_jetable() { d5_sous_la_suite "$PWD" && [ "$(git remote | wc -l | tr -d ' ')" = 0 ]; }
 verifier "ca36_dépôts jetables : le projet courant est sous le dossier jetable de la suite, sans remote ni dépôt réel" 0 "" d5_jetable
 verifier "ca36_sans réseau : les cas de l'issue 004-05 n'appellent ni curl, wget, ssh, nc, ni fetch, pull, push, clone ou ls-remote" 0 "" test "$(sed -n '/^echo "dashboard.sh : section « Contrôle des statuts »/,$p' "$ici/run.sh" | grep -v '^verifier "ca36_sans réseau' | grep -c -E -e '(^|[^a-z])(curl|wget|ssh|nc)([^a-z]|$)' -e 'git (fetch|pull|push|clone|ls-remote)')" = 0
 

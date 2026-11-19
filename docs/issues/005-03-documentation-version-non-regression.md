@@ -3,12 +3,12 @@ id: 005-03
 titre: Documentation, version 1.25.0 et non-régression
 prd: docs/prd/005-format-revue-consolide.md
 besoin: F-12
-statut: En revue
+statut: Fait
 depend_de: [005-02]
 criteres: [CA-19, CA-20, CA-21, CA-22]
 branche:
-commits: []
-revue:
+commits: [215b420, 7cc80a0, 735af13, 4e8a901, cac6a85, 172f603]
+revue: APPROUVÉ (itération 2, docs/reviews/005-03.md)
 ---
 
 ## Objectif
@@ -36,3 +36,4 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-19 Revue 1, constat 1 (CA-22) : la plage de la branche n'est pas utilisable proprement (les commits de F-12 sont mêlés à ceux de 004-06 et de F-02 entre `94c66a8^` et la pointe, dont certains touchent `dashboard.sh`), donc les commits de F-12 restent repérés par leur sujet, élargi à `005-0[1-9]`. Limite consignée : un commit de F-12 sans « 005-0x » dans son message n'est pas attribué à F-12. Un cas sur dépôt jetable prouve la détection (commit « 005-05 » touchant `fin-issue.sh` et une revue existante) et borne la limite (commit sans identifiant touchant `dashboard.sh`). Le RED de ce cas n'a pas été constaté à part : l'élargissement du motif est dans le même commit.
 - 2026-11-19 Constat 2 : la référence des revues existantes est l'état juste avant le premier commit de F-12 (`94c66a8^`).
 - 2026-11-19 Constat 3 : `AGENTS.md` et `factory/templates/AGENTS.md` (ligne `scripts/statuts.sh`) disent « avis A01 à A16 » ; le cas `ca34` (motif de cette ligne) attend A01 à A16 (RED constaté par la modification du cas avant celle des fichiers : ce cas échoue sur le commit de test).
+- 2026-11-19 Clôture : revue 2 APPROUVÉ (revue 1 : un IMPORTANT corrigé). `FIN-ISSUE OK 005-03 674b119 : 1970 tests, 0 échec, 0 ignoré` ; `run.sh` direct (relecteur) 1978 OK. Limite consignée de CA-22 : le contrôle repère les commits de F-12 par leur sujet (`005-0[1-9]`) et par une base fixe (`94c66a8^`) ; un commit sans identifiant n'est pas attribué à F-12 (aucun commit de F-12 sans identifiant ne touche un fichier interdit aujourd'hui) ; les revues 004-04 à 004-06 sont postérieures à la base et non protégées. Décision D-49 (rattrapage des 10 revues d'avant F-01) livrée par la branche `docs/rattrapage-revues-avant-f01`. Branche empilée sur le correctif de fusion déjà fusionné dans develop.

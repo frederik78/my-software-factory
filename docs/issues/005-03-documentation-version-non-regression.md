@@ -3,7 +3,7 @@ id: 005-03
 titre: Documentation, version 1.25.0 et non-régression
 prd: docs/prd/005-format-revue-consolide.md
 besoin: F-12
-statut: En revue
+statut: En cours
 depend_de: [005-02]
 criteres: [CA-19, CA-20, CA-21, CA-22]
 branche:

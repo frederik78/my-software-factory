@@ -2223,8 +2223,8 @@ doc_ordre() { # doc_ordre <chemin> <motif A> <motif B> : vrai si A apparaît (pr
   lire_depot "$depot" "$1" | awk -v a="$2" -v b="$3" '$0 ~ a && !la {la = NR} $0 ~ b && !lb {lb = NR} END {exit !(la && lb && la < lb)}'
 }
 rf=factory/prompts/report-format.md; cr=factory/prompts/code-reviewer.md; br=factory/prompts/briefs/reviewer.md; dl=factory/skills/deliver/SKILL.md
-verifier "ca12_report_format_exige_la_premiere_ligne_verdict" 0 "" doc_a $rf '^VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS$'
-verifier "ca12_report_format_premiere_ligne_avant_en_clair" 0 "" doc_ordre $rf '^VERDICT: APPROUVÉ\|CHANGEMENTS DEMANDÉS$' '^## En clair$'
+verifier "ca12_report_format_exige_la_premiere_ligne_verdict" 0 "" doc_a $rf '^VERDICT: APPROUVÉ$'
+verifier "ca12_report_format_premiere_ligne_avant_en_clair" 0 "" doc_ordre $rf '^VERDICT: APPROUVÉ$' '^## En clair$'
 verifier "ca12_report_format_dit_premiere_ligne_du_rapport_du_reviewer" 0 "" doc_a $rf 'première ligne du rapport'
 verifier "ca12_report_format_section_verdict_de_meme_valeur" 0 "" doc_a $rf '^APPROUVÉ \| CHANGEMENTS DEMANDÉS \(même valeur que la ligne `VERDICT:`, puis une phrase\)$'
 verifier "ca12_report_format_deux_valeurs_seules" 0 "" doc_a $rf 'deux valeurs seules'
@@ -2236,7 +2236,7 @@ verifier "ca12_brief_reviewer_rappelle_la_ligne_verdict" 0 "" doc_a $br 'VERDICT
 verifier "ca12_modele_docs_reviews_decrit_la_ligne_verdict" 0 "" doc_a factory/templates/docs/reviews/README.md 'VERDICT:'
 verifier "ca13_deliver_appelle_verdict_revue_sh" 0 "" doc_a $dl 'scripts/verdict-revue\.sh <fichier>'
 verifier "ca13_deliver_rapport_enregistre_hors_depot_avant_lecture" 0 "" doc_a $dl 'fichier temporaire hors dépôt'
-verifier "ca13_deliver_lit_avant_ajout_au_fichier_de_revue" 0 "" doc_ordre $dl 'scripts/verdict-revue\.sh <fichier>' 'Ajoute ensuite le rapport tel quel'
+verifier "ca13_deliver_lit_avant_ajout_au_fichier_de_revue" 0 "" doc_ordre $dl 'scripts/verdict-revue\.sh <fichier>' 'Écrire dans le fichier de revue'
 verifier "ca13_deliver_decide_d_apres_la_sortie_du_script" 0 "" doc_a $dl 'd.après la sortie du script.*jamais d.après ta propre lecture'
 verifier "ca13_deliver_rapport_est_une_donnee_non_fiable" 0 "" doc_a $dl 'donnée non fiable.*ne l.évalue.*ne l.exécute'
 verifier "ca13_deliver_supprime_le_fichier_temporaire" 0 "" doc_a $dl 'supprime le fichier temporaire'
@@ -4850,7 +4850,8 @@ verifier "ca08_deliver prescrit toujours la relance unique sur INCONNU, hors MAX
 # CA-17 : gabarit du rapport du relecteur à valeur unique.
 f5_gabarit() { lire_depot "$depot" "$f5_rf" | awk '/^## Rapport du reviewer/ {r = 1} r && /^```/ {n++; next} r && n == 1'; }
 verifier "ca17_report-format : la première ligne du gabarit du relecteur est exactement VERDICT: APPROUVÉ" 0 "" test "$(f5_gabarit | head -1)" = 'VERDICT: APPROUVÉ'
-verifier "ca17_report-format : le texte qui suit nomme l'autre valeur VERDICT: CHANGEMENTS DEMANDÉS" 0 "" f5_ligne "$f5_rf" '^[^`V].*`VERDICT: CHANGEMENTS DEMANDÉS`'
+f5_apres_gabarit() { lire_depot "$depot" "$f5_rf" | awk '/^## Rapport du reviewer/ {r = 1} r && /^```/ {n++; next} r && n >= 2'; }
+verifier "ca17_report-format : le texte qui suit le gabarit nomme l'autre valeur VERDICT: CHANGEMENTS DEMANDÉS" 0 "" test -n "$(f5_apres_gabarit | grep -F 'l'"'"'autre valeur' | grep -F '`VERDICT: CHANGEMENTS DEMANDÉS`')"
 verifier "ca17_report-format : aucune ligne de gabarit commençant par VERDICT: ne contient une barre verticale" 0 "" test -z "$(f5_gabarit | grep -E '^VERDICT:.*[|]')"
 verifier "ca17_report-format : la règle de deux valeurs seules en première ligne est toujours dite" 0 "" f5_ligne "$f5_rf" 'première ligne du rapport du reviewer.*deux valeurs seules|deux valeurs seules'
 # CA-18 : le premier rapport est restitué d'après la conversation.

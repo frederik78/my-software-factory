@@ -4076,6 +4076,412 @@ STATUTS : 4 erreur(s), 0 avis
 TXT
 verifier "ca20_sûreté : le fichier « marque » n'existe pas" 0 "" test ! -e marque
 
+echo "statuts.sh : sûreté et coût (PRD 004, issue 004-04)"
+# Bash 3.2 de macOS (PATH dont « bash » est /bin/bash) : certains cas tournent avec les deux interpréteurs ; le contrôle doit se comporter de même.
+ro_b32="$racine_tmp/bash32"; mkdir -p "$ro_b32"; ln -sf /bin/bash "$ro_b32/bash"
+ro_shells="defaut"; [ -x /bin/bash ] && ro_shells="defaut b32"
+ro_statuts() { # ro_statuts <défaut|b32> [arguments] : scripts/statuts.sh du projet courant, avec le bash du PATH (défaut) ou le bash 3.2 de macOS (b32)
+  local v="$1"; shift
+  if [ "$v" = b32 ]; then PATH="$ro_b32:$PATH" perl -e 'alarm 120; exec @ARGV' scripts/statuts.sh "$@"; else perl -e 'alarm 120; exec @ARGV' scripts/statuts.sh "$@"; fi
+}
+
+# ca28 : lecture seule. Dépôt riche : erreurs et avis, branches (fusionnée ou non), worktree, fichier modifié et fichier non suivi dans l'arbre de travail.
+ro_riche() { # ro_riche : projet courant = dépôt jetable riche ; $ro_wt = chemin du worktree (hors du projet)
+  bs_depot
+  printf '%s\n' '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |' '| F-02 | B | P1 | Fait | `docs/prd/p.md` | |' '| F-03 | B | P1 | Zut | | |' '| F-04 | B | P1 | Spécifié | `docs/prd/absent.md` | |' | st_backlog
+  bs_issue 004-71 Fait F-02 feat/b; bs_issue 004-72 "En cours" F-01 feat/nf; bs_issue 004-73 "En revue" F-01 ""; bs_issue 004-74 "Bof" F-01
+  bs_issue 004-75 "À faire" F-99; bs_issue 004-76 Abandonnée F-04; bs_issue 004-77 Fait F-01 feat/gone
+  sed -i.bak 's/^revue:.*/revue:/' docs/issues/004-77-x.md; rm docs/issues/004-77-x.md.bak # A01 : Fait sans revue
+  ln -s ../backlog.md docs/issues/004-78-x.md # E14 : lien symbolique
+  printf 'APPROUVÉ\n' > docs/reviews/004-71.md; printf 'CHANGEMENTS DEMANDÉS\n' > docs/reviews/004-77.md
+  gd_ add backlog.md docs/reviews/004-71.md; gd_ commit -q -m "revue"
+  ro_wt="$racine_tmp/ro-wt-$$"; rm -rf "$ro_wt"; git worktree add -q "$ro_wt" feat/nf
+  printf 'modifié\n' >> docs/prd/p.md; printf 'non suivi\n' > docs/prd/non-suivi.md
+  find . -exec touch -h -t 202001010000 {} + # dates dans le passé : toute réécriture, même identique, change la date et se voit à la seconde près
+}
+ro_instantane() { # ro_instantane <fichier> : empreinte du projet (arbre, .git entier avec index et refs, dates comprises), des refs, des worktrees et du statut
+  {
+    find . -ls | LC_ALL=C sort -k11
+    find . -type f -exec cksum {} + 2>/dev/null | LC_ALL=C sort -k3
+    git for-each-ref; git worktree list --porcelain; git --no-optional-locks status --porcelain
+  } > "$1" 2>&1
+}
+ro_surveiller_verrou() { # ro_surveiller_verrou <fichier témoin> : surveille en tâche de fond l'apparition d'un verrou d'index (projet et worktrees) ; $ro_veilleur = son PID
+  rm -f "$1"
+  ( while :; do { [ -e .git/index.lock ] || [ -n "$(ls .git/worktrees/*/index.lock 2>/dev/null)" ]; } && echo vu > "$1"; sleep 0.005; done ) &
+  ro_veilleur=$!
+}
+ro_riche
+mkdir -p "$racine_tmp/ro-dash"; rm -f "$racine_tmp/ro-dash"/*
+ro_instantane "$racine_tmp/ro.avant"
+ro_surveiller_verrou "$racine_tmp/ro.verrou"
+scripts/statuts.sh > "$racine_tmp/ro.out1" 2>&1; ro_c1=$?
+scripts/statuts.sh --table > "$racine_tmp/ro.out2" 2>&1; ro_c2=$?
+scripts/dashboard.sh --sortie "$racine_tmp/ro-dash/d.html" > "$racine_tmp/ro.out3" 2>&1; ro_c3=$?
+sleep 0.1; kill "$ro_veilleur" 2>/dev/null; wait "$ro_veilleur" 2>/dev/null
+ro_instantane "$racine_tmp/ro.apres"
+verifier "ca28_lecture_seule : le dépôt riche donne des erreurs et des avis (le cas est réel), --table et le dashboard réussissent ($ro_c1 $ro_c2 $ro_c3)" 0 "" test "$ro_c1|$ro_c2|$ro_c3|$(grep -c '^ERREUR' "$racine_tmp/ro.out1" | tr -d ' ' | awk '{ print ($1 >= 5) }')|$(grep -c '^AVIS' "$racine_tmp/ro.out1" | tr -d ' ' | awk '{ print ($1 >= 3) }')" = "1|0|0|1|1"
+verifier "ca28_lecture_seule : arbre (dates et sommes de contrôle), .git (index, refs, objets), refs, worktrees et git status identiques avant et après statuts.sh, --table et le dashboard" 0 "" cmp "$racine_tmp/ro.avant" "$racine_tmp/ro.apres"
+verifier "ca28_lecture_seule : aucun index.lock observé pendant l'exécution" 1 "" test -e "$racine_tmp/ro.verrou"
+verifier "ca28_lecture_seule : le dashboard n'écrit que sa sortie (d.html seul dans son dossier)" 0 "" test "$(ls "$racine_tmp/ro-dash")" = "d.html"
+# Commandes Git employées (RG-24 : aucune ne rafraîchit l'index ni n'exécute un programme configuré) : relevées par un git de comptage.
+pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
+ro_inconnues="$(awk '{ print $1 }' "$racine_tmp/git.args" | LC_ALL=C sort -u | grep -v -x -e for-each-ref -e cat-file -e rev-parse -e check-ref-format -e show -e log | tr '\n' ' ')"
+verifier "ca28_lecture_seule : statuts.sh n'emploie que for-each-ref, cat-file, rev-parse, check-ref-format, show et log (hors liste : « ${ro_inconnues:-aucune} »)" 0 "" test -z "$ro_inconnues"
+pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/ro-dash/d.html" > /dev/null 2>&1
+ro_ecritures="$(sed -E 's/--no-optional-locks //; s/-C [^ ]+ //' "$racine_tmp/git.args" | grep -E '^(add|commit|checkout|reset|restore|clean|gc|fetch|update-index|stash|merge|branch|tag|push|rebase|config|worktree (add|remove|prune|move|lock))' | wc -l | tr -d ' ')"
+ro_status_nus="$(grep -E '(^| )status( |$)' "$racine_tmp/git.args" | grep -c -v -e '--no-optional-locks')"
+verifier "ca28_lecture_seule : le dashboard n'emploie aucune commande Git d'écriture ($ro_ecritures) et tout « status » porte --no-optional-locks ($ro_status_nus sans)" 0 "" test "$ro_ecritures|$ro_status_nus" = "0|0"
+verifier "ca28_lecture_seule : le worktree est intact (git status identique, branche feat/nf)" 0 "" test "$(git -C "$ro_wt" --no-optional-locks status --porcelain | wc -l | tr -d ' ')|$(git -C "$ro_wt" rev-parse --abbrev-ref HEAD)" = "0|feat/nf"
+
+# ca29 : plafond d'appels Git. Dépôts jetables de n issues dont f Fait ; un git de comptage consigne chaque appel.
+ro_appels() { # ro_appels <n> <f> <branche déclarée> : n issues dont f Fait (les autres À faire ou En cours si une branche est déclarée) ; écrit « statuts.sh | statut effectif seul »
+  local k id statut avec
+  bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
+  for k in $(seq 1 "$1"); do
+    id="$(printf '004-%02d' "$k")"; statut="À faire"; [ -z "$3" ] || statut="En cours"; [ "$k" -gt "$2" ] || statut=Fait
+    bs_issue "$id" "$statut" F-01 "$3" none
+  done
+  pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"
+  avec="$(wc -l < "$racine_tmp/git.args" | tr -d ' ')"
+  : > "$racine_tmp/git.args" # le calcul du statut effectif seul, comme le dashboard (PRD 003) : branches locales lues une fois, puis le rattachement de chaque issue des issues dont le statut n'est pas final
+  PATH="$racine_tmp/shim:$PATH" bash -c '. scripts/lib-issues.sh; table_exiger; rattachements_charger; for f in $(issue_fichiers); do case "$(issue_champ "$f" statut)" in Fait|Abandonnée) continue ;; esac; issue_statut_effectif "$f" "$(issue_ref_branche "$f")" > /dev/null; done' > /dev/null 2>&1
+  printf '%s|%s' "$avec" "$(wc -l < "$racine_tmp/git.args" | tr -d ' ')"
+}
+ro_n3="$(ro_appels 3 1 "")"; ro_n12="$(ro_appels 12 6 "")"; ro_n50="$(ro_appels 50 25 "")"
+verifier "ca29_cout : sans branche à retenir, 3, 12 et 50 issues (1, 6 et 25 Fait) : même nombre d'appels Git (${ro_n3%|*}, ${ro_n12%|*}, ${ro_n50%|*}) et au plus 6" 0 "" test "${ro_n3%|*}" = "${ro_n12%|*}" -a "${ro_n12%|*}" = "${ro_n50%|*}" -a "${ro_n50%|*}" -le 6
+ro_b3="$(ro_appels 4 2 feat/b)"; ro_b12="$(ro_appels 12 6 feat/b)"; ro_b50="$(ro_appels 50 25 feat/b)"
+ro_d3=$(( ${ro_b3%|*} - ${ro_b3#*|} )); ro_d12=$(( ${ro_b12%|*} - ${ro_b12#*|} )); ro_d50=$(( ${ro_b50%|*} - ${ro_b50#*|} ))
+verifier "ca29_cout : issues à branche déclarée, 4, 12 et 50 issues : le contrôle dépasse le statut effectif seul de $ro_d3, $ro_d12 et $ro_d50 appels (appels : ${ro_b3}, ${ro_b12}, ${ro_b50}), au plus 3 et sans croissance" 0 "" test "$ro_d3" -le 3 -a "$ro_d12" -le "$ro_d3" -a "$ro_d50" -le "$ro_d3" -a "$ro_d3" -ge 1
+bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none; bs_issue 004-72 "À faire" F-01 "" none; bs_issue 004-73 Abandonnée F-01 "" none "- Abandonnée"; bs_issue 004-74 "En revue" F-01 feat/b none
+pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > /dev/null 2>&1
+verifier "ca29_cout : aucune issue Fait : ni appel de fusion (--merged, develop:) ni vérification de commit (cat-file)" 0 "" test "$(grep -c -e '--merged' "$racine_tmp/git.args")|$(grep -c '^cat-file' "$racine_tmp/git.args")" = "0|0"
+# Le dashboard n'exécute pas encore le contrôle (issue 004-05) : on compte les exécutions de statuts.sh pendant une génération, avec un statuts.sh de comptage dans le projet jetable.
+bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog; bs_issue 004-71 "En cours" F-01 feat/b none
+rm -f factory/scripts/statuts.sh; printf '#!/usr/bin/env bash\necho x >> "%s/statuts.appels"\necho "STATUTS : 0 erreur(s), 0 avis"\n' "$racine_tmp" > factory/scripts/statuts.sh; chmod +x factory/scripts/statuts.sh; : > "$racine_tmp/statuts.appels"
+scripts/dashboard.sh --sortie "$racine_tmp/ro-dash/d.html" > /dev/null 2>&1; ro_dc=$?
+verifier "ca29_cout : le dashboard n'exécute pas le contrôle plus d'une fois par génération ($(wc -l < "$racine_tmp/statuts.appels" | tr -d ' ') exécution(s), code $ro_dc ; 004-05 : exactement une)" 0 "" test "$ro_dc|$(wc -l < "$racine_tmp/statuts.appels" 2>/dev/null | tr -d ' ' | awk '{ print ($1 + 0 <= 1) }')" = "0|1"
+
+# ca30 : fichiers absents, vides ou illisibles : pas de message d'erreur de shell, constats de la section 2.6, code 1 seulement s'il y a une erreur.
+ro_attendu() { cat > "$racine_tmp/ro.attendu"; } # la sortie standard attendue de statuts.sh vient de l'entrée standard
+ro_cas_ok() { # ro_cas_ok <défaut|b32> <code attendu> : statuts.sh du projet courant rend ce code, exactement la sortie attendue (ro_attendu) et rien sur la sortie d'erreur
+  local code
+  ro_statuts "$1" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; code=$?
+  if [ "$code" -eq "$2" ] && cmp -s "$racine_tmp/ro.attendu" "$racine_tmp/st.out" && [ ! -s "$racine_tmp/st.err" ]; then return 0; fi
+  echo "code $code (attendu $2) ; sortie : $(head -c 600 "$racine_tmp/st.out" | tr '\n' '|') ; erreur : $(head -c 300 "$racine_tmp/st.err" | tr '\n' '|')"; return 1
+}
+bs_depot; printf '%s\n' '| F-01 | B | P1 | À faire | | |' '| F-02 | B | P1 | Spécifié | `docs/prd/p.md` | |' | st_backlog
+rm -rf docs/issues
+ro_attendu <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/issues absent : aucune issue, besoins contrôlés, pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+done
+mkdir docs/issues
+ro_attendu <<'TXT'
+STATUTS : 0 erreur(s), 0 avis
+TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/issues vide : aucune issue, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+done
+rm -rf docs/prd
+ro_attendu <<'TXT'
+ERREUR E06 besoin F-02 : statut Spécifié sans PRD valide (fichier absent : docs/prd/p.md)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/prd absent : E06 pour le besoin Spécifié (fichier absent), pas d'erreur de shell, code 1 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 1
+done
+bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
+bs_issue 004-71 Fait F-01 feat/b none; bs_issue 004-72 "En revue" F-01 feat/b none
+rm -rf docs/reviews
+ro_attendu <<'TXT'
+AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/revue.md)
+AVIS A07 issue 004-72 : En revue sans fichier de revue (docs/reviews/revue.md)
+STATUTS : 0 erreur(s), 2 avis
+TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/reviews absent : A02 (Fait) et A07 (En revue), pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+done
+bs_depot; printf '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |\n' | st_backlog
+bs_issue 004-72 "En cours" F-01 feat/b
+rm -rf docs/prd
+ro_attendu <<'TXT'
+ERREUR E06 besoin F-01 : statut En cours sans PRD valide (fichier absent : docs/prd/p.md)
+AVIS A14 issue 004-72 : PRD docs/prd/p.md introuvable
+STATUTS : 1 erreur(s), 1 avis
+TXT
+for ro_sh in $ro_shells; do
+  verifier "ca30_fichiers_absents : docs/prd absent, issue qui nomme un PRD : E06 du besoin puis A14 « introuvable » de l'issue, pas d'erreur de shell, code 1 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 1
+done
+# lecture interdite (sans effet pour root : cas ignoré)
+if [ "$(id -u)" -ne 0 ]; then
+  bs_depot; printf '| F-01 | B | P1 | En revue | `docs/prd/p.md` | |\n' | st_backlog
+  bs_issue 004-71 Fait F-01 feat/nf none; chmod 000 docs/reviews/revue.md
+  ro_attendu <<'TXT'
+AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/revue.md)
+STATUTS : 0 erreur(s), 1 avis
+TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : fichier de revue en lecture interdite : A02, pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+  done
+  chmod 644 docs/reviews/revue.md; chmod 000 docs/reviews
+  ro_attendu <<'TXT'
+AVIS A02 issue 004-71 : Fait : fichier de revue introuvable ou illisible (docs/reviews/revue.md)
+STATUTS : 0 erreur(s), 1 avis
+TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : dossier docs/reviews en lecture interdite : A02, pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+  done
+  chmod 755 docs/reviews; chmod 000 docs/prd
+  ro_attendu <<'TXT'
+ERREUR E06 besoin F-01 : statut En revue sans PRD valide (fichier absent : docs/prd/p.md)
+STATUTS : 1 erreur(s), 0 avis
+TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : dossier docs/prd en lecture interdite : E06 (fichier absent), pas d'erreur de shell, code 1 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 1
+  done
+  chmod 755 docs/prd; chmod 000 docs/issues
+  ro_attendu <<'TXT'
+AVIS A12 besoin F-01 : statut En revue en avance : toutes les issues ne sont pas Fait
+STATUTS : 0 erreur(s), 1 avis
+TXT
+  for ro_sh in $ro_shells; do
+    verifier "ca30_fichiers_absents : dossier docs/issues en lecture interdite : aucune issue lue (A12 : aucune n'est Fait), pas d'erreur de shell, code 0 [$ro_sh]" 0 "" ro_cas_ok "$ro_sh" 0
+  done
+  chmod 755 docs/issues
+fi
+
+ro_contient() { # ro_contient <fichier> <ligne exacte>... : vrai si chaque ligne figure telle quelle (comparaison littérale de la ligne entière) dans le fichier
+  local f="$1" l; shift
+  for l in "$@"; do grep -a -x -F -q -e "$l" "$f" || { echo "ligne absente : $l"; return 1; }; done
+}
+# cs01 : valeurs à caractères de contrôle (CR, tabulation, ESC, NUL, LF d'une cellule) et à plus de 120 caractères dans un statut d'issue, un identifiant,
+# un « besoin: », une cellule de statut de besoin, un identifiant de commit et un chemin de revue.
+ro_forge="$(printf 'a\rERREUR E99 forgé\tb\033[31mc\001d')"
+ro_long="$(printf 'y%.0s' $(seq 1 130))"
+bs_depot
+{ printf '| F-01 | B | P1 | À faire | | |\n'; printf '| F-02 | B | P1 | Fait\r\033[31m\tERREUR E99 forgé | | |\n'; printf '| F-03 | B | P1 | %s | | |\n' "$ro_long"; printf '| F-04 | B | P1 | Sp\000x | | |\n'; } | st_backlog
+printf -- '---\nid: 004-71\nbesoin: F-01\nstatut: Fa\000it\r\033[31m\tERREUR E99 forgé\ndepend_de: []\n---\n' > docs/issues/004-71-x.md
+printf -- '---\nid: 004-72\033[31m\rAVIS A99 forgé\tz\nbesoin: F-01\nstatut: Fait\ndepend_de: []\nrevue:\ncommits: []\n---\n' > docs/issues/004-72-x.md
+printf -- '---\nid: 004-73\nbesoin: F-0\033[1m\rERREUR E99 forgé\nstatut: À faire\ndepend_de: []\n---\n' > docs/issues/004-73-x.md
+printf -- '---\nid: 004-74\nbesoin: F-01\nstatut: Fait\nrevue: docs/reviews/revue.md\ncommits: [%s]\n---\n\n## Notes\n- `FIN-ISSUE OK 004-74 abc1234 : 1 test`\n' "$ro_forge" > docs/issues/004-74-x.md
+printf -- '---\nid: 004-75\nbesoin: F-01\nstatut: Fait\nrevue: %s\ncommits: []\n---\n' "$ro_forge" > docs/issues/004-75-x.md
+printf -- '---\nid: 004-76\nbesoin: F-01\nstatut: %s\n---\n' "$ro_long" > docs/issues/004-76-x.md
+for ro_sh in $ro_shells; do
+  ro_statuts "$ro_sh" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; ro_c=$?
+  verifier "cs01_neutralisation [$ro_sh] : code 1, sortie d'erreur vide, au moins un constat par valeur forgée" 0 "" test "$ro_c|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')|$(grep -c -E '^(ERREUR|AVIS) ' "$racine_tmp/st.out" | awk '{ print ($1 >= 8) }')" = "1|0|1"
+  verifier "cs01_neutralisation [$ro_sh] : aucun caractère de contrôle (ni CR, tabulation, ESC ni NUL) hors le saut de ligne final, aucun octet 0x00 à 0x09, 0x0B à 0x1F ou 0x7F" 1 "" grep -a -c -E "$(printf '[\001-\011\013-\037\177]')" "$racine_tmp/st.out"
+  verifier "cs01_neutralisation [$ro_sh] : chaque ligne est un constat de forme « ERREUR|AVIS Exx|Axx objet : texte » ou le récapitulatif ; aucune ligne ne commence par le code forgé E99 ou A99" 0 "" test "$(grep -a -c -v -E '^((ERREUR E[0-9][0-9]|AVIS A[0-9][0-9]) (backlog|besoin|issue|fichier) .* : .+|STATUTS : [0-9]+ erreur\(s\), [0-9]+ avis)$' "$racine_tmp/st.out")|$(grep -a -c -E '^(ERREUR E99|AVIS A99)' "$racine_tmp/st.out")" = "0|0"
+  verifier "cs01_neutralisation [$ro_sh] : chaque valeur forgée reste dans sa ligne, neutralisée (CR et tabulation = espace, ESC et contrôles retirés, un NUL coupe la valeur d'un en-tête et rend la ligne du backlog illisible, E03)" 0 "" ro_contient "$racine_tmp/st.out" \
+    "ERREUR E10 issue 004-71 : statut inconnu « Fa » (attendus : $ATTENDUS_I)" \
+    "ERREUR E05 besoin F-02 : statut inconnu « Fait [31m ERREUR E99 forgé » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)" \
+    "ERREUR E03 besoin F-04 : ligne illisible (nombre de colonnes différent de l'en-tête)" \
+    "ERREUR E12 issue 004-73 : besoin « F-0[1m ERREUR E99 forgé » inconnu du backlog" \
+    "AVIS A01 issue 004-72[31m AVIS A99 forgé z : Fait sans champ revue renseigné" \
+    "AVIS A06 issue 004-74 : commit déclaré introuvable : a ERREUR E99 forgé b[31mcd" \
+    "AVIS A02 issue 004-75 : Fait : fichier de revue introuvable ou illisible (a ERREUR E99 forgé b[31mcd)"
+  verifier "cs01_neutralisation [$ro_sh] : valeur de 130 caractères tronquée à 120 caractères suivis de « … » (statut d'issue, statut de besoin)" 0 "" test "$(grep -a -c -F "« $(printf 'y%.0s' $(seq 1 120))… »" "$racine_tmp/st.out")|$(grep -a -c "y\{121\}" "$racine_tmp/st.out")" = "2|0"
+done
+
+# cs02 : valeurs qu'un shell, un motif ou une commande lirait autrement : lues comme du texte dans chaque champ.
+ro_valeurs=('$(touch${IFS}marque)' '`touch${IFS}marque`' ';touch${IFS}marque' '-rf' '--help' '*' '[a-z]' '.*')
+ro_issue() { # ro_issue <id> <statut> <besoin> <depend_de (liste en ligne)> <branche> <commits (liste en ligne)> <revue> [nom du fichier] : issue complète, valeurs écrites telles quelles
+  printf -- '---\nid: %s\ntitre: T\nbesoin: %s\nprd:\nstatut: %s\ndepend_de: %s\ncriteres: [CA-01]\nbranche: %s\ncommits: %s\nrevue: %s\n---\n\n## Objectif\nx\n\n## Notes\n- `FIN-ISSUE OK %s abc1234 : 1 test`\n' \
+    "$1" "$3" "$2" "$4" "$5" "$6" "$7" "$1" > "docs/issues/${8:-$1}-x.md"
+}
+ro_sans_marque() { # ro_sans_marque : aucun fichier « marque » dans le projet jetable (hors .git) ni à sa racine
+  test -z "$(find . -name marque -not -path './.git/*' | head -1)"
+}
+ro_sort_egal() { # ro_sort_egal <fichier sortie> <fichier attendu> : mêmes lignes, dans un ordre quelconque (l'ordre est vérifié par ailleurs)
+  [ "$(LC_ALL=C sort "$1")" = "$(LC_ALL=C sort "$2")" ]
+}
+ro_cs02_dashboard() { # ro_cs02_dashboard <libellé> : le dashboard sur le projet courant réussit, écrit sa page et n'exécute rien
+  scripts/dashboard.sh --sortie "$racine_tmp/ro-dash/cs02.html" > "$racine_tmp/ro.dash.out" 2> "$racine_tmp/ro.dash.err"; ro_dc=$?
+  verifier "cs02_valeurs_hostiles [$1] : le dashboard réussit (code $ro_dc), écrit sa page, rien sur la sortie d'erreur, aucun fichier « marque »" 0 "" test "$ro_dc|$(test -s "$racine_tmp/ro-dash/cs02.html" && echo page)|$(wc -c < "$racine_tmp/ro.dash.err" | tr -d ' ')|$(ro_sans_marque && echo sans)" = "0|page|0|sans"
+}
+# 1) un champ à la fois : statut, besoin, depend_de, commits, revue, branche d'issue ; statut et PRD du backlog ; branches de ce nom
+bs_depot
+for ro_v in 'feat/$(touch${IFS}marque)' 'feat/`touch${IFS}marque`' 'feat/;touch${IFS}marque' 'feat/-rf' 'feat/--help'; do git branch "$ro_v" feat/b; done
+ro_attendu="$racine_tmp/ro.attendu"; : > "$ro_attendu"
+{
+  printf '%s\n' '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |'
+  for ro_k in 1 2 3 4 5 6 7 8; do
+    printf '| F-1%s | B | P1 | %s | | |\n' "$ro_k" "${ro_valeurs[$((ro_k - 1))]}"
+    printf '| F-2%s | B | P1 | Spécifié | %s | |\n' "$ro_k" "${ro_valeurs[$((ro_k - 1))]}"
+  done
+} | st_backlog
+ro_issue 004-01 "En cours" F-01 "[]" feat/b "[]" ""
+for ro_k in 1 2 3 4 5 6 7 8; do
+  ro_v="${ro_valeurs[$((ro_k - 1))]}"
+  ro_issue "004-${ro_k}1" "$ro_v" F-01 "[]" feat/b "[]" ""
+  ro_issue "004-${ro_k}3" "En cours" "$ro_v" "[]" feat/b "[]" ""
+  ro_issue "004-${ro_k}4" "En cours" F-01 "[$ro_v]" feat/b "[]" ""
+  ro_issue "004-${ro_k}5" Fait F-01 "[]" "" "[$ro_v]" docs/reviews/revue.md
+  ro_issue "004-${ro_k}6" Fait F-01 "[]" "" "[$bs_c]" "$ro_v"
+  ro_issue "004-${ro_k}7" "En cours" F-01 "[]" "$ro_v" "[]" ""
+  printf '%s\n' "ERREUR E10 issue 004-${ro_k}1 : statut inconnu « $ro_v » (attendus : $ATTENDUS_I)" "ERREUR E12 issue 004-${ro_k}3 : besoin « $ro_v » inconnu du backlog" \
+    "AVIS A10 issue 004-${ro_k}4 : dépend de $ro_v, issue inconnue" "AVIS A06 issue 004-${ro_k}5 : commit déclaré introuvable : $ro_v" \
+    "AVIS A02 issue 004-${ro_k}6 : Fait : fichier de revue introuvable ou illisible ($ro_v)" "AVIS A08 issue 004-${ro_k}7 : En cours sans branche retenue" \
+    "ERREUR E05 besoin F-1${ro_k} : statut inconnu « $ro_v » (attendus : $ATTENDUS_B)" "ERREUR E06 besoin F-2${ro_k} : statut Spécifié sans PRD valide (fichier absent : $ro_v)" >> "$ro_attendu"
+done
+for ro_k in 1 2 3 4 5; do ro_issue "004-${ro_k}8" "En cours" F-01 "[]" "feat/${ro_valeurs[$((ro_k - 1))]}" "[]" ""; done
+ro_erreurs="$(grep -c '^ERREUR' "$ro_attendu" | tr -d ' ')"; ro_avis="$(grep -c '^AVIS' "$ro_attendu" | tr -d ' ')"
+printf 'STATUTS : %s erreur(s), %s avis\n' "$ro_erreurs" "$ro_avis" >> "$ro_attendu"
+for ro_sh in $ro_shells; do
+  ro_statuts "$ro_sh" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; ro_c=$?
+  verifier "cs02_valeurs_hostiles [champs, $ro_sh] : chaque valeur est lue comme du texte dans son champ (constats exacts du catalogue, valeurs de 8 formes), rien sur la sortie d'erreur, code 1" 0 "" test "$ro_c|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')|$(ro_sort_egal "$racine_tmp/st.out" "$ro_attendu" && echo egal)" = "1|0|egal"
+  verifier "cs02_valeurs_hostiles [champs, $ro_sh] : le fichier « marque » n'existe pas" 0 "" ro_sans_marque
+done
+ro_cs02_dashboard champs
+# 2) identifiants (d'issue et de besoin) hostiles ; une dépendance désigne l'issue de cet identifiant, jamais un motif ; les valeurs valides voisines sont contrôlées normalement
+bs_depot
+ro_attendu="$racine_tmp/ro.attendu"; : > "$ro_attendu"
+{
+  printf '%s\n' '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |' '| F-02 | B | P1 | Fait | `docs/prd/p.md` | |' '| F-03 | B | P1 | À faire | | |'
+  for ro_k in 1 2 3 4 5 6 7 8; do printf '| %s | B | P1 | Fait | `docs/prd/p.md` | |\n' "${ro_valeurs[$((ro_k - 1))]}"; done
+} | st_backlog
+ro_issue 004-01 "En cours" F-01 "[]" feat/b "[]" ""
+ro_issue 004-90 "En cours" F-01 "[zz-inconnue]" feat/b "[]" ""
+for ro_k in 1 2 3 4 5 6 7 8; do
+  ro_v="${ro_valeurs[$((ro_k - 1))]}"
+  ro_issue "$ro_v" "En cours" F-01 "[004-01]" feat/b "[]" "" "004-${ro_k}0"
+  ro_issue "004-${ro_k}9" "En cours" F-01 "[$ro_v]" feat/b "[]" ""
+  printf '%s\n' "ERREUR E08 besoin $ro_v : statut Fait non justifié : aucune issue Fait" >> "$ro_attendu"
+done
+printf '%s\n' "ERREUR E08 besoin F-02 : statut Fait non justifié : aucune issue Fait" "AVIS A10 issue 004-90 : dépend de zz-inconnue, issue inconnue" "STATUTS : 9 erreur(s), 1 avis" >> "$ro_attendu"
+for ro_sh in $ro_shells; do
+  ro_statuts "$ro_sh" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; ro_c=$?
+  verifier "cs02_valeurs_hostiles [identifiants, $ro_sh] : identifiants d'issue et de besoin hostiles lus comme du texte (dépendances résolues sur le texte exact, F-01 à F-03 et 004-01 contrôlés normalement), rien sur la sortie d'erreur, code 1" 0 "" test "$ro_c|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')|$(ro_sort_egal "$racine_tmp/st.out" "$ro_attendu" && echo egal)" = "1|0|egal"
+  verifier "cs02_valeurs_hostiles [identifiants, $ro_sh] : le fichier « marque » n'existe pas" 0 "" ro_sans_marque
+done
+ro_cs02_dashboard identifiants
+
+# cs03 : chemins hors dépôt : jamais lus, jamais suivis (lien symbolique), contenu jamais reproduit.
+bs_depot
+ro_hors="$racine_tmp/hors-depot"; mkdir -p "$ro_hors"; printf 'SECRET-HORS-DEPOT\nAPPROUVÉ\n' > "$ro_hors/cible.md"
+printf '%s\n' '| F-01 | B | P1 | En cours | `docs/prd/p.md` | |' '| F-02 | B | P1 | Spécifié | `docs/prd/lien.md` | |' | st_backlog
+mkdir -p etc; printf 'SECRET-HORS-DEPOT\nAPPROUVÉ\n' > etc/hostname # « docs/reviews/../../etc/hostname » désigne ce fichier-ci, à la racine du projet (hors de docs/reviews)
+ln -s "$ro_hors/cible.md" docs/reviews/004-84.md # lien symbolique vers un fichier hors dépôt qui contient APPROUVÉ
+ln -s "$ro_hors/cible.md" docs/prd/lien.md       # PRD en lien symbolique
+ro_issue 004-81 Fait F-01 "[]" "" "[$bs_c]" 'docs/reviews/../../etc/hostname'
+ro_issue 004-82 Fait F-01 "[]" "" "[$bs_c]" '/etc/hostname'
+ro_issue 004-83 Fait F-01 "[]" "" "[$bs_c]" 'docs/reviews/x/../y.md'
+ro_issue 004-84 Fait F-01 "[]" "" "[$bs_c]" 'docs/reviews/004-84.md'
+ro_issue 004-85 Fait F-01 "[]" "" "[$bs_c]" "$ro_hors/cible.md"
+ro_issue 004-86 "En cours" F-01 "[]" feat/b "[]" ""
+ln -s "$ro_hors/cible.md" docs/issues/004-87-x.md # fichier d'issue en lien symbolique
+cat > "$racine_tmp/ro.attendu" <<'TXT'
+ERREUR E06 besoin F-02 : statut Spécifié sans PRD valide (fichier absent : docs/prd/lien.md)
+ERREUR E14 fichier docs/issues/004-87-x.md : fichier d'issue illisible (lien symbolique)
+AVIS A02 issue 004-81 : Fait : fichier de revue introuvable ou illisible (docs/reviews/../../etc/hostname)
+AVIS A02 issue 004-82 : Fait : fichier de revue introuvable ou illisible (/etc/hostname)
+AVIS A02 issue 004-83 : Fait : fichier de revue introuvable ou illisible (docs/reviews/x/../y.md)
+AVIS A02 issue 004-84 : Fait : fichier de revue introuvable ou illisible (docs/reviews/004-84.md)
+AVIS A02 issue 004-85 : Fait : fichier de revue introuvable ou illisible (RACINE/cible.md)
+STATUTS : 2 erreur(s), 5 avis
+TXT
+sed "s|RACINE|$(printf '%s' "$ro_hors" | sed 's/[&|\\]/\\&/g')|" "$racine_tmp/ro.attendu" > "$racine_tmp/ro.attendu2"
+for ro_sh in $ro_shells; do
+  ro_statuts "$ro_sh" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; ro_c=$?
+  verifier "cs03_chemins [$ro_sh] : revue hors dépôt, absolue, avec .. ou en lien symbolique : A02 sans lire la cible ; PRD et fichier d'issue en lien symbolique : E06 et E14 ; sortie exacte, rien sur la sortie d'erreur" 0 "" test "$ro_c|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')|$(cmp -s "$racine_tmp/ro.attendu2" "$racine_tmp/st.out" && echo egal)" = "1|0|egal"
+  verifier "cs03_chemins [$ro_sh] : le contenu du fichier visé (SECRET-HORS-DEPOT) n'apparaît ni sur la sortie standard ni sur la sortie d'erreur" 1 "" grep -a -q SECRET-HORS-DEPOT "$racine_tmp/st.out" "$racine_tmp/st.err"
+done
+
+# cs04 : volumes : 5 000 besoins, 2 000 issues (1 900 Fait avec leur revue et leur commit, 50 En cours, 50 À faire), une cellule de statut de 1 Mio, une cellule de décisions
+# de 1 Mio et un fichier de revue de 5 Mio. Borne de temps : 2 s par centaine d'issues (de l'ordre de la seconde, avec une marge pour les machines chargées) ; la durée mesurée est consignée.
+ro_volume() { # ro_volume <issues> <besoins> : projet jetable ; issue n (Fait si n <= 95 % des issues, En cours jusqu'à 97,5 %, À faire ensuite) du besoin F-<n>, de même statut
+  bs_depot
+  awk -v n="$2" -v m="$1" -v c="$bs_c" 'BEGIN {
+    f = "backlog.md"; fait = int(m * 19 / 20); cours = int(m * 39 / 40)
+    print "# Backlog\n\n## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions |\n|----|--------|----------|--------|-----|-----------|" > f
+    gros = sprintf("%1048576s", ""); gsub(/ /, "z", gros)
+    for (i = 1; i <= n; i++) {
+      s = "À faire"; if (i <= fait) s = "Fait"; else if (i <= cours) s = "En cours"
+      if (i == n) printf "| F-%05d | B | P1 | %s | `docs/prd/p.md` | |\n", i, gros > f
+      else if (i == n - 1) printf "| F-%05d | B | P1 | %s | `docs/prd/p.md` | %s |\n", i, s, gros > f
+      else printf "| F-%05d | B | P1 | %s | `docs/prd/p.md` | |\n", i, s > f
+    }
+    close(f)
+    for (i = 1; i <= m; i++) {
+      s = "À faire"; if (i <= fait) s = "Fait"; else if (i <= cours) s = "En cours"
+      g = sprintf("docs/issues/004-%04d-x.md", i)
+      printf "---\nid: 004-%04d\ntitre: T\nbesoin: F-%05d\nprd: docs/prd/p.md\nstatut: %s\ndepend_de: [%s]\ncriteres: [CA-01]\nbranche: %s\ncommits: [%s]\nrevue: %s\n---\n\n## Objectif\nx\n\n## Notes\n- `FIN-ISSUE OK 004-%04d abc1234 : 1 test`\n", \
+        i, i, s, (i > 1 && i <= fait ? sprintf("004-%04d", i - 1) : ""), (s == "À faire" ? "" : "feat/b"), (s == "Fait" ? c : ""), (s == "Fait" ? sprintf("docs/reviews/004-%04d.md", i) : ""), i > g
+      close(g)
+      if (s == "Fait") { r = sprintf("docs/reviews/004-%04d.md", i); printf "VERDICT: APPROUVÉ\n\n# Revue\nx\n" > r; close(r) }
+    }
+  }'
+  awk 'BEGIN { l = sprintf("%1023s", ""); gsub(/ /, "r", l); for (i = 0; i < 5120; i++) print l }' > docs/reviews/gros.md # 5 Mio
+  ro_issue 004-9999 Fait F-00001 "[]" feat/b "[$bs_c]" docs/reviews/gros.md
+}
+ro_chrono() { # ro_chrono <shell> : durée en secondes de statuts.sh dans $ro_duree, code dans $ro_c
+  local debut=$SECONDS
+  ro_statuts "$1" > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; ro_c=$?
+  ro_duree=$((SECONDS - debut))
+}
+ro_volume 2000 5000
+ro_gros_attendu="ERREUR E05 besoin F-05000 : statut inconnu « 1 Mio »"
+for ro_sh in $ro_shells; do
+  ro_chrono "$ro_sh"
+  echo "  mesure cs04 [$ro_sh] : 2 000 issues, 5 000 besoins, cellules de 1 Mio, revue de 5 Mio : $ro_duree s (borne 40 s)"
+  verifier "cs04_volumes [$ro_sh] : se termine sans échec de mémoire (code 1 = l'erreur E05 de la cellule de 1 Mio), rien sur la sortie d'erreur, récapitulatif exact ($ro_duree s)" 0 "" test "$ro_c|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')|$(tail -1 "$racine_tmp/st.out")" = "1|0|STATUTS : 1 erreur(s), 1 avis"
+  verifier "cs04_volumes [$ro_sh] : temps borné : $ro_duree s au plus 40 s pour 2 000 issues (2 s par centaine)" 0 "" test "$ro_duree" -le 40
+  verifier "cs04_volumes [$ro_sh] : revue de 5 Mio refusée (A02) et cellule de statut de 1 Mio tronquée à 120 caractères suivis de « … »" 0 "" ro_contient "$racine_tmp/st.out" \
+    "AVIS A02 issue 004-9999 : Fait : fichier de revue introuvable ou illisible (docs/reviews/gros.md)" \
+    "ERREUR E05 besoin F-05000 : statut inconnu « $(printf 'z%.0s' $(seq 1 120))… » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)"
+done
+
+# cs04 : lecture groupée des en-têtes (un processus pour toutes les issues) = lecture fichier par fichier (issue_champ, issue_liste) sur des en-têtes de toutes les formes ;
+# les valeurs attendues de la section Notes (FIN-ISSUE OK, mot « Abandonnée » dans une puce) et de la fermeture de l'en-tête sont des littéraux, jamais un recalcul.
+st_depot
+printf -- '---\nid: 004-01\nstatut: Fait\nbesoin: F-01\nprd: docs/prd/p.md\nbranche: feat/a\nrevue: docs/reviews/x.md\ndepend_de: [004-02, "004-03", '"'"'004-04'"'"']\ncommits: [abc1234, def5678]\n---\n\n## Notes\n- `FIN-ISSUE OK 004-01 abc1234 : 1 test`\n' > docs/issues/004-01-x.md
+printf -- '---\nid: 004-02\nstatut:\tFait\t\nbesoin:\nprd: docs/prd/p.md # commentaire\nbranche: feat/a:b\nrevue: a: b\ndepend_de:\n  - 004-01\n  - "004-03" # commentaire\n\n  - 004-04\ncommits:\n  - abc1234\n---\n\n## Notes\n- FIN-ISSUE OK 004-0 x\n- FIN-ISSUE OK 004-02x\n' > docs/issues/004-02-x.md
+printf -- '---\nid: 004-03\nid: 004-99\nstatut: Abandonnée\nbesoin_x: F-9\nbesoin: F-03\ndepend_de: []\ncommits: []\n---\n\n## Notes\n\n- 2026-11-18 : Abandonnée, remplacée.\n## Autre\n- FIN-ISSUE OK 004-03 hors section\n' > docs/issues/004-03-x.md
+printf -- '---\nid:  "004-04"  \nstatut: En cours\ndepend_de: [004-01,004-02]\nbranche: " feat/b "\n' > docs/issues/004-04-x.md
+printf -- 'id: 004-05\nstatut: Fait\n---\n' > docs/issues/004-05-x.md
+printf -- '---\r\nid: 004-06\r\nstatut: Fait\r\n---\r\n' > docs/issues/004-06-x.md
+printf -- '---\nid: 004-07\nstatut: Fait\ncommits: [ , a,, b ]\ndepend_de:\n  -\n  - x\n---\n## Notes\n  * Abandonnée sans puce ?\nAbandonnée hors puce\n' > docs/issues/004-07-x.md
+printf -- '---\n---\n# Notes\n- FIN-ISSUE OK  vide\n' > docs/issues/004-08-x.md
+: > docs/issues/004-09-x.md
+cat > "$racine_tmp/eq.sh" <<'SH'
+. scripts/lib-issues.sh
+issues_en_tetes_charger
+for i in "${!ent_fichiers[@]}"; do
+  ent_elements "${ent_dependances[$i]}"; deps="${#ent_items[@]}:${ent_items[*]+"${ent_items[*]}"}"
+  ent_elements "${ent_commits[$i]}"; coms="${#ent_items[@]}:${ent_items[*]+"${ent_items[*]}"}"
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "${ent_fichiers[$i]}" "${ent_ids[$i]}" "${ent_statuts[$i]}" "${ent_besoins[$i]}" "${ent_prds[$i]}" "${ent_branches[$i]}" "${ent_revues[$i]}" "$deps" "$coms"
+  printf '%s|ok=%s|fin=%s|abandon=%s\n' "${ent_fichiers[$i]##*/}" "${ent_ok[$i]}" "${ent_fin_ok[$i]}" "${ent_abandon[$i]}" >&2
+done
+SH
+cat > "$racine_tmp/eq1.sh" <<'SH'
+. scripts/lib-issues.sh
+for f in docs/issues/[0-9]*.md; do
+  deps=(); while IFS= read -r x; do deps+=("$x"); done < <(issue_liste "$f" depend_de)
+  coms=(); while IFS= read -r x; do coms+=("$x"); done < <(issue_liste "$f" commits)
+  printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$f" "$(issue_champ "$f" id)" "$(issue_champ "$f" statut)" "$(issue_champ "$f" besoin)" "$(issue_champ "$f" prd)" "$(issue_champ "$f" branche)" "$(issue_champ "$f" revue)" "${#deps[@]}:${deps[*]+"${deps[*]}"}" "${#coms[@]}:${coms[*]+"${coms[*]}"}"
+done
+SH
+cat > "$racine_tmp/eq.attendu" <<'TXT'
+004-01-x.md|ok=1|fin=1|abandon=0
+004-02-x.md|ok=1|fin=0|abandon=0
+004-03-x.md|ok=1|fin=0|abandon=1
+004-04-x.md|ok=0|fin=0|abandon=0
+004-05-x.md|ok=0|fin=0|abandon=0
+004-06-x.md|ok=0|fin=0|abandon=0
+004-07-x.md|ok=1|fin=0|abandon=1
+004-08-x.md|ok=1|fin=0|abandon=0
+004-09-x.md|ok=0|fin=0|abandon=0
+TXT
+for ro_sh in $ro_shells; do
+  if [ "$ro_sh" = b32 ]; then PATH="$ro_b32:$PATH" bash "$racine_tmp/eq.sh" > "$racine_tmp/eq.groupe" 2> "$racine_tmp/eq.drapeaux"; else bash "$racine_tmp/eq.sh" > "$racine_tmp/eq.groupe" 2> "$racine_tmp/eq.drapeaux"; fi
+  bash "$racine_tmp/eq1.sh" > "$racine_tmp/eq.fichier" 2>&1
+  verifier "cs04_lecture_groupee [$ro_sh] : identifiant, statut, besoin, prd, branche, revue, depend_de et commits identiques à issue_champ et issue_liste sur 9 formes d'en-tête" 0 "" cmp "$racine_tmp/eq.fichier" "$racine_tmp/eq.groupe"
+  verifier "cs04_lecture_groupee [$ro_sh] : en-tête fermé, ligne FIN-ISSUE OK <id> et raison d'abandon de la section Notes (littéraux attendus)" 0 "" cmp "$racine_tmp/eq.attendu" "$racine_tmp/eq.drapeaux"
+done
+verifier "cs04_lecture_groupee : les 9 fichiers sont bien lus (au moins un identifiant et une liste non vides)" 0 "" test "$(grep -c '^docs/issues/004-0' "$racine_tmp/eq.groupe")|$(grep -c -F '004-01|Fait|F-01|docs/prd/p.md|feat/a|docs/reviews/x.md|3:004-02 004-03 004-04|2:abc1234 def5678' "$racine_tmp/eq.groupe")" = "9|1"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

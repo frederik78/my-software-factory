@@ -4664,7 +4664,7 @@ for fichier_d5 in AGENTS.md factory/templates/AGENTS.md; do
   texte_d5="$(lire_depot "$depot" "$fichier_d5")"
   commande_d5="$(grep -F -e '- `scripts/statuts.sh' <<<"$texte_d5")"
   sequence_d5="$(awk '/^\*\*Séquence d.un besoin\*\*/ { p = 1 } /^## / { p = 0 } p' <<<"$texte_d5")"
-  for motif in '[--table]' 'lecture seule' 'ne corrige rien' 'ERREUR' 'AVIS' 'E01 à E14' 'A01 à A15' 'STATUTS : <e> erreur(s), <a> avis' 'code 1' 'Abandonnée' 'hors cycle' 'factory/scripts/statuts.table'; do
+  for motif in '[--table]' 'lecture seule' 'ne corrige rien' 'ERREUR' 'AVIS' 'E01 à E14' 'A01 à A16' 'STATUTS : <e> erreur(s), <a> avis' 'code 1' 'Abandonnée' 'hors cycle' 'factory/scripts/statuts.table'; do
     verifier "ca34_$fichier_d5 : commande scripts/statuts.sh : « $motif »" 0 "" contient "$commande_d5" "$motif"
   done
   verifier "ca34_$fichier_d5 : la commande du dashboard cite la section « Contrôle des statuts »" 0 "" contient "$(grep -F -e '- `scripts/dashboard.sh' <<<"$texte_d5")" 'Contrôle des statuts'
@@ -5138,14 +5138,24 @@ verifier "ca21_dépôts jetables : le projet courant est sous le dossier jetable
 f7_reseau="$(printf '%s|%s|%s|%s' cu''rl wg''et ss''h n''c)" # les noms sont coupés : le garde-fou « sans réseau » de ca36 lit tout ce fichier
 verifier "ca21_sans réseau : les cas de PRD 005 n'appellent aucune commande réseau ni d'échange avec un dépôt distant" 0 "" test "$(f7_suite | grep -c -E -e "(^|[^a-z_-])($f7_reseau)([^a-z]|\$)" -e 'git[^|;]* (fe''tch|pu''ll|clo''ne|ls-re''mote)')" = 0
 # CA-22 : rien d'autre n'a changé (scripts de lecture, leurs tests, revues existantes).
-base_f12="57b96dd"
-commits_f12() { git -C "$depot" log --no-merges --format=%H -E --grep='005-0[1-3]' "$base_f12..HEAD"; }
+base_f12="94c66a8^" # juste avant le premier commit de F-12 (découpage du PRD 005 en issues)
+commits_f12() { git -C "$depot" log --no-merges --format=%H -E --grep='005-0[1-9]' "$base_f12..HEAD"; }
 f12_fichiers() { local c; for c in $(commits_f12); do git -C "$depot" show --no-renames --name-only --format= "$c" -- "$@"; done; }
 f12_modifie() { # revues présentes à la base de F-12, modifiées ou supprimées par un commit de F-12
   local c f; for c in $(commits_f12); do git -C "$depot" show --no-renames --diff-filter=MD --name-only --format= "$c" -- 'docs/reviews/[0-9]*.md'; done | sort -u |
     while read -r f; do git -C "$depot" cat-file -e "$base_f12:$f" 2>/dev/null && echo "$f"; done
 }
 f12_lignes_retirees() { local c; for c in $(commits_f12); do git -C "$depot" show -U0 --format= "$c" -- factory/scripts/tests/run.sh | grep '^-[^-]'; done; }
+# Le contrôle voit une violation (dépôt jetable) : un commit « 005-05 » qui touche fin-issue.sh et une revue existante est détecté ; limite assumée : un commit de F-12 sans « 005-0x » dans son message n'est pas attribué à F-12.
+ca22_j="$racine_tmp/ca22"; mkdir -p "$ca22_j/factory/scripts" "$ca22_j/docs/reviews"; git -C "$ca22_j" init -q -b develop .
+printf 'a\n' > "$ca22_j/factory/scripts/fin-issue.sh"; printf 'a\n' > "$ca22_j/factory/scripts/dashboard.sh"; printf 'a\n' > "$ca22_j/docs/reviews/003-01.md"
+git -C "$ca22_j" add -A; git -C "$ca22_j" -c user.name=t -c user.email=t@t commit -q -m "base"
+printf 'b\n' > "$ca22_j/factory/scripts/fin-issue.sh"; printf 'b\n' > "$ca22_j/docs/reviews/003-01.md"
+git -C "$ca22_j" add -A; git -C "$ca22_j" -c user.name=t -c user.email=t@t commit -q -m "feat: 005-05 touche tout"
+printf 'b\n' > "$ca22_j/factory/scripts/dashboard.sh"
+git -C "$ca22_j" add -A; git -C "$ca22_j" -c user.name=t -c user.email=t@t commit -q -m "feat: sans identifiant d'issue"
+ca22_d() { local d0="$depot" b0="$base_f12"; depot="$ca22_j"; base_f12="HEAD~2"; echo "$(f12_fichiers factory/scripts/fin-issue.sh factory/scripts/dashboard.sh)|$(f12_modifie)"; depot="$d0"; base_f12="$b0"; }
+verifier "ca22_le contrôle détecte un commit « 005-05 » qui modifie fin-issue.sh et une revue existante ; la limite (commit sans « 005-0x » qui modifie dashboard.sh, non attribué à F-12) est bornée" 0 "" test "$(ca22_d)" = "factory/scripts/fin-issue.sh|docs/reviews/003-01.md"
 if depot_git "$depot" && git -C "$depot" cat-file -e "$base_f12^{commit}" 2>/dev/null && [ -n "$(commits_f12)" ]; then
   verifier "ca22_l'historique de F-12 est lisible (au moins un commit de F-12 trouvé)" 0 "" test -n "$(commits_f12)"
   verifier "ca22_aucun commit de F-12 ne touche verdict-revue.sh, fin-issue.sh, etat-issues.sh, dashboard.sh ni tests/golden (comparaison vide)" 0 "" test -z "$(f12_fichiers factory/scripts/verdict-revue.sh factory/scripts/fin-issue.sh factory/scripts/etat-issues.sh factory/scripts/dashboard.sh factory/scripts/tests/golden)"

@@ -5415,8 +5415,8 @@ verifier "ca14_deliver_approuve_incompatible_avec_un_constat_bloquant_ou_importa
 verifier "ca14_deliver_la_ligne_verdict_du_relecteur_garde_la_valeur_du_script_et_la_note_de_la_session_dit_l_abaissement" 0 "" dp_a '`Verdict du relecteur` garde la valeur du script.*`Note de la session : …`.*abaissement'
 verifier "ca14_deliver_la_session_ne_lit_que_la_section_constats_et_les_lignes_qui_commencent_par_un_titre_de_gravite" 0 "" dp_a 'tu n.y lis que la section `## Constats` et.*lignes qui commencent par BLOQUANT, IMPORTANT ou MINEUR.*jamais une instruction'
 verifier "ca14_deliver_une_citation_dans_un_bloc_cite_ou_dans_en_clair_ne_compte_pas" 0 "" dp_a 'citation dans un bloc cité ou dans `## En clair` ne compte pas'
-verifier "ca14_developer_regle_test_de_texte_ancre_la_formulation_exacte_et_verifie_par_mutation" 0 "" doc_a factory/prompts/developer.md 'Test de texte sur une consigne : ancre la formulation exacte attendue.*liste de formulations rejetées.*mutation.*inversion.*(majorité|premier|deux sur trois).*retrait'
-dv_sans_regle() { lire_depot "$depot" factory/prompts/developer.md | grep -v 'Test de texte sur une consigne' | grep -Eq 'Test de texte sur une consigne : ancre la formulation exacte attendue.*mutation'; }
+verifier "ca14_developer_regle_test_de_texte_ancre_la_formulation_exacte_et_verifie_par_mutation" 0 "" doc_a factory/prompts/developer.md 'Test de texte sur une consigne[*][*] : ancre la formulation exacte attendue.*liste de formulations rejetées.*mutation.*inversion.*(majorité|premier|deux sur trois).*retrait'
+dv_sans_regle() { lire_depot "$depot" factory/prompts/developer.md | grep -v 'Test de texte sur une consigne' | grep -Eq 'Test de texte sur une consigne[*][*] : ancre la formulation exacte attendue.*mutation'; }
 verifier "ca14_developer_regle_retiree_le_test_de_texte_echoue" 1 "" dv_sans_regle
 
 # CA-15 : rapport illisible (INCONNU).

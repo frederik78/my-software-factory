@@ -1,12 +1,12 @@
 ---
 id: 010-03
-titre: Écriture par la session à la clôture (critère de récurrence
+titre: Constats récurrents : écriture par la session, documentation, version et non-régression
 prd: docs/prd/010-constats-recurrents.md
 besoin: F-13
 statut: À faire
 depend_de: [010-01, 010-02]
 criteres: [CA-11, CA-12, CA-13, CA-14, CA-16, CA-17, CA-18, CA-19, CA-20, CS-04]
-branche: feat/010-03-ecriture-par-la-session-a-la-cloture-critere-de
+branche: feat/010-03-ecriture-documentation-version
 commits: []
 revue:
 ---

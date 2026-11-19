@@ -2971,9 +2971,10 @@ verifier "ca17_fin-issue.sh, dashboard.sh et etat-issues.sh existent dans le dé
 v_f01="1.23.0"
 cl_f01="$(lire_depot "$depot" factory/CHANGELOG.md | awk -v t="## $v_f01" '/^## /{p = ($0 == t)} p')"
 rd_f01="$(lire_depot "$depot" factory/README.md)"
-verifier "ca18_factory/VERSION contient $v_f01 (ou une version plus récente, lue par ca27)" 0 "" test "$(lire_depot "$depot" factory/VERSION | head -n1)" = "$v_f01"
+plus_recente_ou_egale() { [ "$(printf '%s\n%s\n' "$1" "$2" | LC_ALL=C sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)" = "$1" ]; } # plus_recente_ou_egale <a> <b> : a >= b
+verifier "ca18_factory/VERSION est $v_f01 ou une version plus récente (ca35 de PRD 004 fixe la courante)" 0 "" plus_recente_ou_egale "$(lire_depot "$depot" factory/VERSION | head -n1)" "$v_f01"
 verifier "ca18_le CHANGELOG a une entrée $v_f01" 0 "" contient_motif "$(head -n1 <<<"$cl_f01")" '^## 1\.23\.0$'
-verifier "ca18_l'entrée $v_f01 est la première du CHANGELOG" 0 "" test "$(lire_depot "$depot" factory/CHANGELOG.md | grep -m1 '^## ')" = "## $v_f01"
+verifier "ca18_l'entrée $v_f01 figure une seule fois au CHANGELOG (plus la première depuis 1.24.0 : voir ca35)" 0 "" test "$(lire_depot "$depot" factory/CHANGELOG.md | grep -c -x "## $v_f01")" = 1
 for motif in 'scripts/verdict-revue.sh' 'VERDICT:' 'APPROUVÉ' 'CHANGEMENTS DEMANDÉS' 'INCONNU' 'Codes : 0 valeur valide, 1 `INCONNU`' '64 usage' '200 octets' '1 Mio' 'relance' 'MAX_ITERATIONS_REVUE' 'Pour l'"'"'humain' 'courriel' 'BLOQUANT' 'escalade' 'secrets et identifiants' 'écart avec le PRD' 'tous les rôles' 'AGENTS.md' 'Migration : remplacer `factory/`' 'sans action'; do
   verifier "ca18_entrée $v_f01 du CHANGELOG : « $motif »" 0 "" contient "$cl_f01" "$motif"
 done

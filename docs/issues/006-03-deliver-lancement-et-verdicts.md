@@ -3,7 +3,7 @@ id: 006-03
 titre: Skill deliver : lancement ensemble, verdicts et format du fichier de revue
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: En cours
+statut: En revue
 depend_de: [006-01, 006-02]
 criteres: [CA-11, CA-12, CA-13, CA-14, CA-15, CA-16, CA-17, CS-04, CS-07]
 branche: feat/006-03-deliver-lancement-et-verdicts

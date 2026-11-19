@@ -5365,7 +5365,11 @@ verifier "ca11_deliver_le_mode_est_lu_avant_le_developpement" 0 "" doc_ordre $dl
 verifier "ca12_deliver_mode_unique_suit_les_etapes_3_et_4_telles_qu_ecrites" 0 "" dp_a '`unique`.*(étapes? 3 et 4|étapes? ci-dessus|à l.identique)'
 verifier "ca12_deliver_mode_unique_garde_le_code_reviewer_et_son_brief" 0 "" dp_a '`unique`.*`code-reviewer`.*briefs/reviewer\.md'
 verifier "ca12_deliver_mode_unique_fichier_sans_section_par_relecteur_ni_colonne" 0 "" dp_a '`unique`.*sans section par relecteur.*colonne'
-verifier "ca12_deliver_etapes_3_et_4_du_mode_unique_gardent_chaque_ligne_d_avant_le_besoin" 0 "" test -z "$(lire_depot "$depot" $dl | grep -vxFf - "$ici/golden/ca12-deliver-etapes-3-4-unique.txt")"
+# Sections 3 et 4 extraites de la skill (sans la partie « 3 bis », sans lignes vides), comparées au golden, dans l'ordre. Seule ligne ajoutée déclarée dans ces
+# sections : l'aiguillage de mode au début de l'étape 3 (« Le reste de cette étape décrit le mode `unique`… »). L'ajout de l'étape 0 (point 6, lecture du mode) est hors de ces sections.
+dp_sections_unique() { lire_depot "$depot" $dl | awk '/^## 3 bis\. /{ on = 0 } /^## 3\. Relire/{ on = 1 } /^## 4\. Corriger/{ on = 1 } /^## 5\. /{ on = 0 } on && NF' | grep -vF 'Le reste de cette étape décrit le mode `unique`.'; }
+verifier "ca12_deliver_etapes_3_et_4_du_mode_unique_identiques_au_golden_dans_l_ordre_hors_la_ligne_d_aiguillage_declaree" 0 "" test "$(dp_sections_unique | shasum -a 256)" = "$(shasum -a 256 < "$ici/golden/ca12-deliver-etapes-3-4-unique.txt")"
+verifier "ca12_deliver_la_ligne_d_aiguillage_declaree_est_la_seule_ajoutee_a_l_etape_3" 0 "" test "$(lire_depot "$depot" $dl | sed -n '/^## 3\. Relire/,/^## 3 bis\. /p' | grep -c 'Le reste de cette étape décrit le mode `unique`\.')" = 1
 verifier "ca12_prompt_code_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "41c2f6c5670259f11c826d565d4f3a451f88f8aea629a93c733f7ecf0a5d87a5"
 verifier "ca12_brief_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/briefs/reviewer.md)" = "d19b205665e473552e8374094673ab9713ebf5318ece2145b6d497db7757a6b9"
 
@@ -5378,18 +5382,30 @@ verifier "ca13_deliver_supprime_les_fichiers_dans_tous_les_cas_y_compris_a_l_arr
 
 # CA-14 : verdict global à l'unanimité, lu par le script sur chaque rapport.
 dp_rapport() { printf 'VERDICT: %s\n\n## En clair\nx\n' "$2" > "$1"; } # dp_rapport <fichier> <valeur>
-dp_global() { # dp_global <v1> <v2> <v3> : règle d'unanimité (PRD 006, RG-09) appliquée aux sorties du script
-  local v g=APPROUVÉ; for v in "$@"; do [ "$v" = "APPROUVÉ" ] || g="CHANGEMENTS DEMANDÉS"; done; printf '%s' "$g"
+dp_lus() { # dp_lus <val1> <val2> <val3> : sorties de verdict-revue.sh pour trois rapports, séparées par « / »
+  local i=0 v out="" r d="$racine_tmp/dp-v"; mkdir -p "$d"
+  for v in "$1" "$2" "$3"; do i=$((i + 1)); dp_rapport "$d/r$i.md" "$v"; r="$("$depot/scripts/verdict-revue.sh" "$d/r$i.md")" || return 1; out="$out${out:+ / }$r"; done
+  printf '%s' "$out"
 }
-dp_verdicts() { # dp_verdicts <val1> <val2> <val3> : verdict global après lecture de trois rapports par le script
-  local i=0 v out=() r d="$racine_tmp/dp-v"; mkdir -p "$d"
-  for v in "$1" "$2" "$3"; do i=$((i + 1)); dp_rapport "$d/r$i.md" "$v"; r="$("$depot/scripts/verdict-revue.sh" "$d/r$i.md")" || return 1; out+=("$r"); done
-  dp_global "${out[@]}"
+verifier "ca14_le_script_lit_trois_rapports_approuves" 0 "^APPROUVÉ / APPROUVÉ / APPROUVÉ$" dp_lus "APPROUVÉ" "APPROUVÉ" "APPROUVÉ"
+verifier "ca14_le_script_lit_le_premier_rapport_changements_demandes" 0 "^CHANGEMENTS DEMANDÉS / APPROUVÉ / APPROUVÉ$" dp_lus "CHANGEMENTS DEMANDÉS" "APPROUVÉ" "APPROUVÉ"
+verifier "ca14_le_script_lit_le_deuxieme_rapport_changements_demandes" 0 "^APPROUVÉ / CHANGEMENTS DEMANDÉS / APPROUVÉ$" dp_lus "APPROUVÉ" "CHANGEMENTS DEMANDÉS" "APPROUVÉ"
+verifier "ca14_le_script_lit_le_troisieme_rapport_changements_demandes" 0 "^APPROUVÉ / APPROUVÉ / CHANGEMENTS DEMANDÉS$" dp_lus "APPROUVÉ" "APPROUVÉ" "CHANGEMENTS DEMANDÉS"
+# La règle d'unanimité est lue dans la skill (ligne « Verdict global de l'itération ») : elle doit dire « seulement si les trois », jamais « au moins un », « un des », « dès qu'un ».
+dp_unanimite() { # dp_unanimite : lit une ligne sur l'entrée standard ; vrai si elle pose l'unanimité des trois relecteurs
+  local l; l="$(cat)"
+  printf '%s' "$l" | grep -Eq 'APPROUVÉ` (seulement|uniquement) si [^`]*des trois relecteurs (est|sont) `APPROUVÉ`.*sinon `CHANGEMENTS DEMANDÉS`' \
+    && ! printf '%s' "$l" | grep -Eqi "au moins (un|deux)|un des|l.un des|dès qu.un|dès que|n.importe lequel"
 }
-verifier "ca14_trois_approuves_donnent_approuve" 0 "^APPROUVÉ$" dp_verdicts "APPROUVÉ" "APPROUVÉ" "APPROUVÉ"
-verifier "ca14_seul_le_premier_demande_des_changements_donne_changements_demandes" 0 "^CHANGEMENTS DEMANDÉS$" dp_verdicts "CHANGEMENTS DEMANDÉS" "APPROUVÉ" "APPROUVÉ"
-verifier "ca14_seul_le_deuxieme_demande_des_changements_donne_changements_demandes" 0 "^CHANGEMENTS DEMANDÉS$" dp_verdicts "APPROUVÉ" "CHANGEMENTS DEMANDÉS" "APPROUVÉ"
-verifier "ca14_seul_le_troisieme_demande_des_changements_donne_changements_demandes" 0 "^CHANGEMENTS DEMANDÉS$" dp_verdicts "APPROUVÉ" "APPROUVÉ" "CHANGEMENTS DEMANDÉS"
+dp_regle() { dp_par | grep -F "Verdict global de l'itération"; }
+verifier "ca14_deliver_verdict_global_est_lu_dans_la_skill_et_pose_l_unanimite" 0 "" test "$(dp_regle | wc -l | tr -d ' ')" = 1
+dp_regle_ok() { dp_regle | dp_unanimite; }
+verifier "ca14_deliver_la_regle_de_la_skill_passe_le_predicat_d_unanimite" 0 "" dp_regle_ok
+dp_mut() { dp_regle | sed "$1" | dp_unanimite; } # dp_mut <sed> : la règle de la skill, mutée, ne doit plus passer
+verifier "ca14_mutation_au_moins_un_des_trois_est_rejetee" 1 "" dp_mut 's/seulement si le dernier verdict connu des trois relecteurs est/seulement si au moins un des trois relecteurs est/'
+verifier "ca14_mutation_un_des_trois_est_rejetee" 1 "" dp_mut 's/le dernier verdict connu des trois relecteurs est/le verdict connu d un des trois relecteurs est/'
+verifier "ca14_mutation_des_qu_un_est_rejetee" 1 "" dp_mut 's/seulement si/dès qu un relecteur est approuvé, seulement si/'
+verifier "ca14_mutation_changements_demandes_retire_est_rejetee" 1 "" dp_mut 's/, sinon `CHANGEMENTS DEMANDÉS`//'
 verifier "ca14_deliver_verdict_de_chaque_relecteur_lu_par_verdict_revue_sh_sur_son_rapport" 0 "" dp_a 'scripts/verdict-revue\.sh.*chaque (rapport|relecteur)'
 verifier "ca14_deliver_approuve_global_seulement_si_les_trois_sont_approuves_sinon_changements_demandes" 0 "" dp_a 'APPROUVÉ.*(seulement|uniquement) si.*trois.*APPROUVÉ.*sinon.*CHANGEMENTS DEMANDÉS'
 verifier "ca14_deliver_la_valeur_ecrite_est_celle_du_script_jamais_celle_de_la_lecture_du_texte" 0 "" dp_a 'valeur écrite.*(sortie|valeur).*script.*jamais.*(ta|ton|sa) lecture'

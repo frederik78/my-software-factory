@@ -5068,6 +5068,24 @@ f6_fait 005-81 'docs/reviews/../../etc/hostname'; f6_fait 005-82 '/etc/hostname'
 f6_run
 verifier "cs05_chemins : ../.. , chemin absolu, x/../y.md et lien symbolique vers un fichier hors dépôt : A02 pour chacun, aucun A16, le contenu visé n'apparaît nulle part" 0 "" test "$(grep -a -c '^AVIS A02 issue 005-8[1-4] ' "$racine_tmp/st.out")|$(f6_nb)|$(grep -a -c -e SECRET-HORS-DEPOT "$racine_tmp/st.out" "$racine_tmp/st.err" | grep -v ':0$' | wc -l | tr -d ' ')" = "4|0|0"
 
+# Issue En revue : le décompte se fait par grep (verdict_forme), pas par le passage awk de l'issue Fait ; chaque cause, CRLF, NUL, BOM et la borne de 1 Mio y sont vérifiés
+pr_depot
+git branch feat/x
+f6_revue() { pr_issue "$1" "En revue" "docs/reviews/$1.md" "[$pr_c]" "" "" feat/x; } # f6_revue <id> : issue En revue (branche existante) qui désigne docs/reviews/<id>.md
+printf 'VERDICT: APPROUVÉ\n\n# R\nVERDICT: APPROUVÉ\n' > docs/reviews/005-81.md; f6_revue 005-81
+printf '# Revue\n\nVERDICT: APPROUVÉ\n' > docs/reviews/005-82.md; f6_revue 005-82
+printf 'VERDICT: APPROUVÉ\n\n# Revue\n' > docs/reviews/005-83.md; f6_revue 005-83
+printf 'VERDICT: APPROUVÉ\r\n\r\nVERDICT: APPROUVÉ\r\n' > docs/reviews/005-84.md; f6_revue 005-84
+printf 'VERDICT: APPR\0OUVÉ\n\n# Revue\n' > docs/reviews/005-85.md; f6_revue 005-85
+printf '\xef\xbb\xbfVERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n' > docs/reviews/005-86.md; f6_revue 005-86
+: > docs/reviews/005-87.md; f6_revue 005-87
+printf 'sans verdict\n' > docs/reviews/005-88.md; f6_revue 005-88
+{ printf 'VERDICT: APPROUVÉ\nVERDICT: APPROUVÉ\n'; head -c 1048577 /dev/zero | tr '\0' 'x'; printf '\n'; } > docs/reviews/005-89.md; f6_revue 005-89
+f6_run
+verifier "ca13_En revue, cause « plus d'une ligne VERDICT: » (lecture par grep) : message exact pour deux lignes et pour CRLF" 0 "" test "$(grep -a -c -x -F "$(f6_msg 005-81 "$F6_PLUS")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-84 "$F6_PLUS")" "$racine_tmp/st.out")" = "1|1"
+verifier "ca11_En revue, cause « la première ligne n'est pas la ligne VERDICT: » (lecture par grep) : message exact, y compris BOM (ligne masquée) puis une ligne de verdict" 0 "" test "$(grep -a -c -x -F "$(f6_msg 005-82 "$F6_PREM")" "$racine_tmp/st.out")|$(grep -a -c -x -F "$(f6_msg 005-86 "$F6_PREM")" "$racine_tmp/st.out")" = "1|1"
+verifier "cs04_En revue : conforme, NUL, vide, sans ligne de verdict : aucun A16 ; fichier de plus de 1 Mio : A07 et jamais A16 ; au total 4 A16, rien sur la sortie d'erreur" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-85)|$(f6_a16_de 005-87)|$(f6_a16_de 005-88)|$(f6_a16_de 005-89)|$(grep -a -c '^AVIS A07 issue 005-89 ' "$racine_tmp/st.out")|$(f6_nb)|$(f6_stderr_vide && echo vide)" = "0|0|0|0|0|1|4|vide"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

@@ -5990,6 +5990,29 @@ verifier "ca37_code_review_ne_fusionne_ni_ne_reclasse" 0 "" cr_a_par 'sans les f
 verifier "ca37_code_review_ligne_de_synthese_verdict_global_nombre_de_constats_par_relecteur_et_chemin" 0 "" cr_a_par 'ligne de synthèse.*verdict global.*nombre de constats par relecteur.*chemin du fichier de revue de branche'
 verifier "ca37_code_review_agregation_apres_le_lancement" 0 "" doc_ordre $cr_sk '^### Lancer les trois relecteurs' '^### Agréger'
 
+
+# CA-38 : corrections et itérations d'une revue de branche parallèle, dans la skill et dans AGENTS.md (étape 5) et son modèle.
+cr_ag5() { lire_depot "$depot" "$1" | grep -E '^5\. \*\*Revue indépendante\*\*'; }
+for cr_f in AGENTS.md factory/templates/AGENTS.md; do
+  cr_p="ca38_$(printf '%s' "$cr_f" | tr -c 'A-Za-z0-9' _)"
+  verifier "${cr_p}_etape_5_ligne_unique" 0 "" test "$(cr_ag5 "$cr_f" | wc -l | tr -d ' ')" = 1
+  verifier "${cr_p}_etape_5_constats_bloquants_repartent_au_developpeur_puis_nouvelle_revue" 0 "" doc_a "$cr_f" '^5\. \*\*Revue indépendante\*\* de la branche \(`/code-review`\) avant la fusion ; ses constats bloquants repartent au développeur, puis nouvelle revue'
+  verifier "${cr_p}_etape_5_max_iterations_revue_et_regle_d_arret" 0 "" doc_a "$cr_f" '^5\. .*`MAX_ITERATIONS_REVUE` itérations.*même règle d.arrêt'
+  verifier "${cr_p}_etape_5_en_mode_parallele_seuls_les_relecteurs_en_changements_repassent_abaisses_compris" 0 "" doc_a "$cr_f" '^5\. .*`MODE_REVUE=parallele`.*seuls les relecteurs dont le dernier verdict retenu est `CHANGEMENTS DEMANDÉS` \(abaissés compris\) repassent'
+  verifier "${cr_p}_etape_5_en_mode_parallele_le_tour_final_relance_les_trois" 0 "" doc_a "$cr_f" '^5\. .*`MODE_REVUE=parallele`.*tour final relance les trois'
+done
+verifier "ca38_agents_md_et_son_modele_ont_la_meme_etape_5" 0 "" test "$(cr_ag5 AGENTS.md)" = "$(cr_ag5 factory/templates/AGENTS.md)"
+verifier "ca38_code_review_parallele_section_corrections_et_iterations_apres_l_agregation" 0 "" doc_ordre $cr_sk '^### Agréger' '^### Corrections et itérations'
+verifier "ca38_code_review_parallele_bloquant_et_important_repartent_au_developer" 0 "" cr_a_par 'constats `BLOQUANT` et `IMPORTANT` repartent au `developer`'
+verifier "ca38_code_review_parallele_max_iterations_revue_lue_par_config_factory" 0 "" cr_a_par '`MAX_ITERATIONS_REVUE`.*`scripts/config-factory\.sh --max-iterations`'
+verifier "ca38_code_review_parallele_regle_d_arret_d_agents_md_etape_5" 0 "" cr_a_par "règle d.arrêt.*`AGENTS\.md` \(étape 5\)"
+verifier "ca38_code_review_parallele_seuls_les_relecteurs_en_changements_demandes_repassent_abaisses_compris" 0 "" cr_a_par 'Aux tours suivants, seuls les relecteurs dont le dernier verdict retenu est `CHANGEMENTS DEMANDÉS` \(abaissés compris\) repassent'
+verifier "ca38_code_review_parallele_les_relecteurs_relisent_le_fichier_de_revue_de_branche" 0 "" cr_a_par 'relisent le fichier de revue de branche.*confirmer'
+verifier "ca38_code_review_parallele_tour_final_relance_les_trois_sur_toute_la_plage" 0 "" cr_a_par 'tour final relance les trois relecteurs sur `<point-fixe>\.\.\.HEAD`'
+verifier "ca38_code_review_parallele_tour_final_compte_comme_une_iteration" 0 "" cr_a_par 'tour final.*compte comme une itération de `MAX_ITERATIONS_REVUE`'
+verifier "ca38_code_review_parallele_tour_final_omis_si_les_trois_viennent_de_passer_sur_le_dernier_commit" 0 "" cr_a_par 'omis si les trois viennent de passer ensemble sur le dernier commit'
+verifier "ca38_code_review_parallele_tour_final_non_approuve_a_la_limite_regle_d_arret" 0 "" cr_a_par 'revue n° `MAX_ITERATIONS_REVUE` sans `APPROUVÉ`.*règle d.arrêt'
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

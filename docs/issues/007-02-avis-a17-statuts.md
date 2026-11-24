@@ -3,13 +3,13 @@ id: 007-02
 titre: Avis A17 de statuts.sh : issue démarrée sans champ branche
 prd: docs/prd/007-champ-branche-renseigne.md
 besoin: F-06
-statut: En revue
+statut: En cours
 depend_de: [007-01]
 criteres: [CA-06, CA-07, CA-08, CA-09, CA-10, CA-11, CA-12, CA-13, CA-14, CS-01, CS-02, CS-03]
 criteres_justification: Douze critères sur un seul script (statuts.sh) et un seul avis (A17) : condition, formes de champ vide, cas hostiles, coût et dashboard se testent sur les mêmes dépôts jetables ; les séparer ferait tester deux fois la même condition dans deux issues.
 branche: feat/007-02-avis-a17-statuts
 commits: [c1bc766, 1caf38e, 0b29ebb, b9b436f, ab9c624]
-revue:
+revue: CHANGEMENTS DEMANDÉS (itération 1, docs/reviews/007-02.md)
 ---
 
 ## Objectif

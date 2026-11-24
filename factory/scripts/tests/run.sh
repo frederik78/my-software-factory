@@ -5533,7 +5533,7 @@ verifier "ca01_le_recueil_livre_a_la_forme_attendue" 0 "" rc_forme "$rc_livre"
 verifier "ca01_la_ligne_1_du_recueil_livre_est_le_titre_exact" 0 "" test "$(head -n 1 "$rc_livre")" = "# Constats récurrents"
 verifier "ca01_le_recueil_livre_fait_40_lignes_au_plus" 0 "" test "$(wc -l < "$rc_livre")" -le 40
 verifier "ca01_un_titre_different_est_refuse" 1 "titre attendu" rc_mutation "$rc_livre" '1s/.*/# Autre titre/' rc_forme
-verifier "ca01_une_ligne_sans_exemple_est_refusee" 1 "forme de ligne" rc_mutation "$rc_livre" '0,/^- /s/ | Exemple : [^|]* | / | /' rc_forme
+verifier "ca01_une_ligne_sans_exemple_est_refusee" 1 "forme de ligne" rc_mutation "$rc_livre" 's/ | Exemple : [^|]* | / | /' rc_forme
 verifier "ca01_une_origine_mal_formee_est_refusee" 1 "forme de ligne" rc_mutation "$rc_livre" 's/| Origine : 00\([0-9]\)-0\([0-9]\)/| Origine : 00\1-\2/' rc_forme
 verifier "ca01_une_regle_vide_est_refusee" 1 "forme de ligne" rc_mutation "$rc_livre" 's/^- [^|]* | Exemple/- | Exemple/' rc_forme
 verifier "ca01_une_introduction_de_4_lignes_est_refusee" 1 "introduction" rc_mutation "$rc_livre" '3s/$/\

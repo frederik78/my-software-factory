@@ -798,6 +798,50 @@ scripts/dashboard.sh >/dev/null
 carte 009-01 | grep -q '<span class="detail">F-09</span>' && ! grep -q 'zzz-prd' dashboard.html && ok "issues : besoin lu dans le champ besoin (pas prd)" || ko "besoin des issues" "$(grep -n 'F-09\|zzz' dashboard.html | head -3)"
 [ "$(carte F-05)" = '<div class="carte"><strong>F-05</strong> <span class="titre">a | b</span><span class="detail">P2</span><span class="detail">PRD : docs/prd/005-m.md</span></div>' ] && ok "\\| dans une cellule du backlog ne décale pas les champs" || ko "\\| dans une cellule" "$(carte F-05)"
 [ "$(colonnes besoins)" = "À faire (0)|En clarification (0)|Spécifié (0)|En cours (0)|En revue (1)|Fait (0)|(autre) (1)|" ] && grep -q '<h3 class="statut-inconnu">(autre) (1)</h3>' dashboard.html && awk '/<h3[^>]*>\(autre\) \(1\)</ { getline; print; exit }' dashboard.html | grep -q '<strong>F-06</strong>' && ok "besoin à statut inconnu : colonne (autre) en dernier" || ko "colonne (autre) des besoins" "$(colonnes besoins)"
+# fix_dashboard_colonnes_ : la description d'une carte est la colonne « Décisions », pas « Dépend de » (backlog à 8 colonnes) ; ancien format à 7 colonnes lisible
+cat > backlog.md <<'EOF'
+## Besoins fonctionnels
+
+| ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions |
+|----|--------|----------|--------|-----|-----------|-----------|
+| F-07 | Huit colonnes | P2 | À faire | docs/prd/007-m.md | F-01, F-08 | Décision <b>a</b> \| b |
+| F-08 | Sans décision | P2 | À faire | | F-07 | |
+EOF
+scripts/dashboard.sh >/dev/null
+[ "$(carte F-07)" = '<div class="carte"><strong>F-07</strong> <span class="titre">Huit colonnes</span><span class="detail">P2</span><span class="detail">PRD : docs/prd/007-m.md</span><span class="detail desc">Décision &lt;b&gt;a&lt;/b&gt; | b</span></div>' ] && ok "fix_dashboard_colonnes_huit : description = Décisions (échappée, \\| géré), « Dépend de » absent" || ko "fix_dashboard_colonnes_huit" "$(carte F-07)"
+! carte F-08 | grep -q 'F-07</span>' && ! carte F-08 | grep -q 'class="detail desc"' && ok "fix_dashboard_colonnes_vide : Décisions vide = pas de description (pas « Dépend de »)" || ko "fix_dashboard_colonnes_vide" "$(carte F-08)"
+cat > backlog.md <<'EOF'
+## Besoins fonctionnels
+
+| ID | Besoin | Priorité | Statut | PRD | Décisions |
+|----|--------|----------|--------|-----|-----------|
+| F-09 | Sept colonnes | P2 | À faire | docs/prd/009-m.md | Ancien format |
+EOF
+scripts/dashboard.sh >/dev/null
+carte F-09 | grep -q '<span class="detail desc">Ancien format</span>' && ok "fix_dashboard_colonnes_sept : ancien format, la dernière colonne reste la description" || ko "fix_dashboard_colonnes_sept" "$(carte F-09)"
+# fix_dashboard_colonnes_ : « Décisions » repérée par l'en-tête (pas forcément la dernière colonne) ; lignes sans « | » final
+cat > backlog.md <<'EOF'
+## Besoins fonctionnels
+
+| ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions | Notes |
+|----|--------|----------|--------|-----|-----------|-----------|-------|
+| F-10 | Milieu | P2 | À faire | | F-01 | Décision milieu | Note finale |
+EOF
+scripts/dashboard.sh >/dev/null
+carte F-10 | grep -q '<span class="detail desc">Décision milieu</span>' && ok "fix_dashboard_colonnes_milieu : « Décisions » n'est pas la dernière colonne" || ko "fix_dashboard_colonnes_milieu" "$(carte F-10)"
+printf '## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions\n|----|----|----|----|----|----|----\n| F-11 | Sans pipe final | P2 | À faire | | F-01 | dec a \\| b\n' > backlog.md
+scripts/dashboard.sh >/dev/null
+[ "$(carte F-11)" = '<div class="carte"><strong>F-11</strong> <span class="titre">Sans pipe final</span><span class="detail">P2</span><span class="detail desc">dec a | b</span></div>' ] && ok "fix_dashboard_colonnes_sans_pipe_final : en-tête et ligne sans « | » final, \\| restauré" || ko "fix_dashboard_colonnes_sans_pipe_final" "$(carte F-11 | od -c | head -5)"
+printf '## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Décisions\n|----|----|----|----|----|----\n| F-12 | Sept sans pipe | P2 | À faire | | ancien \\| format\n' > backlog.md
+scripts/dashboard.sh >/dev/null
+[ "$(carte F-12)" = '<div class="carte"><strong>F-12</strong> <span class="titre">Sept sans pipe</span><span class="detail">P2</span><span class="detail desc">ancien | format</span></div>' ] && ok "fix_dashboard_colonnes_ancien_sans_pipe_final : 6 cellules sans « | » final" || ko "fix_dashboard_colonnes_ancien_sans_pipe_final" "$(carte F-12 | od -c | head -5)"
+# fix_dashboard_colonnes_ : repli sur la dernière colonne (en-tête sans « Décisions ») avec « | » final, avec et sans \r ; deux en-têtes
+printf '## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Notes |\n|--|--|--|--|--|--|\n| F-13 | Repli | P2 | À faire | | note 13 |\n| F-14 | Repli CR | P2 | À faire | | note 14 |\r\n' > backlog.md
+scripts/dashboard.sh >/dev/null
+carte F-13 | grep -q '<span class="detail desc">note 13</span>' && carte F-14 | grep -q '<span class="detail desc">note 14</span>' && ok "fix_dashboard_colonnes_repli_pipe_final : en-tête sans Décisions, « | » final, avec et sans \\r" || ko "fix_dashboard_colonnes_repli_pipe_final" "$(carte F-13 | od -c | head -4) $(carte F-14 | od -c | head -4)"
+printf '## Besoins fonctionnels\n\n| ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions |\n|--|--|--|--|--|--|--|\n| F-15 | Premier bloc | P2 | À faire | | | dec 15 |\n\n| ID | Besoin | Priorité | Statut | PRD | Notes |\n|--|--|--|--|--|--|\n| F-16 | Second bloc | P2 | À faire | | note 16 |\n' > backlog.md
+scripts/dashboard.sh >/dev/null
+carte F-15 | grep -q '<span class="detail desc">dec 15</span>' && carte F-16 | grep -q '<span class="detail desc">note 16</span>' && ok "fix_dashboard_colonnes_deux_en_tetes : le repli du second bloc ne reprend pas la colonne du premier" || ko "fix_dashboard_colonnes_deux_en_tetes" "$(carte F-15) $(carte F-16)"
 [ "$(colonnes issues)" = "À faire (1)|En cours (1)|En revue (1)|Fait (0)|(autre) (1)|" ] && carte 009-04 | grep -q 'Hors cycle' && ok "issue hors du cycle des issues (Spécifié) : colonne (autre)" || ko "colonne (autre) des issues" "$(colonnes issues)"
 [ "$(carte 009-02)" = '<div class="carte"><strong>009-02</strong> <span class="titre">&lt;script&gt;x&lt;/script&gt; &amp; y</span><span class="detail">F-09</span><span class="detail">dépend de : 009-01, 009-03</span></div>' ] && ok "cs03_ carte d'issue : id, titre échappé, besoin, dépendances (pas de marqueur hors À faire)" || ko "cs03_ carte d'issue" "$(carte 009-02)"
 ! grep -qi '<script' dashboard.html && ok "cs03_ aucune balise <script> dans la page" || ko "cs03_ <script> dans la page" "$(grep -n -i '<script' dashboard.html)"

@@ -8,6 +8,9 @@ Une issue = un fichier `docs/issues/<prd>-<nn>-<slug>.md` : une tranche vertical
 En-tête YAML : `id`, `titre`, `prd`, `besoin`, `statut` (`À faire` -> `En cours` -> `En revue` -> `Fait`), `criteres_justification` (facultatif : raison de dépasser environ 10 critères, ou de n'en déclarer aucun, `criteres: []`, pour une refactorisation sans changement de comportement), `depend_de` (ids d'issues qui doivent être
 `Fait`), `criteres` (CA-xx / CS-xx du PRD), `branche` (`feat/<prd>-<nn>-<slug>`), `commits`, `revue` (`docs/reviews/<id>.md`).
 Corps : Objectif, Périmètre (dans / hors), Critères d'acceptation (renvoi au PRD, sans les recopier), Notes (décisions et écarts datés).
+`branche` est renseigné **à la création** de l'issue, avec la branche prévue `<type>/<id>-<slug>` (`<id>-<slug>` : nom du fichier sans `.md` ; `<type>` : `feat` par défaut, ou `fix`, `docs`, `refactor`, `test`, `build` selon le travail). La branche n'a pas à exister encore.
+Un champ resté vide est déduit par le dashboard (convention de nommage `<type>/<id>-…`) et signalé par l'avis A17 de `scripts/statuts.sh` dès que l'issue est démarrée.
+Le champ rempli l'emporte sur la déduction.
 
 ## Règles
 - `Fait` seulement si la définition de fini de la skill `deliver` est remplie (build vert en copie propre, critères couverts par des tests nommés,

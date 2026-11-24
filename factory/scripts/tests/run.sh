@@ -5657,6 +5657,67 @@ for cle in $oo_cles; do
   verifier "cs03_$cle : oui est écrit dans le .factory.conf de ce dépôt" 0 "" test "$(lire_depot "$depot" .factory.conf | grep -Ec "^$cle=oui\$")" = 1
 done
 
+
+echo "champ branche rempli à la création : modèle d'issue et README des issues (PRD 007, issue 007-01)"
+# CA-01 : la ligne du champ du modèle est exacte, le reste du fichier est celui d'avant (empreinte de la version précédente, ligne remise à « branche: »).
+bm_modele() { lire_depot "$depot" docs/issues/_template.md; }
+bm_entete() { bm_modele | awk '/^---$/ { n++; next } n == 1'; } # lignes de l'en-tête YAML (entre les deux « --- »)
+bm_ancienne_empreinte() { bm_modele | sed 's|^branche: feat/<prd>-<nn>-<slug>$|branche:|' | shasum -a 256 | cut -d' ' -f1; }
+verifier "ca01_le modèle d'issue porte exactement la ligne « branche: feat/<prd>-<nn>-<slug> » dans son en-tête, une seule fois" 0 "" test "$(bm_entete | grep -c '^branche:')|$(bm_entete | grep -cFx 'branche: feat/<prd>-<nn>-<slug>')" = "1|1"
+verifier "ca01_aucune autre ligne du modèle n'a changé (empreinte de la version précédente, hors la ligne du champ)" 0 "" test "$(bm_ancienne_empreinte)" = "2342ea9e531285a1c8b4257015b4de428d6f3035255b4b619475824127ffe209"
+# CA-02 : le jumeau livré aux projets est identique octet pour octet.
+bm_jumeau_identique() { # compare le contenu lu (HEAD ou fichier) des deux modèles
+  local a b; a="$racine_tmp/bm-a"; b="$racine_tmp/bm-b"
+  lire_depot "$depot" docs/issues/_template.md > "$a"; lire_depot "$depot" factory/templates/docs/issues/_template.md > "$b"
+  [ -s "$a" ] && cmp -s "$a" "$b"
+}
+verifier "ca02_le modèle livré aux projets est identique octet pour octet à docs/issues/_template.md" 0 "" bm_jumeau_identique
+# CA-03 : les deux README disent les trois choses, avec la formulation attendue (une ligne chacune, liste blanche).
+bm_phrase_a='`branche` est renseigné **à la création** de l'"'"'issue, avec la branche prévue `<type>/<id>-<slug>` (`<id>-<slug>` : nom du fichier sans `.md` ; `<type>` : `feat` par défaut, ou `fix`, `docs`, `refactor`, `test`, `build` selon le travail). La branche n'"'"'a pas à exister encore.'
+bm_phrase_b='Un champ resté vide est déduit par le dashboard (convention de nommage `<type>/<id>-…`) et signalé par l'"'"'avis A17 de `scripts/statuts.sh` dès que l'"'"'issue est démarrée.'
+bm_phrase_c="Le champ rempli l'emporte sur la déduction."
+bm_readme_dit() { lire_depot "$depot" "$1" | grep -cFx -- "$2" | grep -qx 1; } # bm_readme_dit <readme> <ligne exacte> : la ligne figure une fois
+for bm_f in docs/issues/README.md factory/templates/docs/issues/README.md; do
+  verifier "ca03_${bm_f}_dit_que_branche_est_renseigne_a_la_creation_avec_la_branche_prevue" 0 "" bm_readme_dit "$bm_f" "$bm_phrase_a"
+  verifier "ca03_${bm_f}_dit_qu_un_champ_vide_est_deduit_par_le_dashboard_et_signale_par_A17" 0 "" bm_readme_dit "$bm_f" "$bm_phrase_b"
+  verifier "ca03_${bm_f}_dit_que_le_champ_rempli_l_emporte" 0 "" bm_readme_dit "$bm_f" "$bm_phrase_c"
+done
+# CA-04 : aucun commit de cette issue (message citant 007-01) ne touche /to-tickets, deliver ni les trois scripts. Hors dépôt git (copie sans .git) : vérification impossible, dite telle quelle.
+bm_fichiers_intacts='factory/skills/to-tickets factory/skills/deliver/SKILL.md scripts/dashboard.sh factory/scripts/dashboard.sh scripts/etat-issues.sh factory/scripts/etat-issues.sh scripts/fin-issue.sh factory/scripts/fin-issue.sh'
+bm_commits_issue() { git -C "$depot" log --no-merges --format=%H --fixed-strings --grep='007-01' HEAD; }
+bm_intacts() { # vrai si au moins un commit de l'issue existe et qu'aucun ne touche un fichier de la liste
+  local c n=0 t
+  for c in $(bm_commits_issue); do
+    n=$((n + 1)); t="$(git -C "$depot" diff-tree --no-commit-id --name-only -r "$c" -- $bm_fichiers_intacts)"
+    [ -z "$t" ] || { echo "$c touche : $t"; return 1; }
+  done
+  [ "$n" -ge 1 ]
+}
+if depot_git "$depot"; then verifier "ca04_aucun_commit_de_l_issue_007_01_ne_modifie_to_tickets_deliver_dashboard_etat_issues_fin_issue" 0 "" bm_intacts
+else ok "ca04_non vérifiable hors dépôt git (copie sans historique)"; fi
+# CA-05 : le modèle (valeur « feat/<prd>-<nn>-<slug> ») n'est compté nulle part : sorties identiques à celles d'un dépôt sans modèle.
+bm_projet() { # bm_projet <avec|sans> : dépôt jetable, une issue, un PRD ; avec le modèle réel ou sans
+  local d; d="$(nouveau_projet)"; ( cd "$d" || exit 1
+    git init -q -b develop .; rm -f docs/issues/[0-9]*.md; mkdir -p docs/prd
+    printf -- '- **CA-01** x\n' > docs/prd/003-m.md
+    printf -- '---\nid: 003-01\ntitre: T\nprd: docs/prd/003-m.md\nbesoin: F-01\nstatut: À faire\ndepend_de: []\ncriteres: [CA-01]\nbranche:\n---\n' > docs/issues/003-01-x.md
+    [ "$1" = avec ] && lire_depot "$depot" docs/issues/_template.md > docs/issues/_template.md
+    git add -A; git -c user.name=t -c user.email=t@t commit -q -m i ) ; printf '%s' "$d"
+}
+bm_sorties() { # bm_sorties <projet> : sorties des quatre scripts, une fois les lignes de date de la page retirées
+  ( cd "$1" || exit 1
+    echo "## statuts"; scripts/statuts.sh 2>&1; echo "code $?"
+    echo "## etat"; scripts/etat-issues.sh 2>&1; echo "code $?"
+    echo "## couverture"; scripts/couverture-prd.sh docs/prd/003-m.md 2>&1; echo "code $?"
+    echo "## dashboard"; scripts/dashboard.sh --sortie p.html 2>&1 | sed "s|[^ ]*/p\.[A-Za-z0-9]\{6\}|PROJET|g"; echo "code $?"
+    echo "## page"; grep -v -i 'généré\|epoch\|maintenant' p.html | sed "s|[^ ]*/p\.[A-Za-z0-9]\{6\}|PROJET|g" )
+}
+bm_a="$(bm_projet avec)"; bm_s="$(bm_projet sans)"
+bm_sa="$(bm_sorties "$bm_a")"; bm_ss="$(bm_sorties "$bm_s")"
+verifier "ca05_les_sorties_de_statuts_etat_couverture_et_dashboard_sont_celles_d_un_depot_sans_modele" 0 "" test "$bm_sa" = "$bm_ss" -a -n "$bm_sa"
+verifier "ca05_le_modele_n_apparait_dans_aucune_sortie_ni_page" 0 "" test -z "$(printf '%s' "$bm_sa" | grep -F -e '_template' -e '<prd>-<nn>')"
+verifier "ca05_le_depot_de_la_fixture_porte_bien_le_modele_avec_la_valeur_du_champ" 0 "" grep -qFx 'branche: feat/<prd>-<nn>-<slug>' "$bm_a/docs/issues/_template.md"
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

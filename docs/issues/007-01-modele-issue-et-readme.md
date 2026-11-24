@@ -3,12 +3,12 @@ id: 007-01
 titre: Modèle d'issue et README des issues : champ branche rempli à la création
 prd: docs/prd/007-champ-branche-renseigne.md
 besoin: F-06
-statut: À faire
+statut: Fait
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05]
 branche: feat/007-01-modele-issue-et-readme
-commits: []
-revue:
+commits: [3f6928f, e141a9b]
+revue: APPROUVÉ (itération 1, docs/reviews/007-01.md)
 ---
 
 ## Objectif
@@ -27,3 +27,5 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, `sc
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-19 : CA-02 et CA-04 sont des invariants (verts dès le départ, RED impossible) ; leurs tests ont été éprouvés par mutation exécutée. CA-04 lit l'historique (commits citant 007-01) et se déclare non vérifiable hors dépôt git. Les deux README gardent leurs différences existantes ; seules trois lignes identiques y sont ajoutées.
+- FIN-ISSUE OK 007-01 c9ca36d : 1941 tests, 0 échec, 0 ignoré (revue 1 APPROUVÉ).

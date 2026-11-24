@@ -4664,7 +4664,7 @@ for fichier_d5 in AGENTS.md factory/templates/AGENTS.md; do
   texte_d5="$(lire_depot "$depot" "$fichier_d5")"
   commande_d5="$(grep -F -e '- `scripts/statuts.sh' <<<"$texte_d5")"
   sequence_d5="$(awk '/^\*\*Séquence d.un besoin\*\*/ { p = 1 } /^## / { p = 0 } p' <<<"$texte_d5")"
-  for motif in '[--table]' 'lecture seule' 'ne corrige rien' 'ERREUR' 'AVIS' 'E01 à E14' 'A01 à A15' 'STATUTS : <e> erreur(s), <a> avis' 'code 1' 'Abandonnée' 'hors cycle' 'factory/scripts/statuts.table'; do
+  for motif in '[--table]' 'lecture seule' 'ne corrige rien' 'ERREUR' 'AVIS' 'E01 à E14' 'A01 à A16' 'STATUTS : <e> erreur(s), <a> avis' 'code 1' 'Abandonnée' 'hors cycle' 'factory/scripts/statuts.table'; do
     verifier "ca34_$fichier_d5 : commande scripts/statuts.sh : « $motif »" 0 "" contient "$commande_d5" "$motif"
   done
   verifier "ca34_$fichier_d5 : la commande du dashboard cite la section « Contrôle des statuts »" 0 "" contient "$(grep -F -e '- `scripts/dashboard.sh' <<<"$texte_d5")" 'Contrôle des statuts'
@@ -4711,7 +4711,7 @@ upgrade_d5="$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="(1.24.0)" 'inde
 for motif in 'remplacez `factory/`' 'aucune migration de données' 'init-projet.sh' 'scripts/lib-' 'statuts.sh' 'Abandonnée' '1 Mio' 'lib-verdict.sh'; do
   verifier "ca35_factory/UPGRADE.md, section 1.24.0 : « $motif »" 0 "" contient "$upgrade_d5" "$motif"
 done
-verifier "ca35_factory/UPGRADE.md : la section 1.24.0 est la première des sections de version (avant 1.23.0)" 0 "" test "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -E '^## .*\(1\.[0-9]+\.[0-9]+\)$')" = "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -F '(1.24.0)')"
+verifier "ca35_factory/UPGRADE.md : la section 1.24.0 est suivie de la section 1.23.0 (les versions plus récentes viennent avant)" 0 "" test "$(lire_depot "$depot" factory/UPGRADE.md | grep -E '^## .*\(1\.[0-9]+\.[0-9]+\)$' | grep -A1 -F '(1.24.0)' | tail -n1 | grep -o '(1\.[0-9.]*)')" = "(1.23.0)"
 
 # ca36 : tous les cas du besoin figurent dans la suite, avec dépôts Git jetables et environnement isolé. CA-38 à CA-41 relèvent de l'issue 004-06 (listés dans son en-tête, pas implémentés ici).
 verifier "ca36_chaque critère du PRD 004 (CA-01 à CA-41, CS-01 à CS-06 : 47) est couvert par exactement une issue (couverture-prd.sh)" 0 "OK .*47 critère" "$depot/scripts/couverture-prd.sh" docs/prd/004-machines-a-etats-statuts.md
@@ -4787,7 +4787,7 @@ done
 verifier "ca39_skill deliver : la consigne de 004-05 est gardée (scripts/statuts.sh après chaque fusion demandée par l'utilisateur)" 0 "" contient "$(lire_depot "$depot" factory/skills/deliver/SKILL.md)" 'après chaque fusion demandée par l'"'"'utilisateur, lance `scripts/statuts.sh`'
 verifier "ca40_les tests retirés sont énumérés avec leur raison dans les Notes de l'issue 004-06" 0 "" contient "$(lire_depot "$depot" docs/issues/004-06-retrait-anciennes-listes.md | sed -n '/^## Notes/,$p')" 'Tests retirés'
 verifier "ca40_l'issue 004-06 : chaque critère CA/CS a un test de cette suite dont le nom contient son identifiant (criteres-sans-test.sh)" 0 "^OK " "$depot/scripts/criteres-sans-test.sh" 004-06
-verifier "ca41_le CHANGELOG mentionne le retrait des anciennes listes de statuts" 0 "" contient "$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## / { n++ } n == 1')" 'retrait'
+verifier "ca41_le CHANGELOG mentionne le retrait des anciennes listes de statuts" 0 "" contient "$(lire_depot "$depot" factory/CHANGELOG.md | awk '/^## /{ p = ($0 == "## 1.24.1") } p')" 'retrait'
 # ca41 : sorties de référence prises AVANT le retrait (tests/golden/ca41-sorties.txt) sur les dépôts de CA-03 (fixtures de la table), de CA-07 (contrôle) et de CA-31 (dashboard à constats).
 r6_normaliser() { # r6_normaliser : filtre (entrée standard) : retire les chemins jetables, les hachages et les dates de commit
   sed -E -e "s#$racine_tmp#TMP#g" -e 's/[0-9a-f]{7,40} du [0-9]{4}-[0-9]{2}-[0-9]{2}/HASH du DATE/g' -e 's/dernier commit : [0-9a-f]+ du/dernier commit : HASH du/' -e 's/[0-9a-f]{7,40}/HASH/g'
@@ -5096,6 +5096,75 @@ verifier "ca11_En revue, cause « la première ligne n'est pas la ligne VERDICT:
 verifier "cs04_En revue : conforme, NUL, vide, sans ligne de verdict : aucun A16 ; fichier de plus de 1 Mio : A07 et jamais A16 ; au total 4 A16, rien sur la sortie d'erreur" 0 "" test "$(f6_a16_de 005-83)|$(f6_a16_de 005-85)|$(f6_a16_de 005-87)|$(f6_a16_de 005-88)|$(f6_a16_de 005-89)|$(grep -a -c '^AVIS A07 issue 005-89 ' "$racine_tmp/st.out")|$(f6_nb)|$(f6_stderr_vide && echo vide)" = "0|0|0|0|0|1|4|vide"
 
 
+# PRD 005, issue 005-03 : documentation du format consolidé, version 1.25.0, tests regroupés, non-régression de F-01.
+echo "documentation, version et non-régression (PRD 005, issue 005-03)"
+f7_rr="docs/reviews/README.md"; f7_phrase() { lire_depot "$depot" "$f5_rf" | grep -F "L'orchestrateur lit d'abord"; } # le dernier paragraphe du rapport du reviewer
+# CA-19 : documentation du format.
+verifier "ca19_docs/reviews/README.md est identique à son modèle (factory/templates/docs/reviews/README.md)" 0 "" test "$(lire_depot "$depot" "$f7_rr")" = "$(lire_depot "$depot" "$f5_tpl")"
+for f7_d in "$f7_rr" "$f5_tpl"; do
+  verifier "ca19_$f7_d : première ligne unique VERDICT: <valeur>, seule ligne VERDICT: du fichier, tenue par la session" 0 "" f5_ligne "$f7_d" 'Première ligne.*`VERDICT: <valeur>`.*seule ligne `VERDICT:`.*La session la met à jour'
+  verifier "ca19_$f7_d : « Verdict de l'itération : <valeur> » remplace la ligne VERDICT: du rapport, écrit par la session" 0 "" f5_ligne "$f7_d" 'Verdict de l.itération : <valeur>.*remplace la ligne `VERDICT:` du rapport'
+  verifier "ca19_$f7_d : l'orchestrateur seul écrit le fichier, le relecteur reste en lecture seule" 0 "" f5_ligne "$f7_d" "seul écrit ce fichier ; le relecteur reste en lecture seule"
+done
+verifier "ca19_report-format.md, dernier paragraphe du rapport du reviewer : la session écrit la ligne de tête et remplace la ligne VERDICT: du rapport par « Verdict de l'itération »" 0 "" test -n "$(f7_phrase | grep -F 'ligne de tête' | grep -F 'remplace' | grep -F 'Verdict de l'"'"'itération' | grep -F 'verdict-revue.sh')"
+verifier "ca19_report-format.md : le paragraphe ne dit plus que le rapport est sauvegardé tel quel" 0 "" test -z "$(f7_phrase | grep -F 'sauvegarde le rapport du reviewer tel quel')"
+verifier "ca19_report-format.md : la carte « Pour l'humain » reste écrite par la session, jamais par le reviewer" 0 "" test -n "$(f7_phrase | grep -F 'Pour l'"'"'humain' | grep -F 'jamais par le reviewer')"
+f7_rd="$(lire_depot "$depot" factory/README.md)"
+verifier "ca19_factory/README.md : l'avis A16 figure au catalogue avec son texte exact" 0 "" test "$(grep -c -x -F '| A16 | avis | `issue <id>` | `fichier de revue mal formé <chemin> : <cause>` ; causes : `plus d'"'"'une ligne VERDICT:`, `la première ligne n'"'"'est pas la ligne VERDICT:` |' <<<"$f7_rd")" = 1
+verifier "ca19_factory/README.md : le format consolidé est décrit (ligne de tête unique, Verdict de l'itération qui remplace la ligne du rapport, écrit par la session)" 0 "" test -n "$(grep -F '*Format*' <<<"$f7_rd" | grep -F 'ligne de tête' | grep -F 'seule ligne `VERDICT:`' | grep -F 'Verdict de l'"'"'itération' | grep -F 'remplace la ligne `VERDICT:` du rapport')" -a -n "$(grep -F '*Qui écrit*' <<<"$f7_rd" | grep -F 'session seule')"
+verifier "ca19_factory/README.md : l'avis A16 est décrit dans le guide d'utilisation de statuts.sh et dans la nouveauté 1.25.0" 0 "" test -n "$(grep -F 'scripts/statuts.sh [--table]' <<<"$f7_rd" | grep -F 'A16' | grep -F '1.25.0')" -a -n "$(grep -F '*Avis A16*' <<<"$f7_rd" | grep -F 'mal formé' | grep -F 'sans le remplacer')"
+# CA-20 : version, CHANGELOG, UPGRADE, README.
+f7_v="$(lire_depot "$depot" factory/VERSION | head -n1)"; f7_cl="$(lire_depot "$depot" factory/CHANGELOG.md)"
+f7_entree="$(awk '/^## /{p = ($0 == "## 1.25.0")} p' <<<"$f7_cl")"
+f7_up="$(lire_depot "$depot" factory/UPGRADE.md | awk -v v="(1.25.0)" 'index($0, v) && /^## / { p = 1; print; next } /^## / { p = 0 } p')"
+verifier "ca20_factory/VERSION ($f7_v) est au moins 1.25.0, la suivante libre après 1.24.1" 0 "" plus_recente_ou_egale "$f7_v" "1.25.0"
+verifier "ca20_le CHANGELOG a une entrée 1.25.0, une seule fois" 0 "" test "$(grep -c -x '## 1.25.0' <<<"$f7_cl")" = 1
+for f7_m in 'VERDICT:' "Verdict de l'itération" 'A16' 'report-format.md' 'verdict-revue.sh' 'deliver' 'docs/reviews/README.md' 'Migration : remplacer `factory/`' 'aucune migration de données' "avis attendus sur les revues d'avant F-01" 'plusieurs lignes de verdict'; do
+  verifier "ca20_entrée 1.25.0 du CHANGELOG : « $f7_m »" 0 "" contient "$f7_entree" "$f7_m"
+done
+for f7_m in 'remplacez `factory/`' 'aucune migration de données' 'docs/reviews/README.md' 'A16' 'plusieurs lignes' 'ligne de tête'; do
+  verifier "ca20_factory/UPGRADE.md, section 1.25.0 : « $f7_m »" 0 "" contient "$f7_up" "$f7_m"
+done
+verifier "ca20_factory/UPGRADE.md : la section 1.25.0 est la première des sections de version" 0 "" test "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -E '^## .*\(1\.[0-9]+\.[0-9]+\)$')" = "$(lire_depot "$depot" factory/UPGRADE.md | grep -m1 -F '(1.25.0)')"
+verifier "ca20_factory/README.md mentionne la nouveauté (1.25.0)" 0 "" contient "$f7_rd" "(1.25.0)"
+# CA-21 : les cas de CA-01 à CA-19 et CS-01 à CS-06 figurent dans la suite, avec dépôts jetables et environnement isolé.
+f7_suite() { sed -n '/^# PRD 005, issue 005-01/,/^echo "PRD 006 \/ issue 006-01/p' "$ici/run.sh"; }
+f7_manquants() { local id sec; sec="$(f7_suite)"; for id in ca01 ca02 ca03 ca04 ca05 ca06 ca07 ca08 ca09 ca10 ca11 ca12 ca13 ca14 ca15 ca16 ca17 ca18 ca19 cs01 cs02 cs03 cs04 cs05 cs06; do
+  grep -Eq "^[[:space:]]*(verifier|verdict_cas|st_cas) \"${id}_" <<<"$sec" || echo "$id"; done; } # (le texte est lu avant : pipefail et grep -q coupent le tube)
+verifier "ca21_chaque critère CA-01 à CA-19 et CS-01 à CS-06 de PRD 005 a un cas nommé par son identifiant dans la suite" 0 "" test -z "$(f7_manquants)"
+verifier "ca21_chaque critère de PRD 005 (CA-01 à CA-22, CS-01 à CS-06 : 28) est couvert par exactement une issue (couverture-prd.sh)" 0 "OK .*28 critère" "$depot/scripts/couverture-prd.sh" docs/prd/005-format-revue-consolide.md
+verifier "ca21_environnement isolé : GIT_CONFIG_GLOBAL et GIT_CONFIG_SYSTEM valent /dev/null, HOME est un dossier jetable de la suite" 0 "" d5_isole
+verifier "ca21_dépôts jetables : le projet courant est sous le dossier jetable de la suite, sans remote" 0 "" d5_jetable
+f7_reseau="$(printf '%s|%s|%s|%s' cu''rl wg''et ss''h n''c)" # les noms sont coupés : le garde-fou « sans réseau » de ca36 lit tout ce fichier
+verifier "ca21_sans réseau : les cas de PRD 005 n'appellent aucune commande réseau ni d'échange avec un dépôt distant" 0 "" test "$(f7_suite | grep -c -E -e "(^|[^a-z_-])($f7_reseau)([^a-z]|\$)" -e 'git[^|;]* (fe''tch|pu''ll|clo''ne|ls-re''mote)')" = 0
+# CA-22 : rien d'autre n'a changé (scripts de lecture, leurs tests, revues existantes).
+base_f12="94c66a8^" # juste avant le premier commit de F-12 (découpage du PRD 005 en issues)
+commits_f12() { git -C "$depot" log --no-merges --format=%H -E --grep='005-0[1-9]' "$base_f12..HEAD"; }
+f12_fichiers() { local c; for c in $(commits_f12); do git -C "$depot" show --no-renames --name-only --format= "$c" -- "$@"; done; }
+f12_modifie() { # revues présentes à la base de F-12, modifiées ou supprimées par un commit de F-12
+  local c f; for c in $(commits_f12); do git -C "$depot" show --no-renames --diff-filter=MD --name-only --format= "$c" -- 'docs/reviews/[0-9]*.md'; done | sort -u |
+    while read -r f; do git -C "$depot" cat-file -e "$base_f12:$f" 2>/dev/null && echo "$f"; done
+}
+f12_lignes_retirees() { local c; for c in $(commits_f12); do git -C "$depot" show -U0 --format= "$c" -- factory/scripts/tests/run.sh | grep '^-[^-]'; done; }
+# Le contrôle voit une violation (dépôt jetable) : un commit « 005-05 » qui touche fin-issue.sh et une revue existante est détecté ; limite assumée : un commit de F-12 sans « 005-0x » dans son message n'est pas attribué à F-12.
+ca22_j="$racine_tmp/ca22"; mkdir -p "$ca22_j/factory/scripts" "$ca22_j/docs/reviews"; git -C "$ca22_j" init -q -b develop .
+printf 'a\n' > "$ca22_j/factory/scripts/fin-issue.sh"; printf 'a\n' > "$ca22_j/factory/scripts/dashboard.sh"; printf 'a\n' > "$ca22_j/docs/reviews/003-01.md"
+git -C "$ca22_j" add -A; git -C "$ca22_j" -c user.name=t -c user.email=t@t commit -q -m "base"
+printf 'b\n' > "$ca22_j/factory/scripts/fin-issue.sh"; printf 'b\n' > "$ca22_j/docs/reviews/003-01.md"
+git -C "$ca22_j" add -A; git -C "$ca22_j" -c user.name=t -c user.email=t@t commit -q -m "feat: 005-05 touche tout"
+printf 'b\n' > "$ca22_j/factory/scripts/dashboard.sh"
+git -C "$ca22_j" add -A; git -C "$ca22_j" -c user.name=t -c user.email=t@t commit -q -m "feat: sans identifiant d'issue"
+ca22_d() { local d0="$depot" b0="$base_f12"; depot="$ca22_j"; base_f12="HEAD~2"; echo "$(f12_fichiers factory/scripts/fin-issue.sh factory/scripts/dashboard.sh)|$(f12_modifie)"; depot="$d0"; base_f12="$b0"; }
+verifier "ca22_le contrôle détecte un commit « 005-05 » qui modifie fin-issue.sh et une revue existante ; la limite (commit sans « 005-0x » qui modifie dashboard.sh, non attribué à F-12) est bornée" 0 "" test "$(ca22_d)" = "factory/scripts/fin-issue.sh|docs/reviews/003-01.md"
+if depot_git "$depot" && git -C "$depot" cat-file -e "$base_f12^{commit}" 2>/dev/null && [ -n "$(commits_f12)" ]; then
+  verifier "ca22_l'historique de F-12 est lisible (au moins un commit de F-12 trouvé)" 0 "" test -n "$(commits_f12)"
+  verifier "ca22_aucun commit de F-12 ne touche verdict-revue.sh, fin-issue.sh, etat-issues.sh, dashboard.sh ni tests/golden (comparaison vide)" 0 "" test -z "$(f12_fichiers factory/scripts/verdict-revue.sh factory/scripts/fin-issue.sh factory/scripts/etat-issues.sh factory/scripts/dashboard.sh factory/scripts/tests/golden)"
+  verifier "ca22_aucun commit de F-12 ne retire de ligne de run.sh qui nomme verdict-revue, fin-issue, dashboard ou etat-issues (hors ca22_)" 0 "" test -z "$(f12_lignes_retirees | grep -v 'ca22_' | grep -E 'verdict-revue|fin-issue|dashboard|etat-issues')"
+  verifier "ca22_aucune revue de docs/reviews présente avant F-12 n'est modifiée par F-12 (comparaison vide)" 0 "" test -z "$(f12_modifie)"
+else
+  ok "ca22_historique Git de F-12 absent (copie propre ou clone partiel) : comparaison des commits non faite"
+fi
+
 echo "PRD 006 / issue 006-01 : MODE_REVUE, clés de modèle et d'effort des relecteurs, enveloppes (CA-01 à CA-04, CS-01, CS-02)"
 # mr_* : cas de config-factory.sh --mode-revue ; la configuration vient des fichiers du dépôt courant ou, pour mr_env_*, de FACTORY_MODE_REVUE.
 mr_lancer() { scripts/config-factory.sh --mode-revue > "$p/mr-out" 2> "$p/mr-err"; mr_code=$?; }
@@ -5297,7 +5366,7 @@ verifier "ca09_report_format_bloc_en_clair" 0 "" rl_a_section "^## En clair$"
 verifier "ca09_report_format_quatre_vingts_lignes_au_plus" 0 "" rl_a_section "80 lignes au plus"
 verifier "ca09_report_format_aucune_autre_ligne_ne_commence_par_verdict" 0 "" rl_a_section "[Aa]ucune autre ligne.*commence par .VERDICT:"
 verifier "ca09_report_format_constats_bloquant_important_mineur_avec_fichier_ligne" 0 "" rl_a_section "BLOQUANT / IMPORTANT / MINEUR.*fichier:ligne"
-verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "5ad5475e0ba6c3525ec86fb63c6f56055e046634869a0ebd687808b8a69b1ea7"
+verifier "ca09_report_format_la_section_du_code_reviewer_est_inchangee" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { f = 1 } /^## Rapport d.un relecteur/ { f = 0 } f { l[++n] = $0 } END { while (n > 0 && l[n] == "") n--; for (i = 1; i <= n; i++) print l[i] }' | shasum -a 256 | cut -d' ' -f1)" = "60f428948214c163f7d34d0a250e4b4350aef420a381f2cede051d6667fd7c5a"
 verifier "ca09_report_format_le_reste_du_fichier_avant_le_reviewer_est_inchange" 0 "" test "$(lire_depot "$depot" $rl_rf | awk '/^## Rapport du reviewer$/ { exit } 1' | shasum -a 256 | cut -d' ' -f1)" = "65580ddcf62120548fbd4ef17dc9995fe395942d9ef38287b11eb0ad5ca832b9"
 
 # CA-10 : brief commun des relecteurs ; l'ancien brief et le prompt du mode unique sont inchangés.

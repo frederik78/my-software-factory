@@ -3,7 +3,7 @@ id: 009-02
 titre: Règles de l'orchestrateur : règles sans clé dans AGENTS.md et deliver
 prd: docs/prd/009-regles-orchestrateur-dans-la-factory.md
 besoin: F-14
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-05, CA-06, CA-07, CA-08, CA-09, CS-06, CS-08]
 branche: feat/009-02-regles-sans-cle

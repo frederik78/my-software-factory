@@ -5930,6 +5930,33 @@ verifier "cs09_code_review_borne_201_caracteres_refusee" 0 "" cr_hostile "$cr_fo
 verifier "cs09_code_review_aucun_fichier_marque_apres_les_valeurs_hostiles" 0 "" test ! -e "$cr_depot/marque"
 verifier "cs09_code_review_la_valeur_est_citee_entre_guillemets_jamais_interpolee" 0 "" cr_a_bis 'jamais interpolée'
 
+
+# CA-36 : lancement des trois relecteurs ensemble, brief commun, répartition des sources.
+verifier "ca36_code_review_parallele_la_section_existe_apres_l_etape_5_et_les_deux_axes" 0 "" doc_ordre $cr_sk '^## Why two axes' '^## Mode parallèle'
+verifier "ca36_code_review_parallele_lance_les_trois_relecteurs_nommes_dans_l_ordre" 0 "" cr_a_par 'code-reviewer-conformite.*code-reviewer-qualite.*code-reviewer-securite'
+verifier "ca36_code_review_parallele_lance_ensemble_plusieurs_lancements_dans_le_meme_message" 0 "" cr_a_par 'ensemble.*plusieurs lancements dans le même message'
+verifier "ca36_code_review_parallele_remplace_les_deux_sous_agents_standards_et_spec" 0 "" cr_a_par "à la place des deux sous-agents Standards et Spec"
+verifier "ca36_code_review_parallele_brief_commun_des_relecteurs" 0 "" cr_a_par 'brief commun `factory/prompts/briefs/relecteurs\.md`'
+verifier "ca36_code_review_parallele_un_message_par_relecteur_champs_remplis" 0 "" cr_a_par 'un message par relecteur'
+verifier "ca36_code_review_parallele_diff_depuis_le_point_fixe" 0 "" cr_a_par 'git diff <point-fixe>\.\.\.HEAD'
+verifier "ca36_code_review_parallele_liste_des_commits_depuis_le_point_fixe" 0 "" cr_a_par 'git log <point-fixe>\.\.HEAD --oneline'
+verifier "ca36_code_review_parallele_la_specification_va_a_la_conformite" 0 "" cr_a_par 'spécification .*va à « conformité et tests »'
+verifier "ca36_code_review_parallele_sans_specification_la_conformite_le_dit" 0 "" cr_a_par 'sans spécification, la conformité le dit'
+verifier "ca36_code_review_parallele_normes_et_mauvaises_odeurs_vont_a_la_qualite" 0 "" cr_a_par 'sources de normes et la liste de mauvaises odeurs.*« qualité »'
+verifier "ca36_code_review_parallele_la_securite_passe_meme_sans_specification" 0 "" cr_a_par '« sécurité » passe même sans spécification'
+verifier "ca36_code_review_parallele_seule_la_conformite_lance_build_criteres_et_mutations" 0 "" cr_a_par 'Seule la conformité lance `scripts/verify-clean\.sh`, `scripts/criteres-sans-test\.sh` et les mutations'
+verifier "ca36_code_review_le_mode_parallele_n_applique_pas_les_etapes_4_et_5_des_deux_sous_agents" 0 "" cr_a_bis 'parallele.*n.applique pas les étapes 4 et 5'
+
+# CS-10 : relecteurs en lecture seule, mutations hors dépôt, seule écriture de la session dans le fichier de RG-29, sécurité toujours lancée.
+verifier "cs10_code_review_parallele_les_relecteurs_gardent_les_memes_outils_en_lecture_seule_que_deliver" 0 "" cr_a_par 'mêmes outils en lecture seule que pour `/deliver`'
+for cr_r in conformite qualite securite; do
+  verifier "cs10_code_review_le_relecteur_${cr_r}_n_a_ni_write_ni_edit" 0 "" test -z "$(rl_entete factory/prompts/code-reviewer-$cr_r.md | grep '^tools:' | grep -E 'Write|Edit')"
+done
+verifier "cs10_code_review_parallele_mutations_dans_des_copies_jetables_distinctes_hors_du_depot" 0 "" cr_a_par 'mutations.*copies jetables distinctes, hors du dépôt'
+verifier "cs10_code_review_parallele_la_securite_est_lancee_dans_tous_les_cas" 0 "" cr_a_par 'sécurité.*lancée dans tous les cas.*(spécification absente ou non)'
+verifier "cs10_code_review_parallele_aucun_relecteur_n_ecrit_dans_le_depot" 0 "" cr_a_par 'aucun relecteur n.écrit dans le dépôt'
+verifier "cs10_code_review_parallele_seule_ecriture_de_la_session_est_le_fichier_de_revue_de_branche" 0 "" cr_a_par 'seule écriture dans le dépôt.*session.*`docs/reviews/branche-<branche>\.md`'
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

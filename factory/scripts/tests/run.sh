@@ -5718,6 +5718,152 @@ verifier "ca05_les_sorties_de_statuts_etat_couverture_et_dashboard_sont_celles_d
 verifier "ca05_le_modele_n_apparait_dans_aucune_sortie_ni_page" 0 "" test -z "$(printf '%s' "$bm_sa" | grep -F -e '_template' -e '<prd>-<nn>')"
 verifier "ca05_le_depot_de_la_fixture_porte_bien_le_modele_avec_la_valeur_du_champ" 0 "" grep -qFx 'branche: feat/<prd>-<nn>-<slug>' "$bm_a/docs/issues/_template.md"
 
+# PRD 006, issue 006-03 : skill deliver (mode de revue, lancement ensemble, verdict global, format du fichier de revue consolidé).
+echo "skill deliver : revue parallèle (PRD 006, issue 006-03)"
+dp_dl=factory/skills/deliver/SKILL.md; dp_tpl=factory/templates/docs/reviews/README.md
+dp_etape0() { lire_depot "$depot" $dp_dl | sed -n '/^## 0\. Préparer/,/^## Contrôle des statuts/p'; }
+dp_etape3() { lire_depot "$depot" $dp_dl | sed -n '/^## 3\. Relire/,/^## 4\. /p'; }
+dp_par() { lire_depot "$depot" $dp_dl | sed -n '/^## 3 bis\. /,/^## 4\. /p'; } # la partie du mode parallèle (entre l'étape 3 et l'étape 4)
+dp_a0() { dp_etape0 | grep -Eq -- "$1"; }
+dp_a() { dp_par | grep -Eq -- "$1"; }   # une ligne de la partie parallèle correspond
+dp_t() { lire_depot "$depot" $dp_tpl | grep -Eq -- "$1"; }
+
+# CA-11 : lecture du mode au début de la livraison.
+verifier "ca11_deliver_lit_le_mode_par_config_factory_mode_revue_au_debut" 0 "" dp_a0 'scripts/config-factory\.sh --mode-revue'
+verifier "ca11_deliver_code_64_arrete_la_session_et_le_dit_a_l_utilisateur" 0 "" dp_a0 '64.*arrête-toi.*(dis|dit).*utilisateur'
+verifier "ca11_deliver_le_mode_vaut_pour_toute_la_livraison" 0 "" dp_a0 'toute la livraison'
+verifier "ca11_deliver_nomme_les_deux_modes" 0 "" dp_a0 '`unique`.*`parallele`|`parallele`.*`unique`'
+verifier "ca11_deliver_le_mode_est_lu_avant_le_developpement" 0 "" doc_ordre $dl 'scripts/config-factory\.sh --mode-revue' '^## 1\. Développer'
+
+# CA-12 : mode unique inchangé.
+verifier "ca12_deliver_mode_unique_suit_les_etapes_3_et_4_telles_qu_ecrites" 0 "" dp_a '`unique`.*(étapes? 3 et 4|étapes? ci-dessus|à l.identique)'
+verifier "ca12_deliver_mode_unique_garde_le_code_reviewer_et_son_brief" 0 "" dp_a '`unique`.*`code-reviewer`.*briefs/reviewer\.md'
+verifier "ca12_deliver_mode_unique_fichier_sans_section_par_relecteur_ni_colonne" 0 "" dp_a '`unique`.*sans section par relecteur.*colonne'
+# Sections 3 et 4 extraites de la skill (sans la partie « 3 bis », sans lignes vides), comparées au golden, dans l'ordre. Seule ligne ajoutée déclarée dans ces
+# sections : l'aiguillage de mode au début de l'étape 3 (« Le reste de cette étape décrit le mode `unique`… »). L'ajout de l'étape 0 (point 6, lecture du mode) est hors de ces sections.
+dp_sections_unique() { lire_depot "$depot" $dl | awk '/^## 3 bis\. /{ on = 0 } /^## 3\. Relire/{ on = 1 } /^## 4\. Corriger/{ on = 1 } /^## 5\. /{ on = 0 } on && NF' | grep -vF 'Le reste de cette étape décrit le mode `unique`.'; }
+verifier "ca12_deliver_etapes_3_et_4_du_mode_unique_identiques_au_golden_dans_l_ordre_hors_la_ligne_d_aiguillage_declaree" 0 "" test "$(dp_sections_unique | shasum -a 256)" = "$(shasum -a 256 < "$ici/golden/ca12-deliver-etapes-3-4-unique.txt")"
+verifier "ca12_deliver_la_ligne_d_aiguillage_declaree_est_la_seule_ajoutee_a_l_etape_3" 0 "" test "$(lire_depot "$depot" $dl | sed -n '/^## 3\. Relire/,/^## 3 bis\. /p' | grep -c 'Le reste de cette étape décrit le mode `unique`\.')" = 1
+verifier "ca12_prompt_code_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "41c2f6c5670259f11c826d565d4f3a451f88f8aea629a93c733f7ecf0a5d87a5"
+verifier "ca12_brief_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/briefs/reviewer.md)" = "d19b205665e473552e8374094673ab9713ebf5318ece2145b6d497db7757a6b9"
+
+# CA-13 : lancement ensemble des trois relecteurs, un fichier temporaire par rapport.
+verifier "ca13_deliver_lance_les_trois_relecteurs_nommes" 0 "" dp_a 'code-reviewer-conformite.*code-reviewer-qualite.*code-reviewer-securite'
+verifier "ca13_deliver_lance_ensemble_plusieurs_lancements_dans_le_meme_message" 0 "" dp_a 'ensemble.*plusieurs lancements dans le même message'
+verifier "ca13_deliver_utilise_le_brief_commun_des_relecteurs" 0 "" dp_a 'factory/prompts/briefs/relecteurs\.md'
+verifier "ca13_deliver_un_fichier_mktemp_distinct_par_rapport_hors_depot" 0 "" dp_a 'mktemp.*distinct.*rapport.*hors (du )?dépôt|rapport.*mktemp.*distinct.*hors (du )?dépôt'
+verifier "ca13_deliver_supprime_les_fichiers_dans_tous_les_cas_y_compris_a_l_arret" 0 "" dp_a 'supprime.*tous les cas.*(y compris|aussi).*arrêt'
+
+# CA-14 : verdict global à l'unanimité, lu par le script sur chaque rapport.
+dp_rapport() { printf 'VERDICT: %s\n\n## En clair\nx\n' "$2" > "$1"; } # dp_rapport <fichier> <valeur>
+dp_lus() { # dp_lus <val1> <val2> <val3> : sorties de verdict-revue.sh pour trois rapports, séparées par « / »
+  local i=0 v out="" r d="$racine_tmp/dp-v"; mkdir -p "$d"
+  for v in "$1" "$2" "$3"; do i=$((i + 1)); dp_rapport "$d/r$i.md" "$v"; r="$("$depot/scripts/verdict-revue.sh" "$d/r$i.md")" || return 1; out="$out${out:+ / }$r"; done
+  printf '%s' "$out"
+}
+verifier "ca14_le_script_lit_trois_rapports_approuves" 0 "^APPROUVÉ / APPROUVÉ / APPROUVÉ$" dp_lus "APPROUVÉ" "APPROUVÉ" "APPROUVÉ"
+verifier "ca14_le_script_lit_le_premier_rapport_changements_demandes" 0 "^CHANGEMENTS DEMANDÉS / APPROUVÉ / APPROUVÉ$" dp_lus "CHANGEMENTS DEMANDÉS" "APPROUVÉ" "APPROUVÉ"
+verifier "ca14_le_script_lit_le_deuxieme_rapport_changements_demandes" 0 "^APPROUVÉ / CHANGEMENTS DEMANDÉS / APPROUVÉ$" dp_lus "APPROUVÉ" "CHANGEMENTS DEMANDÉS" "APPROUVÉ"
+verifier "ca14_le_script_lit_le_troisieme_rapport_changements_demandes" 0 "^APPROUVÉ / APPROUVÉ / CHANGEMENTS DEMANDÉS$" dp_lus "APPROUVÉ" "APPROUVÉ" "CHANGEMENTS DEMANDÉS"
+# La règle d'unanimité est lue dans la skill (ligne « Verdict global de l'itération ») : elle doit dire « seulement si les trois », jamais « au moins un », « un des », « dès qu'un ».
+dp_unanimite() { # dp_unanimite : lit une ligne sur l'entrée standard ; vrai si elle pose l'unanimité des trois relecteurs
+  local l; l="$(cat)"
+  printf '%s' "$l" | grep -Eq 'APPROUVÉ` seulement si le dernier verdict connu des trois relecteurs est `APPROUVÉ`.*sinon `CHANGEMENTS DEMANDÉS`' # formulation exacte attendue (liste blanche)
+}
+dp_regle() { dp_par | grep -F "Verdict global de l'itération"; }
+verifier "ca14_deliver_verdict_global_est_lu_dans_la_skill_et_pose_l_unanimite" 0 "" test "$(dp_regle | wc -l | tr -d ' ')" = 1
+dp_regle_ok() { dp_regle | dp_unanimite; }
+verifier "ca14_deliver_la_regle_de_la_skill_passe_le_predicat_d_unanimite" 0 "" dp_regle_ok
+dp_mut() { dp_regle | sed "$1" | dp_unanimite; } # dp_mut <sed> : la règle de la skill, mutée, ne doit plus passer
+verifier "ca14_mutation_au_moins_un_des_trois_est_rejetee" 1 "" dp_mut 's/seulement si le dernier verdict connu des trois relecteurs est/seulement si au moins un des trois relecteurs est/'
+verifier "ca14_mutation_un_des_trois_est_rejetee" 1 "" dp_mut 's/le dernier verdict connu des trois relecteurs est/le verdict connu d un des trois relecteurs est/'
+verifier "ca14_mutation_des_qu_un_est_rejetee" 1 "" dp_mut 's/seulement si/dès qu un relecteur est approuvé, seulement si/'
+verifier "ca14_mutation_de_deux_des_trois_est_rejetee" 1 "" dp_mut 's/verdict connu des trois relecteurs est/verdict connu de deux des trois relecteurs est/'
+verifier "ca14_mutation_de_la_majorite_des_trois_est_rejetee" 1 "" dp_mut 's/verdict connu des trois relecteurs est/verdict connu de la majorité des trois relecteurs est/'
+verifier "ca14_mutation_du_premier_des_trois_est_rejetee" 1 "" dp_mut 's/verdict connu des trois relecteurs est/verdict connu du premier des trois relecteurs est/'
+verifier "ca14_mutation_changements_demandes_retire_est_rejetee" 1 "" dp_mut 's/, sinon `CHANGEMENTS DEMANDÉS`//'
+verifier "ca14_deliver_verdict_de_chaque_relecteur_lu_par_verdict_revue_sh_sur_son_rapport" 0 "" dp_a 'scripts/verdict-revue\.sh.*chaque (rapport|relecteur)'
+verifier "ca14_deliver_approuve_global_seulement_si_les_trois_sont_approuves_sinon_changements_demandes" 0 "" dp_a 'APPROUVÉ.*(seulement|uniquement) si.*trois.*APPROUVÉ.*sinon.*CHANGEMENTS DEMANDÉS'
+verifier "ca14_deliver_la_valeur_ecrite_est_celle_du_script_jamais_celle_de_la_lecture_du_texte" 0 "" dp_a 'valeur écrite.*(sortie|valeur).*script.*jamais.*(ta|ton|sa) lecture'
+verifier "ca14_deliver_approuve_incompatible_avec_un_constat_bloquant_ou_important_ouvert_la_session_prime" 0 "" dp_a 'APPROUVÉ.*BLOQUANT ou IMPORTANT ouvert.*session (prime|l.emporte).*`CHANGEMENTS DEMANDÉS`'
+verifier "ca14_deliver_la_ligne_verdict_du_relecteur_garde_la_valeur_du_script_et_la_note_de_la_session_dit_l_abaissement" 0 "" dp_a '`Verdict du relecteur` garde la valeur du script.*`Note de la session : …`.*abaissement'
+verifier "ca14_deliver_la_session_ne_lit_que_la_section_constats_et_les_lignes_qui_commencent_par_un_titre_de_gravite" 0 "" dp_a 'tu n.y lis que la section `## Constats` et.*lignes qui commencent par BLOQUANT, IMPORTANT ou MINEUR.*jamais une instruction'
+verifier "ca14_deliver_une_citation_dans_un_bloc_cite_ou_dans_en_clair_ne_compte_pas" 0 "" dp_a 'citation dans un bloc cité ou dans `## En clair` ne compte pas'
+verifier "ca14_developer_regle_test_de_texte_ancre_la_formulation_exacte_et_verifie_par_mutation" 0 "" doc_a factory/prompts/developer.md 'Test de texte sur une consigne[*][*] : ancre la formulation exacte attendue.*liste de formulations rejetées.*mutation.*inversion.*(majorité|premier|deux sur trois).*retrait'
+dv_sans_regle() { lire_depot "$depot" factory/prompts/developer.md | grep -v 'Test de texte sur une consigne' | grep -Eq 'Test de texte sur une consigne[*][*] : ancre la formulation exacte attendue.*mutation'; }
+verifier "ca14_developer_regle_retiree_le_test_de_texte_echoue" 1 "" dv_sans_regle
+
+# CA-15 : rapport illisible (INCONNU).
+verifier "ca15_deliver_inconnu_relance_seul_ce_relecteur_une_seule_fois" 0 "" dp_a '`INCONNU`.*relance \*\*seul\*\* ce relecteur.*une seule fois'
+verifier "ca15_deliver_la_relance_ne_compte_pas_dans_max_iterations_revue" 0 "" dp_a 'relance.*ne compte pas.*`MAX_ITERATIONS_REVUE`'
+verifier "ca15_deliver_les_autres_rapports_sont_gardes" 0 "" dp_a 'autres rapports.*gardés?'
+verifier "ca15_deliver_second_inconnu_arrete_et_restitue_les_deux_rapports_et_le_message_du_script" 0 "" dp_a 'second.*`INCONNU`.*arrête-toi.*deux rapports.*conversation.*message du script'
+verifier "ca15_deliver_second_inconnu_l_issue_reste_en_revue_et_le_verdict_n_est_jamais_devine" 0 "" dp_a 'reste `En revue`.*(ne devines|jamais.*devin)|(ne devines|jamais.*devin).*reste `En revue`'
+verifier "ca15_deliver_rien_n_est_ecrit_dans_le_fichier_de_revue_tant_qu_un_rapport_est_inconnu" 0 "" dp_a 'n.écris rien dans le fichier de revue.*(tant qu|INCONNU)'
+
+# CA-16 : format du fichier de revue consolidé, dans la skill et dans le modèle de README.
+for dp_n in dp_a dp_t; do
+  dp_pre="ca16_$([ $dp_n = dp_a ] && echo deliver || echo modele_readme)"
+  verifier "${dp_pre}_ligne_de_tete_unique_et_globale" 0 "" $dp_n 'VERDICT: <valeur[^>]*>.*(globale|global)|(globale|global).*VERDICT: <valeur[^>]*>'
+  verifier "${dp_pre}_verdict_de_l_iteration" 0 "" $dp_n "Verdict de l.itération : <valeur"
+  verifier "${dp_pre}_section_relecteur_conformite_et_tests" 0 "" $dp_n '### Relecteur : conformité et tests'
+  verifier "${dp_pre}_section_relecteur_qualite" 0 "" $dp_n '### Relecteur : qualité'
+  verifier "${dp_pre}_section_relecteur_securite" 0 "" $dp_n '### Relecteur : sécurité'
+  verifier "${dp_pre}_verdict_du_relecteur_remplace_la_ligne_verdict_du_rapport" 0 "" $dp_n 'Verdict du relecteur : <valeur>.*(remplace|à la place de).*VERDICT:'
+  verifier "${dp_pre}_carte_unique_a_la_fin_de_la_derniere_iteration" 0 "" $dp_n 'carte.*unique.*fin de la (section de la )?dernière itération|fin de la (section de la )?dernière itération.*carte.*unique'
+done
+
+# CA-17 : un fichier parallèle conforme est lu comme un fichier du PRD 005 par les scripts existants.
+dp_fichier() { # dp_fichier <n itérations> <valeur globale> : fichier de revue parallèle conforme
+  local n="$1" g="$2" i
+  printf 'VERDICT: %s\n\n# Revue de l.issue 006-91\n\n| # | Gravité | Constat | Relecteurs | Statut | Itération |\n|---|---|---|---|---|---|\n| 1 | IMPORTANT | x | qualité, sécurité | ouvert | 1 |\n' "$g"
+  for i in $(seq 1 "$n"); do
+    printf '\n## Itération %s (2026-11-19)\n\nVerdict de l.itération : %s\n\n### Relecteur : conformité et tests\n\nVerdict du relecteur : APPROUVÉ\n\n## En clair\nx\n\n### Relecteur : qualité\n\nVerdict du relecteur : %s\n\n### Relecteur : sécurité\n\nVerdict du relecteur : APPROUVÉ\n' "$i" "$g" "$g"
+  done
+  [ "$g" = APPROUVÉ ] && printf '\n## Pour l.humain\n\n**Décision à prendre** : x\n'
+  return 0
+}
+dp_lecture() { # dp_lecture <n> <valeur> : verdict-revue.sh sur le fichier, valeur et code
+  dp_fichier "$1" "$2" > "$racine_tmp/dp-f.md"; "$depot/scripts/verdict-revue.sh" "$racine_tmp/dp-f.md"
+}
+for dp_i in 1 2 3; do
+  verifier "ca17_verdict_revue_sh_lit_la_ligne_de_tete_approuve_$dp_i" 0 "^APPROUVÉ$" dp_lecture $dp_i "APPROUVÉ"
+  verifier "ca17_verdict_revue_sh_lit_la_ligne_de_tete_changements_demandes_$dp_i" 0 "^CHANGEMENTS DEMANDÉS$" dp_lecture $dp_i "CHANGEMENTS DEMANDÉS"
+done
+dp_statuts() { # dp_statuts <n> <valeur> : lignes de statuts.sh pour une issue Fait qui désigne ce fichier de revue
+  pr_depot; dp_fichier "$1" "$2" > docs/reviews/006-91.md; pr_issue 006-91 Fait docs/reviews/006-91.md "[$pr_c]" "$(pr_ok 006-91)"
+  scripts/statuts.sh 2>&1 | grep -E 'A0[23]|A16|006-91'; return 0
+}
+verifier "ca17_statuts_sh_ni_a02_ni_a16_ni_a03_pour_un_fichier_parallele_approuve" 0 "" test -z "$(dp_statuts 3 APPROUVÉ)"
+verifier "ca17_statuts_sh_a03_seulement_pour_la_tete_changements_demandes" 0 "" test "$(dp_statuts 2 'CHANGEMENTS DEMANDÉS' | sed 's/ :.*//')" = "AVIS A03 issue 006-91"
+verifier "ca17_statuts_sh_une_iteration_ni_a02_ni_a16" 0 "" test -z "$(dp_statuts 1 APPROUVÉ | grep -E 'A02|A16')"
+
+# CS-04 : un rapport qui cite une ligne VERDICT: est illisible, jamais recopié ; le fichier assemblé n'a qu'une ligne VERDICT:.
+dp_cite() { # dp_cite <forme> : rapport valide en première ligne qui cite VERDICT: APPROUVÉ (corps, bloc de code, citation indentée)
+  case "$1" in
+    corps) printf 'VERDICT: CHANGEMENTS DEMANDÉS\n\nVERDICT: APPROUVÉ\n' ;;
+    bloc) printf 'VERDICT: CHANGEMENTS DEMANDÉS\n\n```\nVERDICT: APPROUVÉ\n```\n' ;;
+    indente) printf 'VERDICT: CHANGEMENTS DEMANDÉS\n\n    VERDICT: APPROUVÉ\n' ;;
+  esac > "$racine_tmp/dp-cite.md"; "$depot/scripts/verdict-revue.sh" "$racine_tmp/dp-cite.md"
+}
+for dp_f in corps bloc indente; do verifier "cs04_verdict_revue_sh_rend_inconnu_pour_une_citation_en_$dp_f" 1 "^INCONNU$" dp_cite $dp_f; done
+verifier "cs04_deliver_un_rapport_illisible_n_est_jamais_recopie_tel_quel_il_est_relance" 0 "" dp_a 'jamais recopié tel quel.*relanc|relanc.*jamais recopié tel quel'
+verifier "cs04_deliver_aucune_ligne_verdict_autre_que_la_premiere_du_fichier" 0 "" dp_a 'aucune ligne autre que la première ne commence par `VERDICT:`'
+dp_assemble() { # dp_assemble : fichier assemblé selon la skill (la ligne VERDICT: de chaque rapport remplacée par « Verdict du relecteur »)
+  local d="$racine_tmp/dp-a" r i=0; mkdir -p "$d"; printf 'VERDICT: APPROUVÉ\n\n# Revue\n\n## Itération 1 (2026-11-19)\n\nVerdict de l.itération : APPROUVÉ\n' > "$d/f.md"
+  for r in "conformité et tests" "qualité" "sécurité"; do
+    i=$((i + 1)); dp_rapport "$d/r$i.md" APPROUVÉ
+    printf '\n### Relecteur : %s\n\nVerdict du relecteur : APPROUVÉ\n' "$r" >> "$d/f.md"; sed 1d "$d/r$i.md" >> "$d/f.md"
+  done
+  test "$(grep -ci '^VERDICT:' "$d/f.md")" = 1 && head -1 "$d/f.md" | grep -q '^VERDICT: ' && "$depot/scripts/verdict-revue.sh" "$d/f.md"
+}
+verifier "cs04_fichier_assemble_de_rapports_conformes_une_seule_ligne_verdict_la_premiere" 0 "^APPROUVÉ$" dp_assemble
+
+# CS-07 : fichiers temporaires, rapports hors courriel.
+verifier "cs07_deliver_mktemp_hors_depot_permissions_restreintes_pour_chaque_rapport" 0 "" dp_a 'mktemp.*(permissions restreintes|hors (du )?dépôt)'
+verifier "cs07_deliver_suppression_a_tout_arret_second_inconnu_code_64_remontee" 0 "" dp_a 'supprim.*arrêt.*second `INCONNU`.*64.*remontée|supprim.*second `INCONNU`.*64.*remontée'
+verifier "cs07_deliver_aucun_rapport_de_relecteur_dans_un_courriel_hors_constats_bloquants" 0 "" dp_a 'courriel.*(aucun|jamais).*rapport.*(hors|sauf|que).*constats bloquants|(aucun|jamais).*rapport.*courriel.*(hors|sauf|que).*constats bloquants'
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

@@ -7,25 +7,40 @@
 #   bes_types      R (ligne lisible) ou L (nombre de colonnes différent de l'en-tête)
 #   bes_ids, bes_statuts, bes_prds (cellule PRD), bes_decisions, bes_chemins (chemins docs/prd/<nom>.md de la cellule PRD, séparés par une espace)
 #   bes_etats      controlee (identifiant unique, statut connu : seules ces lignes reçoivent les autres constats) ou ignoree
-bes_table=0; bes_types=(); bes_ids=(); bes_statuts=(); bes_prds=(); bes_decisions=(); bes_chemins=(); bes_etats=()
+#   bes_dep_trop, bes_deps   colonne « Dépend de » : 1 si la cellule a plus de 64 identifiants (0 sinon) ; les 64 premiers identifiants distincts, séparés par DEP_SEP (PRD 011, RG-02 et RG-06)
+bes_table=0; bes_types=(); bes_ids=(); bes_statuts=(); bes_prds=(); bes_decisions=(); bes_chemins=(); bes_etats=(); bes_dep_trop=(); bes_deps=()
+DEP_SEP=$'\036'
 
 # besoins_lire : lit le premier tableau de backlog.md dont l'en-tête a les colonnes ID, Statut et PRD (RG-04), colonnes repérées par leur nom, cellules sans espaces de bord,
 # « \| » = barre littérale. Une ligne par enregistrement, champs séparés par CONSTAT_SEP :
 #   N                                                       aucun tableau reconnu
 #   L <id>                                                  ligne dont le nombre de colonnes diffère de l'en-tête
-#   R <id> <statut> <doublon> <PRD> <Décisions> <chemins>   ligne lisible ; doublon = 1 sur la première ligne d'un identifiant qui revient, 2 sur les suivantes ;
-#                                                           chemins = les chemins docs/prd/<nom>.md de la cellule PRD (64 au plus), séparés par une espace
+#   R <id> <statut> <doublon> <PRD> <Décisions> <chemins> <trop> <dépendances>
+#                                                           ligne lisible ; doublon = 1 sur la première ligne d'un identifiant qui revient, 2 sur les suivantes ;
+#                                                           chemins = les chemins docs/prd/<nom>.md de la cellule PRD (64 au plus), séparés par une espace ;
+#                                                           dépendances = les identifiants de la colonne « Dépend de » (repérée par son nom, la première si le nom revient ; vide ou « - » = aucun ;
+#                                                           séparateur « , », éléments vides et répétés ignorés, ordre conservé), 64 au plus, séparés par DEP_SEP ; trop = 1 s'il y en a plus de 64
 # Une ligne sans identifiant n'est pas un besoin (comme dans le dashboard). Les valeurs ne sont qu'imprimées : jamais évaluées ni utilisées comme motif.
 # Un chemin de PRD est une suite maximale de caractères [A-Za-z0-9._/-] de la forme docs/prd/<nom>.md : ni précédée ni suivie d'un caractère de chemin (comme RG-11).
 besoins_lire() {
   LC_ALL=C awk -v OFS="$CONSTAT_SEP" '
     function trim(x) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", x); return x }
     function cellules(ligne,   k) {
-      gsub(/\037/, "\357\277\275", ligne) # 0x1F est le séparateur des enregistrements : une cellule qui en contient ne peut pas passer pour valide (U+FFFD à la place)
+      gsub(/[\036\037]/, "\357\277\275", ligne) # 0x1F sépare les enregistrements et 0x1E les dépendances : une cellule qui en contient ne peut pas passer pour valide (U+FFFD à la place)
       gsub(/\\\|/, "\001", ligne)
       sub(/^[[:space:]]*\|/, "", ligne); sub(/\|[[:space:]]*$/, "", ligne)
       nc = split(ligne, c, "|")
       for (k = 1; k <= nc; k++) { c[k] = trim(c[k]); gsub(/\001/, "|", c[k]) }
+    }
+    function dependances(cellule,   t, parts, m, k, e, vus) {
+      dtrop = 0; dliste = ""; ndep = 0; t = trim(cellule)
+      if (t == "" || t == "-") return
+      m = split(t, parts, ","); split("", vus)
+      for (k = 1; k <= m; k++) {
+        e = trim(parts[k]); if (e == "" || (e in vus)) continue
+        if (ndep == 64) { dtrop = 1; return }
+        vus[e] = 1; ndep++; dliste = dliste (ndep > 1 ? "\036" : "") e
+      }
     }
     function chemins(cellule,   mots, nm, k, liste, nl) {
       nm = split(cellule, mots, "[^A-Za-z0-9._/-]+"); liste = ""; nl = 0
@@ -37,8 +52,8 @@ besoins_lire() {
     $0 ~ /^[[:space:]]*\|/ {
       cellules($0)
       if (etat == 0) {
-        ii = 0; is = 0; ip = 0; id_ = 0
-        for (k = 1; k <= nc; k++) { if (c[k] == "ID") ii = k; if (c[k] == "Statut") is = k; if (c[k] == "PRD") ip = k; if (c[k] == "Décisions") id_ = k }
+        ii = 0; is = 0; ip = 0; id_ = 0; idd = 0
+        for (k = 1; k <= nc; k++) { if (c[k] == "ID") ii = k; if (c[k] == "Statut") is = k; if (c[k] == "PRD") ip = k; if (c[k] == "Décisions") id_ = k; if (c[k] == "Dépend de" && !idd) idd = k }
         if (ii && is && ip) { etat = 1; ncol = nc }
         next
       }
@@ -47,6 +62,7 @@ besoins_lire() {
       id = (ii <= nc ? c[ii] : ""); if (id == "") next
       n++; rtype[n] = (nc == ncol ? "R" : "L"); rid[n] = id; rst[n] = (is <= nc ? c[is] : "")
       rprd[n] = (ip <= nc ? c[ip] : ""); rdec[n] = (id_ && id_ <= nc ? c[id_] : ""); rchem[n] = chemins(rprd[n])
+      dependances(idd && idd <= nc ? c[idd] : ""); rtrop[n] = dtrop; rdep[n] = dliste
       if (nc == ncol) fois[id]++
     }
     END {
@@ -54,7 +70,7 @@ besoins_lire() {
       for (k = 1; k <= n; k++) {
         if (rtype[k] == "L") { print "L", rid[k]; continue }
         dup = (fois[rid[k]] > 1) ? ((rid[k] in vu) ? 2 : 1) : 0; vu[rid[k]] = 1
-        print "R", rid[k], rst[k], dup, rprd[k], rdec[k], rchem[k]
+        print "R", rid[k], rst[k], dup, rprd[k], rdec[k], rchem[k], rtrop[k], rdep[k]
       }
     }
   ' backlog.md
@@ -62,15 +78,16 @@ besoins_lire() {
 
 # controle_besoins : E02 (aucun tableau), E03 (ligne illisible), E04 (identifiant en double), E05 (statut inconnu) pour les besoins de backlog.md ; remplit les tableaux bes_*.
 controle_besoins() {
-  local typ id statut dup prd decisions chemins rang=0 attendus etat
-  bes_table=0; bes_types=(); bes_ids=(); bes_statuts=(); bes_prds=(); bes_decisions=(); bes_chemins=(); bes_etats=()
+  local typ id statut dup prd decisions chemins trop deps rang=0 attendus etat
+  bes_table=0; bes_types=(); bes_ids=(); bes_statuts=(); bes_prds=(); bes_decisions=(); bes_chemins=(); bes_etats=(); bes_dep_trop=(); bes_deps=()
   table_statuts_de besoin; attendus="$statuts_de"
-  while IFS="$CONSTAT_SEP" read -r typ id statut dup prd decisions chemins; do
+  while IFS="$CONSTAT_SEP" read -r typ id statut dup prd decisions chemins trop deps; do
     if [ "$typ" = N ]; then
       constat_ajouter ERREUR E02 0 0 backlog "tableau des besoins introuvable (colonnes ID, Statut, PRD attendues)"; continue
     fi
     bes_table=1; rang=$((rang + 1)); etat=ignoree
     bes_types+=("$typ"); bes_ids+=("$id"); bes_statuts+=("${statut:-}"); bes_prds+=("${prd:-}"); bes_decisions+=("${decisions:-}"); bes_chemins+=("${chemins:-}")
+    bes_dep_trop+=("${trop:-0}"); bes_deps+=("${deps:-}")
     constat_neutraliser "$id"; id="$neutre"
     if [ "$typ" = L ]; then
       bes_etats+=(ignoree)
@@ -85,6 +102,87 @@ controle_besoins() {
     fi
     bes_etats+=("$etat")
   done < <(besoins_lire)
+}
+
+# --- Dépendances entre besoins : E15 (PRD 011, RG-01 à RG-10) ------------------------------------------------------------------------------------
+# besoins_dependances_flux : le flux d'entrée de besoins_dependances, une ligne par enregistrement, champs séparés par CONSTAT_SEP :
+#   K <id>                          identifiant d'une ligne du tableau, lisible ou non (RG-04 : une ligne douteuse existe comme cible)
+#   D <rang> <id> <trop> <deps>     besoin contrôlé qui a une cellule « Dépend de » non vide (RG-05 : les autres lignes ne sont pas jugées)
+besoins_dependances_flux() {
+  local i
+  for i in "${!bes_ids[@]}"; do
+    printf 'K%s%s\n' "$CONSTAT_SEP" "${bes_ids[$i]}"
+    [ "${bes_etats[$i]}" = controlee ] || continue
+    [ -n "${bes_deps[$i]}" ] || [ "${bes_dep_trop[$i]}" != 0 ] || continue
+    printf 'D%s%s%s%s%s%s%s%s\n' "$CONSTAT_SEP" "$((i + 1))" "$CONSTAT_SEP" "${bes_ids[$i]}" "$CONSTAT_SEP" "${bes_dep_trop[$i]}" "$CONSTAT_SEP" "${bes_deps[$i]}"
+  done
+}
+
+# besoins_dependances_resoudre : lit le flux de besoins_dependances_flux et écrit, séparés par CONSTAT_SEP et dans l'ordre des rangs (un seul passage, coût linéaire ; les identifiants ne sont que
+# des clés de tableau, jamais des motifs) :
+#   U <rang> <identifiant>              dépendance qui n'est l'identifiant d'aucune ligne du tableau (RG-07), dans l'ordre de la cellule
+#   T <rang>                            cellule de plus de 64 identifiants (RG-09)
+#   C <rang> <total> <identifiants>     besoin d'un cycle (RG-08) : nombre de besoins du cycle, puis les 10 premiers dans l'ordre du tableau, séparés par DEP_SEP
+# Les cycles sont les composantes fortement connexes de plus d'un besoin, ou d'un besoin qui dépend de lui-même (Tarjan, sans récursion : une chaîne de milliers de besoins ne la fait pas déborder).
+besoins_dependances_resoudre() {
+  LC_ALL=C awk 'BEGIN { FS = OFS = "\037"; SEP = "\036" }
+    $1 == "K" { connu[$2] = 1; next }
+    $1 == "D" {
+      nb++; r = $2; ordre[nb] = r; ident[r] = $3; trop[r] = $4; noeud[$3] = r
+      nd[r] = ($5 == "") ? 0 : split($5, tmp, SEP); for (j = 1; j <= nd[r]; j++) dep[r, j] = tmp[j]
+    }
+    END {
+      for (k = 1; k <= nb; k++) {
+        r = ordre[k]
+        for (j = 1; j <= nd[r]; j++) if (dep[r, j] in noeud) { ne[r]++; vers[r, ne[r]] = noeud[dep[r, j]]; if (noeud[dep[r, j]] == r) soi[r] = 1 }
+      }
+      for (k = 1; k <= nb; k++) {
+        s = ordre[k]; if (s in num) continue
+        sp = 1; pile[1] = s; num[s] = bas[s] = ++cpt; sommet[++top] = s; surpile[s] = 1; it[s] = 0
+        while (sp > 0) {
+          v = pile[sp]
+          if (it[v] < ne[v]) {
+            w = vers[v, ++it[v]]
+            if (!(w in num)) { num[w] = bas[w] = ++cpt; sommet[++top] = w; surpile[w] = 1; it[w] = 0; pile[++sp] = w }
+            else if (surpile[w] && num[w] < bas[v]) bas[v] = num[w]
+          } else {
+            if (bas[v] == num[v]) { nc++; do { w = sommet[top--]; surpile[w] = 0; comp[w] = nc; taille[nc]++ } while (w != v) }
+            sp--; if (sp > 0 && bas[v] < bas[pile[sp]]) bas[pile[sp]] = bas[v]
+          }
+        }
+      }
+      for (k = 1; k <= nb; k++) { # les besoins d un cycle, dans l ordre du tableau
+        r = ordre[k]; c = comp[r]
+        if (taille[c] > 1 || soi[r]) { cycle[c] = 1; total[c]++; if (total[c] <= 10) liste[c] = liste[c] (total[c] > 1 ? SEP : "") ident[r] }
+      }
+      for (k = 1; k <= nb; k++) {
+        r = ordre[k]
+        for (j = 1; j <= nd[r]; j++) if (!(dep[r, j] in connu)) print "U", r, dep[r, j]
+        if (trop[r] == 1) print "T", r
+        if (comp[r] in cycle) print "C", r, total[comp[r]], liste[comp[r]]
+      }
+    }' < <(besoins_dependances_flux)
+}
+
+# besoins_dependances : E15 (RG-07 à RG-10) sur les besoins contrôlés : dépendance inconnue, cellule de plus de 64 identifiants, besoin d'un cycle. Une valeur lue est neutralisée avant d'entrer dans un message.
+besoins_dependances() {
+  local t rang a b id liste v dernier="" dernier_liste=""
+  while IFS="$CONSTAT_SEP" read -r t rang a b; do
+    constat_neutraliser "${bes_ids[$((rang - 1))]}"; id="besoin $neutre"
+    case "$t" in
+      U) constat_neutraliser "$a"; constat_ajouter ERREUR E15 1 "$rang" "$id" "dépend de « $neutre », besoin inconnu du backlog" ;;
+      T) constat_ajouter ERREUR E15 1 "$rang" "$id" "colonne « Dépend de » : plus de 64 identifiants" ;;
+      C)
+        if [ "$a|$b" != "$dernier" ]; then # les besoins d'un même cycle se suivent souvent : la liste n'est neutralisée qu'une fois
+          liste=""
+          while IFS= read -r v; do constat_neutraliser "$v"; liste="$liste${liste:+, }$neutre"; done < <(printf '%s\n' "$b" | tr "$DEP_SEP" '\n')
+          [ "$a" -le 10 ] || liste="$liste, …"
+          dernier="$a|$b"; dernier_liste="$liste"
+        fi
+        liste="$dernier_liste"
+        constat_ajouter ERREUR E15 1 "$rang" "$id" "dépendance en cycle ($liste)" ;;
+    esac
+  done < <(besoins_dependances_resoudre)
 }
 
 # --- Cohérence des besoins avec leurs issues (RG-05, RG-09, RG-17) -------------------------------------------------------------------------------
@@ -315,6 +413,7 @@ besoins_coherence() {
   [ "$bes_table" -eq 1 ] || return 0
   besoins_prd
   besoins_abandon
+  besoins_dependances
   besoins_issues_lire
   besoins_fusion_preparer
   while IFS="$CONSTAT_SEP" read -r t a b c d e f g h; do

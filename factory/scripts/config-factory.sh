@@ -5,7 +5,11 @@
 #         scripts/config-factory.sh --max-iterations   (nombre maximal d'itérations développeur <-> relecteur ; 3 par défaut)
 #         scripts/config-factory.sh --mode-revue       (mode de revue : unique ou parallele, parallele par défaut)
 #         scripts/config-factory.sh --max-criteres     (nombre de critères au-delà duquel couverture-prd.sh signale une issue ; 10 par défaut)
-# Code de sortie : 0 ; 64 si l'option est inconnue, si la limite demandée n'est pas un entier >= 1 ou si le mode de revue n'est pas unique/parallele (vide compris).
+#         scripts/config-factory.sh --nettoyage-apres-fusion   (règle 4 de l'orchestrateur : oui ou non, non par défaut)
+#         scripts/config-factory.sh --besoin-fait-auto         (règle 3 : oui ou non, non par défaut)
+#         scripts/config-factory.sh --demarrage-auto           (règle 5 : oui ou non, non par défaut)
+# Code de sortie : 0 ; 64 si l'option est inconnue (ou suivie d'un autre argument), si la limite demandée n'est pas un entier >= 1, si le mode de revue
+# n'est pas unique/parallele ou si une clé oui/non n'est pas exactement oui ou non (vide compris).
 set -uo pipefail
 
 racine="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,6 +27,9 @@ defaut() { # defaut <clé> : valeur par défaut d'une clé connue
     AGENT_MODELE) echo "$AGENT_MODELE_DEFAUT" ;;
     AGENT_EFFORT) echo "$AGENT_EFFORT_DEFAUT" ;;
     MODE_REVUE) echo "$MODE_REVUE_DEFAUT" ;;
+    NETTOYAGE_APRES_FUSION) echo "$NETTOYAGE_APRES_FUSION_DEFAUT" ;;
+    BESOIN_FAIT_AUTO) echo "$BESOIN_FAIT_AUTO_DEFAUT" ;;
+    DEMARRAGE_AUTO) echo "$DEMARRAGE_AUTO_DEFAUT" ;;
     AGENTS_SILENCE_MINUTES) echo "$AGENTS_SILENCE_MINUTES_DEFAUT" ;;
     AGENTS_RETRAIT_MINUTES) echo "$AGENTS_RETRAIT_MINUTES_DEFAUT" ;;
     DASHBOARD_THEME) echo "$DASHBOARD_THEME_DEFAUT" ;;
@@ -31,7 +38,7 @@ defaut() { # defaut <clé> : valeur par défaut d'une clé connue
   esac
 }
 
-usage() { echo "Usage : $0 [--max-iterations | --max-criteres | --mode-revue]" >&2; exit 64; }
+usage() { echo "Usage : $0 [--max-iterations | --max-criteres | --mode-revue | --nettoyage-apres-fusion | --besoin-fait-auto | --demarrage-auto]" >&2; exit 64; }
 limite() { # limite <clé> : valeur de la clé, entier >= 1, sinon code 64
   local valeur
   valeur="$(config_valeur "$1" "$(defaut "$1")")"
@@ -50,5 +57,8 @@ case "${1:-}" in
   --max-iterations) [ $# -eq 1 ] || usage; limite MAX_ITERATIONS_REVUE ;;
   --max-criteres) [ $# -eq 1 ] || usage; limite MAX_CRITERES_ISSUE ;;
   --mode-revue) [ $# -eq 1 ] || usage; config_mode_revue ;;
+  --nettoyage-apres-fusion) [ $# -eq 1 ] || usage; config_oui_non NETTOYAGE_APRES_FUSION ;;
+  --besoin-fait-auto) [ $# -eq 1 ] || usage; config_oui_non BESOIN_FAIT_AUTO ;;
+  --demarrage-auto) [ $# -eq 1 ] || usage; config_oui_non DEMARRAGE_AUTO ;;
   *) usage ;;
 esac

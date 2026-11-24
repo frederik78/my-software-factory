@@ -12,7 +12,7 @@ if [ -n "${FACTORY_TESTS_EN_COURS:-}" ]; then
 fi
 export FACTORY_TESTS_EN_COURS=1
 # Idem pour la configuration de la factory (lue par config-factory.sh et notifier.sh) : une valeur personnelle ne doit pas fausser les cas.
-unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MODE_REVUE FACTORY_AGENT_MODELE_CONFORMITE FACTORY_AGENT_EFFORT_CONFORMITE FACTORY_AGENT_MODELE_QUALITE FACTORY_AGENT_EFFORT_QUALITE FACTORY_AGENT_MODELE_SECURITE FACTORY_AGENT_EFFORT_SECURITE FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
+unset FACTORY_AGENT_MODELE FACTORY_AGENT_EFFORT FACTORY_MODE_REVUE FACTORY_AGENT_MODELE_CONFORMITE FACTORY_AGENT_EFFORT_CONFORMITE FACTORY_AGENT_MODELE_QUALITE FACTORY_AGENT_EFFORT_QUALITE FACTORY_AGENT_MODELE_SECURITE FACTORY_AGENT_EFFORT_SECURITE FACTORY_AGENTS_SILENCE_MINUTES FACTORY_AGENTS_RETRAIT_MINUTES FACTORY_DASHBOARD_THEME FACTORY_MAX_ITERATIONS_REVUE FACTORY_MAX_CRITERES_ISSUE FACTORY_NETTOYAGE_APRES_FUSION FACTORY_BESOIN_FAIT_AUTO FACTORY_DEMARRAGE_AUTO FACTORY_NOTIFICATION_COMMANDE FACTORY_NOTIFICATION_DESTINATAIRE FACTORY_NOTIFICATION_EXPEDITEUR FACTORY_TESTS_BASH_FONCTIONS FACTORY_DOSSIER_TESTS DOSSIER_TESTS
 
 ici="$(cd "$(dirname "$0")" && pwd)"
 factory="$(cd "$ici/../.." && pwd)"
@@ -1889,6 +1889,9 @@ AGENT_EFFORT_SECURITE=
 MODE_REVUE=parallele
 MAX_ITERATIONS_REVUE=6
 MAX_CRITERES_ISSUE=10
+NETTOYAGE_APRES_FUSION=non
+BESOIN_FAIT_AUTO=non
+DEMARRAGE_AUTO=non
 NOTIFICATION_COMMANDE=
 NOTIFICATION_DESTINATAIRE=moi@example.com
 NOTIFICATION_EXPEDITEUR=
@@ -5456,6 +5459,203 @@ for f in $rl_c $rl_q $rl_s; do
 done
 verifier "cs06_securite_ne_classe_jamais_mineur_un_sujet_de_la_liste_d_escalade" 0 "" rl_a $rl_s "ne classes? jamais .+mineur.+ un sujet de la liste.*AGENTS\.md"
 verifier "cs06_securite_est_relancee_des_qu_elle_demande_des_changements_tour_final_compris" 0 "" rl_a $rl_s "demandé des changements.*relancé.*tour final"
+
+
+echo "PRD 009 / issue 009-01 : NETTOYAGE_APRES_FUSION, BESOIN_FAIT_AUTO, DEMARRAGE_AUTO (CA-01 à CA-03, CS-01)"
+# oo_* : cas de config-factory.sh --nettoyage-apres-fusion, --besoin-fait-auto, --demarrage-auto ; la configuration vient des fichiers du dépôt courant ou de FACTORY_<CLÉ>.
+oo_cles="NETTOYAGE_APRES_FUSION BESOIN_FAIT_AUTO DEMARRAGE_AUTO"
+oo_option() { case "$1" in NETTOYAGE_APRES_FUSION) echo --nettoyage-apres-fusion ;; BESOIN_FAIT_AUTO) echo --besoin-fait-auto ;; DEMARRAGE_AUTO) echo --demarrage-auto ;; esac; }
+oo_message() { # message exact attendu pour une valeur invalide (littéraux, sans la valeur)
+  case "$1" in
+    NETTOYAGE_APRES_FUSION) echo "NETTOYAGE_APRES_FUSION invalide : oui ou non attendu (voir .factory.conf, .factory.local.conf, FACTORY_NETTOYAGE_APRES_FUSION)." ;;
+    BESOIN_FAIT_AUTO) echo "BESOIN_FAIT_AUTO invalide : oui ou non attendu (voir .factory.conf, .factory.local.conf, FACTORY_BESOIN_FAIT_AUTO)." ;;
+    DEMARRAGE_AUTO) echo "DEMARRAGE_AUTO invalide : oui ou non attendu (voir .factory.conf, .factory.local.conf, FACTORY_DEMARRAGE_AUTO)." ;;
+  esac
+}
+oo_lancer() { # oo_lancer <clé> [VARIABLE=valeur...] : lance l'option de la clé ; code, sortie standard et sortie d'erreur dans oo_code, oo-out, oo-err
+  local cle="$1"; shift
+  env ${1+"$@"} scripts/config-factory.sh "$(oo_option "$cle")" > "$p/oo-out" 2> "$p/oo-err"; oo_code=$?
+}
+oo_accepte() { # oo_accepte <clé> <valeur attendue> [VARIABLE=valeur...] : code 0, la valeur seule sur la sortie standard, rien sur la sortie d'erreur
+  local cle="$1" attendu="$2"; shift 2
+  oo_lancer "$cle" ${1+"$@"}; [ "$oo_code" -eq 0 ] && [ "$(cat "$p/oo-out")" = "$attendu" ] && [ ! -s "$p/oo-err" ]
+}
+oo_refuse() { # oo_refuse <clé> [VARIABLE=valeur...] : code 64, rien sur la sortie standard, message exact (donc sans la valeur), aucun fichier « marque »
+  local cle="$1"; shift
+  oo_lancer "$cle" ${1+"$@"}
+  [ "$oo_code" -eq 64 ] && [ ! -s "$p/oo-out" ] && [ ! -e marque ] && [ "$(cat "$p/oo-err")" = "$(oo_message "$cle")" ]
+}
+oo_cas() { # oo_cas <clé> <env|conf|local> <valeur> <refus|valeur attendue> : la clé reçoit la valeur ; les deux autres clés et les anciennes options ne bougent pas
+  local cle="$1" mode="$2" v="$3" attendu="$4" autre args=()
+  rm -f .factory.conf .factory.local.conf marque
+  case "$mode" in
+    env) args=("FACTORY_$cle=$v") ;;
+    conf) printf 'MAX_CRITERES_ISSUE=4\n%s=%s\nAGENT_MODELE=haiku\n' "$cle" "$v" > .factory.conf ;;
+    local) printf 'AGENT_EFFORT=low\n%s=%s\n' "$cle" "$v" > .factory.local.conf ;;
+  esac
+  if [ "$attendu" = refus ]; then oo_refuse "$cle" ${args[@]+"${args[@]}"} || return 1; else oo_accepte "$cle" "$attendu" ${args[@]+"${args[@]}"} || return 1; fi
+  for autre in $oo_cles; do
+    [ "$autre" = "$cle" ] || oo_accepte "$autre" non ${args[@]+"${args[@]}"} || return 1
+  done
+  env ${args[@]+"${args[@]}"} scripts/config-factory.sh --max-iterations 2>&1 | grep -qx 3 || return 1
+  [ ! -e marque ]
+}
+p="$(nouveau_projet)"; cd "$p" || exit 1
+
+# CA-01 : défaut non, trois niveaux, indépendance.
+for cle in $oo_cles; do
+  verifier "ca01_$cle : sans aucune configuration, non (code 0, sortie seule)" 0 "" oo_accepte "$cle" non
+done
+printf 'MAX_ITERATIONS_REVUE=7\nNOTIFICATION_DESTINATAIRE=moi@example.com\n' > .factory.conf
+for cle in $oo_cles; do
+  verifier "ca01_$cle : .factory.conf sans les trois clés, non" 0 "" oo_accepte "$cle" non
+done
+for cle in $oo_cles; do
+  verifier "ca01_$cle=oui dans .factory.conf : oui, les deux autres restent à non" 0 "" oo_cas "$cle" conf oui oui
+  verifier "ca01_$cle=non dans .factory.conf : non" 0 "" oo_cas "$cle" conf non non
+  verifier "ca01_$cle=oui dans .factory.local.conf : oui, les deux autres restent à non" 0 "" oo_cas "$cle" local oui oui
+  verifier "ca01_FACTORY_$cle=oui : oui, les deux autres restent à non" 0 "" oo_cas "$cle" env oui oui
+done
+for cle in $oo_cles; do
+  printf 'DEMARRAGE_AUTO=non\n%s=oui\nBESOIN_FAIT_AUTO=non\nNETTOYAGE_APRES_FUSION=non\n' "$cle" > .factory.conf; printf '%s=non\n' "$cle" > .factory.local.conf
+  verifier "ca01_$cle : .factory.local.conf (non) l'emporte sur .factory.conf (oui)" 0 "" oo_accepte "$cle" non
+  verifier "ca01_$cle : FACTORY_$cle (oui) l'emporte sur les deux fichiers (non)" 0 "" oo_accepte "$cle" oui "FACTORY_$cle=oui"
+  printf '%s=oui\n' "$cle" > .factory.local.conf; printf '%s=non\n' "$cle" > .factory.conf
+  verifier "ca01_$cle : .factory.local.conf (oui) l'emporte sur .factory.conf (non)" 0 "" oo_accepte "$cle" oui
+  verifier "ca01_$cle : FACTORY_$cle (non) l'emporte sur les deux fichiers (oui)" 0 "" oo_accepte "$cle" non "FACTORY_$cle=non"
+  verifier "ca01_FACTORY_$cle vide (définie) l'emporte sur les fichiers et est refusée" 0 "" oo_refuse "$cle" "FACTORY_$cle="
+done
+rm -f .factory.conf .factory.local.conf
+
+# CA-02 : valeurs invalides refusées (environnement, fichiers), valeur valide rognée dans un fichier.
+for cle in $oo_cles; do
+  for v in Oui OUI NON Non true 1 vrai 'oui non' 'oui ' ' non' ''; do
+    verifier "ca02_FACTORY_$cle « $v » : 64, message sans la valeur, rien sur la sortie standard" 0 "" oo_cas "$cle" env "$v" refus
+  done
+  for v in Oui OUI NON true 1 vrai 'oui non' ''; do
+    verifier "ca02_$cle « $v » dans .factory.conf : 64, message sans la valeur" 0 "" oo_cas "$cle" conf "$v" refus
+    verifier "ca02_$cle « $v » dans .factory.local.conf : 64, message sans la valeur" 0 "" oo_cas "$cle" local "$v" refus
+  done
+  rm -f .factory.local.conf; printf '  %s = oui  \n' "$cle" > .factory.conf
+  verifier "ca02_$cle valide avec espaces de bord dans .factory.conf : rognée, oui" 0 "" oo_accepte "$cle" oui
+  printf '\t%s=non \r\n' "$cle" > .factory.conf
+  verifier "ca02_$cle valide avec tabulation, espace final et CRLF dans .factory.conf : rognée, non" 0 "" oo_accepte "$cle" non
+done
+rm -f .factory.conf
+
+rm -f .factory.local.conf
+# CA-03 : liste sans option, usage, anciennes options.
+ancienne_liste="AGENT_MODELE=sonnet
+AGENT_EFFORT=medium
+AGENT_MODELE_CONFORMITE=
+AGENT_EFFORT_CONFORMITE=
+AGENT_MODELE_QUALITE=
+AGENT_EFFORT_QUALITE=
+AGENT_MODELE_SECURITE=
+AGENT_EFFORT_SECURITE=
+MODE_REVUE=parallele
+MAX_ITERATIONS_REVUE=3
+MAX_CRITERES_ISSUE=10
+NOTIFICATION_COMMANDE=
+NOTIFICATION_DESTINATAIRE=
+NOTIFICATION_EXPEDITEUR=
+FIN_ISSUE_ARGUMENTS=
+FIN_ISSUE_IGNORES_AUTORISES=
+AGENTS_SILENCE_MINUTES=5
+AGENTS_RETRAIT_MINUTES=60
+DASHBOARD_THEME=clair
+TESTS_BASH_FONCTIONS=verifier verdict_cas
+DOSSIER_TESTS="
+liste_sans_nouvelles() { scripts/config-factory.sh | grep -v -x -e 'NETTOYAGE_APRES_FUSION=.*' -e 'BESOIN_FAIT_AUTO=.*' -e 'DEMARRAGE_AUTO=.*'; }
+verifier_exact "ca03_sans option, sans clé : les autres lignes sont celles d'avant, dans le même ordre" 0 "$ancienne_liste" liste_sans_nouvelles
+nouvelles_lignes() { scripts/config-factory.sh | grep -x -e 'NETTOYAGE_APRES_FUSION=.*' -e 'BESOIN_FAIT_AUTO=.*' -e 'DEMARRAGE_AUTO=.*' | sort; }
+verifier_exact "ca03_sans option, sans clé : NETTOYAGE_APRES_FUSION=non, BESOIN_FAIT_AUTO=non, DEMARRAGE_AUTO=non" 0 "BESOIN_FAIT_AUTO=non
+DEMARRAGE_AUTO=non
+NETTOYAGE_APRES_FUSION=non" nouvelles_lignes
+printf 'DEMARRAGE_AUTO=oui\nMAX_ITERATIONS_REVUE=6\nBESOIN_FAIT_AUTO = non\n' > .factory.conf; printf 'NETTOYAGE_APRES_FUSION=oui\n' > .factory.local.conf
+verifier_exact "ca03_sans option, trois niveaux : chaque clé a sa valeur effective" 0 "BESOIN_FAIT_AUTO=non
+DEMARRAGE_AUTO=non
+NETTOYAGE_APRES_FUSION=oui" env FACTORY_DEMARRAGE_AUTO=non sh -c 'scripts/config-factory.sh | grep -x -e "NETTOYAGE_APRES_FUSION=.*" -e "BESOIN_FAIT_AUTO=.*" -e "DEMARRAGE_AUTO=.*" | sort'
+verifier_exact "ca03_sans option, valeur invalide : donnée telle que lue (comme les autres clés), code 0" 0 "BESOIN_FAIT_AUTO=Oui" env FACTORY_BESOIN_FAIT_AUTO=Oui sh -c 'scripts/config-factory.sh | grep -x "BESOIN_FAIT_AUTO=.*"'
+rm -f .factory.conf .factory.local.conf
+for cle in $oo_cles; do
+  verifier "ca03_$(oo_option "$cle") avec un argument de plus : usage (64)" 64 "^Usage" scripts/config-factory.sh "$(oo_option "$cle")" x
+  verifier "ca03_$(oo_option "$cle") avec un argument vide de plus : usage (64)" 64 "^Usage" scripts/config-factory.sh "$(oo_option "$cle")" ""
+  verifier "ca03_$(oo_option "$cle") suivie de --mode-revue : usage (64)" 64 "^Usage" scripts/config-factory.sh "$(oo_option "$cle")" --mode-revue
+  verifier "ca03_--mode-revue suivie de $(oo_option "$cle") : usage (64)" 64 "^Usage" scripts/config-factory.sh --mode-revue "$(oo_option "$cle")"
+  verifier "ca03_$(oo_option "$cle") suivie de --max-iterations : usage (64)" 64 "^Usage" scripts/config-factory.sh "$(oo_option "$cle")" --max-iterations
+  verifier "ca03_--max-iterations suivie de $(oo_option "$cle") : usage (64)" 64 "^Usage" scripts/config-factory.sh --max-iterations "$(oo_option "$cle")"
+  for autre in $oo_cles; do
+    [ "$autre" = "$cle" ] || verifier "ca03_$(oo_option "$cle") et $(oo_option "$autre") ensemble : usage (64), rien sur la sortie standard" 64 "^Usage" sh -c 'scripts/config-factory.sh "$1" "$2" 2>&1 >/dev/null' x "$(oo_option "$cle")" "$(oo_option "$autre")"
+  done
+done
+verifier "ca03_--max-iterations inchangé (3 par défaut)" 0 "^3$" scripts/config-factory.sh --max-iterations
+verifier "ca03_--max-criteres inchangé (10 par défaut)" 0 "^10$" scripts/config-factory.sh --max-criteres
+verifier "ca03_--mode-revue inchangé (parallele par défaut)" 0 "^parallele$" scripts/config-factory.sh --mode-revue
+verifier "ca03_l'usage cite les trois nouvelles options" 64 "nettoyage-apres-fusion.*besoin-fait-auto.*demarrage-auto" scripts/config-factory.sh --bidon
+
+# CS-01 : valeurs hostiles, jamais évaluées ni recopiées, sans effet sur les autres clés.
+long="$(awk 'BEGIN { for (i = 0; i < 10000; i++) printf "a" }')"
+for cle in $oo_cles; do
+  for v in 'oui; touch marque' '$(touch marque)' '`touch marque`' '../x' 'oui oui' 'OUI' 'Non ' "$long"; do
+    for mode in conf local env; do
+      verifier "cs01_$cle « ${v:0:22} » ($mode) : 64, aucun fichier marque, valeur absente du message, rien sur la sortie standard" 0 "" oo_cas "$cle" "$mode" "$v" refus
+    done
+  done
+  for v in $'non\nMAX_ITERATIONS_REVUE=9' $'non\n' $'oui\n' $'oui\r'; do
+    verifier "cs01_FACTORY_$cle avec saut de ligne ou retour chariot (« $(printf '%s' "${v:0:12}" | tr '\n\r' '||') ») : 64, MAX_ITERATIONS_REVUE inchangée" 0 "" oo_cas "$cle" env "$v" refus
+  done
+done
+printf 'NETTOYAGE_APRES_FUSION=$(touch marque)\nBESOIN_FAIT_AUTO=oui; touch marque\nDEMARRAGE_AUTO=`touch marque`\n' > .factory.conf
+verifier "cs01_sans option, trois valeurs hostiles : liste affichée telle que lue (code 0), rien exécuté" 0 "" sh -c 'scripts/config-factory.sh >/dev/null 2>&1; [ ! -e marque ]'
+rm -f .factory.conf marque
+
+# CA-04, CS-03 : valeurs et commentaires livrés (lus dans HEAD : le .factory.conf de ce dépôt et le modèle copié dans les projets).
+echo "PRD 009 / issue 009-01 : .factory.conf, modèle et défauts (CA-04, CS-03)"
+oo_bloc() { # oo_bloc <chemin> <clé> : les lignes de commentaire contiguës juste au-dessus de la ligne « clé= » (rien si la clé est absente)
+  lire_depot "$depot" "$1" | awk -v k="$2" '/^#/ { b = b $0 "\n"; next } index($0, k "=") == 1 { printf "%s", b; exit } { b = "" }'
+}
+oo_lignes_cle() { lire_depot "$depot" "$1" | grep -c "^$2[[:space:]]*="; } # nombre de lignes qui affectent la clé
+oo_regle() { # phrase propre à chaque clé : la règle qu'elle active et ce que la session fait à oui
+  case "$1" in
+    NETTOYAGE_APRES_FUSION) echo "Règle 4 (nettoyage après fusion) : NETTOYAGE_APRES_FUSION=oui autorise la session à supprimer, sans demande, le worktree et la branche d'une issue fusionnée, après une fusion que vous avez demandée et vérifiée (scripts/worktree-issue.sh nettoyer)." ;;
+    BESOIN_FAIT_AUTO) echo "Règle 3 (besoin clos) : BESOIN_FAIT_AUTO=oui autorise la session à clore, sans demande, un besoin dont toutes les issues sont terminées et fusionnées (sur une branche docs/…, jamais fusionnée sans votre demande)." ;;
+    DEMARRAGE_AUTO) echo "Règle 5 (démarrage) : DEMARRAGE_AUTO=oui autorise la session à démarrer, sans demande, les issues démarrables (scripts/etat-issues.sh --prochaine), 2 ou 3 à la fois au plus." ;;
+  esac
+}
+oo_commentaire_dit() { # oo_commentaire_dit <chemin> <clé> <phrase exacte> : le commentaire de la clé contient la phrase (texte fixe)
+  oo_bloc "$1" "$2" | grep -qF -- "$3"
+}
+for f in .factory.conf factory/templates/.factory.conf; do
+  for cle in $oo_cles; do
+    verifier "ca04_$f : $cle a un commentaire juste au-dessus" 0 "" test -n "$(oo_bloc $f $cle)"
+    verifier "ca04_$f : $cle est affectée une seule fois" 0 "" test "$(oo_lignes_cle $f $cle)" = 1
+    verifier "ca04_$f : le commentaire de $cle dit la règle activée et ce que la session fait à oui" 0 "" oo_commentaire_dit $f $cle "$(oo_regle $cle)"
+    verifier "ca04_$f : le commentaire de $cle dit que non est le défaut" 0 "" oo_commentaire_dit $f $cle "Défaut : non (la session propose l'action à l'utilisateur)."
+    verifier "ca04_$f : le commentaire de $cle dit que la clé ne donne le droit ni de pousser ni de fusionner" 0 "" oo_commentaire_dit $f $cle "Cette clé ne donne le droit ni de pousser ni de fusionner : seul l'utilisateur pousse et fusionne."
+  done
+done
+for cle in $oo_cles; do
+  verifier "ca04_.factory.conf de ce dépôt : $cle=oui" 0 "" test "$(lire_depot "$depot" .factory.conf | grep -c "^$cle=oui\$")" = 1
+  verifier "ca04_modèle de .factory.conf : $cle=non" 0 "" test "$(lire_depot "$depot" factory/templates/.factory.conf | grep -c "^$cle=non\$")" = 1
+done
+p="$(nouveau_projet)"; cd "$p" || exit 1
+lire_depot "$depot" factory/templates/.factory.conf > .factory.conf
+verifier "ca04_copie du modèle non modifiée : le fichier copié n'est pas vide" 0 "" test -s .factory.conf
+for cle in $oo_cles; do
+  verifier "ca04_copie du modèle : valeur effective de $cle = non" 0 "" oo_accepte "$cle" non
+done
+verifier_exact "ca04_copie du modèle : la liste donne trois non" 0 "BESOIN_FAIT_AUTO=non
+DEMARRAGE_AUTO=non
+NETTOYAGE_APRES_FUSION=non" nouvelles_lignes
+verifier "ca04_copie du modèle : la liste complète est acceptée sans erreur (code 0)" 0 "" sh -c 'scripts/config-factory.sh >/dev/null 2>&1'
+for cle in $oo_cles; do
+  verifier "cs03_$cle : défaut non dans factory/scripts/lib-config.sh" 0 "" test "$(lire_depot "$depot" factory/scripts/lib-config.sh | grep -Ec "^${cle}_DEFAUT=non( |\$)")" = 1
+  verifier "cs03_$cle : scripts/config-factory.sh lit ce défaut" 0 "" test "$(lire_depot "$depot" factory/scripts/config-factory.sh | grep -cF "$cle) echo \"\$${cle}_DEFAUT\" ;;")" = 1
+  verifier "cs03_$cle : aucun défaut à oui dans les deux scripts" 0 "" test "$(for f in factory/scripts/lib-config.sh factory/scripts/config-factory.sh; do lire_depot "$depot" $f; done | grep -Ec "$cle(_DEFAUT)?[[:space:]]*=[[:space:]]*oui")" = 0
+  verifier "cs03_$cle : oui n'est pas écrit dans le modèle (aucune affectation)" 0 "" test "$(lire_depot "$depot" factory/templates/.factory.conf | grep -v "^[[:space:]]*#" | grep -Ec "$cle[[:space:]]*=[[:space:]]*oui")" = 0
+  verifier "cs03_$cle : oui est écrit dans le .factory.conf de ce dépôt" 0 "" test "$(lire_depot "$depot" .factory.conf | grep -Ec "^$cle=oui\$")" = 1
+done
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

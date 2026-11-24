@@ -12,11 +12,14 @@
 # Si une clé apparaît plusieurs fois, la dernière gagne.
 # Compatible bash 3.2 (macOS).
 
-CONFIG_CLES="AGENT_MODELE AGENT_EFFORT AGENT_MODELE_CONFORMITE AGENT_EFFORT_CONFORMITE AGENT_MODELE_QUALITE AGENT_EFFORT_QUALITE AGENT_MODELE_SECURITE AGENT_EFFORT_SECURITE MODE_REVUE MAX_ITERATIONS_REVUE MAX_CRITERES_ISSUE NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR FIN_ISSUE_ARGUMENTS FIN_ISSUE_IGNORES_AUTORISES AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES DASHBOARD_THEME TESTS_BASH_FONCTIONS DOSSIER_TESTS"
+CONFIG_CLES="AGENT_MODELE AGENT_EFFORT AGENT_MODELE_CONFORMITE AGENT_EFFORT_CONFORMITE AGENT_MODELE_QUALITE AGENT_EFFORT_QUALITE AGENT_MODELE_SECURITE AGENT_EFFORT_SECURITE MODE_REVUE MAX_ITERATIONS_REVUE MAX_CRITERES_ISSUE NETTOYAGE_APRES_FUSION BESOIN_FAIT_AUTO DEMARRAGE_AUTO NOTIFICATION_COMMANDE NOTIFICATION_DESTINATAIRE NOTIFICATION_EXPEDITEUR FIN_ISSUE_ARGUMENTS FIN_ISSUE_IGNORES_AUTORISES AGENTS_SILENCE_MINUTES AGENTS_RETRAIT_MINUTES DASHBOARD_THEME TESTS_BASH_FONCTIONS DOSSIER_TESTS"
 
 AGENT_MODELE_DEFAUT=sonnet
 AGENT_EFFORT_DEFAUT=medium
 MODE_REVUE_DEFAUT=parallele       # unique = un seul code-reviewer ; parallele = trois relecteurs (PRD 006)
+NETTOYAGE_APRES_FUSION_DEFAUT=non # règles de l'orchestrateur (PRD 009) : oui ou non ; non = la session propose l'action, sans la faire
+BESOIN_FAIT_AUTO_DEFAUT=non
+DEMARRAGE_AUTO_DEFAUT=non
 AGENTS_SILENCE_MINUTES_DEFAUT=5   # bandeau « Agents actifs » de dashboard.sh
 AGENTS_RETRAIT_MINUTES_DEFAUT=60
 DASHBOARD_THEME_DEFAUT=clair      # thème de dashboard.sh : clair, sombre ou auto
@@ -70,6 +73,19 @@ config_mode_revue() {
   case "$CONFIG_VALEUR" in
     unique|parallele) printf '%s\n' "$CONFIG_VALEUR" ;;
     *) echo "MODE_REVUE invalide : unique ou parallele attendu (voir .factory.conf, .factory.local.conf, FACTORY_MODE_REVUE)." >&2; return 64 ;;
+  esac
+}
+
+# config_oui_non <clé> : affiche la valeur de NETTOYAGE_APRES_FUSION, BESOIN_FAIT_AUTO ou DEMARRAGE_AUTO : exactement « oui » ou « non » (défaut : non,
+# clé absente comprise), sinon code 64. Même règle que config_mode_revue : la valeur est une donnée non fiable, comparée comme texte, jamais évaluée
+# ni recopiée dans le message (vide, casse, espaces, saut de ligne et valeur multi-mots refusés). Sûr par défaut : une valeur invalide n'est jamais « oui ».
+config_oui_non() {
+  local defaut="${1}_DEFAUT"
+  case "$1" in NETTOYAGE_APRES_FUSION|BESOIN_FAIT_AUTO|DEMARRAGE_AUTO) ;; *) echo "Clé oui/non inconnue : $1" >&2; return 64 ;; esac
+  config_valeur_exacte "$1" "${!defaut}"
+  case "$CONFIG_VALEUR" in
+    oui|non) printf '%s\n' "$CONFIG_VALEUR" ;;
+    *) echo "$1 invalide : oui ou non attendu (voir .factory.conf, .factory.local.conf, FACTORY_$1)." >&2; return 64 ;;
   esac
 }
 

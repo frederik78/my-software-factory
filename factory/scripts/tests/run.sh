@@ -5463,7 +5463,7 @@ verifier "ca05_--boucle nul : code 64, aucune boucle" 0 "" b8_ca05 --boucle 0 --
 verifier "ca05_--attente non numérique avec --boucle : code 64, aucune page" 0 "" b8_ca05 --boucle 1 --attente x --sortie "$racine_tmp/b8-ca05/d.html"
 verifier "ca05_dossier de sortie inexistant avec --boucle : code 64, aucune boucle" 0 "" b8_ca05 --boucle 1 --sortie "$racine_tmp/b8-ca05/absent/d.html"
 verifier "ca05_thème invalide avec --boucle : code 64, aucune page" 0 "" b8_ca05 --boucle 1 --theme bogus --sortie "$racine_tmp/b8-ca05/d.html"
-verifier_exact "ca05_dossier de sortie inexistant : message inchangé" 64 "Erreur : le dossier de sortie « $racine_tmp/b8-ca05/absent » n'existe pas." scripts/dashboard.sh --boucle 1 --sortie "$racine_tmp/b8-ca05/absent/d.html"
+b8_depot; verifier_exact "ca05_dossier de sortie inexistant : message inchangé" 64 "Erreur : le dossier de sortie « $racine_tmp/b8-ca05/absent » n'existe pas." "$p/scripts/dashboard.sh" --boucle 1 --sortie "$racine_tmp/b8-ca05/absent/d.html"
 
 # ca06 : message de démarrage de la boucle conservé ; mode une génération inchangé
 b8_ca06_boucle() {

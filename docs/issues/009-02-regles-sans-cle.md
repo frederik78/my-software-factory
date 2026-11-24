@@ -8,7 +8,7 @@ depend_de: []
 criteres: [CA-05, CA-06, CA-07, CA-08, CA-09, CS-06, CS-08]
 branche: feat/009-02-regles-sans-cle
 commits: [a4ea2b8, 344ece9, 831f9ce, 1912c9a, a705a9c]
-revue:
+revue: APPROUVÉ (itération 1, docs/reviews/009-02.md)
 ---
 
 ## Objectif

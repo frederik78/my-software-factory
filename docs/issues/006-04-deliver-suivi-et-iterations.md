@@ -3,7 +3,7 @@ id: 006-04
 titre: Skill deliver : suivi fusionné, itérations, tour final et arrêt
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: À faire
+statut: En cours
 depend_de: [006-03]
 criteres: [CA-18, CA-19, CA-20, CA-21, CA-22, CA-23, CA-24, CA-42, CS-05, CS-08]
 branche: feat/006-04-deliver-suivi-et-iterations

@@ -6318,6 +6318,154 @@ rc_cas_secret password_egal '- r | Exemple : Password = abc | Origine : 001-01'
 printf '%s\n' '- r | Exemple : abcdefghijklmnopqrstuvwxyz01234 | Origine : 001-01' > "$rc/s-jeton31.md"
 verifier "cs05_un_mot_de_31_caracteres_n_est_pas_un_jeton" 0 "" rc_sans_secret "$rc/s-jeton31.md"
 
+echo "statuts.sh : colonne « Dépend de » et erreur E15 (PRD 011, issue 011-01)"
+dp_backlog() { # dp_backlog [en-tête] : backlog.md dont les lignes viennent de l'entrée standard (colonne « Dépend de » en sixième position par défaut)
+  { printf '# Backlog\n\n## Besoins fonctionnels\n\n%s\n|--|--|--|--|--|--|--|\n' "${1:-| ID | Besoin | Priorité | Statut | PRD | Dépend de | Décisions |}"; cat; } > backlog.md
+}
+dp_ligne() { # dp_ligne <id> <cellule « Dépend de »> [statut] : une ligne du tableau à sept colonnes
+  printf '| %s | B | P1 | %s | | %s | |\n' "$1" "${3:-À faire}" "$2"
+}
+dp_attendu() { cat > "$racine_tmp/dp.attendu"; }
+dp_cas() { # dp_cas <code attendu> : statuts.sh du projet courant ; la sortie standard doit être exactement dp.attendu, la sortie d'erreur vide
+  local code
+  scripts/statuts.sh > "$racine_tmp/dp.out" 2> "$racine_tmp/dp.err"; code=$?
+  [ "$code" -eq "$1" ] || { echo "code $code au lieu de $1 ; sortie : $(head -c 600 "$racine_tmp/dp.out" | tr '\n' '|')"; return 1; }
+  cmp -s "$racine_tmp/dp.attendu" "$racine_tmp/dp.out" || { echo "sortie différente : $(diff "$racine_tmp/dp.attendu" "$racine_tmp/dp.out" | head -c 800 | tr '\n' '|')"; return 1; }
+  [ ! -s "$racine_tmp/dp.err" ] || { echo "sortie d'erreur non vide : $(head -c 200 "$racine_tmp/dp.err")"; return 1; }
+}
+dp_inconnu() { printf 'ERREUR E15 besoin %s : dépend de « %s », besoin inconnu du backlog\n' "$1" "$2"; } # une ligne attendue de dépendance inconnue
+
+# ca01 : la colonne est lue par son nom, à toute position ; absente, rien n'est lu
+st_depot
+{ dp_ligne F-01 ''; dp_ligne F-02 '-'; dp_ligne F-03 'F-01'; dp_ligne F-04 'F-99'; } | dp_backlog
+{ dp_inconnu F-04 F-99; echo "STATUTS : 1 erreur(s), 0 avis"; } | dp_attendu
+verifier "ca01_colonne_en_sixieme_position : cellules vide et « - » sans constat, F-01 valide, F-99 inconnu = E15, code 1" 0 "" dp_cas 1
+printf '%s\n' '| F-01 | B | | P1 | À faire | | |' '| F-02 | B | - | P1 | À faire | | |' '| F-03 | B | F-01 | P1 | À faire | | |' '| F-04 | B | F-99 | P1 | À faire | | |' \
+  | dp_backlog '| ID | Besoin | Dépend de | Priorité | Statut | PRD | Décisions |'
+verifier "ca01_colonne_en_troisieme_position : même résultat qu'en sixième position" 0 "" dp_cas 1
+printf '%s\n' '| F-01 | B | P1 | À faire | | F-99 |' '| F-02 | B | P1 | À faire | | F-01, F-98 |' | dp_backlog '| ID | Besoin | Priorité | Statut | PRD | Décisions |'
+echo "STATUTS : 0 erreur(s), 0 avis" | dp_attendu
+verifier "ca01_colonne_absente : aucune dépendance lue (F-99 en Décisions ignoré), sortie identique à celle d'avant, code 0" 0 "" dp_cas 0
+printf '%s\n' '| F-01 | B | P1 | À faire | | | F-99 |' | dp_backlog '| ID | Besoin | Priorité | Statut | PRD | Dépend de | Dépend de |'
+echo "STATUTS : 0 erreur(s), 0 avis" | dp_attendu
+verifier "ca01_nom_repete : la première colonne « Dépend de » est lue (vide), pas la seconde" 0 "" dp_cas 0
+
+# ca02 : forme de la cellule, comparaison exacte
+st_depot
+{ dp_ligne F-01 '-'; dp_ligne F-02 'F-01, F-08'; dp_ligne F-03 'F-01,,F-08'; dp_ligne F-04 'F-01,'; dp_ligne F-05 'F-01, F-01'; dp_ligne F-06 'F-99, F-99'
+  dp_ligne F-07 'F-98, F-97, F-98'; dp_ligne F-10 '-'; dp_ligne F-11 'F-1'; dp_ligne F-12 'f-01'; } | dp_backlog
+{ dp_inconnu F-02 F-08; dp_inconnu F-03 F-08; dp_inconnu F-06 F-99; dp_inconnu F-07 F-98; dp_inconnu F-07 F-97; dp_inconnu F-11 F-1; dp_inconnu F-12 f-01
+  echo "STATUTS : 7 erreur(s), 0 avis"; } | dp_attendu
+verifier "ca02_forme_de_la_cellule : espaces de bord, éléments vides et répétés ignorés (un seul E15 par identifiant, ordre de la cellule), F-1 n'est pas F-10, f-01 n'est pas F-01" 0 "" dp_cas 1
+
+# ca03 : dépendance inconnue ; un message par identifiant, jamais interprété
+st_depot
+{ dp_ligne F-01 '-'; dp_ligne F-02 'F-99'; dp_ligne F-03 'F-01 F-08'; dp_ligne F-04 'F-01;F-08'; dp_ligne F-05 '-, F-01'; dp_ligne F-06 '$(touch marque)'; dp_ligne F-07 '*'
+  dp_ligne F-08 'F-97, F-01, F-96'; } | dp_backlog
+{ dp_inconnu F-02 F-99; dp_inconnu F-03 'F-01 F-08'; dp_inconnu F-04 'F-01;F-08'; dp_inconnu F-05 '-'; dp_inconnu F-06 '$(touch marque)'; dp_inconnu F-07 '*'
+  dp_inconnu F-08 F-97; dp_inconnu F-08 F-96; echo "STATUTS : 8 erreur(s), 0 avis"; } | dp_attendu
+verifier "ca03_dependance_inconnue : un E15 par identifiant inconnu dans l'ordre de la cellule, le voisin valide F-01 n'est pas signalé, code 1" 0 "" dp_cas 1
+verifier "ca03_dependance_inconnue : la valeur « \$(touch marque) » n'a rien créé" 0 "" test ! -e marque
+
+# ca05 : une ligne douteuse (E03, E04, E05) n'est pas jugée ; elle existe pourtant comme cible
+st_depot
+{ dp_ligne F-01 '-'; dp_ligne F-02 'F-03, F-04, F-05'; printf '| F-03 | B | P1 | À faire | | F-99 |\n'; dp_ligne F-04 'F-99'; dp_ligne F-04 'F-99'; dp_ligne F-05 'F-99' Zut
+  dp_ligne F-07 'F-08'; dp_ligne F-08 'F-07' Zut; } | dp_backlog
+cat > "$racine_tmp/dp.attendu" <<TXT
+ERREUR E03 besoin F-03 : ligne illisible (nombre de colonnes différent de l'en-tête)
+ERREUR E04 besoin F-04 : identifiant en double dans le backlog
+ERREUR E05 besoin F-05 : statut inconnu « Zut » (attendus : $ATTENDUS_B)
+ERREUR E05 besoin F-08 : statut inconnu « Zut » (attendus : $ATTENDUS_B)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+verifier "ca05_sources : lignes en E03, E04 et E05 à cellule F-99 ou en cycle : seul leur code propre est émis, aucun E15" 0 "" dp_cas 1
+verifier "ca03_cible_existante : une dépendance vers une ligne en E03, E04 ou E05 n'est pas inconnue (aucun E15)" 0 "" test -z "$(grep E15 "$racine_tmp/dp.out")"
+
+# ca04 : cycles
+st_depot
+{ dp_ligne F-01 'F-02'; dp_ligne F-02 'F-03'; dp_ligne F-03 'F-01'; dp_ligne F-04 'F-04'; dp_ligne F-05 'F-06'; dp_ligne F-06 'F-05'; dp_ligne F-07 'F-01'; } | dp_backlog
+cat > "$racine_tmp/dp.attendu" <<'TXT'
+ERREUR E15 besoin F-01 : dépendance en cycle (F-01, F-02, F-03)
+ERREUR E15 besoin F-02 : dépendance en cycle (F-01, F-02, F-03)
+ERREUR E15 besoin F-03 : dépendance en cycle (F-01, F-02, F-03)
+ERREUR E15 besoin F-04 : dépendance en cycle (F-04)
+ERREUR E15 besoin F-05 : dépendance en cycle (F-05, F-06)
+ERREUR E15 besoin F-06 : dépendance en cycle (F-05, F-06)
+STATUTS : 6 erreur(s), 0 avis
+TXT
+verifier "ca04_cycles : trois en boucle, un besoin sur lui-même, deux qui se renvoient ; F-07 qui dépend du cycle sans en faire partie n'a rien ; code 1" 0 "" dp_cas 1
+st_depot
+{ for n in 1 2 3 4 5 6 7 8 9 10 11; do dp_ligne "F-$(printf '%02d' $n)" "F-$(printf '%02d' $((n + 1)))"; done; dp_ligne F-12 F-01; } | dp_backlog
+{ for n in 1 2 3 4 5 6 7 8 9 10 11 12; do printf 'ERREUR E15 besoin F-%02d : dépendance en cycle (F-01, F-02, F-03, F-04, F-05, F-06, F-07, F-08, F-09, F-10, …)\n' "$n"; done
+  echo "STATUTS : 12 erreur(s), 0 avis"; } | dp_attendu
+verifier "ca04_cycle_de_12 : 10 identifiants puis « … »" 0 "" dp_cas 1
+bs_depot
+{ dp_ligne F-01 '-'; printf '| F-02 | B | P1 | Fait | `docs/prd/p.md` | F-03 | |\n'; dp_ligne F-03 'F-02'; printf '| F-04 | B | P1 | Abandonnée | | F-04 | Abandonné |\n'; } | dp_backlog
+cat > "$racine_tmp/dp.attendu" <<'TXT'
+ERREUR E08 besoin F-02 : statut Fait non justifié : aucune issue Fait
+ERREUR E15 besoin F-02 : dépendance en cycle (F-02, F-03)
+ERREUR E15 besoin F-03 : dépendance en cycle (F-02, F-03)
+ERREUR E15 besoin F-04 : dépendance en cycle (F-04)
+STATUTS : 4 erreur(s), 0 avis
+TXT
+verifier "ca04_statut_sans_effet : un besoin Fait ou Abandonnée en cycle est signalé, les autres constats restent émis" 0 "" dp_cas 1
+
+# ca06 : au plus 64 identifiants examinés par cellule
+st_depot
+dp_64="$(seq -f 'F-%02g' 1 64 | paste -sd, - | sed 's/,/, /g')"
+{ for n in $(seq 1 64); do dp_ligne "$(printf 'F-%02d' $n)" '-'; done; dp_ligne F-70 "$dp_64"; } | dp_backlog
+echo "STATUTS : 0 erreur(s), 0 avis" | dp_attendu
+verifier "ca06_limite : 64 identifiants valides sont examinés sans constat" 0 "" dp_cas 0
+{ for n in $(seq 1 64); do dp_ligne "$(printf 'F-%02d' $n)" '-'; done; dp_ligne F-70 "$dp_64, F-99"; } | dp_backlog
+printf 'ERREUR E15 besoin F-70 : colonne « Dépend de » : plus de 64 identifiants\nSTATUTS : 1 erreur(s), 0 avis\n' | dp_attendu
+verifier "ca06_limite : 65 identifiants = un seul E15 « plus de 64 identifiants », le 65e (inconnu) n'est pas examiné" 0 "" dp_cas 1
+
+# ca07 : le backlog réel et la forme de la sortie (erreurs avant avis, tri, récapitulatif)
+st_depot
+lire_depot "$depot" backlog.md > backlog.md
+scripts/statuts.sh > "$racine_tmp/dp.out" 2> "$racine_tmp/dp.err"
+verifier "ca07_backlog_reel : le backlog du dépôt n'a aucun E15" 0 "" test "$(grep -c '^ERREUR E15' "$racine_tmp/dp.out")" = 0
+bs_depot
+{ printf '| F-01 | B | P1 | En revue | `docs/prd/p.md` | - | |\n'; dp_ligne F-02 'F-99'; dp_ligne F-03 'F-04'; dp_ligne F-04 'F-03'; } | dp_backlog
+cat > "$racine_tmp/dp.attendu" <<'TXT'
+ERREUR E15 besoin F-02 : dépend de « F-99 », besoin inconnu du backlog
+ERREUR E15 besoin F-03 : dépendance en cycle (F-03, F-04)
+ERREUR E15 besoin F-04 : dépendance en cycle (F-03, F-04)
+AVIS A12 besoin F-01 : statut En revue en avance : toutes les issues ne sont pas Fait
+STATUTS : 3 erreur(s), 1 avis
+TXT
+verifier "ca07_forme_de_la_sortie : erreurs E15 avant l'avis, ordre du tableau, récapitulatif compté, code 1" 0 "" dp_cas 1
+
+# cs01 : valeurs hostiles dans la cellule (contrôles, longueur, texte imitant un constat)
+st_depot
+{ dp_ligne F-01 '-'
+  printf '| F-02 | B | P1 | À faire | | F-99\rERREUR E15 besoin F-01 : forgé | |\n'
+  printf '| F-03 | B | P1 | À faire | | F-99\033[31mx | |\n'
+  printf '| F-04 | B | P1 | À faire | | F-99\ty | |\n'
+  printf '| F-05 | B | P1 | À faire | | F-99\000ERREUR E15 besoin F-01 : nul | |\n'
+  dp_ligne F-06 "$(printf 'y%.0s' $(seq 1 130))"
+  dp_ligne F-07 'F-99 ERREUR E15 besoin F-01 : x ; AVIS A18 besoin F-01 : y'; } | dp_backlog
+cs01_regex='^ERREUR E15 besoin F-0[2-7] : dépend de « [^»]* », besoin inconnu du backlog$|^ERREUR E03 besoin F-05 : ligne illisible \(nombre de colonnes différent de l.en-tête\)$' # F-05 : le NUL coupe la ligne (E03, comme pour toute cellule du backlog)
+cs01_ok() {
+  scripts/statuts.sh > "$racine_tmp/dp.out" 2> "$racine_tmp/dp.err"; [ "$?" -eq 1 ] || { echo "code attendu 1"; return 1; }
+  [ -z "$(LC_ALL=C grep -a '[[:cntrl:]]' "$racine_tmp/dp.out")" ] || { echo "caractère de contrôle en sortie"; return 1; }
+  [ "$(LC_ALL=C grep -a -c -v -E "$cs01_regex|^STATUTS : [0-9]+ erreur\(s\), 0 avis$" "$racine_tmp/dp.out")" = 0 ] || { echo "ligne qui n'est pas un constat E15 de la forme attendue : $(LC_ALL=C grep -a -v -E "$cs01_regex" "$racine_tmp/dp.out" | head -3 | tr '\n' '|')"; return 1; }
+  [ "$(LC_ALL=C grep -a -c '^ERREUR E15 besoin F-01 ' "$racine_tmp/dp.out")" = 0 ] || { echo "constat contrefait pour F-01"; return 1; }
+  LC_ALL=C grep -a -F -q "« $(printf 'y%.0s' $(seq 1 120))… »" "$racine_tmp/dp.out" || { echo "valeur de 130 caractères non tronquée à 120 + …"; return 1; }
+}
+verifier "cs01_valeurs_neutralisees : CR, ESC, tabulation, NUL, 130 caractères et faux constat : chaque constat sur une ligne sans contrôle, aucun constat contrefait, valeur tronquée avec « … »" 0 "" cs01_ok
+
+# cs02 : identifiants jamais interprétés (commande, motif, option, expression, séparateur interne)
+st_depot
+cs02_valeurs=('$(touch${IFS}marque)' '`touch${IFS}marque`' ';touch${IFS}marque' '-rf' '--help' '*' '[a-z]' '.*' '__proto__' "$(printf 'a\037b')")
+{ dp_ligne F-01 '-'; n=1; for v in "${cs02_valeurs[@]}"; do n=$((n + 1)); dp_ligne "$(printf 'F-%02d' $n)" "F-01, $v"; done; } | dp_backlog
+{ n=1; for v in "${cs02_valeurs[@]}"; do n=$((n + 1)); dp_inconnu "$(printf 'F-%02d' $n)" "$(printf '%s' "$v" | sed "s/$(printf '\037')/$(printf '\357\277\275')/")"; done
+  echo "STATUTS : 10 erreur(s), 0 avis"; } | dp_attendu
+verifier "cs02_identifiants_non_interpretes : commande, motif, option, expression et séparateur interne : chacun inconnu (E15), F-01 voisin non signalé, code 1" 0 "" dp_cas 1
+verifier "cs02_identifiants_non_interpretes : le fichier « marque » n'existe pas après statuts.sh" 0 "" test ! -e marque
+cs02_page() { st_page || return 1; [ ! -e marque ] || { echo "marque créé"; return 1; }; }
+verifier "cs02_identifiants_non_interpretes : le dashboard termine (code 0) sans créer « marque »" 0 "" cs02_page
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

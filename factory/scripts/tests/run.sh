@@ -5507,7 +5507,7 @@ for o9m in 'un worktree par issue' 'dossiers frères' 'conteneur unique' 'struct
   verifier "ca07_skill deliver, règle 2 : « $o9m »" 0 "" contient "$o9_etape0" "$o9m"
 done
 o9_creer() { # dépôt jetable : conteneur bare puis dépôt classique ; affiche « bare:<ok|ko> classique:<ok|ko> »
-  local d src reel c nomp r1 r2
+  local d src c nomp r1 r2 sortie_cl
   d="$(mktemp -d "$racine_tmp/o9.XXXXXX")"; src="$d/src"; mkdir -p "$src/factory" "$src/scripts" "$src/docs/issues"
   cp -R "$factory/scripts" "$src/factory/scripts"; rm -rf "$src/factory/scripts/tests"
   local s; for s in "$src"/factory/scripts/*.sh; do ln -s "../factory/scripts/$(basename "$s")" "$src/scripts/$(basename "$s")"; done
@@ -5517,11 +5517,12 @@ o9_creer() { # dépôt jetable : conteneur bare puis dépôt classique ; affiche
   c="$d/conteneur"; "$src/scripts/worktree-issue.sh" initialiser "$src" "$c" >/dev/null 2>&1 || { echo "initialiser ko"; return 1; }
   git --git-dir="$c/.git" worktree add -q "$c/develop" develop >/dev/null 2>&1
   r1=ko; ( cd "$c/develop" && scripts/worktree-issue.sh creer 001-01 >/dev/null 2>&1 ) && [ -d "$c/feat-001-01-x" ] && [ ! -e "$c/develop/feat-001-01-x" ] && r1=ok
-  r2=ko; nomp="$(basename "$src")"; ( cd "$src" && scripts/worktree-issue.sh creer 001-01 2>&1 | grep -q 'structure bare recommand' ) && [ -d "$d/$nomp-001-01" ] && r2=ok
+  nomp="$(basename "$src")"; sortie_cl="$(cd "$src" && scripts/worktree-issue.sh creer 001-01 2>&1)"
+  r2=ko; grep -q 'structure bare recommand' <<<"$sortie_cl" && [ -d "$d/$nomp-001-01" ] && r2=ok
   echo "bare:$r1 classique:$r2"
 }
 verifier "ca07_creer place le dossier dans le conteneur bare et, en dépôt classique, en dossier frère avec l'avertissement" 0 "^bare:ok classique:ok$" o9_creer
-verifier "ca07_aucun fichier de factory/ (hors tests) ne contient de chemin absolu propre à un poste" 0 "" test -z "$(chercher_depot "$depot" '/Users/|/home/' 'factory/scripts/tests/*')"
+verifier "ca07_aucun fichier de factory/ (hors tests) ne contient de chemin absolu propre à un poste" 0 "" test -z "$(chercher_depot "$depot" '/Users/|/home/' 'factory/scripts/tests/*' | grep -E '^(HEAD:)?factory/')"
 
 # CA-08, CS-06 : règle 6 (APPROUVÉ incompatible avec un constat sérieux ouvert) ; fixture produite comme la skill le demande.
 o9_etape3="$(o9_section "$o9_deliver" '## 3. Relire')"; o9_etape5="$(o9_section "$o9_deliver" '## 5. Terminer')"

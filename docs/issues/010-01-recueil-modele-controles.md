@@ -3,7 +3,7 @@ id: 010-01
 titre: Constats récurrents : le recueil, son modèle et ses contrôles
 prd: docs/prd/010-constats-recurrents.md
 besoin: F-13
-statut: En revue
+statut: Fait
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CS-02, CS-03, CS-05]
 branche: feat/010-01-recueil-modele-controles
@@ -32,3 +32,4 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-24 : la longueur d'une ligne se compte en caractères (perl UTF-8), pas en octets ; un cas le prouve (240 « é »).
 - 2026-11-24 : « aucune consigne adressée à un agent » (RG-14) n'est pas détectable par forme : le test refuse le texte hors ligne de règle, les lignes `VERDICT:`, `#`, clôtures et la forme à trois champs ; une règle qui commencerait par « ignore… » reste à la charge de la session et de la relecture de PR.
 - 2026-11-24 : les mutations de test n'utilisent pas l'adresse sed `0,/re/` (GNU seulement) : la suite doit passer sous macOS, bash 3.2.
+- 2026-11-24 Clôture : revue 1 APPROUVÉ ; FIN-ISSUE OK 010-01 c898648 : 2047 tests, 0 échec, 0 ignoré (relancé par la session). Fusionnée dans develop.

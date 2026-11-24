@@ -114,7 +114,7 @@ Le point fixe a été contrôlé à l'étape 1 bis. Les étapes 2 et 3 restent v
 Lance **ensemble** (plusieurs lancements dans le même message) les trois sous-agents `code-reviewer-conformite`, `code-reviewer-qualite` et `code-reviewer-securite`, chacun avec le brief commun `factory/prompts/briefs/relecteurs.md` (un message par relecteur, ses champs remplis), sur `git diff <point-fixe>...HEAD` et la liste `git log <point-fixe>..HEAD --oneline`, en **lecture seule** :
 - la spécification (étape 2) va à « conformité et tests » ; sans spécification, la conformité le dit dans son rapport ;
 - les sources de normes et la liste de mauvaises odeurs (étape 3, collée en entier) vont à « qualité » ;
-- « sécurité » est lancée dans tous les cas (spécification absente ou non) ;
+- « sécurité » passe même sans spécification : elle est lancée dans tous les cas (spécification absente ou non) ;
 - Seule la conformité lance `scripts/verify-clean.sh`, `scripts/criteres-sans-test.sh` et les mutations ; les mutations se font dans des copies jetables distinctes, hors du dépôt, supprimées ensuite.
 
 Les relecteurs gardent les mêmes outils en lecture seule que pour `/deliver` : aucun relecteur n'écrit dans le dépôt. La seule écriture dans le dépôt est celle de la session dans le fichier de revue de branche `docs/reviews/branche-<branche>.md` (son format est décrit par l'issue 006-06).

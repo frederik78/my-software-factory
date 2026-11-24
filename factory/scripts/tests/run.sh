@@ -5377,6 +5377,7 @@ b8_arreter() { # b8_arreter [signal] : arrête la boucle (TERM par défaut), ran
   { wait "$b8_pid"; } 2>/dev/null; b8_code=$?
 }
 b8_generations() { sort -u "$B8_LOG" | awk '{ print $1 }' | sort -u | wc -l | tr -d ' '; } # nombre d'exécutions du contrôle de statuts (une par génération)
+b8_au_moins() { test "$(b8_generations)" -ge "$1"; } # b8_au_moins <n> : au moins n générations (évalué à chaque sondage)
 b8_marquer_script() { M="$1" perl -pi -e 's|^</main>$|<p>MARQUE-$ENV{M}</p>\n</main>|' factory/scripts/dashboard.sh && grep -q "MARQUE-$1" factory/scripts/dashboard.sh; }
 
 # ca01 : le script modifié pendant la boucle est exécuté au tour suivant
@@ -5407,7 +5408,7 @@ verifier "ca02_une bibliothèque lib-* modifiée pendant la boucle est relue au 
 b8_ca03() {
   b8_depot
   b8_lancer --sortie "$racine_tmp/b8-ca03.html" --boucle 1
-  b8_attendre 75 test "$(b8_generations)" -ge 3 || { b8_arreter; echo "moins de 3 générations : $(b8_generations)"; return 1; }
+  b8_attendre 75 b8_au_moins 3 || { b8_arreter; echo "moins de 3 générations : $(b8_generations)"; return 1; }
   b8_arreter
   local n sans_boucle
   n="$(b8_generations)"
@@ -5490,7 +5491,7 @@ verifier "ca06_sans --boucle : sortie (nom du fichier), page et codes 0, 64 (usa
 b8_cs01() { # b8_cs01 <nom de fichier de sortie, relatif au dossier courant du lanceur>
   b8_depot; local d="$racine_tmp/b8-cs01.$RANDOM"; mkdir -p "$d" && cd "$d" || return 1
   "$p/scripts/dashboard.sh" --sortie "$1" --attente 9 --theme sombre --boucle 1 > "$racine_tmp/b8.out" 2> "$racine_tmp/b8.err" & b8_pid=$!
-  b8_attendre 75 test "$(b8_generations)" -ge 2 || { b8_arreter; echo "moins de 2 générations"; return 1; }
+  b8_attendre 75 b8_au_moins 2 || { b8_arreter; echo "moins de 2 générations"; return 1; }
   b8_arreter
   [ -f "$d/$1" ] || { echo "page absente sous le nom exact"; return 1; }
   [ "$(find "$d" -mindepth 1 -print0 | tr -cd '\0' | wc -c | tr -d ' ')" = 1 ] || { echo "plus d'un fichier dans le dossier de sortie"; return 1; }
@@ -5512,7 +5513,7 @@ b8_cs02() {
   printf '#!/bin/sh\ntouch marque\n' > "$d/dashboard.sh"; cp "$d/dashboard.sh" "$d/scripts/dashboard.sh"; chmod +x "$d/dashboard.sh" "$d/scripts/dashboard.sh"
   cd "$d" || return 1
   PATH="$d:$d/scripts:$PATH" "$p/scripts/dashboard.sh" --sortie "$page" --boucle 1 > "$racine_tmp/b8.out" 2> "$racine_tmp/b8.err" & b8_pid=$!
-  b8_attendre 75 test "$(b8_generations)" -ge 3 || { b8_arreter; echo "moins de 3 générations"; return 1; }
+  b8_attendre 75 b8_au_moins 3 || { b8_arreter; echo "moins de 3 générations"; return 1; }
   b8_arreter
   [ -z "$(find "$p" "$d" -name marque 2>/dev/null)" ] || { echo "un script du répertoire courant ou du PATH a été exécuté"; return 1; }
   [ -s "$page" ] || { echo "aucune page"; return 1; }

@@ -3,7 +3,7 @@ id: 006-05
 titre: Skill code-review : lecture du mode, trois relecteurs et agrégation
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: À faire
+statut: En cours
 depend_de: [006-02, 006-03]
 criteres: [CA-34, CA-35, CA-36, CA-37, CA-38, CS-09, CS-10]
 branche: feat/006-05-code-review-lancement-et-agregation

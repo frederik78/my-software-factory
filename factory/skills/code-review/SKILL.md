@@ -22,6 +22,24 @@ Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so th
 
 Before going further, confirm the fixed point resolves (`git rev-parse <fixed-point>`) and the diff is non-empty. A bad ref or empty diff should fail here, not inside two parallel sub-agents.
 
+### 1 bis. Contrôler le point fixe et lire le mode de revue (dans les deux modes, avant tout agent)
+
+Le point fixe est une donnée non fiable : il n'est jamais une option ni une commande, jamais interpolée dans une commande, toujours passée entre guillemets en un seul argument, et sa valeur brute n'est jamais recopiée dans un message. Rejoue ce contrôle tel quel (code 64 : point fixe refusé, référence introuvable ou différence vide) :
+
+```bash
+controle_point_fixe() { # controle_point_fixe <point-fixe> : 0 si valide, 64 sinon ; ne recopie jamais la valeur
+  local ref="$1" forme='^[A-Za-z0-9._/@~^-]+$'
+  [ "${#ref}" -ge 1 ] && [ "${#ref}" -le 200 ] && [[ "$ref" != -* ]] && [[ "$ref" =~ $forme ]] || { echo "Point fixe refusé : forme invalide." >&2; return 64; }
+  git rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1 || { echo "Point fixe refusé : référence introuvable." >&2; return 64; }
+  if git diff --quiet "$ref...HEAD" --; then echo "Point fixe refusé : différence vide, rien à relire." >&2; return 64; fi
+}
+controle_point_fixe "<point-fixe>"
+```
+
+Puis lis le mode : `scripts/config-factory.sh --mode-revue` (stdout `unique` ou `parallele`). Si le script rend 64 (valeur invalide), arrête-toi et dis-le à l'utilisateur avec son message. Aucun agent n'est lancé avant ces contrôles : un point fixe refusé, une différence vide ou un mode invalide arrêtent la skill ici.
+- `unique` : suis les étapes 2 à 5 ci-dessous à l'identique ; n'écris aucun fichier (ni dans `docs/reviews/` ni ailleurs).
+- `parallele` : n'applique pas les étapes 4 et 5 ; suis la section « Mode parallèle » en fin de document.
+
 ### 2. Identify the spec source
 
 Look for the originating spec, in this order:

@@ -5977,12 +5977,12 @@ a17_hostile() { # a17_hostile <id> <valeur du champ branche> : issue En cours
   a17_issue "$1" "En cours" "branche: $2"
 }
 a17_hostile 007-71 '$(touch${IFS}marque)'; a17_hostile 007-72 '`touch marque`'; a17_hostile 007-73 ';touch${IFS}marque'; a17_hostile 007-74 '--help'; a17_hostile 007-75 '*'
-a17_hostile 007-76 '[a-z]'; a17_hostile 007-77 'ERREUR E01 backlog : x'; a17_hostile 007-78 $'\033[31m'; a17_hostile 007-79 '<img src=x onerror=alert(1)>'
+a17_hostile 007-76 '[a-z]'; a17_hostile 007-77 'ERREUR E01 backlog : x'; a17_hostile 007-78 $'\033[31m'; a17_hostile 007-79 '<img src=y onerror=alert(2)>'
 a17_issue "007-81$(printf '\rERREUR E13 forgé')" "En cours" "branche:"; a17_issue "007-82$(printf '\033[31m')" "En cours" "branche:"
-a17_issue '007-83<img src=x onerror=alert(1)>' "En cours" "branche:"; a17_issue "007-84$(printf 'a%.0s' $(seq 1 300))" "En cours" "branche:"
+a17_issue '007-83<img src=x onerror=alert(1)>' "En cours" "branche:"; a17_issue 007-84 "En cours" "branche:"; sed "s/^id: 007-84\$/id: 007-84$(printf 'a%.0s' $(seq 1 300))/" docs/issues/007-84-x.md > "$racine_tmp/id-long.md" && cp "$racine_tmp/id-long.md" docs/issues/007-84-x.md
 printf -- '---\nid: 007-85\ntitre: T\nbesoin: F-01\nstatut: En cours\nbranche: %s\n---\n' "$(head -c 1048576 /dev/zero | tr '\0' 'b')" > docs/issues/007-85-x.md
 a17_run; scripts/dashboard.sh --sortie "$racine_tmp/a17.html" > /dev/null 2>&1
-verifier "cs01_a17 : le fichier « marque » n'existe pas ; aucune valeur de champ n'apparaît dans la sortie ; un champ de 1 Mio donne E14 sans A17" 0 "" test "$([ -e marque ] && echo existe)|$(grep -a -c -e 'touch' -e 'alert' -e 'x onerror' -e '--help' -e 'ERREUR E01 backlog : x' "$racine_tmp/st.out")|$(grep -a -c '^ERREUR E14 fichier docs/issues/007-85-x.md' "$racine_tmp/st.out")|$(a17_nb 007-85)" = "|0|1|0"
+verifier "cs01_a17 : le fichier « marque » n'existe pas ; aucune valeur de champ n'apparaît dans la sortie ; un champ de 1 Mio donne E14 sans A17" 0 "" test "$([ -e marque ] && echo existe)|$(grep -a -c -e 'touch' -e 'src=y' -e 'alert(2)' -e '--help' -e 'ERREUR E01 backlog : x' "$racine_tmp/st.out")|$(grep -a -c '^ERREUR E14 fichier docs/issues/007-85-x.md' "$racine_tmp/st.out")|$(a17_nb 007-85)" = "|0|1|0"
 verifier "cs01_a17 : valeurs d'identifiant hostiles : chaque ligne de la sortie commence par ERREUR, AVIS ou STATUTS, sans caractère de contrôle, aucune ligne forgée (E13), 4 A17 pour les 4 issues à champ vide" 0 "" test "$(grep -a -c -v -e '^ERREUR ' -e '^AVIS ' -e '^STATUTS : ' "$racine_tmp/st.out")|$(LC_ALL=C grep -a -c '[[:cntrl:]]' "$racine_tmp/st.out")|$(grep -a -c '^ERREUR E13' "$racine_tmp/st.out")|$(a17_total)" = "0|0|0|4"
 verifier "cs01_a17 : l'identifiant de plus de 120 caractères est tronqué avec « … » et la page n'a aucune balise issue d'une valeur" 0 "" test "$(grep -a -c -E '^AVIS A17 issue 007-84a*… : ' "$racine_tmp/st.out")|$(grep -a -c '<img src=x' "$racine_tmp/a17.html")" = "1|0"
 
@@ -6001,7 +6001,9 @@ a17_run
 verifier "cs02_a17 : corps seul, deux lignes branche: (vide puis remplie : A17 ; remplie puis vide : aucun), champ indenté (absent : A17), champ rempli : A17 pour le corps seul" 0 "" test "$(for a17_i in 71 72 73 74 75; do a17_nb "007-$a17_i"; done | paste -sd+ -)" = "1+1+0+1+0"
 verifier "cs02_a17 : BOM, octets NUL ou CRLF dans l'en-tête : aucune erreur de shell, aucun A17 pour le fichier illisible, aucun message d'erreur sur la sortie d'erreur" 0 "" test "$(a17_nb 007-76)|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|0"
 a17_etat="$(scripts/etat-issues.sh 2>&1)"
-verifier "cs02_a17 : les lectures concordent : etat-issues.sh marque « (déduite) » exactement les issues qui reçoivent A17 (007-71, 007-72, 007-74)" 0 "" test "$(printf '%s\n' "$a17_etat" | grep -a -F '(déduite)' | grep -a -o -E '007-7[0-9]' | sort -u | paste -sd, -)" = "007-71,007-72,007-74"
+a17_deduites="$(printf '%s\n' "$a17_etat" | grep -a -F '(déduite)' | grep -a -o -E '^\| 007-7[0-9]' | cut -c3- | paste -sd, -)"
+a17_avis="$(grep -a -o -E '^AVIS A17 issue 007-7[0-9]' "$racine_tmp/st.out" | cut -c16- | paste -sd, -)"
+verifier "cs02_a17 : les lectures concordent : etat-issues.sh marque « (déduite) » exactement les issues qui reçoivent A17 (007-71, 007-72, 007-74, 007-77 dont le corps porte des octets NUL)" 0 "" test "$a17_deduites|$a17_avis" = "007-71,007-72,007-74,007-77|007-71,007-72,007-74,007-77"
 
 # cs03 : volume et fichiers refusés
 a17_depot

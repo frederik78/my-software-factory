@@ -130,6 +130,7 @@ controle_preuves() {
     if statut_en_travail issue "${iss_effectifs[$i]}"; then
       [ -n "${iss_refs[$i]}" ] || preuves_branche "${iss_rangs[$i]}" "${iss_ids[$i]}" "${iss_effectifs[$i]}" "${rat_ambigues[$i]:-}"
     fi
+    preuves_champ_branche "${iss_rangs[$i]}" "${iss_ids[$i]}" "${iss_effectifs[$i]}" "${ent_branches[$i]}"
     case "${iss_statuts[$i]}" in
       Fait) preuves_fait "${iss_rangs[$i]}" "$i" "${iss_ids[$i]}" ;;
       "En revue") preuves_en_revue "${iss_rangs[$i]}" "$i" "${iss_ids[$i]}" ;;

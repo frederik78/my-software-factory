@@ -176,6 +176,16 @@ preuves_branche() {
   fi
 }
 
+# preuves_champ_branche <rang> <id> <statut effectif> <champ branche> : avis A17 d'une issue démarrée et non terminée (du rang de « En cours » jusqu'avant celui de « Fait » dans la table)
+# dont le champ « branche » de l'en-tête est vide. Le champ n'est pas jugé (rempli = renseigné) ; sa valeur n'entre jamais dans le message.
+preuves_champ_branche() {
+  [ -z "$4" ] || return 0
+  statut_depuis issue "$3" "En cours" && ! statut_depuis issue "$3" "Fait" || return 0
+  constat_neutraliser "$2"; local objet="issue $neutre"
+  constat_neutraliser "$3"
+  constat_ajouter AVIS A17 2 "$1" "$objet" "$neutre sans champ branche renseigné"
+}
+
 # preuves_abandon <rang> <indice> <id> : erreur E13 d'une issue Abandonnée dont la section Notes n'a aucune ligne à puce contenant le mot « Abandonnée » (la raison).
 # La qualité de la raison n'est pas jugée.
 preuves_abandon() {

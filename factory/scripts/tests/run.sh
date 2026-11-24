@@ -3644,9 +3644,12 @@ pr_enc 004-73 "À faire" feat/c; sur_branche feat/c 004-73 "En cours" feat/c
 pr_enc 004-70 "À faire"; git branch feat/004-70-a; git branch fix/004-70-b
 st_cas "ca16_branche : En cours ou En revue sans branche (absente, déclarée inexistante) = A08 « sans branche retenue » ; branches ambiguës = A08 avec la liste ; branche déclarée, déduite, Fait sans branche, À faire (même ambiguë) = aucun avis ; statut effectif En cours lu sur la branche = aucun avis" 0 <<'TXT'
 AVIS A08 issue 004-71 : En cours sans branche retenue
+AVIS A17 issue 004-71 : En cours sans champ branche renseigné
 AVIS A08 issue 004-72 : En revue sans branche retenue
 AVIS A08 issue 004-74 : En cours : branche ambiguë : feat/004-74-a, fix/004-74-b
-STATUTS : 0 erreur(s), 3 avis
+AVIS A17 issue 004-74 : En cours sans champ branche renseigné
+AVIS A17 issue 004-76 : En cours sans champ branche renseigné
+STATUTS : 0 erreur(s), 6 avis
 TXT
 # valeurs hostiles dans les noms de branche : lues comme du texte (CS-02)
 pr_depot; pr_besoin "En cours"
@@ -3654,7 +3657,8 @@ printf 'APPROUVÉ\n' > docs/reviews/revue.md
 pr_enc 004-71 "En cours"; git branch 'feat/004-71-$(touch${IFS}marque)'; git branch 'fix/004-71-;touch${IFS}marque'
 st_cas "ca16_branche : noms de branche hostiles dans la liste ambiguë : écrits tels quels, rien n'est exécuté" 0 <<'TXT'
 AVIS A08 issue 004-71 : En cours : branche ambiguë : feat/004-71-$(touch${IFS}marque), fix/004-71-;touch${IFS}marque
-STATUTS : 0 erreur(s), 1 avis
+AVIS A17 issue 004-71 : En cours sans champ branche renseigné
+STATUTS : 0 erreur(s), 2 avis
 TXT
 verifier "ca16_branche : le fichier « marque » n'existe pas" 0 "" test ! -e marque
 
@@ -3665,7 +3669,8 @@ printf -- '---\nid: 004-60\nbranche:\nstatut: Fait\n---\nSECRET\n' > "$racine_tm
 pr_enc 004-60 "En cours"; git branch feat/004-60-z; ln -s "$racine_tmp/cible-issue.md" docs/issues/004-61-lien.md
 st_cas "ca16_branche : un lien symbolique d'issue (E14) qui porte le même identifiant ne rend pas la branche déduite ambiguë ni absente ; son contenu n'apparaît pas" 1 <<'TXT'
 ERREUR E14 fichier docs/issues/004-61-lien.md : fichier d'issue illisible (lien symbolique)
-STATUTS : 1 erreur(s), 0 avis
+AVIS A17 issue 004-60 : En cours sans champ branche renseigné
+STATUTS : 1 erreur(s), 1 avis
 TXT
 
 
@@ -4564,13 +4569,14 @@ d5_hors_section() { # d5_hors_section <page> : la page sans la section de contr�
 ro_riche; d5_page
 cat > "$racine_tmp/d5.attendu" <<'TXT'
 Contrôle des statuts
-STATUTS : 5 erreur(s), 3 avis
+STATUTS : 5 erreur(s), 4 avis
 ERREUR E05 besoin F-03 : statut inconnu « Zut » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
 ERREUR E06 besoin F-04 : statut Spécifié sans PRD valide (fichier absent : docs/prd/absent.md)
 ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
 ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
 ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
 AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A17 issue 004-73 : En revue sans champ branche renseigné
 AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
 AVIS A01 issue 004-77 : Fait sans champ revue renseigné
 TXT
@@ -4668,13 +4674,14 @@ for ro_sh in $ro_shells; do
   PATH="$ro_b32:$PATH" scripts/dashboard.sh --sortie "$racine_tmp/d5.b32.html" > /dev/null 2>&1; d5_code=$?
   cat > "$racine_tmp/d5.attendu" <<'TXT'
 Contrôle des statuts
-STATUTS : 5 erreur(s), 3 avis
+STATUTS : 5 erreur(s), 4 avis
 ERREUR E05 besoin F-03 : statut inconnu « Zut » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
 ERREUR E06 besoin F-04 : statut Spécifié sans PRD valide (fichier absent : docs/prd/absent.md)
 ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
 ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
 ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
 AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A17 issue 004-73 : En revue sans champ branche renseigné
 AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
 AVIS A01 issue 004-77 : Fait sans champ revue renseigné
 TXT
@@ -4797,7 +4804,8 @@ st_depot; printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog; st_issue 004
 st_cas "ca38_statuts : un statut ajouté à la table après « En revue » suit les règles de son rang dans le cycle (démarré, en travail) au lieu d'être ignoré : besoin À faire en retard, issue sans branche retenue" 1 <<'TXT'
 ERREUR E07 besoin F-01 : statut À faire en retard : l'issue 004-91 est démarrée
 AVIS A08 issue 004-91 : Relue sans branche retenue
-STATUTS : 1 erreur(s), 1 avis
+AVIS A17 issue 004-91 : Relue sans champ branche renseigné
+STATUTS : 1 erreur(s), 2 avis
 TXT
 r6_dossier="$racine_tmp/r6-copie"; rm -rf "$r6_dossier"; r6_copie "$r6_dossier"
 verifier "ca38_les noms de statut du garde-fou viennent de la table (7 noms, issue et besoin confondus)" 0 "" test "$(r6_noms | tr '|' '\n' | wc -l | tr -d ' ')" = 7

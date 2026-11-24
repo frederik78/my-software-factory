@@ -3,7 +3,7 @@ id: 011-01
 titre: Dépendances entre besoins : lecture de la colonne et erreur E15
 prd: docs/prd/011-dependances-entre-besoins.md
 besoin: F-15
-statut: À faire
+statut: En cours
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CA-07, CS-01, CS-02]
 branche: feat/011-01-lecture-colonne-erreur-e15

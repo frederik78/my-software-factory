@@ -6013,6 +6013,35 @@ printf -- '---\nid: 009-01\nstatut: En cours\nbranche:\n---\nSECRETLIEN\n' > "$r
 a17_t0=$SECONDS; a17_run; a17_duree=$((SECONDS - a17_t0))
 verifier "cs03_a17 : 2000 issues En cours au champ vide : 2000 A17, le fichier de plus de 1 Mio et le lien symbolique donnent E14 sans A17, contenu du lien absent, temps ${a17_duree} s (borne : 40 s)" 0 "" test "$(a17_total)|$(grep -a -c '^ERREUR E14 ' "$racine_tmp/st.out")|$(grep -a -c SECRETLIEN "$racine_tmp/st.out")|$([ "$a17_duree" -le 40 ] && echo borne)" = "2000|2|0|borne"
 
+# ca13 : sorties de référence inchangées hors lignes A17 ; champ renseigné = sorties d'avant l'avis (littéraux de l'état d'avant, reproduits des cas ca16, ca31 et ca38)
+a13_egal() { scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; [ "$(cat "$racine_tmp/st.out")" = "$1" ] && [ ! -s "$racine_tmp/st.err" ]; } # a13_egal <sortie attendue> : sortie exacte de statuts.sh
+pr_depot; pr_besoin "En cours"; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_enc 004-71 "En cours" feat/absente; pr_enc 004-72 "En revue" feat/absente; pr_enc 004-74 "En cours" feat/absente; pr_enc 004-76 "En cours" feat/absente
+verifier "ca13_a17 : dépôt de ca16_branche, champ renseigné : aucun A17, sortie identique à celle d'avant l'avis (A08 seuls)" 0 "" a13_egal "AVIS A08 issue 004-71 : En cours sans branche retenue
+AVIS A08 issue 004-72 : En revue sans branche retenue
+AVIS A08 issue 004-74 : En cours sans branche retenue
+AVIS A08 issue 004-76 : En cours sans branche retenue
+STATUTS : 0 erreur(s), 4 avis"
+st_depot; printf '| F-01 | B | P1 | À faire | | |\n' | st_backlog; st_issue 004-91 " Relue"; st_table_inserer issue "En revue" Relue
+printf -- '---\nid: 004-91\ntitre: T\nbesoin: F-01\nstatut: Relue\nbranche: feat/absente\ndepend_de: []\n---\n' > docs/issues/004-91-x.md
+verifier "ca13_a17 : dépôt de ca38_statuts, champ renseigné : aucun A17, sortie identique à celle d'avant l'avis" 0 "" a13_egal "ERREUR E07 besoin F-01 : statut À faire en retard : l'issue 004-91 est démarrée
+AVIS A08 issue 004-91 : Relue sans branche retenue
+STATUTS : 1 erreur(s), 1 avis"
+pr_depot; pr_besoin "En revue"; printf 'APPROUVÉ\n' > docs/reviews/revue.md
+pr_enc 004-73 "En revue" feat/absente
+scripts/dashboard.sh --sortie "$racine_tmp/a13.html" > /dev/null 2>&1
+verifier "ca13_a17 : dépôt de ca31_dashboard, champ renseigné : la section « Contrôle des statuts » du dashboard porte l'avis A08 et aucun A17" 0 "" test "$(grep -a -c 'AVIS A08 issue 004-73 : En revue sans branche retenue' "$racine_tmp/a13.html")|$(grep -a -c 'A17' "$racine_tmp/a13.html")" = "1|0"
+a13_golden() { # a13_golden : le golden ca41 n'a changé, depuis sa version d'avant l'avis (commit a0d1ead), que par des lignes A17 ajoutées et des récapitulatifs
+  local ancien="a0d1ead:factory/scripts/tests/golden/ca41-sorties.txt"
+  depot_git "$depot" && git -C "$depot" cat-file -e "$ancien" 2>/dev/null || { echo "historique indisponible : non vérifiable hors dépôt Git"; return 0; }
+  git -C "$depot" show "$ancien" > "$racine_tmp/a13.ancien"
+  { diff "$racine_tmp/a13.ancien" "$ici/golden/ca41-sorties.txt" || true; } | awk '
+    /^< / { if ($0 !~ /^< STATUTS : /) mauvais++; next }
+    /^> / { if ($0 ~ /^> AVIS A17 issue /) a17++; else if ($0 !~ /^> STATUTS : /) mauvais++; next }
+    END { exit (mauvais > 0 || a17 == 0) }'
+}
+verifier "ca13_a17 : la référence ca41-sorties.txt ne diffère de celle d'avant l'avis que par des lignes A17 et des récapitulatifs" 0 "" a13_golden
+
 # PRD 009, issue 009-02 : règles de l'orchestrateur sans clé (1, 2, 6, 7, 8) dans AGENTS.md, son modèle et la skill deliver.
 echo "règles de l'orchestrateur sans clé (PRD 009, issue 009-02)"
 o9_agents="$(lire_depot "$depot" AGENTS.md)"; o9_modele="$(lire_depot "$depot" factory/templates/AGENTS.md)"; o9_deliver="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"

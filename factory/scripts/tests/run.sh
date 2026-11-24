@@ -5904,27 +5904,29 @@ cr_controle() { # cr_controle <valeur> : code et sortie du contrôle de la skill
 verifier "cs09_code_review_la_skill_porte_une_fonction_de_controle_rejouable" 0 "" test "$(cr_fonction | grep -c '^controle_point_fixe()')" = 1
 cr_long="$(printf 'a%.0s' $(seq 10000))"
 for cr_v in 'main' 'HEAD~1' "$cr_court" 'feat/base'; do verifier "cs09_code_review_point_fixe_valide_accepte_$(printf '%s' "$cr_v" | tr -c 'A-Za-z0-9' _)" 0 "" cr_controle "$cr_v"; done
-cr_hostile() { # cr_hostile <nom> <valeur> : refus (64), aucune marque, sortie courte sans la valeur brute
+cr_hostile() { # cr_hostile <message exact attendu> <valeur> : refus (64) avec exactement ce message, aucune marque, valeur brute jamais recopiée
   local out rc; out="$(cr_controle "$2")"; rc=$?
   [ "$rc" = 64 ] || { echo "code $rc"; return 1; }
-  [ "${#out}" -lt 200 ] || { echo "sortie trop longue"; return 1; }
+  [ "$out" = "$1" ] || { echo "message inattendu : ${out:0:100}"; return 1; }
   [ -z "$2" ] || case "$out" in *"$2"*) echo "valeur brute recopiée"; return 1 ;; esac
-  case "$out" in *marque*|*MARQUE*) echo "marque"; return 1 ;; esac
   return 0
 }
-verifier "cs09_code_review_option_output_refusee" 0 "" cr_hostile opt '--output=marque'
-verifier "cs09_code_review_option_courte_refusee" 0 "" cr_hostile opt '-x'
-verifier "cs09_code_review_substitution_de_commande_refusee" 0 "" cr_hostile sub '$(touch marque)'
-verifier "cs09_code_review_enchainement_de_commande_refuse" 0 "" cr_hostile enc 'main; touch marque'
-verifier "cs09_code_review_reference_inexistante_refusee" 0 "" cr_hostile inex 'branche-qui-n-existe-pas'
-verifier "cs09_code_review_valeur_de_10000_caracteres_refusee" 0 "" cr_hostile long "$cr_long"
-verifier "cs09_code_review_valeur_avec_saut_de_ligne_refusee" 0 "" cr_hostile nl "$(printf 'main\ntouch marque')"
-verifier "cs09_code_review_valeur_vide_refusee" 0 "" cr_hostile vide ''
-verifier "cs09_code_review_difference_vide_refusee" 0 "" cr_hostile vide 'HEAD'
+cr_forme="Point fixe refusé : forme invalide."; cr_inex="Point fixe refusé : référence introuvable."; cr_vide="Point fixe refusé : différence vide, rien à relire."
+git -C "$cr_depot" tag blobtag "$(git -C "$cr_depot" hash-object -w "$cr_depot/f")" >/dev/null 2>&1
+verifier "cs09_code_review_option_output_refusee" 0 "" cr_hostile "$cr_forme" '--output=marque'
+verifier "cs09_code_review_option_courte_refusee" 0 "" cr_hostile "$cr_forme" '-x'
+verifier "cs09_code_review_substitution_de_commande_refusee" 0 "" cr_hostile "$cr_forme" '$(touch marque)'
+verifier "cs09_code_review_enchainement_de_commande_refuse" 0 "" cr_hostile "$cr_forme" 'main; touch marque'
+verifier "cs09_code_review_reference_inexistante_refusee" 0 "" cr_hostile "$cr_inex" 'branche-qui-n-existe-pas'
+verifier "cs09_code_review_reference_qui_n_est_pas_un_commit_refusee" 0 "" cr_hostile "$cr_inex" 'blobtag'
+verifier "cs09_code_review_valeur_de_10000_caracteres_refusee" 0 "" cr_hostile "$cr_forme" "$cr_long"
+verifier "cs09_code_review_valeur_avec_saut_de_ligne_refusee" 0 "" cr_hostile "$cr_forme" "$(printf 'main\ntouch marque')"
+verifier "cs09_code_review_valeur_vide_refusee" 0 "" cr_hostile "$cr_forme" ''
+verifier "cs09_code_review_difference_vide_refusee" 0 "" cr_hostile "$cr_vide" 'HEAD'
 # Borne : une référence existante de 200 caractères est acceptée, de 201 refusée (instantané : branches réelles, aucune allocation démesurée).
 git -C "$cr_depot" branch "$(printf 'a%.0s' $(seq 200))" HEAD~1 >/dev/null 2>&1; git -C "$cr_depot" branch "$(printf 'b%.0s' $(seq 201))" HEAD~1 >/dev/null 2>&1
 verifier "cs09_code_review_borne_200_caracteres_acceptee" 0 "" cr_controle "$(printf 'a%.0s' $(seq 200))"
-verifier "cs09_code_review_borne_201_caracteres_refusee" 0 "" cr_hostile b201 "$(printf 'b%.0s' $(seq 201))"
+verifier "cs09_code_review_borne_201_caracteres_refusee" 0 "" cr_hostile "$cr_forme" "$(printf 'b%.0s' $(seq 201))"
 verifier "cs09_code_review_aucun_fichier_marque_apres_les_valeurs_hostiles" 0 "" test ! -e "$cr_depot/marque"
 verifier "cs09_code_review_la_valeur_est_citee_entre_guillemets_jamais_interpolee" 0 "" cr_a_bis 'jamais interpolée'
 

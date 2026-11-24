@@ -8,7 +8,7 @@ depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CA-07, CS-01, CS-02]
 branche: feat/011-01-lecture-colonne-erreur-e15
 commits: [95e6692, 8722cfd]
-revue:
+revue: APPROUVÉ (itération 1, docs/reviews/011-01.md)
 ---
 
 ## Objectif

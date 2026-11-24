@@ -5768,22 +5768,22 @@ verifier "ca14_le_script_lit_le_troisieme_rapport_changements_demandes" 0 "^APPR
 # La règle d'unanimité est lue dans la skill (ligne « Verdict global de l'itération ») : elle doit dire « seulement si les trois », jamais « au moins un », « un des », « dès qu'un ».
 dp_unanimite() { # dp_unanimite : lit une ligne sur l'entrée standard ; vrai si elle pose l'unanimité des trois relecteurs
   local l; l="$(cat)"
-  printf '%s' "$l" | grep -Eq 'APPROUVÉ` seulement si le dernier verdict connu des trois relecteurs est `APPROUVÉ`.*sinon `CHANGEMENTS DEMANDÉS`' # formulation exacte attendue (liste blanche)
+  printf '%s' "$l" | grep -Eq '^- Verdict global de l.itération : `APPROUVÉ` seulement si le dernier verdict retenu des trois relecteurs est `APPROUVÉ` \(sorties du script, abaissement compris\), sinon `CHANGEMENTS DEMANDÉS`\.' # formulation exacte attendue (liste blanche, ancrée au début de la ligne et sur chaque mot de la règle : aucun texte inséré ne passe)
 }
 dp_regle() { dp_par | grep -F "Verdict global de l'itération"; }
 verifier "ca14_deliver_verdict_global_est_lu_dans_la_skill_et_pose_l_unanimite" 0 "" test "$(dp_regle | wc -l | tr -d ' ')" = 1
 dp_regle_ok() { dp_regle | dp_unanimite; }
 verifier "ca14_deliver_la_regle_de_la_skill_passe_le_predicat_d_unanimite" 0 "" dp_regle_ok
 dp_mut() { dp_regle | sed "$1" | dp_unanimite; } # dp_mut <sed> : la règle de la skill, mutée, ne doit plus passer
-verifier "ca14_mutation_au_moins_un_des_trois_est_rejetee" 1 "" dp_mut 's/seulement si le dernier verdict connu des trois relecteurs est/seulement si au moins un des trois relecteurs est/'
-verifier "ca14_mutation_un_des_trois_est_rejetee" 1 "" dp_mut 's/le dernier verdict connu des trois relecteurs est/le verdict connu d un des trois relecteurs est/'
+verifier "ca14_mutation_au_moins_un_des_trois_est_rejetee" 1 "" dp_mut 's/seulement si le dernier verdict retenu des trois relecteurs est/seulement si au moins un des trois relecteurs est/'
+verifier "ca14_mutation_un_des_trois_est_rejetee" 1 "" dp_mut 's/le dernier verdict retenu des trois relecteurs est/le verdict retenu d un des trois relecteurs est/'
 verifier "ca14_mutation_des_qu_un_est_rejetee" 1 "" dp_mut 's/seulement si/dès qu un relecteur est approuvé, seulement si/'
-verifier "ca14_mutation_de_deux_des_trois_est_rejetee" 1 "" dp_mut 's/verdict connu des trois relecteurs est/verdict connu de deux des trois relecteurs est/'
-verifier "ca14_mutation_de_la_majorite_des_trois_est_rejetee" 1 "" dp_mut 's/verdict connu des trois relecteurs est/verdict connu de la majorité des trois relecteurs est/'
-verifier "ca14_mutation_du_premier_des_trois_est_rejetee" 1 "" dp_mut 's/verdict connu des trois relecteurs est/verdict connu du premier des trois relecteurs est/'
+verifier "ca14_mutation_de_deux_des_trois_est_rejetee" 1 "" dp_mut 's/verdict retenu des trois relecteurs est/verdict retenu de deux des trois relecteurs est/'
+verifier "ca14_mutation_de_la_majorite_des_trois_est_rejetee" 1 "" dp_mut 's/verdict retenu des trois relecteurs est/verdict retenu de la majorité des trois relecteurs est/'
+verifier "ca14_mutation_du_premier_des_trois_est_rejetee" 1 "" dp_mut 's/verdict retenu des trois relecteurs est/verdict retenu du premier des trois relecteurs est/'
 verifier "ca14_mutation_changements_demandes_retire_est_rejetee" 1 "" dp_mut 's/, sinon `CHANGEMENTS DEMANDÉS`//'
 verifier "ca14_deliver_verdict_de_chaque_relecteur_lu_par_verdict_revue_sh_sur_son_rapport" 0 "" dp_a 'scripts/verdict-revue\.sh.*chaque (rapport|relecteur)'
-verifier "ca14_deliver_approuve_global_seulement_si_les_trois_sont_approuves_sinon_changements_demandes" 0 "" dp_a 'APPROUVÉ.*(seulement|uniquement) si.*trois.*APPROUVÉ.*sinon.*CHANGEMENTS DEMANDÉS'
+verifier "ca14_deliver_approuve_global_seulement_si_les_trois_sont_approuves_sinon_changements_demandes" 0 "" dp_a '^- Verdict global de l.itération : `APPROUVÉ` seulement si le dernier verdict retenu des trois relecteurs est `APPROUVÉ` \(sorties du script, abaissement compris\), sinon `CHANGEMENTS DEMANDÉS`\. La valeur écrite'
 verifier "ca14_deliver_la_valeur_ecrite_est_celle_du_script_jamais_celle_de_la_lecture_du_texte" 0 "" dp_a 'valeur écrite.*(sortie|valeur).*script.*jamais.*(ta|ton|sa) lecture'
 verifier "ca14_deliver_approuve_incompatible_avec_un_constat_bloquant_ou_important_ouvert_la_session_prime" 0 "" dp_a 'APPROUVÉ.*BLOQUANT ou IMPORTANT ouvert.*session (prime|l.emporte).*`CHANGEMENTS DEMANDÉS`'
 verifier "ca14_deliver_la_ligne_verdict_du_relecteur_garde_la_valeur_du_script_et_la_note_de_la_session_dit_l_abaissement" 0 "" dp_a '`Verdict du relecteur` garde la valeur du script.*`Note de la session : …`.*abaissement'
@@ -5863,6 +5863,25 @@ verifier "cs04_fichier_assemble_de_rapports_conformes_une_seule_ligne_verdict_la
 verifier "cs07_deliver_mktemp_hors_depot_permissions_restreintes_pour_chaque_rapport" 0 "" dp_a 'mktemp.*(permissions restreintes|hors (du )?dépôt)'
 verifier "cs07_deliver_suppression_a_tout_arret_second_inconnu_code_64_remontee" 0 "" dp_a 'supprim.*arrêt.*second `INCONNU`.*64.*remontée|supprim.*second `INCONNU`.*64.*remontée'
 verifier "cs07_deliver_aucun_rapport_de_relecteur_dans_un_courriel_hors_constats_bloquants" 0 "" dp_a 'courriel.*(aucun|jamais).*rapport.*(hors|sauf|que).*constats bloquants|(aucun|jamais).*rapport.*courriel.*(hors|sauf|que).*constats bloquants'
+
+# PRD 006, issue 006-04 : skill deliver (suivi fusionné, contradictions, itérations, tour final, arrêt, corrections, sans sous-agents, rapports hostiles).
+echo "skill deliver : suivi et itérations (PRD 006, issue 006-04)"
+dp3() { lire_depot "$depot" $dl | sed -n '/^## 3 ter\. /,/^## 4\. /p'; } # l'étape 3 ter (suivre, corriger et clore en mode parallèle)
+dp3_a() { dp3 | grep -qF -- "$1"; }   # dp3_a <texte exact> : une ligne de l'étape 3 ter contient ce texte, mot pour mot
+dp3_mut() { dp3 | sed "$1" | grep -qF -- "$2"; } # dp3_mut <sed> <texte exact> : l'étape 3 ter mutée ne doit plus contenir le texte
+
+# CA-18 : suivi fusionné, doublons fusionnés, session seule à écrire le tableau.
+verifier "ca18_deliver_les_doublons_sont_fusionnes_en_une_ligne_a_la_gravite_la_plus_haute_avec_les_relecteurs_nommes" 0 "" dp3_a "les doublons (même défaut relevé par plusieurs relecteurs) sont fusionnés en une ligne, à la gravité la plus haute, avec chaque relecteur qui l'a relevé nommé dans la colonne « Relecteurs »"
+verifier "ca18_deliver_la_session_seule_ecrit_le_tableau" 0 "" dp3_a "la session seule écrit le tableau « Suivi des constats »"
+verifier "ca18_mutation_gravite_la_plus_basse_est_rejetee" 1 "" dp3_mut 's/la plus haute/la plus basse/' "à la gravité la plus haute"
+verifier "ca18_mutation_une_ligne_par_relecteur_est_rejetee" 1 "" dp3_mut 's/fusionnés en une ligne/recopiés une fois par relecteur/' "fusionnés en une ligne"
+
+# CA-19 : contradiction entre relecteurs, jamais tranchée par la session seule.
+verifier "ca19_deliver_la_session_ne_tranche_pas_seule_inscrit_a_trancher_par_l_utilisateur_et_remonte" 0 "" dp3_a "tu ne tranches pas seul : inscris-la dans le tableau comme « à trancher par l'utilisateur », remonte-la à l'utilisateur"
+verifier "ca19_deliver_en_attendant_la_demande_de_la_securite_prime_sur_celle_de_la_qualite" 0 "" dp3_a "applique en attendant la demande de la sécurité sur celle de la qualité"
+verifier "ca19_deliver_la_conformite_contredite_est_remontee_sans_regle_de_preseance" 0 "" dp3_a "Une contradiction entre la conformité et un autre relecteur est aussi remontée, sans règle de préséance."
+verifier "ca19_mutation_la_qualite_prime_sur_la_securite_est_rejetee" 1 "" dp3_mut 's/la demande de la sécurité sur celle de la qualité/la demande de la qualité sur celle de la sécurité/' "la demande de la sécurité sur celle de la qualité"
+verifier "ca19_mutation_la_session_tranche_seule_est_rejetee" 1 "" dp3_mut 's/tu ne tranches pas seul/tu tranches seul/' "tu ne tranches pas seul"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

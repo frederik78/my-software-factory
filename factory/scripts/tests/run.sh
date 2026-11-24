@@ -5864,6 +5864,69 @@ verifier "cs07_deliver_mktemp_hors_depot_permissions_restreintes_pour_chaque_rap
 verifier "cs07_deliver_suppression_a_tout_arret_second_inconnu_code_64_remontee" 0 "" dp_a 'supprim.*arrêt.*second `INCONNU`.*64.*remontée|supprim.*second `INCONNU`.*64.*remontée'
 verifier "cs07_deliver_aucun_rapport_de_relecteur_dans_un_courriel_hors_constats_bloquants" 0 "" dp_a 'courriel.*(aucun|jamais).*rapport.*(hors|sauf|que).*constats bloquants|(aucun|jamais).*rapport.*courriel.*(hors|sauf|que).*constats bloquants'
 
+# ---------------------------------------------------------------------------------------------------------------------
+# PRD 006, issue 006-05 : skill code-review (lecture du mode, mode unique inchangé, trois relecteurs, agrégation, point fixe hostile).
+# ---------------------------------------------------------------------------------------------------------------------
+echo "skill code-review : revue parallèle (PRD 006, issue 006-05)"
+cr_sk=factory/skills/code-review/SKILL.md
+cr_bis() { lire_depot "$depot" $cr_sk | sed -n '/^### 1 bis\. /,/^### 2\. /p'; }           # étape 1 bis : contrôle du point fixe et lecture du mode
+cr_par() { lire_depot "$depot" $cr_sk | sed -n '/^## Mode parallèle/,$p'; }                 # section du mode parallèle (jusqu'à la fin du fichier)
+cr_a_bis() { cr_bis | grep -Eq -- "$1"; }
+cr_a_par() { cr_par | grep -Eq -- "$1"; }
+
+# CA-34 : mode unique inchangé. La skill, privée de l'étape 1 bis et de la section du mode parallèle (seuls ajouts déclarés), est identique au golden
+# (la skill d'avant), ligne à ligne et dans l'ordre : aucune ligne des étapes existantes n'est modifiée, ajoutée ailleurs, déplacée ni retirée.
+cr_sans_ajouts() { lire_depot "$depot" $cr_sk | awk '/^### 1 bis\. /{ skip = 1 } /^### 2\. /{ skip = 0 } /^## Mode parallèle/{ skip = 2 } !skip && NF'; }
+verifier "ca34_code_review_mode_unique_la_skill_hors_ajouts_declares_est_identique_au_golden_dans_l_ordre" 0 "" test "$(cr_sans_ajouts | shasum -a 256)" = "$(awk 'NF' "$ici/golden/ca34-code-review-unique.txt" | shasum -a 256)"
+verifier "ca34_code_review_le_golden_garde_les_deux_sous_agents_et_les_titres_standards_et_spec" 0 "" test "$(grep -c -e '^## Standards\|`## Standards`' -e '`## Spec`' "$ici/golden/ca34-code-review-unique.txt")" -ge 1
+verifier "ca34_code_review_une_seule_etape_1_bis_et_une_seule_section_du_mode_parallele" 0 "" test "$(lire_depot "$depot" $cr_sk | grep -c -e '^### 1 bis\. ' -e '^## Mode parallèle')" = 2
+verifier "ca34_code_review_mode_unique_suit_les_etapes_2_a_5_a_l_identique_sans_ecrire_de_fichier" 0 "" cr_a_bis '`unique` : .*étapes 2 à 5.*à l.identique.*n.écris aucun fichier'
+verifier "ca34_code_review_mode_parallele_renvoie_a_la_section_du_mode_parallele" 0 "" cr_a_bis '`parallele` : .*section « Mode parallèle »'
+
+# CA-35 : lecture du mode après la validation du point fixe, arrêt sur 64, aucun agent avant ces contrôles.
+verifier "ca35_code_review_lit_le_mode_par_config_factory_mode_revue" 0 "" cr_a_bis 'scripts/config-factory\.sh --mode-revue'
+verifier "ca35_code_review_l_etape_1_bis_est_entre_l_etape_1_et_l_etape_2" 0 "" doc_ordre $cr_sk '^### 1\. Pin' '^### 1 bis\. '
+verifier "ca35_code_review_l_etape_1_bis_precede_l_etape_2" 0 "" doc_ordre $cr_sk '^### 1 bis\. ' '^### 2\. '
+verifier "ca35_code_review_le_controle_du_point_fixe_precede_la_lecture_du_mode" 0 "" test "$(cr_bis | grep -n -e 'controle_point_fixe "<point-fixe>"' -e 'scripts/config-factory\.sh --mode-revue' | cut -d: -f1 | head -2 | tr '\n' ' ')" = "$(cr_bis | grep -n 'controle_point_fixe "<point-fixe>"' | head -1 | cut -d: -f1) $(cr_bis | grep -n 'scripts/config-factory\.sh --mode-revue' | head -1 | cut -d: -f1) "
+verifier "ca35_code_review_code_64_arrete_la_skill_avec_un_message" 0 "" cr_a_bis 'rend 64.*arrête-toi.*(message|dis-le)'
+verifier "ca35_code_review_aucun_agent_n_est_lance_avant_ces_controles" 0 "" cr_a_bis "Aucun agent n.est lancé avant ces contrôles"
+verifier "ca35_code_review_point_fixe_refuse_ou_diff_vide_arrete_avant_tout_agent" 0 "" cr_a_bis 'point fixe refusé.*différence vide.*arrête|arrête.*point fixe refusé.*différence vide'
+
+# CS-09 : le point fixe est une donnée non fiable ; le contrôle de la skill est rejoué tel quel sur un dépôt jetable.
+cr_fonction() { lire_depot "$depot" $cr_sk | sed -n '/^### 1 bis\. /,/^### 2\. /p' | awk '/^```bash$/{ on = 1; next } /^```$/{ on = 0 } on'; }
+cr_depot="$racine_tmp/cr-depot"; mkdir -p "$cr_depot"
+( cd "$cr_depot" && git init -q -b main . && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m un && git checkout -q -b feat/x-y && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m deux && printf 'a\n' > f && git add f && git -c user.name=t -c user.email=t@t commit -q -m trois ) >/dev/null 2>&1
+cr_court="$(git -C "$cr_depot" rev-parse --short HEAD)"
+cr_controle() { # cr_controle <valeur> : code et sortie du contrôle de la skill sur la valeur, dans le dépôt jetable (aucun autre effet)
+  ( cd "$cr_depot" && rm -f marque && eval "$(cr_fonction)" && controle_point_fixe "$1" 2>&1; rc=$?; [ ! -e marque ] || { echo MARQUE-CREEE; rc=99; }; exit $rc )
+}
+verifier "cs09_code_review_la_skill_porte_une_fonction_de_controle_rejouable" 0 "" test "$(cr_fonction | grep -c '^controle_point_fixe()')" = 1
+cr_long="$(printf 'a%.0s' $(seq 10000))"
+for cr_v in 'main' 'HEAD~1' "$cr_court" 'feat/x-y'; do verifier "cs09_code_review_point_fixe_valide_accepte_$(printf '%s' "$cr_v" | tr -c 'A-Za-z0-9' _)" 0 "" cr_controle "$cr_v"; done
+cr_hostile() { # cr_hostile <nom> <valeur> : refus (64), aucune marque, sortie courte sans la valeur brute
+  local out rc; out="$(cr_controle "$2")"; rc=$?
+  [ "$rc" = 64 ] || { echo "code $rc"; return 1; }
+  [ "${#out}" -lt 200 ] || { echo "sortie trop longue"; return 1; }
+  case "$out" in *"$2"*) echo "valeur brute recopiée"; return 1 ;; esac
+  case "$out" in *marque*|*MARQUE*) echo "marque"; return 1 ;; esac
+  return 0
+}
+verifier "cs09_code_review_option_output_refusee" 0 "" cr_hostile opt '--output=marque'
+verifier "cs09_code_review_option_courte_refusee" 0 "" cr_hostile opt '-x'
+verifier "cs09_code_review_substitution_de_commande_refusee" 0 "" cr_hostile sub '$(touch marque)'
+verifier "cs09_code_review_enchainement_de_commande_refuse" 0 "" cr_hostile enc 'main; touch marque'
+verifier "cs09_code_review_reference_inexistante_refusee" 0 "" cr_hostile inex 'branche-qui-n-existe-pas'
+verifier "cs09_code_review_valeur_de_10000_caracteres_refusee" 0 "" cr_hostile long "$cr_long"
+verifier "cs09_code_review_valeur_avec_saut_de_ligne_refusee" 0 "" cr_hostile nl "$(printf 'main\ntouch marque')"
+verifier "cs09_code_review_valeur_vide_refusee" 0 "" cr_hostile vide ''
+verifier "cs09_code_review_difference_vide_refusee" 0 "" cr_hostile vide 'HEAD'
+# Borne : une référence existante de 200 caractères est acceptée, de 201 refusée (instantané : branches réelles, aucune allocation démesurée).
+git -C "$cr_depot" branch "$(printf 'a%.0s' $(seq 200))" HEAD~1 >/dev/null 2>&1; git -C "$cr_depot" branch "$(printf 'b%.0s' $(seq 201))" HEAD~1 >/dev/null 2>&1
+verifier "cs09_code_review_borne_200_caracteres_acceptee" 0 "" cr_controle "$(printf 'a%.0s' $(seq 200))"
+verifier "cs09_code_review_borne_201_caracteres_refusee" 0 "" cr_hostile b201 "$(printf 'b%.0s' $(seq 201))"
+verifier "cs09_code_review_aucun_fichier_marque_apres_les_valeurs_hostiles" 0 "" test ! -e "$cr_depot/marque"
+verifier "cs09_code_review_la_valeur_est_citee_entre_guillemets_jamais_interpolee" 0 "" cr_a_bis 'jamais interpolée'
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

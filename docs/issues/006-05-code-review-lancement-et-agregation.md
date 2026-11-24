@@ -8,7 +8,7 @@ depend_de: [006-02, 006-03]
 criteres: [CA-34, CA-35, CA-36, CA-37, CA-38, CS-09, CS-10]
 branche: feat/006-05-code-review-lancement-et-agregation
 commits: [61288e9, 1a7712a, 17279ac, 7af8b99, 65e1289]
-revue:
+revue: APPROUVÉ (itération 1, docs/reviews/006-05.md)
 ---
 
 ## Objectif

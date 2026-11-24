@@ -5463,7 +5463,7 @@ echo "règles de l'orchestrateur sans clé (PRD 009, issue 009-02)"
 o9_agents="$(lire_depot "$depot" AGENTS.md)"; o9_modele="$(lire_depot "$depot" factory/templates/AGENTS.md)"; o9_deliver="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"
 o9_section() { awk -v t="$2" 'index($0, t) == 1 { p = 1; print; next } /^## / { p = 0 } p' <<<"$1"; } # o9_section <texte> <début du titre> : la section
 o9_regles() { awk '/^\*\*Règles de l.orchestrateur\*\*/ { p = 1; next } p && /^\*\*/ { p = 0 } p && /^## / { p = 0 } p' <<<"$1"; } # le bloc des huit règles de la section Orchestration
-o9_regle() { awk -v n="$2" 'index($0, "- Règle " n " ") == 1 { p = 1; print; next } /^- / || /^$/ { p = 0 } p' <<<"$1"; } # o9_regle <bloc> <n> : la puce de la règle n (lignes de suite comprises)
+o9_regle() { awk -v n="$2" 'index($0, "- Règle " n ",") == 1 { p = 1; print; next } /^- / || /^$/ { p = 0 } p' <<<"$1"; } # o9_regle <bloc> <n> : la puce de la règle n (lignes de suite comprises)
 o9_etape() { awk -v t="$2" 'index($0, t) == 1 { p = 1; print; next } /^[0-9]+\. \*\*/ || /^## / { p = 0 } p' <<<"$1"; } # o9_etape <texte> <début de la ligne> : une étape de la séquence
 for o9f in AGENTS.md factory/templates/AGENTS.md; do
   o9t="$(lire_depot "$depot" "$o9f")"; o9b="$(o9_regles "$(o9_section "$o9t" '## Orchestration')")"
@@ -5472,7 +5472,7 @@ for o9f in AGENTS.md factory/templates/AGENTS.md; do
     verifier "ca05_$o9f : la règle $o9n est une puce de trois lignes au plus" 0 "" test -n "$o9p" -a "$(wc -l <<<"$o9p" | tr -d ' ')" -le 3
     verifier "ca05_$o9f : la règle $o9n renvoie à factory/skills/deliver/SKILL.md" 0 "" contient "$o9p" 'factory/skills/deliver/SKILL.md'
   done
-  verifier "ca05_$o9f : le bloc contient exactement huit puces de règle" 0 "" test "$(grep -c '^- Règle [1-8] ' <<<"$o9b")" = 8
+  verifier "ca05_$o9f : le bloc contient exactement huit puces de règle" 0 "" test "$(grep -c '^- Règle [1-8],' <<<"$o9b")" = 8
   for o9c in BESOIN_FAIT_AUTO NETTOYAGE_APRES_FUSION DEMARRAGE_AUTO; do
     verifier "ca05_$o9f : la clé $o9c est nommée avec son défaut non" 0 "" contient_motif "$o9b" "$o9c.*défaut .non."
   done

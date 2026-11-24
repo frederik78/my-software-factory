@@ -5872,7 +5872,6 @@ verifier "cs07_deliver_mktemp_hors_depot_permissions_restreintes_pour_chaque_rap
 verifier "cs07_deliver_suppression_a_tout_arret_second_inconnu_code_64_remontee" 0 "" dp_a 'supprim.*arrêt.*second `INCONNU`.*64.*remontée|supprim.*second `INCONNU`.*64.*remontée'
 verifier "cs07_deliver_aucun_rapport_de_relecteur_dans_un_courriel_hors_constats_bloquants" 0 "" dp_a 'courriel.*(aucun|jamais).*rapport.*(hors|sauf|que).*constats bloquants|(aucun|jamais).*rapport.*courriel.*(hors|sauf|que).*constats bloquants'
 
-<<<<<<< HEAD
 
 echo "statuts.sh : avis A17, issue démarrée sans champ branche renseigné (PRD 007, issue 007-02)"
 a17_depot() { pr_depot; pr_besoin "En cours"; printf 'APPROUVÉ\n' > docs/reviews/revue.md; } # dépôt jetable, besoin F-01 En cours
@@ -6013,8 +6012,6 @@ head -c 1100000 /dev/zero | tr '\0' 'x' > docs/issues/008-01-gros.md
 printf -- '---\nid: 009-01\nstatut: En cours\nbranche:\n---\nSECRETLIEN\n' > "$racine_tmp/cible-a17.md"; ln -s "$racine_tmp/cible-a17.md" docs/issues/009-01-lien.md
 a17_t0=$SECONDS; a17_run; a17_duree=$((SECONDS - a17_t0))
 verifier "cs03_a17 : 2000 issues En cours au champ vide : 2000 A17, le fichier de plus de 1 Mio et le lien symbolique donnent E14 sans A17, contenu du lien absent, temps ${a17_duree} s (borne : 40 s)" 0 "" test "$(a17_total)|$(grep -a -c '^ERREUR E14 ' "$racine_tmp/st.out")|$(grep -a -c SECRETLIEN "$racine_tmp/st.out")|$([ "$a17_duree" -le 40 ] && echo borne)" = "2000|2|0|borne"
-||||||| a0d1ead
-=======
 
 # PRD 009, issue 009-02 : règles de l'orchestrateur sans clé (1, 2, 6, 7, 8) dans AGENTS.md, son modèle et la skill deliver.
 echo "règles de l'orchestrateur sans clé (PRD 009, issue 009-02)"
@@ -6617,7 +6614,6 @@ verifier "cs02_identifiants_non_interpretes : le fichier « marque » n'existe p
 cs02_page() { st_page || return 1; [ ! -e marque ] || { echo "marque créé"; return 1; }; }
 verifier "cs02_identifiants_non_interpretes : le dashboard termine (code 0) sans créer « marque »" 0 "" cs02_page
 
->>>>>>> develop
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

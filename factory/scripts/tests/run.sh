@@ -5970,6 +5970,182 @@ for o9f in AGENTS.md factory/templates/AGENTS.md; do
   verifier "ca09_$o9f : la règle 6 dit qu'APPROUVÉ est incompatible avec un constat BLOQUANT ou IMPORTANT ouvert" 0 "" contient_motif "$(o9_regle "$o9b" 6)" "APPROUVÉ.*incompatible.*(BLOQUANT|IMPORTANT).*ouvert"
 done
 
+# ---------------------------------------------------------------------------------------------------------------------------------
+# PRD 008 / issue 008-01 : la boucle du dashboard relance le script du disque, une génération par tour (processus distinct), options fixées au lancement.
+# Projets jetables, boucle à 1 s, attentes bornées par sondage (jamais d'attente de 30 s), tout processus est arrêté en fin de cas.
+echo "dashboard.sh --boucle : une génération par tour depuis le disque (PRD 008, issue 008-01)"
+b8_depot() { # b8_depot : projet jetable avec un dépôt git, on s'y place ; statuts.sh de comptage (voir b8_chaines)
+  p="$(nouveau_projet)"; cd "$p" || exit 1
+  git init -q -b develop .
+  B8_LOG="$racine_tmp/b8.$$.$RANDOM.appels"; export B8_LOG; : > "$B8_LOG"
+  rm -f factory/scripts/statuts.sh
+  cat > factory/scripts/statuts.sh <<'XEOF'
+#!/usr/bin/env bash
+# statuts.sh de comptage : une exécution = les lignes « <pid de cette exécution> <pid ancêtre> <ligne de commande> », de l'exécution vers la racine
+q=$$; me=$$
+while [ "${q:-0}" -gt 1 ]; do echo "$me $q $(ps -o command= -p "$q" 2>/dev/null)" >> "$B8_LOG"; q="$(ps -o ppid= -p "$q" 2>/dev/null | tr -d ' ')"; done
+echo "STATUTS : 0 erreur(s), 0 avis"
+XEOF
+  chmod +x factory/scripts/statuts.sh
+}
+b8_lancer() { # b8_lancer <arguments de dashboard.sh> : boucle en arrière-plan (b8_pid), sorties dans b8.out et b8.err
+  scripts/dashboard.sh "$@" > "$racine_tmp/b8.out" 2> "$racine_tmp/b8.err" & b8_pid=$!
+}
+b8_attendre() { # b8_attendre <nombre de sondages de 0,2 s> <commande...> : vrai dès que la commande réussit, faux au délai
+  local n="$1"; shift
+  while ! "$@" 2>/dev/null; do n=$((n - 1)); [ "$n" -gt 0 ] || return 1; sleep 0.2; done
+}
+b8_arreter() { # b8_arreter [signal] : arrête la boucle (TERM par défaut), range son code de sortie dans b8_code, la tue si elle ne s'arrête pas
+  local n=50
+  kill "-${1:-TERM}" "$b8_pid" 2>/dev/null
+  while kill -0 "$b8_pid" 2>/dev/null && [ "$n" -gt 0 ]; do n=$((n - 1)); sleep 0.2; done
+  kill -9 "$b8_pid" 2>/dev/null
+  { wait "$b8_pid"; } 2>/dev/null; b8_code=$?
+}
+b8_generations() { sort -u "$B8_LOG" | awk '{ print $1 }' | sort -u | wc -l | tr -d ' '; } # nombre d'exécutions du contrôle de statuts (une par génération)
+b8_au_moins() { test "$(b8_generations)" -ge "$1"; } # b8_au_moins <n> : au moins n générations (évalué à chaque sondage)
+b8_marquer_script() { M="$1" perl -pi -e 's|^</main>$|<p>MARQUE-$ENV{M}</p>\n</main>|' factory/scripts/dashboard.sh && grep -q "MARQUE-$1" factory/scripts/dashboard.sh; }
+
+# ca01 : le script modifié pendant la boucle est exécuté au tour suivant
+b8_ca01() {
+  b8_depot; local page="$racine_tmp/b8-ca01.html"
+  b8_lancer --sortie "$page" --boucle 1
+  b8_attendre 60 test -s "$page" || { b8_arreter; echo "aucune page produite"; return 1; }
+  ! grep -q MARQUE-CA01 "$page" || { b8_arreter; echo "marque déjà présente"; return 1; }
+  b8_marquer_script CA01 || { b8_arreter; echo "modification du script impossible"; return 1; }
+  b8_attendre 60 grep -q MARQUE-CA01 "$page"; local r=$?
+  b8_arreter; [ "$r" -eq 0 ] || echo "la page ne contient pas la marque du script modifié"; return "$r"
+}
+verifier "ca01_le script modifié pendant la boucle est exécuté sans relancer la boucle (marque dans la page)" 0 "" b8_ca01
+
+# ca02 : une bibliothèque modifiée pendant la boucle est relue au tour suivant
+b8_ca02() {
+  b8_depot; local page="$racine_tmp/b8-ca02.html"
+  b8_lancer --sortie "$page" --boucle 1
+  b8_attendre 60 test -s "$page" || { b8_arreter; echo "aucune page produite"; return 1; }
+  # la bibliothèque remplace la fonction date, seulement pour l'horodatage de l'en-tête de la page
+  printf 'date() { case "$1" in +%%Y*) echo MARQUE-CA02 ;; *) command date "$@" ;; esac; }\n' >> factory/scripts/lib-issues.sh
+  b8_attendre 60 grep -q MARQUE-CA02 "$page"; local r=$?
+  b8_arreter; [ "$r" -eq 0 ] || echo "la page ne reflète pas la bibliothèque modifiée"; return "$r"
+}
+verifier "ca02_une bibliothèque lib-* modifiée pendant la boucle est relue au tour suivant" 0 "" b8_ca02
+
+# ca03 : exactement un contrôle de statuts et un processus de génération par tour, distinct de la boucle
+b8_ca03() {
+  b8_depot
+  b8_lancer --sortie "$racine_tmp/b8-ca03.html" --boucle 1
+  b8_attendre 75 b8_au_moins 3 || { b8_arreter; echo "moins de 3 générations : $(b8_generations)"; return 1; }
+  b8_arreter
+  local n sans_boucle
+  n="$(b8_generations)"
+  # pour chaque exécution : le processus juste sous la boucle (le plus proche d'elle dans la chaîne des ancêtres) est son processus de génération
+  awk -v boucle="$b8_pid" '
+    $1 != courant { courant = $1; prec = "" ; cmd = "" }
+    $2 == boucle && prec != "" { print prec, (cmd ~ /dashboard\.sh/ ? "script" : "autre"), (cmd ~ /--boucle/ ? "avec--boucle" : "sans--boucle"); next }
+    { prec = $2; cmd = $0 }
+  ' "$B8_LOG" | sort -u > "$racine_tmp/b8.fils"
+  [ "$(wc -l < "$racine_tmp/b8.fils" | tr -d ' ')" = "$n" ] || { echo "$n exécutions, processus de génération : $(cat "$racine_tmp/b8.fils" | tr '\n' ';')"; return 1; }
+  [ "$(awk '{ print $1 }' "$racine_tmp/b8.fils" | sort -u | wc -l | tr -d ' ')" = "$n" ] || { echo "processus de génération partagés"; return 1; }
+  ! awk '{ print $1 }' "$racine_tmp/b8.fils" | grep -qx "$b8_pid" || { echo "génération dans le processus de la boucle"; return 1; }
+  ! grep -qv ' script sans--boucle$' "$racine_tmp/b8.fils" || { echo "processus de génération inattendu : $(tr '\n' ';' < "$racine_tmp/b8.fils")"; return 1; }
+}
+verifier "ca03_exactement une exécution du contrôle de statuts et un processus de génération distinct de la boucle par tour" 0 "" b8_ca03
+
+# ca04 : options fixées au lancement (sortie, délai, thème résolu au démarrage, D-50)
+b8_ca04() { # b8_ca04 <thème en option ou vide> <thème de la configuration au départ>
+  b8_depot; local page="$racine_tmp/b8-ca04.html" opt=()
+  rm -f "$page"
+  [ -z "$1" ] || opt=(--theme "$1")
+  printf 'DASHBOARD_THEME=%s\n' "$2" > .factory.conf
+  b8_lancer --sortie "$page" --attente 7 --boucle 1 ${opt[@]+"${opt[@]}"}
+  b8_attendre 60 test -s "$page" || { b8_arreter; echo "aucune page produite"; return 1; }
+  grep -q 'data-theme="dark"' "$page" || { b8_arreter; echo "thème de départ inattendu"; return 1; }
+  # la configuration change pendant la boucle, et le code aussi : seul le code est rechargé
+  printf 'DASHBOARD_THEME=clair\n' > .factory.conf; printf 'DASHBOARD_THEME=clair\n' > .factory.local.conf
+  b8_marquer_script CA04 || { b8_arreter; return 1; }
+  rm -f "$page"
+  b8_attendre 60 grep -q MARQUE-CA04 "$page"; local r=$?
+  b8_arreter
+  [ "$r" -eq 0 ] || { echo "le code n'a pas été rechargé"; return 1; }
+  grep -q 'data-theme="dark"' "$page" && grep -q '<meta http-equiv="refresh" content="7">' "$page" && ! grep -q 'data-theme="light"' "$page" || { echo "options non conservées"; return 1; }
+  [ "$(ls "$racine_tmp" | grep -c '^b8-ca04\.html')" = 1 ] || { echo "autre fichier de sortie : $(ls "$racine_tmp" | grep '^b8-ca04')"; return 1; }
+}
+verifier "ca04_options fixées au lancement : --sortie, --attente 7, --theme sombre conservés malgré le code et la configuration modifiés" 0 "" b8_ca04 sombre sombre
+verifier "ca04_thème issu de la configuration résolu au démarrage (D-50) : DASHBOARD_THEME passé à clair en cours de boucle sans effet" 0 "" b8_ca04 "" sombre
+
+# ca05 : options invalides, code 64 immédiat, aucune boucle, aucune page
+b8_ca05() { # b8_ca05 <arguments...> : code 64 en moins de quelques secondes, aucun fichier écrit, rien sur la sortie standard
+  b8_depot; mkdir "$racine_tmp/b8-ca05"; rm -f "$racine_tmp/b8-ca05"/*
+  local sortie code
+  sortie="$(perl -e 'alarm 10; exec @ARGV' scripts/dashboard.sh "$@" 2>"$racine_tmp/b8.err")"; code=$?
+  [ "$code" -eq 64 ] || { echo "code $code au lieu de 64"; return 1; }
+  [ -z "$sortie" ] || { echo "sortie standard : $sortie"; return 1; }
+  [ -s "$racine_tmp/b8.err" ] || { echo "aucun message"; return 1; }
+  [ -z "$(ls -A "$racine_tmp/b8-ca05")" ] || { echo "fichier écrit : $(ls -A "$racine_tmp/b8-ca05")"; return 1; }
+  [ -z "$(ls "$p" | grep '\.html')" ] || { echo "page écrite dans le projet"; return 1; }
+}
+verifier "ca05_--boucle non numérique : code 64, aucune boucle" 0 "" b8_ca05 --boucle abc --sortie "$racine_tmp/b8-ca05/d.html"
+verifier "ca05_--boucle nul : code 64, aucune boucle" 0 "" b8_ca05 --boucle 0 --sortie "$racine_tmp/b8-ca05/d.html"
+verifier "ca05_--attente non numérique avec --boucle : code 64, aucune page" 0 "" b8_ca05 --boucle 1 --attente x --sortie "$racine_tmp/b8-ca05/d.html"
+verifier "ca05_dossier de sortie inexistant avec --boucle : code 64, aucune boucle" 0 "" b8_ca05 --boucle 1 --sortie "$racine_tmp/b8-ca05/absent/d.html"
+verifier "ca05_thème invalide avec --boucle : code 64, aucune page" 0 "" b8_ca05 --boucle 1 --theme bogus --sortie "$racine_tmp/b8-ca05/d.html"
+b8_depot; verifier_exact "ca05_dossier de sortie inexistant : message inchangé" 64 "Erreur : le dossier de sortie « $racine_tmp/b8-ca05/absent » n'existe pas." "$p/scripts/dashboard.sh" --boucle 1 --sortie "$racine_tmp/b8-ca05/absent/d.html"
+
+# ca06 : message de démarrage de la boucle conservé ; mode une génération inchangé
+b8_ca06_boucle() {
+  b8_depot; local page="$racine_tmp/b8-ca06.html"
+  b8_lancer --sortie "$page" --boucle 1
+  b8_attendre 60 test -s "$page" || { b8_arreter; echo "aucune page produite"; return 1; }
+  b8_arreter
+  [ "$(cat "$racine_tmp/b8.out")" = "Régénération de $page toutes les 1 s (Ctrl-C pour arrêter)." ] || { echo "sortie : $(cat "$racine_tmp/b8.out")"; return 1; }
+  [ "$b8_code" -eq 143 ] || { echo "code $b8_code au lieu de 143"; return 1; }
+}
+verifier "ca06_message de démarrage de la boucle conservé tel quel, seule ligne de la sortie standard, arrêt par TERM en 143" 0 "" b8_ca06_boucle
+b8_ca06_unique() {
+  b8_depot; local page="$racine_tmp/b8-ca06u.html" sortie code
+  sortie="$(scripts/dashboard.sh --sortie "$page" 2>&1)"; code=$?
+  [ "$code" -eq 0 ] && [ "$sortie" = "$page" ] && [ -s "$page" ] || { echo "code $code, sortie $sortie"; return 1; }
+  scripts/dashboard.sh --bogus >/dev/null 2>&1; [ "$?" -eq 64 ] || { echo "usage : pas 64"; return 1; }
+  mkdir "$racine_tmp/b8-ro"; chmod 555 "$racine_tmp/b8-ro"
+  scripts/dashboard.sh --sortie "$racine_tmp/b8-ro/d.html" >/dev/null 2>&1; code=$?
+  chmod 755 "$racine_tmp/b8-ro"
+  [ "$code" -eq 1 ] || { echo "échec d'écriture : code $code au lieu de 1"; return 1; }
+}
+verifier "ca06_sans --boucle : sortie (nom du fichier), page et codes 0, 64 (usage) et 1 (échec d'écriture) inchangés" 0 "" b8_ca06_unique
+
+# cs01 : noms de sortie hostiles, passés tels quels à chaque tour, rien n'est évalué
+b8_cs01() { # b8_cs01 <nom de fichier de sortie, relatif au dossier courant du lanceur>
+  b8_depot; local d="$racine_tmp/b8-cs01.$RANDOM"; mkdir -p "$d" && cd "$d" || return 1
+  "$p/scripts/dashboard.sh" --sortie "$1" --attente 9 --theme sombre --boucle 1 > "$racine_tmp/b8.out" 2> "$racine_tmp/b8.err" & b8_pid=$!
+  b8_attendre 75 b8_au_moins 2 || { b8_arreter; echo "moins de 2 générations"; return 1; }
+  b8_arreter
+  [ -f "$d/$1" ] || { echo "page absente sous le nom exact"; return 1; }
+  [ "$(find "$d" -mindepth 1 -print0 | tr -cd '\0' | wc -c | tr -d ' ')" = 1 ] || { echo "plus d'un fichier dans le dossier de sortie"; return 1; }
+  [ -z "$(find "$p" "$d" -name marque 2>/dev/null)" ] || { echo "marque créée : un nom a été évalué"; return 1; }
+  grep -q '<meta http-equiv="refresh" content="9">' "$d/$1" && grep -q 'data-theme="dark"' "$d/$1" || { echo "options non transmises au dernier tour"; return 1; }
+}
+verifier "cs01_nom avec espaces" 0 "" b8_cs01 'a b  c.html'
+verifier "cs01_nom commençant par un tiret (précédé de ./)" 0 "" b8_cs01 './-x.html'
+verifier "cs01_nom \$(touch\${IFS}marque).html" 0 "" b8_cs01 '$(touch${IFS}marque).html'
+verifier "cs01_nom avec backticks" 0 "" b8_cs01 '`touch marque`.html'
+verifier "cs01_nom «; touch marque»" 0 "" b8_cs01 '; touch marque'
+verifier "cs01_nom avec guillemets" 0 "" b8_cs01 "x\"y'z\".html"
+verifier "cs01_nom avec saut de ligne" 0 "" b8_cs01 $'a\nb.html'
+
+# cs02 : le script relancé est celui du démarrage, jamais un script trouvé par le répertoire courant ou le PATH
+b8_cs02() {
+  b8_depot; local d="$racine_tmp/b8-cs02.$RANDOM" page="$racine_tmp/b8-cs02.html"
+  mkdir -p "$d/scripts"
+  printf '#!/bin/sh\ntouch marque\n' > "$d/dashboard.sh"; cp "$d/dashboard.sh" "$d/scripts/dashboard.sh"; chmod +x "$d/dashboard.sh" "$d/scripts/dashboard.sh"
+  cd "$d" || return 1
+  PATH="$d:$d/scripts:$PATH" "$p/scripts/dashboard.sh" --sortie "$page" --boucle 1 > "$racine_tmp/b8.out" 2> "$racine_tmp/b8.err" & b8_pid=$!
+  b8_attendre 75 b8_au_moins 3 || { b8_arreter; echo "moins de 3 générations"; return 1; }
+  b8_arreter
+  [ -z "$(find "$p" "$d" -name marque 2>/dev/null)" ] || { echo "un script du répertoire courant ou du PATH a été exécuté"; return 1; }
+  [ -s "$page" ] || { echo "aucune page"; return 1; }
+}
+verifier "cs02_un dashboard.sh du répertoire courant ou du PATH n'est jamais exécuté, seul le script de démarrage l'est" 0 "" b8_cs02
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

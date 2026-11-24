@@ -592,7 +592,10 @@ ecrire() { # écriture atomique : un navigateur ne lit jamais une page à moiti�
 
 if [ -n "$boucle" ]; then
   echo "Régénération de $sortie toutes les ${boucle} s (Ctrl-C pour arrêter)."
-  while true; do ecrire; sleep "$boucle"; done
+  # Une génération par tour : ce même fichier (chemin fixé au démarrage, jamais cherché dans le PATH ni le répertoire courant) est relancé depuis le disque
+  # dans un processus séparé, avec les options résolues au démarrage (thème compris), passées comme arguments distincts : le code est relu à chaque tour.
+  script_relance="$dossier_scripts/$(basename "$0")"
+  while true; do "$script_relance" --sortie "$sortie" --attente "$attente" --theme "$theme" > /dev/null; sleep "$boucle"; done
 fi
 ecrire
 echo "$sortie"

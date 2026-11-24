@@ -5864,6 +5864,144 @@ verifier "cs07_deliver_mktemp_hors_depot_permissions_restreintes_pour_chaque_rap
 verifier "cs07_deliver_suppression_a_tout_arret_second_inconnu_code_64_remontee" 0 "" dp_a 'supprim.*arrêt.*second `INCONNU`.*64.*remontée|supprim.*second `INCONNU`.*64.*remontée'
 verifier "cs07_deliver_aucun_rapport_de_relecteur_dans_un_courriel_hors_constats_bloquants" 0 "" dp_a 'courriel.*(aucun|jamais).*rapport.*(hors|sauf|que).*constats bloquants|(aucun|jamais).*rapport.*courriel.*(hors|sauf|que).*constats bloquants'
 
+
+echo "statuts.sh : avis A17, issue démarrée sans champ branche renseigné (PRD 007, issue 007-02)"
+a17_depot() { pr_depot; pr_besoin "En cours"; printf 'APPROUVÉ\n' > docs/reviews/revue.md; } # dépôt jetable, besoin F-01 En cours
+a17_issue() { # a17_issue <id> <statut> [lignes brutes de l'en-tête à la place du champ branche, vide = champ absent] [notes] : docs/issues/<id>-x.md
+  printf -- '---\nid: %s\ntitre: T%s\nbesoin: F-01\nstatut: %s\ndepend_de: []\ncriteres: [CA-01]\n%s---\n\n## Objectif\nx\n\n## Notes\n%s\n' "$1" "$1" "$2" "${3:+$3$'\n'}" "${4:-}" > "docs/issues/$1-x.md"
+}
+a17_run() { scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"; a17_code=$?; }
+a17_nb() { grep -a -c "^AVIS A17 issue $1 : " "$racine_tmp/st.out"; } # a17_nb <id> : nombre de lignes A17 de l'issue
+a17_exact() { grep -a -c -x -F "AVIS A17 issue $1 : $2 sans champ branche renseigné" "$racine_tmp/st.out"; } # a17_exact <id> <statut> : la ligne exacte du catalogue
+a17_total() { grep -a -c '^AVIS A17 ' "$racine_tmp/st.out"; }
+
+# ca06 : issue En cours ou En revue au champ vide = A17, code 0
+a17_depot
+a17_issue 007-71 "En cours" "branche:"; git branch feat/007-71-x
+a17_issue 007-72 "En revue" "branche:"; git branch feat/007-72-x
+a17_run
+verifier "ca06_a17 : En cours et En revue au champ vide (branche déduite) : la ligne exacte « AVIS A17 issue <id> : <statut> sans champ branche renseigné », code 0, aucun A08" 0 "" test "$(a17_exact 007-71 'En cours')|$(a17_exact 007-72 'En revue')|$(a17_total)|$a17_code|$(grep -a -c '^AVIS A08 ' "$racine_tmp/st.out")" = "1|1|2|0|0"
+
+# ca07 : statut effectif lu sur la branche retenue
+a17_depot
+a17_issue 007-73 "À faire" "branche:"; sur_branche feat/007-73-x 007-73 "En cours" ""
+a17_run
+verifier "ca07_a17 : fichier local À faire, fichier En cours sur la branche déduite, champ local vide : A17 avec le statut effectif « En cours »" 0 "" test "$(a17_exact 007-73 'En cours')|$(a17_total)" = "1|1"
+
+# ca08 : formes du champ vide, champs renseignés, corps qui porte « branche: »
+a17_depot
+git branch feat/x
+a17_issue 007-81 "En cours" ""
+a17_issue 007-82 "En cours" "branche:"
+a17_issue 007-83 "En cours" "branche:    "
+a17_issue 007-84 "En cours" $'branche:\t'
+a17_issue 007-85 "En cours" 'branche: ""'
+a17_issue 007-86 "En cours" "branche: ''"
+a17_issue 007-87 "En cours" $'branche:\r'
+a17_issue 007-88 "En cours" "branche:" "- branche: feat/x"
+a17_issue 007-91 "En cours" "branche: feat/x"
+a17_issue 007-92 "En cours" "branche: feat/absente"
+a17_issue 007-93 "En cours" "branche: null"
+a17_issue 007-94 "En cours" "branche: []"
+a17_issue 007-95 "En cours" "branche: x y"
+a17_run
+verifier "ca08_a17 : champ absent, vide, espaces, tabulation, guillemets doubles ou simples vides, retour chariot, ou corps qui porte « branche: feat/x » = un A17 chacune" 0 "" test "$(for a17_i in 81 82 83 84 85 86 87 88; do a17_nb "007-$a17_i"; done | paste -sd+ -)" = "1+1+1+1+1+1+1+1"
+verifier "ca08_a17 : champ renseigné (feat/x, branche absente, null, [], « x y ») = aucun A17 ; au total 8 A17" 0 "" test "$(for a17_i in 91 92 93 94 95; do a17_nb "007-$a17_i"; done | paste -sd+ -)|$(a17_total)" = "0+0+0+0+0|8"
+
+# ca09 : issues non démarrées
+a17_depot
+a17_issue 007-71 "À faire" "branche:"; a17_issue 007-72 "Abandonnée" "branche:" "- 2026-11-24 : Abandonnée : raison."
+a17_run
+verifier "ca09_a17 : À faire et Abandonnée au champ vide = aucun A17" 0 "" test "$(a17_total)" = 0
+
+# ca10 : seuil lu dans la table des statuts
+a17_depot; st_table_inserer issue "En revue" Relue
+a17_issue 007-71 "Relue" "branche:"
+a17_run
+verifier "ca10_a17 : statut ajouté à la table entre En cours et Fait, champ vide : A17 avec ce statut, aucun script modifié" 0 "" test "$(a17_exact 007-71 Relue)|$(a17_total)" = "1|1"
+a17_depot; st_table_inserer issue "À faire" Brouillon
+a17_issue 007-71 "Brouillon" "branche:"
+a17_run
+verifier "ca10_a17 : statut ajouté avant En cours = aucun A17" 0 "" test "$(a17_total)" = 0
+a17_depot; st_table_inserer issue "Fait" Archivée
+a17_issue 007-71 "Archivée" "branche:"
+a17_run
+verifier "ca10_a17 : statut ajouté après Fait = aucun A17" 0 "" test "$(a17_total)" = 0
+a17_garde() { rm -rf "$racine_tmp/ca10-copie-a17"; r6_copie "$racine_tmp/ca10-copie-a17"; r6_garde_scripts "$racine_tmp/ca10-copie-a17"; }
+verifier "ca10_a17 : le garde-fou de statuts (CA-38 du PRD 004) ne trouve aucun nom de statut littéral ajouté dans les scripts (version commitée)" 0 "" r6_vide a17_garde
+
+# ca11 : indépendance d'A08
+a17_depot
+a17_issue 007-71 "En cours" "branche:"
+a17_issue 007-72 "En cours" "branche:"; git branch feat/007-72-x
+a17_issue 007-73 "En cours" "branche: feat/absente"
+a17_run
+verifier "ca11_a17 : champ vide sans branche = A08 et A17 ; champ vide et branche déduite = A17 seul ; champ rempli désignant une branche absente = A08 seul" 0 "" test "$(grep -a -c '^AVIS A08 issue 007-71 : En cours sans branche retenue$' "$racine_tmp/st.out")|$(a17_nb 007-71)|$(grep -a -c '^AVIS A08 issue 007-72 ' "$racine_tmp/st.out")|$(a17_nb 007-72)|$(grep -a -c '^AVIS A08 issue 007-73 : En cours sans branche retenue$' "$racine_tmp/st.out")|$(a17_nb 007-73)" = "1|1|0|1|1|0"
+
+# ca12 : classement, récapitulatif, dashboard
+a17_depot
+a17_issue 007-70 "Bof" "branche:"
+a17_issue 007-71 "En cours" "branche:"
+a17_issue "007-7&2" "En cours" "branche:"
+a17_run
+verifier "ca12_a17 : erreurs d'abord, puis pour une même issue A08 avant A17 ; récapitulatif « 1 erreur(s), 4 avis » ; code 1 (l'erreur, non l'avis)" 0 "" test "$(grep -a -e '^ERREUR' -e '^AVIS A08 issue 007-71 ' -e '^AVIS A17 issue 007-71 ' "$racine_tmp/st.out" | cut -c1-24 | paste -sd'|' -)|$(tail -1 "$racine_tmp/st.out")|$a17_code" = "ERREUR E10 issue 007-70 |AVIS A08 issue 007-71 : |AVIS A17 issue 007-71 : |STATUTS : 1 erreur(s), 4 avis|1"
+scripts/dashboard.sh --sortie "$racine_tmp/a17.html" > /dev/null 2>&1
+verifier "ca12_a17 : la section « Contrôle des statuts » du dashboard contient le texte exact de l'avis, échappé en HTML (007-7&amp;2)" 0 "" grep -a -F -q 'AVIS A17 issue 007-7&amp;2 : En cours sans champ branche renseigné' "$racine_tmp/a17.html"
+
+# ca14 : coût Git inchangé, lecture seule
+a17_compte() { # a17_compte <n> <champ> : n issues En cours à ce champ ; écrit le nombre d'appels Git de statuts.sh
+  a17_depot; local k; for k in $(seq 1 "$1"); do a17_issue "$(printf '007-%02d' "$k")" "En cours" "branche:$2"; done
+  pr_shim_git; PATH="$racine_tmp/shim:$PATH" scripts/statuts.sh > "$racine_tmp/st.out" 2> "$racine_tmp/st.err"
+  wc -l < "$racine_tmp/git.args" | tr -d ' '
+}
+# Référence mesurée AVANT l'avis (statuts.sh sans A17, issues En cours au champ vide, aucune branche) : 1 appel Git, quel que soit le nombre d'issues.
+# La comparaison avec des champs remplis n'est pas à iso-situation (une branche déclarée se résout par issue : coût existant, étranger à A17).
+a17_c3="$(a17_compte 3 "")"; a17_c12="$(a17_compte 12 "")"; a17_c50="$(a17_compte 50 "")"; a17_nb50="$(a17_total)"
+verifier "ca14_a17 : nombre d'appels Git des champs vides inchangé par l'avis (1 avant l'avis ; $a17_c3, $a17_c12 et $a17_c50 pour 3, 12 et 50 issues) ; 50 A17 pour 50 champs vides" 0 "" test "$a17_c3|$a17_c12|$a17_c50|$a17_nb50" = "1|1|1|50"
+a17_depot; a17_issue 007-71 "En cours" "branche:"; a17_issue 007-72 "En revue" ""; gd_ add -A; gd_ commit -qm fixtures
+a17_instantane() { find . -path ./.git -prune -o -type f -exec cksum {} + | LC_ALL=C sort; }
+a17_avant="$(a17_instantane)"; a17_run; a17_apres="$(a17_instantane)"
+verifier "ca14_a17 : aucun fichier créé ni modifié (backlog, issues, revues : sommes identiques avant et après), arbre Git propre" 0 "" test "$a17_avant|$(git status --porcelain | wc -l | tr -d ' ')" = "$a17_apres|0"
+
+# cs01 : valeurs hostiles du champ et de l'identifiant
+a17_depot
+a17_hostile() { # a17_hostile <id> <valeur du champ branche> : issue En cours
+  a17_issue "$1" "En cours" "branche: $2"
+}
+a17_hostile 007-71 '$(touch${IFS}marque)'; a17_hostile 007-72 '`touch marque`'; a17_hostile 007-73 ';touch${IFS}marque'; a17_hostile 007-74 '--help'; a17_hostile 007-75 '*'
+a17_hostile 007-76 '[a-z]'; a17_hostile 007-77 'ERREUR E01 backlog : x'; a17_hostile 007-78 $'\033[31m'; a17_hostile 007-79 '<img src=x onerror=alert(1)>'
+a17_issue "007-81$(printf '\rERREUR E13 forgé')" "En cours" "branche:"; a17_issue "007-82$(printf '\033[31m')" "En cours" "branche:"
+a17_issue '007-83<img src=x onerror=alert(1)>' "En cours" "branche:"; a17_issue "007-84$(printf 'a%.0s' $(seq 1 300))" "En cours" "branche:"
+printf -- '---\nid: 007-85\ntitre: T\nbesoin: F-01\nstatut: En cours\nbranche: %s\n---\n' "$(head -c 1048576 /dev/zero | tr '\0' 'b')" > docs/issues/007-85-x.md
+a17_run; scripts/dashboard.sh --sortie "$racine_tmp/a17.html" > /dev/null 2>&1
+verifier "cs01_a17 : le fichier « marque » n'existe pas ; aucune valeur de champ n'apparaît dans la sortie ; un champ de 1 Mio donne E14 sans A17" 0 "" test "$([ -e marque ] && echo existe)|$(grep -a -c -e 'touch' -e 'alert' -e 'x onerror' -e '--help' -e 'ERREUR E01 backlog : x' "$racine_tmp/st.out")|$(grep -a -c '^ERREUR E14 fichier docs/issues/007-85-x.md' "$racine_tmp/st.out")|$(a17_nb 007-85)" = "|0|1|0"
+verifier "cs01_a17 : valeurs d'identifiant hostiles : chaque ligne de la sortie commence par ERREUR, AVIS ou STATUTS, sans caractère de contrôle, aucune ligne forgée (E13), 4 A17 pour les 4 issues à champ vide" 0 "" test "$(grep -a -c -v -e '^ERREUR ' -e '^AVIS ' -e '^STATUTS : ' "$racine_tmp/st.out")|$(LC_ALL=C grep -a -c '[[:cntrl:]]' "$racine_tmp/st.out")|$(grep -a -c '^ERREUR E13' "$racine_tmp/st.out")|$(a17_total)" = "0|0|0|4"
+verifier "cs01_a17 : l'identifiant de plus de 120 caractères est tronqué avec « … » et la page n'a aucune balise issue d'une valeur" 0 "" test "$(grep -a -c -E '^AVIS A17 issue 007-84a*… : ' "$racine_tmp/st.out")|$(grep -a -c '<img src=x' "$racine_tmp/a17.html")" = "1|0"
+
+# cs02 : en-tête seul, concordance avec etat-issues.sh
+a17_depot
+a17_issue 007-71 "En cours" "" "branche: feat/x"
+a17_issue 007-72 "En cours" $'branche:\nbranche: feat/x'
+a17_issue 007-73 "En cours" $'branche: feat/x\nbranche:'
+a17_issue 007-74 "En cours" "  branche: feat/x"
+a17_issue 007-75 "En cours" "branche: feat/x"
+printf '\xef\xbb\xbf---\nid: 007-76\nstatut: En cours\nbranche:\n---\n' > docs/issues/007-76-x.md
+printf -- '---\nid: 007-77\nstatut: En cours\nbranche:\n---\n\000\000\n' > docs/issues/007-77-x.md
+printf -- '---\r\nid: 007-78\r\nstatut: En cours\r\nbranche:\r\n---\r\n' > docs/issues/007-78-x.md
+for a17_i in 71 72 73 74 75 76 77 78; do git branch "feat/007-$a17_i-x"; done
+a17_run
+verifier "cs02_a17 : corps seul, deux lignes branche: (vide puis remplie : A17 ; remplie puis vide : aucun), champ indenté (absent : A17), champ rempli : A17 pour le corps seul" 0 "" test "$(for a17_i in 71 72 73 74 75; do a17_nb "007-$a17_i"; done | paste -sd+ -)" = "1+1+0+1+0"
+verifier "cs02_a17 : BOM, octets NUL ou CRLF dans l'en-tête : aucune erreur de shell, aucun A17 pour le fichier illisible, aucun message d'erreur sur la sortie d'erreur" 0 "" test "$(a17_nb 007-76)|$(wc -c < "$racine_tmp/st.err" | tr -d ' ')" = "0|0"
+a17_etat="$(scripts/etat-issues.sh 2>&1)"
+verifier "cs02_a17 : les lectures concordent : etat-issues.sh marque « (déduite) » exactement les issues qui reçoivent A17 (007-71, 007-72, 007-74)" 0 "" test "$(printf '%s\n' "$a17_etat" | grep -a -F '(déduite)' | grep -a -o -E '007-7[0-9]' | sort -u | paste -sd, -)" = "007-71,007-72,007-74"
+
+# cs03 : volume et fichiers refusés
+a17_depot
+a17_k=0; while [ "$a17_k" -lt 2000 ]; do a17_k=$((a17_k + 1)); printf -- '---\nid: 007-%04d\nstatut: En cours\nbranche:\n---\n' "$a17_k" > "docs/issues/007-$(printf '%04d' "$a17_k")-x.md"; done
+head -c 1100000 /dev/zero | tr '\0' 'x' > docs/issues/008-01-gros.md
+printf -- '---\nid: 009-01\nstatut: En cours\nbranche:\n---\nSECRETLIEN\n' > "$racine_tmp/cible-a17.md"; ln -s "$racine_tmp/cible-a17.md" docs/issues/009-01-lien.md
+a17_t0=$SECONDS; a17_run; a17_duree=$((SECONDS - a17_t0))
+verifier "cs03_a17 : 2000 issues En cours au champ vide : 2000 A17, le fichier de plus de 1 Mio et le lien symbolique donnent E14 sans A17, contenu du lien absent, temps ${a17_duree} s (borne : 40 s)" 0 "" test "$(a17_total)|$(grep -a -c '^ERREUR E14 ' "$racine_tmp/st.out")|$(grep -a -c SECRETLIEN "$racine_tmp/st.out")|$([ "$a17_duree" -le 40 ] && echo borne)" = "2000|2|0|borne"
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

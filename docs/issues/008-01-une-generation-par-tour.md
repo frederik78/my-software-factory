@@ -8,7 +8,7 @@ depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CA-06, CS-01, CS-02]
 branche: feat/008-01-une-generation-par-tour
 commits: []
-revue:
+revue: APPROUVÉ (itération 1, docs/reviews/008-01.md)
 ---
 
 ## Objectif

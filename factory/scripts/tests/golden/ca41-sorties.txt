@@ -122,9 +122,11 @@ AVIS A01 issue 001-01 : Fait sans champ revue renseigné
 AVIS A04 issue 001-01 : Fait sans ligne « FIN-ISSUE OK 001-01 » dans les Notes
 AVIS A05 issue 001-01 : Fait sans commit déclaré
 AVIS A08 issue 001-02 : En cours sans branche retenue
+AVIS A17 issue 001-02 : En cours sans champ branche renseigné
 AVIS A07 issue 001-06 : En revue sans fichier de revue ()
 AVIS A08 issue 001-06 : En revue sans branche retenue
-STATUTS : 9 erreur(s), 8 avis
+AVIS A17 issue 001-06 : En revue sans champ branche renseigné
+STATUTS : 9 erreur(s), 10 avis
 code 1
 == statuts --table
 Statuts d'une issue (dans l'ordre) :
@@ -163,7 +165,7 @@ Transitions légales d'un besoin :
 code 0
 == section de contrôle de la page de CA-03
 Contrôle des statuts
-STATUTS : 9 erreur(s), 8 avis
+STATUTS : 9 erreur(s), 10 avis
 ERREUR E07 besoin F-01 : statut À faire en retard : l&#39;issue 001-01 est démarrée
 ERREUR E06 besoin F-03 : statut Spécifié sans PRD valide (fichier absent : docs/prd/003.md)
 ERREUR E06 besoin F-04 : statut En cours sans PRD valide (fichier absent : docs/prd/004.md)
@@ -179,8 +181,10 @@ AVIS A01 issue 001-01 : Fait sans champ revue renseigné
 AVIS A04 issue 001-01 : Fait sans ligne « FIN-ISSUE OK 001-01 » dans les Notes
 AVIS A05 issue 001-01 : Fait sans commit déclaré
 AVIS A08 issue 001-02 : En cours sans branche retenue
+AVIS A17 issue 001-02 : En cours sans champ branche renseigné
 AVIS A07 issue 001-06 : En revue sans fichier de revue ()
 AVIS A08 issue 001-06 : En revue sans branche retenue
+AVIS A17 issue 001-06 : En revue sans champ branche renseigné
 == dashboard (dépôt à constats) : code 0
 <body>
 <main>
@@ -266,13 +270,14 @@ AVIS A08 issue 001-06 : En revue sans branche retenue
 </html>
 == section de contrôle (dépôt à constats)
 Contrôle des statuts
-STATUTS : 5 erreur(s), 3 avis
+STATUTS : 5 erreur(s), 4 avis
 ERREUR E05 besoin F-03 : statut inconnu « Zut » (attendus : À faire, En clarification, Spécifié, En cours, En revue, Fait, Abandonnée)
 ERREUR E06 besoin F-04 : statut Spécifié sans PRD valide (fichier absent : docs/prd/absent.md)
 ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cours, En revue, Fait, Abandonnée)
 ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
 ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
 AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A17 issue 004-73 : En revue sans champ branche renseigné
 AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
 AVIS A01 issue 004-77 : Fait sans champ revue renseigné
 == statuts (dépôt à constats)
@@ -282,9 +287,10 @@ ERREUR E10 issue 004-74 : statut inconnu « Bof » (attendus : À faire, En cour
 ERREUR E12 issue 004-75 : besoin « F-99 » inconnu du backlog
 ERREUR E13 issue 004-76 : statut Abandonnée sans raison dans les Notes
 AVIS A08 issue 004-73 : En revue sans branche retenue
+AVIS A17 issue 004-73 : En revue sans champ branche renseigné
 AVIS A14 issue 004-76 : PRD docs/prd/p.md non listé dans le backlog pour le besoin F-04
 AVIS A01 issue 004-77 : Fait sans champ revue renseigné
-STATUTS : 5 erreur(s), 3 avis
+STATUTS : 5 erreur(s), 4 avis
 code 1
 == etat-issues (dépôt à constats)
 | Id | Titre | Statut | Dépend de | Branche |

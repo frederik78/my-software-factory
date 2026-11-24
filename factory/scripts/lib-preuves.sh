@@ -180,7 +180,8 @@ preuves_branche() {
 # dont le champ « branche » de l'en-tête est vide. Le champ n'est pas jugé (rempli = renseigné) ; sa valeur n'entre jamais dans le message.
 preuves_champ_branche() {
   [ -z "$4" ] || return 0
-  statut_depuis issue "$3" "En cours" && ! statut_depuis issue "$3" "Fait" || return 0
+  statut_depuis issue "$3" "En cours" || return 0
+  ! statut_depuis issue "$3" "Fait" || return 0
   constat_neutraliser "$2"; local objet="issue $neutre"
   constat_neutraliser "$3"
   constat_ajouter AVIS A17 2 "$1" "$objet" "$neutre sans champ branche renseigné"

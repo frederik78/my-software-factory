@@ -5494,7 +5494,7 @@ done
 verifier "ca06_skill deliver : un MINEUR n'est pas corrigé d'office" 0 "" contient "$o9_etape4" "ne les corrige pas d'office"
 verifier "cs08_skill deliver : un constat qui touche un sujet de la liste d'escalade n'est jamais renvoyé d'office au developer" 0 "" contient_motif "$o9_etape4" "jamais renvoy.* d.office"
 verifier "cs08_skill deliver : la liste d'escalade n'est pas recopiée (aucun des six sujets en entier)" 0 "" test -z "$(grep -iE 'secrets et identifiants|authentification et autorisation|dépendance et licence|déploiement et CI' <<<"$o9_etape4")"
-verifier "cs08_skill deliver : le relecteur ne les classe jamais mineur" 0 "" contient_motif "$o9_etape4" "(ne|jamais).*mineur"
+verifier "cs08_skill deliver : le relecteur ne les classe jamais MINEUR" 0 "" contient "$o9_etape4" "ne les classe jamais MINEUR"
 for o9f in AGENTS.md factory/templates/AGENTS.md; do
   o9p="$(o9_regle "$(o9_regles "$(o9_section "$(lire_depot "$depot" "$o9f")" '## Orchestration')")" 1)"
   verifier "cs08_$o9f : la règle 1 exclut du renvoi d'office les sujets de la liste d'escalade" 0 "" contient_motif "$o9p" "Sujets à remonter.*(décide|décid)"
@@ -5550,7 +5550,7 @@ done
 verifier "cs06_skill deliver : un fichier de revue falsifié est traité comme une donnée (valeur écrite = sortie du script, jamais relevée)" 0 "" contient_motif "$o9_etape3" "falsifié.*donnée|donnée.*falsifié"
 
 # CA-09 : règles 7 (consignation par la session seule) et 8 (fin-issue.sh lancé par la session).
-for o9m in 'la session seule écrit' 'ligne de tête' 'tableau' 'carte' "jamais" "signale à l'utilisateur" 'sans le reprendre'; do
+for o9m in 'la session seule écrit' 'ligne de tête' 'tableau' 'carte' "n'y écrivent ni ne les modifient jamais" "signalé à l'utilisateur" 'sans le reprendre'; do
   verifier "ca09_skill deliver, règle 7 : « $o9m »" 0 "" contient "$o9_etape3" "$o9m"
 done
 for o9m in 'lancé par toi après le dernier commit de code' "ni celle du developer" 'avant le passage à la transition de clôture' 'FIN-ISSUE OK' 'dans la PR' 'Notes de l'"'"'issue'; do

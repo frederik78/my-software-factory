@@ -7,7 +7,7 @@ statut: Fait
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CS-01, CS-03]
 branche: feat/009-01-trois-cles-configuration
-commits: []
+commits: [ea8f3dc, e322eaa]
 revue: APPROUVÉ (itération 1, docs/reviews/009-01.md)
 ---
 

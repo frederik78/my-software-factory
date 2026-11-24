@@ -5893,21 +5893,22 @@ verifier "ca35_code_review_aucun_agent_n_est_lance_avant_ces_controles" 0 "" cr_
 verifier "ca35_code_review_point_fixe_refuse_ou_diff_vide_arrete_avant_tout_agent" 0 "" cr_a_bis 'point fixe refusé.*différence vide.*arrête|arrête.*point fixe refusé.*différence vide'
 
 # CS-09 : le point fixe est une donnée non fiable ; le contrôle de la skill est rejoué tel quel sur un dépôt jetable.
-cr_fonction() { lire_depot "$depot" $cr_sk | sed -n '/^### 1 bis\. /,/^### 2\. /p' | awk '/^```bash$/{ on = 1; next } /^```$/{ on = 0 } on'; }
+cr_fonction() { lire_depot "$depot" $cr_sk | sed -n '/^### 1 bis\. /,/^### 2\. /p' | awk '/^```bash$/{ on = 1; next } /^```$/{ on = 0 } on' | grep -v '^controle_point_fixe "<point-fixe>"$'; } # la définition seule : l'appel du gabarit n'est pas rejoué
 cr_depot="$racine_tmp/cr-depot"; mkdir -p "$cr_depot"
 ( cd "$cr_depot" && git init -q -b main . && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m un && git checkout -q -b feat/x-y && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m deux && printf 'a\n' > f && git add f && git -c user.name=t -c user.email=t@t commit -q -m trois ) >/dev/null 2>&1
-cr_court="$(git -C "$cr_depot" rev-parse --short HEAD)"
+git -C "$cr_depot" branch feat/base HEAD~1 >/dev/null 2>&1
+cr_court="$(git -C "$cr_depot" rev-parse --short HEAD~1)"
 cr_controle() { # cr_controle <valeur> : code et sortie du contrôle de la skill sur la valeur, dans le dépôt jetable (aucun autre effet)
   ( cd "$cr_depot" && rm -f marque && eval "$(cr_fonction)" && controle_point_fixe "$1" 2>&1; rc=$?; [ ! -e marque ] || { echo MARQUE-CREEE; rc=99; }; exit $rc )
 }
 verifier "cs09_code_review_la_skill_porte_une_fonction_de_controle_rejouable" 0 "" test "$(cr_fonction | grep -c '^controle_point_fixe()')" = 1
 cr_long="$(printf 'a%.0s' $(seq 10000))"
-for cr_v in 'main' 'HEAD~1' "$cr_court" 'feat/x-y'; do verifier "cs09_code_review_point_fixe_valide_accepte_$(printf '%s' "$cr_v" | tr -c 'A-Za-z0-9' _)" 0 "" cr_controle "$cr_v"; done
+for cr_v in 'main' 'HEAD~1' "$cr_court" 'feat/base'; do verifier "cs09_code_review_point_fixe_valide_accepte_$(printf '%s' "$cr_v" | tr -c 'A-Za-z0-9' _)" 0 "" cr_controle "$cr_v"; done
 cr_hostile() { # cr_hostile <nom> <valeur> : refus (64), aucune marque, sortie courte sans la valeur brute
   local out rc; out="$(cr_controle "$2")"; rc=$?
   [ "$rc" = 64 ] || { echo "code $rc"; return 1; }
   [ "${#out}" -lt 200 ] || { echo "sortie trop longue"; return 1; }
-  case "$out" in *"$2"*) echo "valeur brute recopiée"; return 1 ;; esac
+  [ -z "$2" ] || case "$out" in *"$2"*) echo "valeur brute recopiée"; return 1 ;; esac
   case "$out" in *marque*|*MARQUE*) echo "marque"; return 1 ;; esac
   return 0
 }

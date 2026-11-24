@@ -7,8 +7,8 @@ statut: En revue
 depend_de: []
 criteres: [CA-01, CA-02, CA-03, CA-04, CA-05, CS-02, CS-03, CS-05]
 branche: feat/010-01-recueil-modele-controles
-commits: []
-revue:
+commits: [e9c1053, 68e2538, 69d5bda, b111064, 957bf2f]
+revue: APPROUVÉ (itération 1, docs/reviews/010-01.md)
 ---
 
 ## Objectif

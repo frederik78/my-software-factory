@@ -5537,8 +5537,7 @@ verifier "ca01_une_ligne_sans_exemple_est_refusee" 1 "forme de ligne" rc_mutatio
 verifier "ca01_une_origine_mal_formee_est_refusee" 1 "forme de ligne" rc_mutation "$rc_livre" 's/| Origine : 00\([0-9]\)-0\([0-9]\)/| Origine : 00\1-\2/' rc_forme
 verifier "ca01_une_regle_vide_est_refusee" 1 "forme de ligne" rc_mutation "$rc_livre" 's/^- [^|]* | Exemple/- | Exemple/' rc_forme
 verifier "ca01_une_introduction_de_4_lignes_est_refusee" 1 "introduction" rc_mutation "$rc_livre" '3s/$/\
-quatrieme ligne\
-cinquieme ligne/' rc_forme
+quatrieme ligne/' rc_forme
 verifier "ca01_une_ligne_de_texte_apres_les_regles_est_refusee" 1 "hors ligne de règle" rc_mutation "$rc_livre" '$s/$/\
 du texte libre/' rc_forme
 

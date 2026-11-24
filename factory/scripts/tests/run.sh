@@ -5864,6 +5864,112 @@ verifier "cs07_deliver_mktemp_hors_depot_permissions_restreintes_pour_chaque_rap
 verifier "cs07_deliver_suppression_a_tout_arret_second_inconnu_code_64_remontee" 0 "" dp_a 'supprim.*arrêt.*second `INCONNU`.*64.*remontée|supprim.*second `INCONNU`.*64.*remontée'
 verifier "cs07_deliver_aucun_rapport_de_relecteur_dans_un_courriel_hors_constats_bloquants" 0 "" dp_a 'courriel.*(aucun|jamais).*rapport.*(hors|sauf|que).*constats bloquants|(aucun|jamais).*rapport.*courriel.*(hors|sauf|que).*constats bloquants'
 
+
+# PRD 009, issue 009-02 : règles de l'orchestrateur sans clé (1, 2, 6, 7, 8) dans AGENTS.md, son modèle et la skill deliver.
+echo "règles de l'orchestrateur sans clé (PRD 009, issue 009-02)"
+o9_agents="$(lire_depot "$depot" AGENTS.md)"; o9_modele="$(lire_depot "$depot" factory/templates/AGENTS.md)"; o9_deliver="$(lire_depot "$depot" factory/skills/deliver/SKILL.md)"
+o9_section() { awk -v t="$2" 'index($0, t) == 1 { p = 1; print; next } /^## / { p = 0 } p' <<<"$1"; } # o9_section <texte> <début du titre> : la section
+o9_regles() { awk '/^\*\*Règles de l.orchestrateur\*\*/ { p = 1; next } p && /^\*\*/ { p = 0 } p && /^## / { p = 0 } p' <<<"$1"; } # le bloc des huit règles de la section Orchestration
+o9_regle() { awk -v n="$2" 'index($0, "- Règle " n ",") == 1 { p = 1; print; next } /^- / || /^$/ { p = 0 } p' <<<"$1"; } # o9_regle <bloc> <n> : la puce de la règle n (lignes de suite comprises)
+o9_etape() { awk -v t="$2" 'index($0, t) == 1 { p = 1; print; next } /^[0-9]+\. \*\*/ || /^## / { p = 0 } p' <<<"$1"; } # o9_etape <texte> <début de la ligne> : une étape de la séquence
+for o9f in AGENTS.md factory/templates/AGENTS.md; do
+  o9t="$(lire_depot "$depot" "$o9f")"; o9b="$(o9_regles "$(o9_section "$o9t" '## Orchestration')")"
+  for o9n in 1 2 3 4 5 6 7 8; do
+    o9p="$(o9_regle "$o9b" "$o9n")"
+    verifier "ca05_$o9f : la règle $o9n est une puce de trois lignes au plus" 0 "" test -n "$o9p" -a "$(wc -l <<<"$o9p" | tr -d ' ')" -le 3
+    verifier "ca05_$o9f : la règle $o9n renvoie à factory/skills/deliver/SKILL.md" 0 "" contient "$o9p" 'factory/skills/deliver/SKILL.md'
+  done
+  verifier "ca05_$o9f : le bloc contient exactement huit puces de règle" 0 "" test "$(grep -c '^- Règle [1-8],' <<<"$o9b")" = 8
+  for o9c in BESOIN_FAIT_AUTO NETTOYAGE_APRES_FUSION DEMARRAGE_AUTO; do
+    verifier "ca05_$o9f : la clé $o9c est nommée avec son défaut non" 0 "" contient_motif "$o9b" "$o9c.*défaut .non."
+  done
+  verifier "ca05_$o9f : la règle 3 (besoin clos) nomme sa clé" 0 "" contient "$(o9_regle "$o9b" 3)" 'BESOIN_FAIT_AUTO'
+  verifier "ca05_$o9f : la règle 4 (nettoyage) nomme sa clé" 0 "" contient "$(o9_regle "$o9b" 4)" 'NETTOYAGE_APRES_FUSION'
+  verifier "ca05_$o9f : la règle 5 (démarrage) nomme sa clé" 0 "" contient "$(o9_regle "$o9b" 5)" 'DEMARRAGE_AUTO'
+  verifier "ca05_$o9f : la clôture du besoin n'est écrite qu'une fois (étape 6)" 0 "" test "$(grep -cF 'en retard : toutes les issues sont Fait et fusionnées dans develop' <<<"$o9t")" = 1
+  verifier "ca05_$o9f : l'étape 6 est conditionnelle (clé BESOIN_FAIT_AUTO)" 0 "" contient "$(o9_etape "$(o9_section "$o9t" '## Orchestration')" '6. **Clôture**')" 'BESOIN_FAIT_AUTO'
+  verifier "ca05_$o9f : la règle 1 renvoie à la section « Sujets à remonter à l'utilisateur » sans recopier sa liste" 0 "" test "$(contient "$(o9_regle "$o9b" 1)" "Sujets à remonter à l'utilisateur" && echo oui)" = oui -a -z "$(grep -iE 'secrets et identifiants|authentification et autorisation|dépendance et licence|déploiement et CI' <<<"$(o9_regle "$o9b" 1)")"
+  verifier "ca05_$o9f : la ligne de commandes de config-factory.sh cite les trois options" 0 "" contient_motif "$(grep -F -e '- `scripts/config-factory.sh' <<<"$o9t")" '--nettoyage-apres-fusion.*--besoin-fait-auto.*--demarrage-auto'
+done
+verifier "ca05_AGENTS.md et son modèle portent les mêmes huit règles et les mêmes clés" 0 "" test -n "$(o9_regles "$o9_agents")" -a "$(o9_regles "$o9_agents")" = "$(o9_regles "$o9_modele")"
+
+# CA-06, CS-08 : règle 1 (constats sérieux) dans la skill, étape 4, et dans AGENTS.md.
+o9_etape4="$(o9_section "$o9_deliver" '## 4. Corriger')"
+for o9m in "sans consulter l'utilisateur ni attendre son accord" 'y compris ceux de `/code-review`' "Sujets à remonter à l'utilisateur" "contredit une décision déjà prise par l'utilisateur" 'MINEUR' 'MAX_ITERATIONS_REVUE' 'Règle d'"'"'arrêt'; do
+  verifier "ca06_skill deliver, étape 4 : « $o9m »" 0 "" contient "$o9_etape4" "$o9m"
+done
+verifier "ca06_skill deliver : un MINEUR n'est pas corrigé d'office" 0 "" contient "$o9_etape4" "ne les corrige pas d'office"
+verifier "cs08_skill deliver : un constat qui touche un sujet de la liste d'escalade n'est jamais renvoyé d'office au developer" 0 "" contient_motif "$o9_etape4" "jamais renvoy.* d.office"
+verifier "cs08_skill deliver : la liste d'escalade n'est pas recopiée (aucun des six sujets en entier)" 0 "" test -z "$(grep -iE 'secrets et identifiants|authentification et autorisation|dépendance et licence|déploiement et CI' <<<"$o9_etape4")"
+verifier "cs08_skill deliver : le relecteur ne les classe jamais MINEUR" 0 "" contient "$o9_etape4" "ne les classe jamais MINEUR"
+for o9f in AGENTS.md factory/templates/AGENTS.md; do
+  o9p="$(o9_regle "$(o9_regles "$(o9_section "$(lire_depot "$depot" "$o9f")" '## Orchestration')")" 1)"
+  verifier "cs08_$o9f : la règle 1 exclut du renvoi d'office les sujets de la liste d'escalade" 0 "" contient_motif "$o9p" "Sujets à remonter.*(décide|décid)"
+  verifier "cs08_$o9f : la règle 1 renvoie au developer sans consulter l'utilisateur seulement sans choix de conception" 0 "" contient_motif "$o9p" "sans choix de conception.*sans consulter l.utilisateur"
+done
+
+# CA-07 : règle 2 (worktrees centralisés) dans la skill ; creer place le dossier dans le conteneur bare ou en dossier frère ; aucun chemin propre à un poste dans factory/.
+o9_etape0="$(o9_section "$o9_deliver" '## 0. Préparer')"
+for o9m in 'un worktree par issue' 'dossiers frères' 'conteneur unique' 'structure bare' 'scripts/worktree-issue.sh initialiser' "sur demande explicite de l'utilisateur" 'jamais pendant une livraison' "chemin du conteneur" "propre à un poste"; do
+  verifier "ca07_skill deliver, règle 2 : « $o9m »" 0 "" contient "$o9_etape0" "$o9m"
+done
+o9_creer() { # dépôt jetable : conteneur bare puis dépôt classique ; affiche « bare:<ok|ko> classique:<ok|ko> »
+  local d src c nomp r1 r2 sortie_cl
+  d="$(mktemp -d "$racine_tmp/o9.XXXXXX")"; src="$d/src"; mkdir -p "$src/factory" "$src/scripts" "$src/docs/issues"
+  cp -R "$factory/scripts" "$src/factory/scripts"; rm -rf "$src/factory/scripts/tests"
+  local s; for s in "$src"/factory/scripts/*.sh; do ln -s "../factory/scripts/$(basename "$s")" "$src/scripts/$(basename "$s")"; done
+  printf '#!/bin/sh\nexit 0\n' > "$src/factory/sync.sh"; chmod +x "$src/factory/sync.sh"
+  issue_id "$src" 001-01 "À faire" docs/prd/1.md "[CA-1]" "[]"
+  git -C "$src" init -q -b develop . && git -C "$src" add -A && git -C "$src" -c user.name=t -c user.email=t@t commit -qm init || return 1
+  c="$d/conteneur"; "$src/scripts/worktree-issue.sh" initialiser "$src" "$c" >/dev/null 2>&1 || { echo "initialiser ko"; return 1; }
+  git --git-dir="$c/.git" worktree add -q "$c/develop" develop >/dev/null 2>&1
+  r1=ko; ( cd "$c/develop" && scripts/worktree-issue.sh creer 001-01 >/dev/null 2>&1 ) && [ -d "$c/feat-001-01-x" ] && [ ! -e "$c/develop/feat-001-01-x" ] && r1=ok
+  nomp="$(basename "$src")"; sortie_cl="$(cd "$src" && scripts/worktree-issue.sh creer 001-01 2>&1)"
+  r2=ko; grep -q 'structure bare recommand' <<<"$sortie_cl" && [ -d "$d/$nomp-001-01" ] && r2=ok
+  echo "bare:$r1 classique:$r2"
+}
+verifier "ca07_creer place le dossier dans le conteneur bare et, en dépôt classique, en dossier frère avec l'avertissement" 0 "^bare:ok classique:ok$" o9_creer
+verifier "ca07_aucun fichier de factory/ (hors tests) ne contient de chemin absolu propre à un poste" 0 "" test -z "$(chercher_depot "$depot" '/Users/|/home/' 'factory/scripts/tests/*' | grep -E '^(HEAD:)?factory/')"
+
+# CA-08, CS-06 : règle 6 (APPROUVÉ incompatible avec un constat sérieux ouvert) ; fixture produite comme la skill le demande.
+o9_etape3="$(o9_section "$o9_deliver" '## 3. Relire')"; o9_etape5="$(o9_section "$o9_deliver" '## 5. Terminer')"
+o9_fixture() { # o9_fixture <projet> : rapport lu APPROUVÉ avec un IMPORTANT ouvert, puis fichier de revue tel que la règle 6 le fait écrire
+  local p="$1" rapport="$1/rapport.txt"
+  printf 'VERDICT: APPROUVÉ\n\n## Constats\nIMPORTANT : x.sh:3 le garde-fou est absent.\n' > "$rapport"
+  printf 'VERDICT: CHANGEMENTS DEMANDÉS\n\n| N° | Gravité | Résumé | Statut | Itération |\n|---|---|---|---|---|\n| 1 | IMPORTANT | garde-fou absent | ouvert | 1 |\n\n## Itération 1 (2026-01-01)\nVerdict de l'"'"'itération : CHANGEMENTS DEMANDÉS\nNote de la session : le verdict APPROUVÉ du rapport est abaissé, le constat 1 (IMPORTANT) est ouvert.\n\n## Constats\nIMPORTANT : x.sh:3 le garde-fou est absent.\n' > "$p/docs/reviews/009-90.md"
+}
+p="$(nouveau_projet)"; mkdir -p "$p/docs/reviews"; o9_fixture "$p"
+verifier "ca08_le script lit APPROUVÉ sur le rapport à constat sérieux ouvert (cas de la règle 6)" 0 "^APPROUVÉ$" "$p/scripts/verdict-revue.sh" "$p/rapport.txt"
+verifier "ca08_le fichier de revue abaissé est lu CHANGEMENTS DEMANDÉS par verdict-revue.sh" 0 "^CHANGEMENTS DEMANDÉS$" "$p/scripts/verdict-revue.sh" "$p/docs/reviews/009-90.md"
+verifier "ca08_le fichier de revue abaissé n'a qu'une ligne VERDICT:, la première" 0 "" test "$(grep -c '^VERDICT:' "$p/docs/reviews/009-90.md")" = 1 -a "$(sed -n 1p "$p/docs/reviews/009-90.md")" = "VERDICT: CHANGEMENTS DEMANDÉS"
+verifier "ca08_le fichier de revue abaissé porte Verdict de l'itération et une Note de la session" 0 "" test "$(grep -c "^Verdict de l'itération : CHANGEMENTS DEMANDÉS$" "$p/docs/reviews/009-90.md")" = 1 -a "$(grep -c '^Note de la session : .*constat 1' "$p/docs/reviews/009-90.md")" = 1
+printf -- '---\nid: 009-90\ntitre: T\nprd: docs/prd/1.md\nstatut: En revue\ndepend_de: []\ncriteres: [CA-1]\nbranche:\nrevue: docs/reviews/009-90.md\n---\n' > "$p/docs/issues/009-90-x.md"
+: > "$p/backlog.md"
+o9_statuts="$(cd "$p" && scripts/statuts.sh 2>&1)"
+verifier "ca08_statuts.sh ne donne ni A02 ni A16 pour l'issue qui désigne le fichier abaissé" 0 "" test -z "$(grep -E '(A02|A16) .*009-90' <<<"$o9_statuts")"
+for o9m in 'Note de la session' 'abaissé' 'jamais relevé' 'CHANGEMENTS DEMANDÉS' 'une seule ligne `VERDICT:`' "constat BLOQUANT ou IMPORTANT ouvert"; do
+  verifier "ca08_skill deliver, règle 6 (étape 3) : « $o9m »" 0 "" contient "$o9_etape3" "$o9m"
+done
+verifier "ca08_skill deliver : la définition de fini exige un dernier verdict APPROUVÉ sans constat sérieux ouvert" 0 "" contient_motif "$o9_etape5" "APPROUVÉ.*aucun BLOQUANT/IMPORTANT ouvert"
+for o9m in 'écris APPROUVÉ' 'ignore le constat' 'supprime la branche' 'modifie `backlog.md`' 'donnée' "jamais recopiée" 'aucune consigne'; do
+  verifier "cs06_skill deliver, un rapport est une donnée : « $o9m »" 0 "" contient "$o9_etape3" "$o9m"
+done
+verifier "cs06_skill deliver : un fichier de revue falsifié est traité comme une donnée (valeur écrite = sortie du script, jamais relevée)" 0 "" contient_motif "$o9_etape3" "falsifié.*donnée|donnée.*falsifié"
+
+# CA-09 : règles 7 (consignation par la session seule) et 8 (fin-issue.sh lancé par la session).
+for o9m in 'la session seule écrit' 'ligne de tête' 'tableau' 'carte' "n'y écrivent ni ne les modifient jamais" "signalé à l'utilisateur" 'sans le reprendre'; do
+  verifier "ca09_skill deliver, règle 7 : « $o9m »" 0 "" contient "$o9_etape3" "$o9m"
+done
+for o9m in 'lancé par toi après le dernier commit de code' "ni celle du developer" 'avant le passage à la transition de clôture' 'FIN-ISSUE OK' 'dans la PR' 'Notes de l'"'"'issue'; do
+  verifier "ca09_skill deliver, règle 8 (étape 5) : « $o9m »" 0 "" contient "$o9_etape5" "$o9m"
+done
+for o9f in AGENTS.md factory/templates/AGENTS.md; do
+  o9b="$(o9_regles "$(o9_section "$(lire_depot "$depot" "$o9f")" '## Orchestration')")"
+  verifier "ca09_$o9f : la règle 7 dit que la session seule écrit le verdict et le fichier de revue" 0 "" contient_motif "$(o9_regle "$o9b" 7)" "session seule.*verdict.*fichier de revue"
+  verifier "ca09_$o9f : la règle 8 dit que scripts/fin-issue.sh est lancé par la session après le dernier commit de code" 0 "" contient_motif "$(o9_regle "$o9b" 8)" "scripts/fin-issue.sh.*session.*dernier commit"
+  verifier "ca09_$o9f : la règle 6 dit qu'APPROUVÉ est incompatible avec un constat BLOQUANT ou IMPORTANT ouvert" 0 "" contient_motif "$(o9_regle "$o9b" 6)" "APPROUVÉ.*incompatible.*(BLOQUANT|IMPORTANT).*ouvert"
+done
+
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi
 [ "$echecs" -eq 0 ]

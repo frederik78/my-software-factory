@@ -3,7 +3,7 @@ id: 006-08
 titre: Rôles propres à Claude Code hors des prompts (roles.conf)
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: À faire
+statut: En cours
 depend_de: [006-01, 006-02, 006-03]
 criteres: [CA-03, CA-05, CA-12, CA-43, CA-44, CA-45, CA-46, CA-47, CA-48, CA-49, CS-02]
 criteres_justification: bascule atomique (D-60) : en-têtes réduits, factory/claude/roles.conf créé et sync-claude.sh modifié dans un même état, sinon les enveloppes changent

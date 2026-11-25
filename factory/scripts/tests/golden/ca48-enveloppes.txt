@@ -1,0 +1,788 @@
+=== vide suivi-absent code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vide suivi-absent code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vide suivi-absent code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: opus
+effort: high
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vide suivi-absent code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vide suivi-absent developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vide suivi-absent spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vide suivi-present code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vide suivi-present code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vide suivi-present code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: opus
+effort: high
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vide suivi-present code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vide suivi-present developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vide suivi-present spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== haiku-low suivi-absent code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== haiku-low suivi-absent code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== haiku-low suivi-absent code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: opus
+effort: high
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== haiku-low suivi-absent code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash
+model: haiku
+effort: low
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== haiku-low suivi-absent developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash
+model: haiku
+effort: low
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== haiku-low suivi-absent spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep
+model: haiku
+effort: low
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== haiku-low suivi-present code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== haiku-low suivi-present code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== haiku-low suivi-present code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: opus
+effort: high
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== haiku-low suivi-present code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: haiku
+effort: low
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== haiku-low suivi-present developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash, mcp__savvy-progress__step
+model: haiku
+effort: low
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== haiku-low suivi-present spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep, mcp__savvy-progress__step
+model: haiku
+effort: low
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vides suivi-absent code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vides suivi-absent code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vides suivi-absent code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: opus
+effort: high
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vides suivi-absent code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vides suivi-absent developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vides suivi-absent spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== vides suivi-present code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vides suivi-present code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vides suivi-present code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: opus
+effort: high
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vides suivi-present code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vides suivi-present developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash, mcp__savvy-progress__step
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== vides suivi-present spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep, mcp__savvy-progress__step
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== six-cles suivi-absent code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: haiku
+effort: low
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== six-cles suivi-absent code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: claude-opus-9
+effort: max
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== six-cles suivi-absent code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: xhigh
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== six-cles suivi-absent code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== six-cles suivi-absent developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== six-cles suivi-absent spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+=== six-cles suivi-present code-reviewer-conformite.md
+---
+name: code-reviewer-conformite
+description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: haiku
+effort: low
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-conformite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-conformite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== six-cles suivi-present code-reviewer-qualite.md
+---
+name: code-reviewer-qualite
+description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: claude-opus-9
+effort: max
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-qualite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-qualite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== six-cles suivi-present code-reviewer-securite.md
+---
+name: code-reviewer-securite
+description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: xhigh
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer-securite.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer-securite.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== six-cles suivi-present code-reviewer.md
+---
+name: code-reviewer
+description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
+tools: Read, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/code-reviewer.md -->
+Lis et applique intégralement `factory/prompts/code-reviewer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== six-cles suivi-present developer.md
+---
+name: developer
+description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
+tools: Read, Write, Edit, Glob, Grep, Bash, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+  - tdd
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/developer.md -->
+Lis et applique intégralement `factory/prompts/developer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.
+=== six-cles suivi-present spec-writer.md
+---
+name: spec-writer
+description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
+tools: Read, Write, Glob, Grep, mcp__savvy-progress__step
+model: sonnet
+effort: medium
+skills:
+  - owasp-check
+---
+<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/spec-writer.md -->
+Lis et applique intégralement `factory/prompts/spec-writer.md` (ignore son en-tête YAML).
+Ton rapport de fin de mission suit `factory/prompts/report-format.md`.
+
+Suivi de progression : dès que tu as lu ta consigne, appelle `mcp__savvy-progress__step` avec `total`
+(le nombre d'étapes de ton plan, établi selon la mission, sans plancher ni plafond) et `done: 0`.
+Une étape = un résultat vérifiable (un cycle RED/GREEN/REFACTOR, une série de fichiers modifiés, une vérification) :
+ni une étape par commande, ni un découpage si grossier que la barre n'avance plus.
+Rappelle l'outil à chaque étape terminée (`done`, et `note` en quelques mots) ; si le plan change, ajuste `total`
+en gardant `done` cohérent. Si l'outil est indisponible ou renvoie une erreur, ignore-le et poursuis.

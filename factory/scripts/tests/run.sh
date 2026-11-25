@@ -5864,6 +5864,155 @@ verifier "cs07_deliver_mktemp_hors_depot_permissions_restreintes_pour_chaque_rap
 verifier "cs07_deliver_suppression_a_tout_arret_second_inconnu_code_64_remontee" 0 "" dp_a 'supprim.*arrêt.*second `INCONNU`.*64.*remontée|supprim.*second `INCONNU`.*64.*remontée'
 verifier "cs07_deliver_aucun_rapport_de_relecteur_dans_un_courriel_hors_constats_bloquants" 0 "" dp_a 'courriel.*(aucun|jamais).*rapport.*(hors|sauf|que).*constats bloquants|(aucun|jamais).*rapport.*courriel.*(hors|sauf|que).*constats bloquants'
 
+# ---------------------------------------------------------------------------------------------------------------------
+# PRD 006, issue 006-05 : skill code-review (lecture du mode, mode unique inchangé, trois relecteurs, agrégation, point fixe hostile).
+# ---------------------------------------------------------------------------------------------------------------------
+echo "skill code-review : revue parallèle (PRD 006, issue 006-05)"
+cr_sk=factory/skills/code-review/SKILL.md
+cr_bis() { lire_depot "$depot" $cr_sk | sed -n '/^### 1 bis\. /,/^### 2\. /p'; }           # étape 1 bis : contrôle du point fixe et lecture du mode
+cr_par() { lire_depot "$depot" $cr_sk | sed -n '/^## Mode parallèle/,$p'; }                 # section du mode parallèle (jusqu'à la fin du fichier)
+cr_a_bis() { cr_bis | grep -Eq -- "$1"; }
+cr_a_par() { cr_par | grep -Eq -- "$1"; }
+
+# CA-34 : mode unique inchangé. La skill, privée de l'étape 1 bis et de la section du mode parallèle (seuls ajouts déclarés), est identique au golden
+# (la skill d'avant), ligne à ligne et dans l'ordre : aucune ligne des étapes existantes n'est modifiée, ajoutée ailleurs, déplacée ni retirée.
+cr_sans_ajouts() { lire_depot "$depot" $cr_sk | awk '/^### 1 bis\. /{ skip = 1 } /^### 2\. /{ skip = 0 } /^## Mode parallèle/{ skip = 2 } !skip && NF'; }
+verifier "ca34_code_review_mode_unique_la_skill_hors_ajouts_declares_est_identique_au_golden_dans_l_ordre" 0 "" test "$(cr_sans_ajouts | shasum -a 256)" = "$(awk 'NF' "$ici/golden/ca34-code-review-unique.txt" | shasum -a 256)"
+verifier "ca34_code_review_le_golden_garde_les_deux_sous_agents_et_les_titres_standards_et_spec" 0 "" test "$(grep -c -e '^## Standards\|`## Standards`' -e '`## Spec`' "$ici/golden/ca34-code-review-unique.txt")" -ge 1
+verifier "ca34_code_review_une_seule_etape_1_bis_et_une_seule_section_du_mode_parallele" 0 "" test "$(lire_depot "$depot" $cr_sk | grep -c -e '^### 1 bis\. ' -e '^## Mode parallèle')" = 2
+verifier "ca34_code_review_mode_unique_suit_les_etapes_2_a_5_a_l_identique_sans_ecrire_de_fichier" 0 "" cr_a_bis '`unique` : .*étapes 2 à 5.*à l.identique.*n.écris aucun fichier'
+verifier "ca34_code_review_mode_parallele_renvoie_a_la_section_du_mode_parallele" 0 "" cr_a_bis '`parallele` : .*section « Mode parallèle »'
+
+# CA-35 : lecture du mode après la validation du point fixe, arrêt sur 64, aucun agent avant ces contrôles.
+verifier "ca35_code_review_lit_le_mode_par_config_factory_mode_revue" 0 "" cr_a_bis 'scripts/config-factory\.sh --mode-revue'
+verifier "ca35_code_review_l_etape_1_bis_est_entre_l_etape_1_et_l_etape_2" 0 "" doc_ordre $cr_sk '^### 1\. Pin' '^### 1 bis\. '
+verifier "ca35_code_review_l_etape_1_bis_precede_l_etape_2" 0 "" doc_ordre $cr_sk '^### 1 bis\. ' '^### 2\. '
+verifier "ca35_code_review_le_controle_du_point_fixe_precede_la_lecture_du_mode" 0 "" test "$(cr_bis | grep -n -e 'controle_point_fixe "<point-fixe>"' -e 'scripts/config-factory\.sh --mode-revue' | cut -d: -f1 | head -2 | tr '\n' ' ')" = "$(cr_bis | grep -n 'controle_point_fixe "<point-fixe>"' | head -1 | cut -d: -f1) $(cr_bis | grep -n 'scripts/config-factory\.sh --mode-revue' | head -1 | cut -d: -f1) "
+verifier "ca35_code_review_code_64_arrete_la_skill_avec_un_message" 0 "" cr_a_bis 'rend 64.*arrête-toi.*(message|dis-le)'
+verifier "ca35_code_review_aucun_agent_n_est_lance_avant_ces_controles" 0 "" cr_a_bis "Aucun agent n.est lancé avant ces contrôles"
+verifier "ca35_code_review_point_fixe_refuse_ou_diff_vide_arrete_avant_tout_agent" 0 "" cr_a_bis 'point fixe refusé.*différence vide.*arrête|arrête.*point fixe refusé.*différence vide'
+
+# CS-09 : le point fixe est une donnée non fiable ; le contrôle de la skill est rejoué tel quel sur un dépôt jetable.
+cr_fonction() { lire_depot "$depot" $cr_sk | sed -n '/^### 1 bis\. /,/^### 2\. /p' | awk '/^```bash$/{ on = 1; next } /^```$/{ on = 0 } on' | grep -v '^controle_point_fixe "<point-fixe>"$'; } # la définition seule : l'appel du gabarit n'est pas rejoué
+cr_depot="$racine_tmp/cr-depot"; mkdir -p "$cr_depot"
+( cd "$cr_depot" && git init -q -b main . && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m un && git checkout -q -b feat/x-y && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m deux && printf 'a\n' > f && git add f && git -c user.name=t -c user.email=t@t commit -q -m trois ) >/dev/null 2>&1
+git -C "$cr_depot" branch feat/base HEAD~1 >/dev/null 2>&1
+cr_court="$(git -C "$cr_depot" rev-parse --short HEAD~1)"
+cr_controle() { # cr_controle <valeur> : code et sortie du contrôle de la skill sur la valeur, dans le dépôt jetable (aucun autre effet)
+  ( cd "$cr_depot" && rm -f marque && eval "$(cr_fonction)" && controle_point_fixe "$1" 2>&1; rc=$?; [ ! -e marque ] || { echo MARQUE-CREEE; rc=99; }; exit $rc )
+}
+verifier "cs09_code_review_la_skill_porte_une_fonction_de_controle_rejouable" 0 "" test "$(cr_fonction | grep -c '^controle_point_fixe()')" = 1
+cr_long="$(printf 'a%.0s' $(seq 10000))"
+for cr_v in 'main' 'HEAD~1' "$cr_court" 'feat/base'; do verifier "cs09_code_review_point_fixe_valide_accepte_$(printf '%s' "$cr_v" | tr -c 'A-Za-z0-9' _)" 0 "" cr_controle "$cr_v"; done
+cr_hostile() { # cr_hostile <message exact attendu> <valeur> : refus (64) avec exactement ce message, aucune marque, valeur brute jamais recopiée
+  local out rc; out="$(cr_controle "$2")"; rc=$?
+  [ "$rc" = 64 ] || { echo "code $rc"; return 1; }
+  [ "$out" = "$1" ] || { echo "message inattendu : ${out:0:100}"; return 1; }
+  [ -z "$2" ] || case "$out" in *"$2"*) echo "valeur brute recopiée"; return 1 ;; esac
+  return 0
+}
+cr_forme="Point fixe refusé : forme invalide."; cr_inex="Point fixe refusé : référence introuvable."; cr_vide="Point fixe refusé : différence vide, rien à relire."
+git -C "$cr_depot" tag blobtag "$(git -C "$cr_depot" hash-object -w "$cr_depot/f")" >/dev/null 2>&1
+verifier "cs09_code_review_option_output_refusee" 0 "" cr_hostile "$cr_forme" '--output=marque'
+verifier "cs09_code_review_option_courte_refusee" 0 "" cr_hostile "$cr_forme" '-x'
+verifier "cs09_code_review_substitution_de_commande_refusee" 0 "" cr_hostile "$cr_forme" '$(touch marque)'
+verifier "cs09_code_review_enchainement_de_commande_refuse" 0 "" cr_hostile "$cr_forme" 'main; touch marque'
+verifier "cs09_code_review_reference_inexistante_refusee" 0 "" cr_hostile "$cr_inex" 'branche-qui-n-existe-pas'
+verifier "cs09_code_review_reference_qui_n_est_pas_un_commit_refusee" 0 "" cr_hostile "$cr_inex" 'blobtag'
+verifier "cs09_code_review_valeur_de_10000_caracteres_refusee" 0 "" cr_hostile "$cr_forme" "$cr_long"
+verifier "cs09_code_review_valeur_avec_saut_de_ligne_refusee" 0 "" cr_hostile "$cr_forme" "$(printf 'main\ntouch marque')"
+verifier "cs09_code_review_valeur_vide_refusee" 0 "" cr_hostile "$cr_forme" ''
+verifier "cs09_code_review_difference_vide_refusee" 0 "" cr_hostile "$cr_vide" 'HEAD'
+# Borne : une référence existante de 200 caractères est acceptée, de 201 refusée (instantané : branches réelles, aucune allocation démesurée).
+git -C "$cr_depot" branch "$(printf 'a%.0s' $(seq 200))" HEAD~1 >/dev/null 2>&1; git -C "$cr_depot" branch "$(printf 'b%.0s' $(seq 201))" HEAD~1 >/dev/null 2>&1
+verifier "cs09_code_review_borne_200_caracteres_acceptee" 0 "" cr_controle "$(printf 'a%.0s' $(seq 200))"
+verifier "cs09_code_review_borne_201_caracteres_refusee" 0 "" cr_hostile "$cr_forme" "$(printf 'b%.0s' $(seq 201))"
+verifier "cs09_code_review_aucun_fichier_marque_apres_les_valeurs_hostiles" 0 "" test ! -e "$cr_depot/marque"
+verifier "cs09_code_review_la_valeur_est_citee_entre_guillemets_jamais_interpolee" 0 "" cr_a_bis 'jamais interpolée'
+
+
+# CA-36 : lancement des trois relecteurs ensemble, brief commun, répartition des sources.
+verifier "ca36_code_review_parallele_la_section_existe_apres_l_etape_5_et_les_deux_axes" 0 "" doc_ordre $cr_sk '^## Why two axes' '^## Mode parallèle'
+verifier "ca36_code_review_parallele_lance_les_trois_relecteurs_nommes_dans_l_ordre" 0 "" cr_a_par 'code-reviewer-conformite.*code-reviewer-qualite.*code-reviewer-securite'
+verifier "ca36_code_review_parallele_lance_ensemble_plusieurs_lancements_dans_le_meme_message" 0 "" cr_a_par 'ensemble.*plusieurs lancements dans le même message'
+verifier "ca36_code_review_parallele_remplace_les_deux_sous_agents_standards_et_spec" 0 "" cr_a_par "à la place des deux sous-agents Standards et Spec"
+verifier "ca36_code_review_parallele_brief_commun_des_relecteurs" 0 "" cr_a_par 'brief commun `factory/prompts/briefs/relecteurs\.md`'
+verifier "ca36_code_review_parallele_un_message_par_relecteur_champs_remplis" 0 "" cr_a_par 'un message par relecteur'
+verifier "ca36_code_review_parallele_diff_depuis_le_point_fixe" 0 "" cr_a_par 'git diff <point-fixe>\.\.\.HEAD'
+verifier "ca36_code_review_parallele_liste_des_commits_depuis_le_point_fixe" 0 "" cr_a_par 'git log <point-fixe>\.\.HEAD --oneline'
+verifier "ca36_code_review_parallele_la_specification_va_a_la_conformite" 0 "" cr_a_par 'spécification .*va à « conformité et tests »'
+verifier "ca36_code_review_parallele_sans_specification_la_conformite_le_dit" 0 "" cr_a_par 'sans spécification, la conformité le dit'
+verifier "ca36_code_review_parallele_normes_et_mauvaises_odeurs_vont_a_la_qualite" 0 "" cr_a_par 'sources de normes et la liste de mauvaises odeurs.*« qualité »'
+verifier "ca36_code_review_parallele_la_securite_passe_meme_sans_specification" 0 "" cr_a_par '« sécurité » passe même sans spécification'
+verifier "ca36_code_review_parallele_seule_la_conformite_lance_build_criteres_et_mutations" 0 "" cr_a_par 'Seule la conformité lance `scripts/verify-clean\.sh`, `scripts/criteres-sans-test\.sh` et les mutations'
+verifier "ca36_code_review_le_mode_parallele_n_applique_pas_les_etapes_4_et_5_des_deux_sous_agents" 0 "" cr_a_bis 'parallele.*n.applique pas les étapes 4 et 5'
+
+# CS-10 : relecteurs en lecture seule, mutations hors dépôt, seule écriture de la session dans le fichier de RG-29, sécurité toujours lancée.
+verifier "cs10_code_review_parallele_les_relecteurs_gardent_les_memes_outils_en_lecture_seule_que_deliver" 0 "" cr_a_par 'mêmes outils en lecture seule que pour `/deliver`'
+for cr_r in conformite qualite securite; do
+  verifier "cs10_code_review_le_relecteur_${cr_r}_n_a_ni_write_ni_edit" 0 "" test -z "$(rl_entete factory/prompts/code-reviewer-$cr_r.md | grep '^tools:' | grep -E 'Write|Edit')"
+done
+verifier "cs10_code_review_parallele_mutations_dans_des_copies_jetables_distinctes_hors_du_depot" 0 "" cr_a_par 'mutations.*copies jetables distinctes, hors du dépôt'
+verifier "cs10_code_review_parallele_la_securite_est_lancee_dans_tous_les_cas" 0 "" cr_a_par 'sécurité.*lancée dans tous les cas.*(spécification absente ou non)'
+verifier "cs10_code_review_parallele_aucun_relecteur_n_ecrit_dans_le_depot" 0 "" cr_a_par 'aucun relecteur n.écrit dans le dépôt'
+verifier "cs10_code_review_parallele_seule_ecriture_de_la_session_est_le_fichier_de_revue_de_branche" 0 "" cr_a_par 'seule écriture dans le dépôt.*session.*`docs/reviews/branche-<branche>\.md`'
+
+
+# CA-37 : agrégation. Verdicts lus par le script dans des fichiers mktemp, abaissement borné à `## Constats`, INCONNU, titres des trois relecteurs, synthèse.
+cr_regle() { cr_par | grep -F "Verdict global de l'itération"; }
+cr_unanimite() { grep -Eq 'Verdict global de l.itération : `APPROUVÉ` seulement si le dernier verdict retenu des trois relecteurs est `APPROUVÉ`, sinon `CHANGEMENTS DEMANDÉS`\.$'; } # formulation exacte attendue (liste blanche)
+verifier "ca37_code_review_une_seule_ligne_pose_le_verdict_global" 0 "" test "$(cr_regle | wc -l | tr -d ' ')" = 1
+cr_regle_ok() { cr_regle | cr_unanimite; }
+verifier "ca37_code_review_la_regle_pose_l_unanimite_des_verdicts_retenus" 0 "" cr_regle_ok
+cr_mut() { cr_regle | sed "$1" | cr_unanimite; } # la règle de la skill, mutée, ne doit plus passer
+verifier "ca37_mutation_au_moins_un_est_rejetee" 1 "" cr_mut 's/seulement si le dernier verdict retenu des trois relecteurs est/seulement si au moins un des trois relecteurs est/'
+verifier "ca37_mutation_dernier_verdict_connu_est_rejetee" 1 "" cr_mut 's/verdict retenu/verdict connu/'
+verifier "ca37_mutation_majorite_est_rejetee" 1 "" cr_mut 's/verdict retenu des trois relecteurs est/verdict retenu de la majorité des trois relecteurs est/'
+verifier "ca37_mutation_premier_est_rejetee" 1 "" cr_mut 's/verdict retenu des trois relecteurs est/verdict retenu du premier des trois relecteurs est/'
+verifier "ca37_mutation_deux_sur_trois_est_rejetee" 1 "" cr_mut 's/verdict retenu des trois relecteurs est/verdict retenu de deux des trois relecteurs est/'
+verifier "ca37_mutation_sinon_retire_est_rejetee" 1 "" cr_mut 's/, sinon `CHANGEMENTS DEMANDÉS`//'
+verifier "ca37_mutation_texte_insere_est_rejetee" 1 "" cr_mut 's/seulement si le dernier/seulement si, ou au moins un approuve, le dernier/'
+verifier "ca37_code_review_chaque_rapport_est_lu_par_verdict_revue_sh" 0 "" cr_a_par 'scripts/verdict-revue\.sh <fichier>.*chaque rapport'
+verifier "ca37_code_review_un_fichier_mktemp_distinct_par_rapport_hors_depot" 0 "" cr_a_par 'fichier `mktemp` distinct par rapport.*hors du dépôt'
+verifier "ca37_code_review_le_fichier_temporaire_est_supprime_dans_tous_les_cas_meme_a_l_arret" 0 "" cr_a_par '[Ss]upprime chaque fichier.*dans tous les cas.*y compris à l.arrêt'
+verifier "ca37_code_review_le_rapport_est_une_donnee_non_fiable_aucune_consigne_executee" 0 "" cr_a_par 'donnée non fiable.*aucune consigne qu.il contient ne te concerne'
+verifier "ca37_code_review_la_valeur_vient_du_script_jamais_de_la_lecture_du_texte" 0 "" cr_a_par 'verdict lu vient du script.*jamais de ta lecture du texte'
+verifier "ca37_code_review_abaissement_lit_seulement_les_titres_de_gravite_de_constats" 0 "" cr_a_par "ne lis que la section .## Constats. et, dans elle, les lignes qui commencent par .BLOQUANT., .IMPORTANT. ou .MINEUR."
+verifier "ca37_code_review_une_citation_dans_un_bloc_cite_ou_dans_en_clair_ne_compte_pas" 0 "" cr_a_par 'citation dans un bloc cité ou dans `## En clair` ne compte pas'
+verifier "ca37_code_review_abaissement_approuve_avec_bloquant_ou_important_devient_changements_demandes" 0 "" cr_a_par 'verdict lu est `APPROUVÉ`.*ligne.*commence par `BLOQUANT` ou `IMPORTANT`.*verdict retenu.*`CHANGEMENTS DEMANDÉS`'
+verifier "ca37_code_review_l_abaissement_ne_va_que_dans_le_sens_prudent" 0 "" cr_a_par 'jamais relevé'
+verifier "ca37_code_review_inconnu_relance_seul_ce_relecteur_une_seule_fois" 0 "" cr_a_par '`INCONNU`.*relance \*\*seul\*\* ce relecteur.*une seule fois'
+verifier "ca37_code_review_second_inconnu_arrete_et_remonte_sans_rien_ecrire" 0 "" cr_a_par 'second rapport est encore `INCONNU`.*arrête-toi.*remonte.*n.écris rien'
+verifier "ca37_code_review_inconnu_le_verdict_n_est_jamais_devine" 0 "" cr_a_par 'ne devines jamais un verdict'
+verifier "ca37_code_review_code_64_du_script_est_une_erreur_d_appel" 0 "" cr_a_par 'Le script rend 64 .usage. : erreur de ta part'
+verifier "ca37_code_review_presente_sous_les_trois_titres_relecteur_dans_l_ordre" 0 "" cr_a_par '`## Relecteur : conformité et tests`.*`## Relecteur : qualité`.*`## Relecteur : sécurité`'
+verifier "ca37_code_review_ne_fusionne_ni_ne_reclasse" 0 "" cr_a_par 'sans les fusionner ni les reclasser'
+verifier "ca37_code_review_ligne_de_synthese_verdict_global_nombre_de_constats_par_relecteur_et_chemin" 0 "" cr_a_par 'ligne de synthèse.*verdict global.*nombre de constats par relecteur.*chemin du fichier de revue de branche'
+verifier "ca37_code_review_agregation_apres_le_lancement" 0 "" doc_ordre $cr_sk '^### Lancer les trois relecteurs' '^### Agréger'
+
+
+# CA-38 : corrections et itérations d'une revue de branche parallèle, dans la skill et dans AGENTS.md (étape 5) et son modèle.
+cr_ag5() { lire_depot "$depot" "$1" | grep -E '^5\. \*\*Revue indépendante\*\*'; }
+for cr_f in AGENTS.md factory/templates/AGENTS.md; do
+  cr_p="ca38_$(printf '%s' "$cr_f" | tr -c 'A-Za-z0-9' _)"
+  verifier "${cr_p}_etape_5_ligne_unique" 0 "" test "$(cr_ag5 "$cr_f" | wc -l | tr -d ' ')" = 1
+  verifier "${cr_p}_etape_5_constats_bloquants_repartent_au_developpeur_puis_nouvelle_revue" 0 "" doc_a "$cr_f" '^5\. \*\*Revue indépendante\*\* de la branche \(`/code-review`\) avant la fusion ; ses constats bloquants repartent au développeur, puis nouvelle revue'
+  verifier "${cr_p}_etape_5_max_iterations_revue_et_regle_d_arret" 0 "" doc_a "$cr_f" '^5\. .*`MAX_ITERATIONS_REVUE` itérations.*même règle d.arrêt'
+  verifier "${cr_p}_etape_5_en_mode_parallele_seuls_les_relecteurs_en_changements_repassent_abaisses_compris" 0 "" doc_a "$cr_f" '^5\. .*`MODE_REVUE=parallele`.*seuls les relecteurs dont le dernier verdict retenu est `CHANGEMENTS DEMANDÉS` \(abaissés compris\) repassent'
+  verifier "${cr_p}_etape_5_en_mode_parallele_le_tour_final_relance_les_trois" 0 "" doc_a "$cr_f" '^5\. .*`MODE_REVUE=parallele`.*tour final relance les trois'
+done
+verifier "ca38_agents_md_et_son_modele_ont_la_meme_etape_5" 0 "" test "$(cr_ag5 AGENTS.md)" = "$(cr_ag5 factory/templates/AGENTS.md)"
+verifier "ca38_code_review_parallele_section_corrections_et_iterations_apres_l_agregation" 0 "" doc_ordre $cr_sk '^### Agréger' '^### Corrections et itérations'
+verifier "ca38_code_review_parallele_bloquant_et_important_repartent_au_developer" 0 "" cr_a_par 'constats `BLOQUANT` et `IMPORTANT` repartent au `developer`'
+verifier "ca38_code_review_parallele_max_iterations_revue_lue_par_config_factory" 0 "" cr_a_par '`MAX_ITERATIONS_REVUE`.*`scripts/config-factory\.sh --max-iterations`'
+verifier "ca38_code_review_parallele_regle_d_arret_d_agents_md_etape_5" 0 "" cr_a_par 'règle d.arrêt.*`AGENTS\.md` \(étape 5\)'
+verifier "ca38_code_review_parallele_seuls_les_relecteurs_en_changements_demandes_repassent_abaisses_compris" 0 "" cr_a_par 'Aux tours suivants, seuls les relecteurs dont le dernier verdict retenu est `CHANGEMENTS DEMANDÉS` \(abaissés compris\) repassent'
+verifier "ca38_code_review_parallele_les_relecteurs_relisent_le_fichier_de_revue_de_branche" 0 "" cr_a_par 'relit le fichier de revue de branche pour confirmer ses constats'
+verifier "ca38_code_review_parallele_tour_final_relance_les_trois_sur_toute_la_plage" 0 "" cr_a_par 'tour final relance les trois relecteurs sur `<point-fixe>\.\.\.HEAD`'
+verifier "ca38_code_review_parallele_tour_final_compte_comme_une_iteration" 0 "" cr_a_par 'tour final.*compte comme une itération de `MAX_ITERATIONS_REVUE`'
+verifier "ca38_code_review_parallele_tour_final_omis_si_les_trois_viennent_de_passer_sur_le_dernier_commit" 0 "" cr_a_par 'omis si les trois viennent de passer ensemble sur le dernier commit'
+verifier "ca38_code_review_parallele_tour_final_non_approuve_a_la_limite_regle_d_arret" 0 "" cr_a_par 'revue n° `MAX_ITERATIONS_REVUE` sans `APPROUVÉ`.*règle d.arrêt'
+
 
 # PRD 009, issue 009-02 : règles de l'orchestrateur sans clé (1, 2, 6, 7, 8) dans AGENTS.md, son modèle et la skill deliver.
 echo "règles de l'orchestrateur sans clé (PRD 009, issue 009-02)"

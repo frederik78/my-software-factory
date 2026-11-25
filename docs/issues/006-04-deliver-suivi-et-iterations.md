@@ -3,12 +3,12 @@ id: 006-04
 titre: Skill deliver : suivi fusionné, itérations, tour final et arrêt
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: À faire
+statut: Fait
 depend_de: [006-03]
 criteres: [CA-18, CA-19, CA-20, CA-21, CA-22, CA-23, CA-24, CA-42, CS-05, CS-08]
 branche: feat/006-04-deliver-suivi-et-iterations
-commits: []
-revue:
+commits: [f9e81a2, 833ff90, e96dcea, 2b5d1e9, 6761e9c]
+revue: APPROUVÉ (itération 2, docs/reviews/006-04.md)
 ---
 
 ## Objectif
@@ -27,3 +27,13 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, `sc
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-24 : nouvelle étape `3 ter` de la skill `deliver` (suivi, contradictions, itérations, tour final, arrêt, corrections, rapports hostiles) placée avant l'étape 4 pour ne pas toucher le golden du mode `unique` ; l'étape 4 reçoit une seule ligne d'aiguillage déclarée (filtrée par le test du golden), comme l'étape 3 en 006-03.
+- 2026-11-24 : reports de la revue 006-03 fermés : 3 bis renvoie à 3 ter (plus de saut à l'étape 5), l'étape 4 dit qu'elle décrit le mode `unique`, un relecteur abaissé est relancé (CA-20, CA-42) ; « verdict retenu » remplace « dernier verdict connu » ; motif d'unanimité ancré en début de ligne et sur la règle entière.
+- 2026-11-24 : CA-42 : les fixtures calculent le verdict retenu avec `verdict-revue.sh` plus la lecture des titres de gravité de `## Constats` ; le suivi de la skill par un agent n'est pas exécutable en test, la règle est donc aussi ancrée en texte exact avec mutations.
+- 2026-11-24 : le test `ca21_deliver_l_etape_3_bis_renvoie_a_l_etape_3_ter…` était déjà vert au RED (le renvoi a été posé avec le commit du slice 1) ; les tests `cs08_verdict_revue_sh_…` couvrent un comportement existant (vérifié par CS-08 du PRD).
+- 2026-11-24 : `docs/reviews/README.md` n'était plus identique à son modèle depuis 006-03 (test `ca19_docs/reviews/README.md…` en échec sur develop) : recopié depuis le modèle, sans autre changement.
+- 2026-11-24 : FIN-ISSUE OK 006-04 0e1d7f6 : 2417 tests, 0 échec, 0 ignoré.
+- 2026-11-24 : revue 1, constat 1 : `docs/reviews/006-91.md` (fixture ajoutée par erreur en a4b6dbd par mon lanceur réduit, qui n'avait pas le dépôt jetable) retiré ; la suite complète l'écrit dans un dépôt jetable.
+- 2026-11-24 : D-55 (décision de l'utilisateur) : le tour final s'ajoute à `MAX_ITERATIONS_REVUE` (revue n° MAX + 1) quand les itérations précédentes ont atteint la limite avec un verdict global APPROUVÉ ; sinon D-39 inchangé ; s'il échoue, règle d'arrêt (pas de relance du developer). Étape 3 ter et tests de CA-21 adaptés (PRD amendé sur docs/prd-006-tour-final-hors-limite, a4c04f4).
+- 2026-11-24 : FIN-ISSUE OK 006-04 2b5d1e9 : 2422 tests, 0 échec, 0 ignoré (un premier passage de fin-issue.sh avait échoué sur 1 cas non identifié dans la copie propre, pendant des builds concurrents d'autres agents ; `run.sh` direct 2430 OK, `verify-clean.sh` OK, puis fin-issue OK au rejeu : cas probablement instable sous charge, déjà signalé à la revue 3 de 006-03).
+- 2026-11-25 : revue 2 APPROUVÉ ; FIN-ISSUE OK 006-04 7ce4378 : 2422 tests, 0 échec, 0 ignoré.

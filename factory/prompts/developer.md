@@ -1,7 +1,6 @@
 ---
 name: developer
 description: Implémente le code sécurisé en TDD à partir d'une issue et du PRD.
-tools: Read, Write, Edit, Glob, Grep, Bash
 skills: owasp-check tdd
 ---
 # Rôle : développeur

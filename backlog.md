@@ -111,3 +111,4 @@ L'orchestrateur ne met à jour ici que les statuts et les décisions ; il ne ref
 | D-64 | 2026-11-25 | F-17 (Q-02) : bloc recopié borné à 20 échecs et 300 caractères par ligne ; récapitulatif de la suite sans borne | F-17 |
 | D-65 | 2026-11-25 | F-17 (Q-03) : Maven, Gradle, unittest, pytest, jest et node:test exclus, sortie inchangée | F-17 |
 | D-66 | 2026-11-25 | F-17 (Q-04) : la lecture de « TESTS EN ECHEC : x sur n » par `fin-issue.sh` est un besoin séparé (F-18) | F-17, F-18 |
+| D-67 | 2026-11-25 | Constats récurrents (PRD 010, RG-12) : la liste « Interdits » visée est celle de la skill `deliver` ; quand le recueil est absent, l'agent conclut « aucun » en le lisant, la session ne remplit pas le champ ; lectures de 010-02 confirmées | F-13 |

@@ -5,7 +5,7 @@ prd: docs/prd/006-revue-parallele.md
 besoin: F-02
 statut: Fait
 depend_de: []
-criteres: [CA-05, CA-06, CA-07, CA-08, CA-09, CA-10, CS-03, CS-06]
+criteres: [CA-06, CA-07, CA-08, CA-09, CA-10, CS-03, CS-06]
 branche: feat/006-02-prompts-relecteurs-et-brief
 commits: [4e10343, 7017b53, b0d5dd2, 377d161, f49491c, 00955b7, 777147a, 5d71c17]
 revue: APPROUVÉ (itération 2, docs/reviews/006-02.md)

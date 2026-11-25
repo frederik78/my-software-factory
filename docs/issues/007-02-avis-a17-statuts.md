@@ -3,13 +3,13 @@ id: 007-02
 titre: Avis A17 de statuts.sh : issue démarrée sans champ branche
 prd: docs/prd/007-champ-branche-renseigne.md
 besoin: F-06
-statut: En revue
+statut: Fait
 depend_de: [007-01]
 criteres: [CA-06, CA-07, CA-08, CA-09, CA-10, CA-11, CA-12, CA-13, CA-14, CS-01, CS-02, CS-03]
 criteres_justification: Douze critères sur un seul script (statuts.sh) et un seul avis (A17) : condition, formes de champ vide, cas hostiles, coût et dashboard se testent sur les mêmes dépôts jetables ; les séparer ferait tester deux fois la même condition dans deux issues.
 branche: feat/007-02-avis-a17-statuts
 commits: [c1bc766, 1caf38e, 0b29ebb, b9b436f, eeb7c81, c12f8b5]
-revue: CHANGEMENTS DEMANDÉS (itération 1, docs/reviews/007-02.md)
+revue: APPROUVÉ (itération 2, docs/reviews/007-02.md)
 ---
 
 ## Objectif
@@ -35,3 +35,4 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - FIN-ISSUE OK 007-02 ab9c624 : 2383 tests, 0 échec, 0 ignoré.
 - 2026-11-24 : revue 1, constat 1 traité : tests ca13_a17 (3 dépôts de ca16, ca38 et ca31 au champ renseigné : aucun A17, sorties identiques à l'état d'avant ; ca41-sorties.txt : la différence avec la version d'avant l'avis ne contient que des lignes A17 et des récapitulatifs, mutation par ligne parasite : le test échoue). Constat 3 traité : develop fusionné deux fois dans la branche (conflit de run.sh résolu en gardant les deux blocs), le commit ab9c624 devient sans effet. Constat 2 (CA-14) non traité : décision de l'utilisateur en attente.
 - FIN-ISSUE OK 007-02 9fa5681 : 2617 tests, 0 échec, 0 ignoré.
+- 2026-11-25 : revue 2 APPROUVÉ ; FIN-ISSUE OK 007-02 da3899b : 2617 tests, 0 échec, 0 ignoré.

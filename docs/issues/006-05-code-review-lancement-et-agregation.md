@@ -3,7 +3,7 @@ id: 006-05
 titre: Skill code-review : lecture du mode, trois relecteurs et agrégation
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: En revue
+statut: Fait
 depend_de: [006-02, 006-03]
 criteres: [CA-34, CA-35, CA-36, CA-37, CA-38, CS-09, CS-10]
 branche: feat/006-05-code-review-lancement-et-agregation
@@ -33,3 +33,4 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-24 Écart : « le chemin du fichier de revue de branche » de la ligne de synthèse est cité sans que la skill l'écrive ; l'écriture et le format du fichier sont à 006-06 (hors périmètre).
 - 2026-11-24 Reprise du commit 0e1d7f6 de 006-04 (cherry-pick f02147c) : `docs/reviews/README.md` différait de son modèle (échec préexistant sur develop, cassé depuis 006-03) et empêchait `FIN-ISSUE OK`.
 - 2026-11-24 `AGENTS.md` et `factory/templates/AGENTS.md` (étape 5) : phrase ajoutée sur le mode parallèle (CA-38).
+- 2026-11-25 : develop fusionné (838493c, conflits AGENTS.md et run.sh : deux ajouts gardés) ; FIN-ISSUE OK 006-05 838493c : 2692 tests, 0 échec, 0 ignoré.

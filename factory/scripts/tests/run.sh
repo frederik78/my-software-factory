@@ -1572,9 +1572,9 @@ out="$(./factory/init-projet.sh 2>&1)"; printf '%s' "$out" | grep -q 'à supprim
 mkdir -p "$HOME/.claude/plugins"; echo '{"plugins":{"savvy-progress@x":[]}}' > "$HOME/.claude/plugins/installed_plugins.json"
 ./factory/sync.sh >/dev/null && grep -q 'mcp__savvy-progress__step' .claude/agents/developer.md && ok "suivi de progression ajouté si le plugin est installé" || ko "suivi de progression ajouté"
 ! grep -q '3 à 8' .claude/agents/developer.md && grep -q 'selon la mission' .claude/agents/developer.md && grep -q 'ajuste' .claude/agents/developer.md && grep -q 'sans plancher ni plafond' .claude/agents/developer.md && grep -q 'ignore-le et poursuis' .claude/agents/developer.md && ok "suivi de progression : nombre d'étapes dynamique (plus de « 3 à 8 »), garde-fous conservés" || ko "suivi de progression dynamique" "$(grep -n 'étape' .claude/agents/developer.md)"
-printf -- '---\nname: casse\ntools: Read\n---\n' > factory/prompts/casse.md
+printf -- '---\nname: casse\n---\n' > factory/prompts/casse.md; cp factory/claude/roles.conf "$p/roles.conf"; printf 'casse | Read | | \n' >> factory/claude/roles.conf
 verifier "en-tête incomplet (sans description) = erreur" 1 "En-tête incomplet" ./factory/sync.sh
-rm factory/prompts/casse.md
+rm factory/prompts/casse.md; cp "$p/roles.conf" factory/claude/roles.conf
 
 echo "sync.sh (neutre) et sync-claude.sh (Claude Code)"
 depot_sync() { # depot_sync <nom> : copie de la factory dans un dépôt vide
@@ -1602,7 +1602,7 @@ verifier "sync.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync.sh 
 verifier "sync-claude.sh : option inconnue = 64 et usage" 64 "Usage" ./factory/sync-claude.sh --bidon
 verifier "sync.sh : --claude et --sans-claude ensemble = 64" 64 "Usage" ./factory/sync.sh --claude --sans-claude
 d="$(depot_sync s-vide)"; cd "$d" || exit 1
-rm -f factory/prompts/*.md; printf '# Prompt sans en-tête\n' > factory/prompts/libre.md
+rm -f factory/prompts/*.md; printf '# Prompt sans en-tête\n' > factory/prompts/libre.md; printf '# aucun rôle\n' > factory/claude/roles.conf
 bash_ancien=/bin/bash; [ -x "$bash_ancien" ] || bash_ancien="$BASH"
 verifier "sync-claude.sh sans aucun agent à générer, sous $("$bash_ancien" -c 'echo "bash $BASH_VERSION"') (set -u)" 0 "agents :" "$bash_ancien" ./factory/sync-claude.sh
 
@@ -1628,9 +1628,9 @@ printf 'AGENT_MODELE=opus\ntools: Bash\n' > .factory.conf; printf 'AGENT_MODELE=
 verifier_exact "cs_config modèle avec espace et deux-points refusé : aucun champ injecté dans l'en-tête" 64 "AGENT_MODELE invalide : minuscules, chiffres, points et tirets, ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_AGENT_MODELE)." ./factory/sync-claude.sh
 cmp -s .claude/agents/developer.md "$p/developer-avant.md" && ok "valeur refusée : enveloppes inchangées" || ko "enveloppe modifiée malgré une valeur refusée"
 rm -f .factory.local.conf .factory.conf
-awk 'NR==2{print; print "model: haiku"; print "effort: high"; next}1' factory/prompts/developer.md > "$p/dev.md" && cp "$p/dev.md" factory/prompts/developer.md
+awk '/^developer[ |]/ { print "developer | Read, Write, Edit, Glob, Grep, Bash | haiku | high"; next } 1' factory/claude/roles.conf > "$p/roles.conf" && cp "$p/roles.conf" factory/claude/roles.conf
 ./factory/sync-claude.sh >/dev/null 2>&1
-a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ code-reviewer 'model: sonnet' && ok "l'en-tête d'un prompt l'emporte pour ce rôle seulement" || ko "en-tête de prompt"
+a_champ developer 'model: haiku' && a_champ developer 'effort: high' && a_champ code-reviewer 'model: sonnet' && ok "l'entrée d'un rôle dans roles.conf l'emporte pour ce rôle seulement" || ko "entrée de roles.conf"
 config_liste="$(bash factory/scripts/config-factory.sh 2>/dev/null)"
 printf '%s\n' "$config_liste" | grep -qx 'AGENT_MODELE=sonnet' && printf '%s\n' "$config_liste" | grep -qx 'AGENT_EFFORT=medium' && ok "config-factory.sh affiche les valeurs par défaut du modèle et de l'effort" || ko "config-factory.sh modèle et effort" "$config_liste"
 
@@ -5278,30 +5278,42 @@ printf '  MODE_REVUE = unique  \n' > .factory.conf
 verifier "cs01_valeur valide avec espaces de bord dans .factory.conf : règle existante du lecteur (unique)" 0 "" mr_accepte unique
 rm -f .factory.conf
 
-# CA-03, CA-04, CS-02 : enveloppes des trois relecteurs (prompts jetables : les vrais sont ceux de l'issue 006-02)
-prompt_relecteur() { # prompt_relecteur <suffixe> <modèle> <effort> [outils] : écrit factory/prompts/code-reviewer-<suffixe>.md
-  printf -- '---\nname: code-reviewer-%s\ndescription: Relecteur %s (prompt jetable de test).\ntools: %s\nskills: owasp-check\nmodel: %s\neffort: %s\n---\n# Rôle : relecteur %s\n' "$1" "$1" "${4:-Read, Glob, Grep, Bash}" "$2" "$3" "$1" > "factory/prompts/code-reviewer-$1.md"
+# CA-03, CA-04, CS-02 : enveloppes des trois relecteurs (prompts et entrées de factory/claude/roles.conf jetables : les vrais sont ceux des issues 006-02 et 006-08)
+prompt_relecteur() { # prompt_relecteur <suffixe> <modèle> <effort> [outils] : écrit factory/prompts/code-reviewer-<suffixe>.md et son entrée de rôle
+  printf -- '---\nname: code-reviewer-%s\ndescription: Relecteur %s (prompt jetable de test).\nskills: owasp-check\n---\n# Rôle : relecteur %s\n' "$1" "$1" "$1" > "factory/prompts/code-reviewer-$1.md"
+  { grep -v "^code-reviewer-$1[ |]" factory/claude/roles.conf; printf 'code-reviewer-%s | %s | %s | %s\n' "$1" "${4:-Read, Glob, Grep, Bash}" "$2" "$3"; } > "$p/roles.tmp" && cp "$p/roles.tmp" factory/claude/roles.conf
 }
 trois_relecteurs() { prompt_relecteur conformite sonnet medium; prompt_relecteur qualite haiku low; prompt_relecteur securite opus high; }
 champ_agent() { sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md" | grep -qx -e "$2"; }
 d="$(depot_sync s-relecteurs-base)"; cd "$d" || exit 1
 ./factory/sync-claude.sh >/dev/null 2>&1; cp .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"
+d="$(depot_sync s-relecteurs-livres)"; cd "$d" || exit 1
+printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\n' > .factory.conf
+ca03_livres() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent code-reviewer-conformite 'effort: medium' && champ_agent code-reviewer-qualite 'model: sonnet' && champ_agent code-reviewer-qualite 'effort: medium' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-securite 'effort: high' && { [ -z "${1:-}" ] || cmp -s .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"; }; }
+verifier "ca03_prompts_et_roles_conf_livres_agent_modele_sonnet_agent_effort_medium_securite_opus_high_conformite_et_qualite_sonnet_medium_code_reviewer_inchange" 0 "" ca03_livres inchange
+printf 'AGENT_MODELE=haiku\nAGENT_EFFORT=low\n' > .factory.conf
+verifier "ca03_roles_conf_livre_l_emporte_sur_agent_modele_haiku_et_agent_effort_low_pour_les_relecteurs" 0 "" ca03_livres
+rm -f .factory.conf
 d="$(depot_sync s-relecteurs)"; cd "$d" || exit 1; trois_relecteurs
 printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\n' > .factory.conf
 ca03_entetes() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent code-reviewer-conformite 'effort: medium' && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-securite 'effort: high'; }
-verifier "ca03_trois enveloppes avec le modèle et l'effort de l'en-tête de chaque prompt (AGENT_MODELE=sonnet, AGENT_EFFORT=medium)" 0 "" ca03_entetes
+verifier "ca03_trois enveloppes avec le modèle et l'effort de l'entrée de rôle de chacun dans roles.conf (AGENT_MODELE=sonnet, AGENT_EFFORT=medium)" 0 "" ca03_entetes
 verifier "ca03_l'enveloppe du code-reviewer est inchangée" 0 "" cmp .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"
 printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\nAGENT_MODELE_SECURITE=claude-opus-9\nAGENT_EFFORT_SECURITE=max\n' > .factory.conf
 ca03_surcharge() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-securite 'model: claude-opus-9' && champ_agent code-reviewer-securite 'effort: max' && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent developer 'model: sonnet' && cmp -s .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"; }
-verifier "ca03_AGENT_MODELE_SECURITE et AGENT_EFFORT_SECURITE l'emportent sur l'en-tête, les autres rôles gardent les leurs" 0 "" ca03_surcharge
+verifier "ca03_AGENT_MODELE_SECURITE et AGENT_EFFORT_SECURITE l'emportent sur l'entrée de rôle, les autres rôles gardent les leurs" 0 "" ca03_surcharge
 printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\nAGENT_MODELE_SECURITE=\nAGENT_EFFORT_SECURITE=\n' > .factory.conf
-verifier "ca03_clés de surcharge vides : l'en-tête s'applique" 0 "" ca03_entetes
+verifier "ca03_clés de surcharge vides : l'entrée de rôle s'applique" 0 "" ca03_entetes
 printf 'AGENT_MODELE_QUALITE=a\n' > .factory.conf; printf 'AGENT_MODELE_QUALITE=b\n' > .factory.local.conf
 ca03_niveaux() { FACTORY_AGENT_MODELE_QUALITE=c ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: c' && ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: b'; }
 verifier "ca03_les trois niveaux habituels pour une clé de rôle (FACTORY_ > .factory.local.conf > .factory.conf)" 0 "" ca03_niveaux
 rm -f .factory.local.conf; printf 'AGENT_MODELE=opus\nAGENT_EFFORT=max\n' > .factory.conf
 ca03_generiques() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-qualite 'model: haiku' && champ_agent code-reviewer-qualite 'effort: low' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent developer 'model: opus' && champ_agent developer 'effort: max'; }
-verifier "ca03_AGENT_MODELE et AGENT_EFFORT seuls : l'en-tête d'un autre rôle l'emporte toujours" 0 "" ca03_generiques
+verifier "ca03_AGENT_MODELE et AGENT_EFFORT seuls : l'entrée de rôle l'emporte toujours" 0 "" ca03_generiques
+prompt_relecteur securite '' ''; printf 'AGENT_MODELE=claude-x\nAGENT_EFFORT=xhigh\n' > .factory.conf
+ca03_entree_vide() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-securite 'model: claude-x' && champ_agent code-reviewer-securite 'effort: xhigh' && champ_agent code-reviewer-qualite 'model: haiku'; }
+verifier "ca03_entree de relecteur à modèle et effort vides, sans clé de surcharge : AGENT_MODELE et AGENT_EFFORT s'appliquent" 0 "" ca03_entree_vide
+prompt_relecteur securite opus high
 
 rm -f .factory.conf
 ca04_sans_ecriture() { # trois enveloppes, aucune avec Write ni Edit, même si un prompt les déclare
@@ -5363,19 +5375,21 @@ rl_section() { lire_depot "$depot" "$rl_rf" | awk '/^## Rapport d.un relecteur/ 
 rl_a_section() { rl_section | grep -Eq -- "$1"; }
 rl_empreinte() { lire_depot "$depot" "$1" | shasum -a 256 | cut -d' ' -f1; } # rl_empreinte <chemin>
 
-# CA-05 : en-têtes.
+# CA-05 : en-têtes (name, description, skills ; ni outils, ni modèle, ni effort) et entrées de rôle de factory/claude/roles.conf (D-60).
+rl_role() { # rl_role <rôle> : entrée de rôle dans roles.conf du dépôt, champs sans blancs de bord, joints par « | »
+  lire_depot "$depot" factory/claude/roles.conf | awk -F'|' -v r="$1" '/^[ \t]*(#|$)/ { next } { l = ""; for (i = 1; i <= NF; i++) { c = $i; gsub(/^[ \t]+|[ \t]+$/, "", c); l = l (i > 1 ? "|" : "") c } } l ~ "^" r "[|]" { print l }'
+}
 for r in conformite qualite securite; do
   f=factory/prompts/code-reviewer-$r.md
   verifier "ca05_${r}_en_tete_name" 0 "" rl_champ $f "name: code-reviewer-$r"
   verifier "ca05_${r}_en_tete_description" 0 "" test -n "$(rl_entete $f | grep '^description: .')"
-  verifier "ca05_${r}_en_tete_outils_lecture_seule" 0 "" rl_champ $f "tools: Read, Glob, Grep, Bash"
   verifier "ca05_${r}_en_tete_skill_owasp_check" 0 "" rl_champ $f "skills: owasp-check"
+  verifier "ca05_${r}_en_tete_sans_tools_model_ni_effort" 0 "" test -z "$(rl_entete $f | grep -E '^(tools|model|effort):')"
+  verifier "ca05_${r}_roles_conf_outils_lecture_seule" 0 "" test "$(rl_role code-reviewer-$r | cut -d'|' -f2)" = "Read, Glob, Grep, Bash"
 done
-verifier "ca05_securite_en_tete_modele_opus" 0 "" rl_champ $rl_s "model: opus"
-verifier "ca05_securite_en_tete_effort_high" 0 "" rl_champ $rl_s "effort: high"
+verifier "ca05_securite_roles_conf_modele_opus_effort_high" 0 "" test "$(rl_role code-reviewer-securite | cut -d'|' -f3,4)" = "opus|high"
 for r in conformite qualite; do
-  verifier "ca05_${r}_en_tete_modele_sonnet" 0 "" rl_champ factory/prompts/code-reviewer-$r.md "model: sonnet"
-  verifier "ca05_${r}_en_tete_effort_medium" 0 "" rl_champ factory/prompts/code-reviewer-$r.md "effort: medium"
+  verifier "ca05_${r}_roles_conf_modele_sonnet_effort_medium" 0 "" test "$(rl_role code-reviewer-$r | cut -d'|' -f3,4)" = "sonnet|medium"
 done
 
 # CA-06 : conformité et tests.
@@ -5433,7 +5447,7 @@ verifier "ca10_brief_relecteurs_dit_lecture_seule" 0 "" rl_a $rl_b "[Ll]ecture s
 verifier "ca10_brief_relecteurs_renvoie_au_format_de_rapport_du_relecteur" 0 "" rl_a $rl_b "report-format\.md.*relecteur"
 verifier "ca10_brief_relecteurs_dit_que_seule_la_conformite_lance_build_criteres_mutations" 0 "" rl_a $rl_b "[Ss]eul.*conformité.*lance.*verify-clean.*criteres-sans-test.*mutations"
 verifier "ca10_brief_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/briefs/reviewer.md)" = "d19b205665e473552e8374094673ab9713ebf5318ece2145b6d497db7757a6b9"
-verifier "ca10_prompt_code_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "41c2f6c5670259f11c826d565d4f3a451f88f8aea629a93c733f7ecf0a5d87a5"
+verifier "ca10_prompt_code_reviewer_est_inchange_octet_pour_octet_hors_la_ligne_tools_retiree_par_d60" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "eb5951937275a1aea267a642ffb8bc41dcb2f5b29740945d0c8d07a1d40b552e"
 
 # CS-03 : lecture seule.
 for f in $rl_c $rl_q $rl_s; do
@@ -5752,7 +5766,8 @@ verifier "ca12_deliver_mode_unique_fichier_sans_section_par_relecteur_ni_colonne
 dp_sections_unique() { lire_depot "$depot" $dl | awk '/^## 3 bis\. /{ on = 0 } /^## 3\. Relire/{ on = 1 } /^## 4\. Corriger/{ on = 1 } /^## 5\. /{ on = 0 } on && NF' | grep -vF -e 'Le reste de cette étape décrit le mode `unique`.' -e 'Cette étape décrit le mode `unique` (un seul `code-reviewer`) ; en mode `parallele`, suis l'"'"'étape 3 ter.'; }
 verifier "ca12_deliver_etapes_3_et_4_du_mode_unique_identiques_au_golden_dans_l_ordre_hors_la_ligne_d_aiguillage_declaree" 0 "" test "$(dp_sections_unique | shasum -a 256)" = "$(shasum -a 256 < "$ici/golden/ca12-deliver-etapes-3-4-unique.txt")"
 verifier "ca12_deliver_la_ligne_d_aiguillage_declaree_est_la_seule_ajoutee_a_l_etape_3" 0 "" test "$(lire_depot "$depot" $dl | sed -n '/^## 3\. Relire/,/^## 3 bis\. /p' | grep -c 'Le reste de cette étape décrit le mode `unique`\.')" = 1
-verifier "ca12_prompt_code_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "41c2f6c5670259f11c826d565d4f3a451f88f8aea629a93c733f7ecf0a5d87a5"
+# Empreinte de code-reviewer.md d'avant ce besoin, sans sa ligne « tools: Read, Glob, Grep, Bash » (seule suppression voulue par D-60).
+verifier "ca12_prompt_code_reviewer_est_inchange_octet_pour_octet_hors_la_ligne_tools_retiree_par_d60" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "eb5951937275a1aea267a642ffb8bc41dcb2f5b29740945d0c8d07a1d40b552e"
 verifier "ca12_brief_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/briefs/reviewer.md)" = "d19b205665e473552e8374094673ab9713ebf5318ece2145b6d497db7757a6b9"
 
 # CA-13 : lancement ensemble des trois relecteurs, un fichier temporaire par rapport.
@@ -6900,6 +6915,237 @@ verifier "cs08_verdict_revue_sh_rend_inconnu_pour_un_rapport_sans_premiere_ligne
 # Trou de 006-03 : le mode parallèle ne saute plus le tour final ni ne parle d'un code-reviewer unique.
 verifier "ca21_deliver_l_etape_3_bis_renvoie_a_l_etape_3_ter_et_plus_directement_a_l_etape_5" 0 "" test "$(lire_depot "$depot" $dl | sed -n '/^## 3 bis\. /,/^## 3 ter\. /p' | grep -cF "Ensuite suis l'étape 3 ter (suivi, corrections, tour final, arrêt).")" = 1 -a "$(lire_depot "$depot" $dl | sed -n '/^## 3 bis\. /,/^## 3 ter\. /p' | grep -cF "passe à l'étape 5")" = 0
 verifier "ca20_deliver_l_etape_4_declare_qu_elle_decrit_le_mode_unique_et_renvoie_a_l_etape_3_ter" 0 "" test "$(lire_depot "$depot" $dl | sed -n '/^## 4\. Corriger/,/^## 4 bis\. /p' | grep -cF 'Cette étape décrit le mode `unique` (un seul `code-reviewer`) ; en mode `parallele`, suis l'"'"'étape 3 ter.')" = 1
+
+# ---------------------------------------------------------------------------------------------------------------------
+# PRD 006, issue 006-08 : outils, modèle et effort des rôles hors des prompts, dans factory/claude/roles.conf (D-60, RG-31 à RG-37).
+# Chaque cas travaille dans une copie jetable de la factory (rc8_depot) ; les vérifications de texte lisent le dépôt (lire_depot).
+# ---------------------------------------------------------------------------------------------------------------------
+echo "roles.conf : outils, modèle et effort des rôles hors des prompts (PRD 006, issue 006-08)"
+export HOME="$racine_tmp/rc8-home"; mkdir -p "$HOME" # aucun plugin de suivi hérité des sections précédentes
+rc8_conf=factory/claude/roles.conf
+rc8_roles_livres="code-reviewer code-reviewer-conformite code-reviewer-qualite code-reviewer-securite developer spec-writer"
+rc8_depot() { # rc8_depot <nom> : copie jetable de la factory dans un dépôt git vide ; affiche son chemin
+  local d="$racine_tmp/rc8-$1"; mkdir -p "$d" && cp -R "$factory" "$d/factory" && rm -rf "$d/factory/scripts/tests" && git -C "$d" init -q . && printf '%s' "$d"
+}
+rc8_normaliser() { # entrées de rôle de l'entrée standard, champs sans blancs de bord, joints par « | » (lignes vides et commentaires retirés)
+  awk -F'|' '/^[ \t]*(#|$)/ { next } { l = ""; for (i = 1; i <= NF; i++) { c = $i; gsub(/^[ \t]+|[ \t]+$/, "", c); l = l (i > 1 ? "|" : "") c } print l }'
+}
+rc8_entree() { # rc8_entree <rôle> <ligne> : remplace l'entrée du rôle dans la copie courante (l'ajoute si absente) ; ligne vide = entrée retirée
+  awk -v r="$1" -v l="$2" -F'|' '{ x = $1; gsub(/^[ \t]+|[ \t]+$/, "", x) } !/^[ \t]*#/ && x == r { if (!f && l != "") print l; f = 1; next } { print } END { if (!f && l != "") print l }' "$rc8_conf" > "$rc8_conf.tmp" && mv "$rc8_conf.tmp" "$rc8_conf"
+}
+rc8_agents() { # rc8_agents : instantané de .claude (liens, noms et contenus des enveloppes)
+  find .claude -exec sh -c 'if [ -L "$1" ]; then echo "L $1 -> $(readlink "$1")"; elif [ -f "$1" ]; then echo "F $1"; cat "$1"; else echo "D $1"; fi' _ {} \; 2>/dev/null | cat
+}
+rc8_hors_claude() { find . -path ./.git -prune -o -path ./.claude -prune -o -print | sort; } # fichiers de la copie hors .git et .claude
+rc8_outils() { sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md" | grep '^tools: '; } # rc8_outils <rôle> : ligne tools: de l'enveloppe
+rc8_champ() { sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md" | grep -qx -e "$2"; }   # rc8_champ <rôle> <ligne exacte de l'en-tête>
+rc8_sans_champ() { ! sed -n '/^---$/,/^---$/p' ".claude/agents/$1.md" | grep -q -e "^$2:"; }
+rc8_sync() { ./factory/sync-claude.sh > "$racine_tmp/rc8-out" 2> "$racine_tmp/rc8-err"; rc8_code=$?; }
+# rc8_refus <code> <message exact sur la sortie d'erreur> : sync-claude.sh s'arrête avec ce code et ce message, .claude et le reste de la copie inchangés
+rc8_refus() {
+  local avant hors; avant="$(rc8_agents)"; hors="$(rc8_hors_claude)"
+  rc8_sync
+  [ "$rc8_code" -eq "$1" ] || { echo "code $rc8_code au lieu de $1 : $(head -3 "$racine_tmp/rc8-err")"; return 1; }
+  [ "$(cat "$racine_tmp/rc8-err")" = "$2" ] || { echo "message : $(cat "$racine_tmp/rc8-err")"; return 1; }
+  [ "$(rc8_agents)" = "$avant" ] || { echo ".claude modifié"; return 1; }
+  [ "$(rc8_hors_claude)" = "$hors" ] || { echo "fichier écrit hors de .claude : $(diff <(printf '%s\n' "$hors") <(rc8_hors_claude) | head -3)"; return 1; }
+}
+
+# CA-43 : contenu livré de roles.conf, une entrée par prompt à name:, lignes vides, commentaires et blancs de bord sans effet.
+rc8_noms_prompts() { # noms (name:) des prompts de factory/prompts/ du dépôt, triés
+  local f
+  if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD factory/prompts/ | grep '\.md$'; else (cd "$depot" && ls factory/prompts/*.md); fi | while IFS= read -r f; do
+    lire_depot "$depot" "$f" | awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && /^name:/ { sub(/^name:[[:space:]]*/, ""); print; exit }'
+  done | LC_ALL=C sort
+}
+rc8_attendu="$(printf '%s\n' 'code-reviewer|Read, Glob, Grep, Bash||' 'code-reviewer-conformite|Read, Glob, Grep, Bash|sonnet|medium' 'code-reviewer-qualite|Read, Glob, Grep, Bash|sonnet|medium' 'code-reviewer-securite|Read, Glob, Grep, Bash|opus|high' 'developer|Read, Write, Edit, Glob, Grep, Bash||' 'spec-writer|Read, Write, Glob, Grep||')"
+verifier "ca43_roles_conf_livre_une_entree_par_role_avec_outils_modele_et_effort_d_avant_d60" 0 "" test "$(lire_depot "$depot" $rc8_conf | rc8_normaliser | LC_ALL=C sort)" = "$(printf '%s\n' "$rc8_attendu" | LC_ALL=C sort)"
+verifier "ca43_roles_conf_livre_chaque_entree_a_exactement_quatre_champs" 0 "" test "$(lire_depot "$depot" $rc8_conf | grep -v '^[[:space:]]*\(#\|$\)' | awk -F'|' 'NF != 4' | wc -l | tr -d ' ')" = 0 -a -n "$(lire_depot "$depot" $rc8_conf)"
+verifier "ca43_les_roles_de_roles_conf_sont_exactement_les_name_des_prompts" 0 "" test "$(rc8_noms_prompts | tr '\n' ' ')" = "$rc8_roles_livres "
+d="$(rc8_depot ca43)"; cd "$d" || exit 1
+./factory/sync-claude.sh >/dev/null 2>&1; rc8_livre="$(rc8_agents)"
+{ printf '\n# commentaire\n   # commentaire indenté\n\t# commentaire après une tabulation\n\n'
+  rc8_normaliser < "$rc8_conf" | awk -F'|' '{ printf " \t%s  |\t %s \t|  %s\t | %s  \n\n", $1, $2, $3, $4 }'; } > "$racine_tmp/rc8-blancs" && cp "$racine_tmp/rc8-blancs" "$rc8_conf"
+rc8_ca43_blancs() { rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 && [ "$(rc8_agents)" = "$rc8_livre" ]; }
+verifier "ca43_lignes_vides_commentaires_indentes_et_blancs_de_bord_enveloppes_identiques_au_fichier_livre" 0 "" rc8_ca43_blancs
+
+# CA-44 : en-têtes réduits à name, description, skills ; corps inchangés ; un champ obsolète arrête sync-claude.sh avant toute écriture.
+rc8_entete_cles() { lire_depot "$depot" "$1" | awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 { sub(/:.*/, ""); print }' | tr '\n' ' '; }
+rc8_corps() { lire_depot "$depot" "$1" | awk 'f >= 2 { print } /^---$/ { f++ }' | shasum -a 256 | cut -d' ' -f1; }
+for rc8_r in spec-writer:6c61c28464717ddb3dfd908107fbd2d9cbdc3ff0292898af664a43dd80c8db78 developer:e0ac8afdcba927b0951ee52acb647fb2ef3e1892af4dbefa59492a48154bfd44 code-reviewer:e3890681e9759afc3664c7fb1c88448bac08d80660e0f40ec38e738fdcc8cbb3 code-reviewer-conformite:091eafc8599ac900a9da92110afdbad09f95bd0e3207cdc4a25b46c2792152f4 code-reviewer-qualite:f9c817e72546083e406f1e2813642f67bb33344a4b026cfa43aee3a1c92d53a6 code-reviewer-securite:82f011e8aec83b77aa058d26d5af458a730c77e0c21d7990ae962e9a8b31fc71; do
+  verifier "ca44_${rc8_r%%:*}_en_tete_limite_a_name_description_skills" 0 "" test "$(rc8_entete_cles "factory/prompts/${rc8_r%%:*}.md")" = "name description skills "
+  verifier "ca44_${rc8_r%%:*}_corps_du_prompt_inchange_depuis_avant_d60" 0 "" test "$(rc8_corps "factory/prompts/${rc8_r%%:*}.md")" = "${rc8_r#*:}"
+done
+d="$(rc8_depot ca44)"; cd "$d" || exit 1
+./factory/sync-claude.sh >/dev/null 2>&1; cp factory/prompts/developer.md "$racine_tmp/rc8-developer.md"
+for rc8_c in 'tools: Read, Bash' 'model: haiku' 'effort: high'; do
+  awk -v c="$rc8_c" 'NR == 2 { print; print c; next } { print }' "$racine_tmp/rc8-developer.md" > factory/prompts/developer.md
+  verifier "ca44_en_tete_avec_${rc8_c%%:*}_code_1_message_nommant_le_prompt_et_roles_conf_rien_ecrit" 0 "" rc8_refus 1 "Erreur : en-tête de factory/prompts/developer.md : le champ ${rc8_c%%:*} n'a plus cours ; les outils, le modèle et l'effort d'un rôle se règlent dans factory/claude/roles.conf."
+done
+cp "$racine_tmp/rc8-developer.md" factory/prompts/developer.md
+
+# CA-45 : les outils ne se règlent que dans roles.conf ; modèle et effort d'un rôle non relecteur : entrée, puis AGENT_MODELE / AGENT_EFFORT.
+d="$(rc8_depot ca45)"; cd "$d" || exit 1
+printf 'AGENT_TOOLS_SECURITE=Read, Write\nTOOLS=Write\n' > .factory.conf; printf 'AGENT_OUTILS_DEVELOPER=Bash\n' > .factory.local.conf
+rc8_ca45_outils() { # rc8_ca45_outils <suffixe attendu> : chaque enveloppe porte les outils de son entrée
+  rm -rf .claude/agents; env FACTORY_TOOLS=Write FACTORY_AGENT_TOOLS_SECURITE='Read, Write' ./factory/sync-claude.sh >/dev/null 2>&1 || return 1
+  [ "$(rc8_outils spec-writer)" = "tools: Read, Write, Glob, Grep$1" ] && [ "$(rc8_outils developer)" = "tools: Read, Write, Edit, Glob, Grep, Bash$1" ] || { rc8_outils developer; return 1; }
+  local r; for r in code-reviewer code-reviewer-conformite code-reviewer-qualite code-reviewer-securite; do [ "$(rc8_outils $r)" = "tools: Read, Glob, Grep, Bash$1" ] || { rc8_outils $r; return 1; }; done
+}
+verifier "ca45_cles_d_outils_en_configuration_sans_effet_suivi_absent" 0 "" rc8_ca45_outils ""
+mkdir -p "$HOME/.claude/plugins"; echo '{"plugins":{"savvy-progress@x":[]}}' > "$HOME/.claude/plugins/installed_plugins.json"
+verifier "ca45_cles_d_outils_en_configuration_sans_effet_suivi_present" 0 "" rc8_ca45_outils ", mcp__savvy-progress__step"
+rm -f "$HOME/.claude/plugins/installed_plugins.json" .factory.local.conf
+rc8_entree developer 'developer | Read, Write, Edit, Glob, Grep, Bash | x | high'; printf 'AGENT_MODELE=y\nAGENT_EFFORT=low\n' > .factory.conf
+rc8_ca45() { ./factory/sync-claude.sh >/dev/null 2>&1 && "$@"; }
+verifier "ca45_entree_developer_x_high_l_emporte_sur_agent_modele_y_et_agent_effort_low" 0 "" rc8_ca45 eval 'rc8_champ developer "model: x" && rc8_champ developer "effort: high"'
+rc8_entree developer 'developer | Read, Write, Edit, Glob, Grep, Bash | | '
+verifier "ca45_entree_developer_vide_agent_modele_y_et_agent_effort_low" 0 "" rc8_ca45 eval 'rc8_champ developer "model: y" && rc8_champ developer "effort: low"'
+printf 'AGENT_MODELE=\nAGENT_EFFORT=\n' > .factory.conf
+verifier "ca45_entree_vide_et_agent_modele_agent_effort_vides_ni_model_ni_effort" 0 "" rc8_ca45 eval 'rc8_sans_champ developer model && rc8_sans_champ developer effort'
+rm -f .factory.conf
+
+# CA-46 : cohérence entre roles.conf et les prompts, vérifiée avant toute écriture.
+d="$(rc8_depot ca46)"; cd "$d" || exit 1
+./factory/sync-claude.sh >/dev/null 2>&1; cp "$rc8_conf" "$racine_tmp/rc8-conf-livre"
+printf 'role-orphelin | Read | | \n' >> "$rc8_conf"
+verifier "ca46_a_entree_sans_prompt_code_1_message_nommant_le_role_rien_ecrit" 0 "" rc8_refus 1 "Erreur : factory/claude/roles.conf : le rôle role-orphelin n'est le name: d'aucun prompt de factory/prompts/."
+cp "$racine_tmp/rc8-conf-livre" "$rc8_conf"; printf -- '---\nname: role-nouveau\ndescription: Rôle ajouté (test).\n---\n# Rôle\n' > factory/prompts/role-nouveau.md
+verifier "ca46_b_prompt_sans_entree_code_1_message_nommant_le_prompt_rien_ecrit" 0 "" rc8_refus 1 "Erreur : factory/prompts/role-nouveau.md n'a pas d'entrée de rôle dans factory/claude/roles.conf."
+rm factory/prompts/role-nouveau.md; printf 'developer | Bash | | \n' >> "$rc8_conf"
+verifier "ca46_c_deux_entrees_developer_code_1_message_nommant_le_role_rien_ecrit" 0 "" rc8_refus 1 "Erreur : factory/claude/roles.conf : deux entrées pour le rôle developer."
+rm "$rc8_conf"
+verifier "ca46_d_roles_conf_absent_code_1_message_nommant_le_fichier_rien_ecrit" 0 "" rc8_refus 1 "Erreur : factory/claude/roles.conf introuvable : il décrit les outils, le modèle et l'effort de chaque rôle."
+mkdir "$rc8_conf"
+verifier "ca46_e_roles_conf_dossier_code_1_rien_ecrit" 0 "" rc8_refus 1 "Erreur : factory/claude/roles.conf n'est pas un fichier régulier (dossier ou lien symbolique refusé)."
+rmdir "$rc8_conf"; ln -s "$racine_tmp/rc8-conf-livre" "$rc8_conf"
+verifier "ca46_e_roles_conf_lien_symbolique_code_1_rien_ecrit" 0 "" rc8_refus 1 "Erreur : factory/claude/roles.conf n'est pas un fichier régulier (dossier ou lien symbolique refusé)."
+rm "$rc8_conf"
+rc8_taille() { # rc8_taille <octets> : roles.conf livré complété par une ligne de commentaire jusqu'à cette taille exacte
+  local n=$(( $1 - $(wc -c < "$racine_tmp/rc8-conf-livre") - 2 ))
+  { cat "$racine_tmp/rc8-conf-livre"; printf '#'; head -c "$n" /dev/zero | tr '\0' 'x'; printf '\n'; } > "$rc8_conf"
+}
+rc8_taille 65537
+verifier "ca46_e_roles_conf_de_65537_octets_code_1_rien_ecrit" 0 "" rc8_refus 1 "Erreur : factory/claude/roles.conf dépasse 64 Kio."
+rc8_taille 65536; rc8_borne() { rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 && [ -f .claude/agents/developer.md ] && [ "$(wc -c < "$rc8_conf" | tr -d ' ')" = 65536 ]; }
+verifier "ca46_e_roles_conf_de_65536_octets_accepte" 0 "" rc8_borne
+cp "$racine_tmp/rc8-conf-livre" "$rc8_conf"; printf -- '---\ndescription: Prompt sans name.\n---\n# Libre\n' > factory/prompts/libre.md
+rc8_ca46_f() { rc8_sync; [ "$rc8_code" -eq 0 ] && [ ! -e .claude/agents/libre.md ] && [ -f .claude/agents/developer.md ]; }
+verifier "ca46_f_prompt_sans_name_ni_entree_code_0_sans_enveloppe" 0 "" rc8_ca46_f
+rm factory/prompts/libre.md
+
+# CA-47 : un relecteur n'a jamais d'outil d'écriture, quelle que soit son entrée ; les autres rôles gardent leur liste telle quelle.
+d="$(rc8_depot ca47)"; cd "$d" || exit 1
+rc8_ca47() { # rc8_ca47 <liste d'outils> <suffixe attendu> : les trois relecteurs déclarent la liste ; leurs enveloppes n'en gardent que la lecture
+  local r; for r in code-reviewer-conformite code-reviewer-qualite code-reviewer-securite; do rc8_entree $r "$r | $1 | sonnet | medium"; done
+  rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 || return 1
+  for r in code-reviewer-conformite code-reviewer-qualite code-reviewer-securite; do [ "$(rc8_outils $r)" = "tools: Read, Glob, Grep, Bash$2" ] || { rc8_outils $r; return 1; }; done
+}
+rc8_ecriture='Read, Write, Glob, Edit, MultiEdit, NotebookEdit, Grep, Bash'
+verifier "ca47_relecteurs_declarant_write_edit_multiedit_notebookedit_enveloppes_en_lecture_seule" 0 "" rc8_ca47 "$rc8_ecriture" ""
+verifier "ca47_relecteurs_casse_melangee_et_blancs_enveloppes_en_lecture_seule" 0 "" rc8_ca47 "$(printf ' Read ,\twrite , Glob,  EDIT ,multiEdit\t, NOTEBOOKEDIT ,Grep,Bash ')" ""
+mkdir -p "$HOME/.claude/plugins"; echo '{"plugins":{"savvy-progress@x":[]}}' > "$HOME/.claude/plugins/installed_plugins.json"
+verifier "ca47_relecteurs_en_lecture_seule_suivis_de_l_outil_de_suivi_si_le_plugin_est_installe" 0 "" rc8_ca47 "$rc8_ecriture" ", mcp__savvy-progress__step"
+rm -f "$HOME/.claude/plugins/installed_plugins.json"
+rc8_entree developer "developer | $rc8_ecriture | | "
+verifier "ca47_developer_garde_sa_liste_dans_le_meme_ordre_au_separateur_virgule_espace" 0 "" rc8_ca45 eval '[ "$(rc8_outils developer)" = "tools: $rc8_ecriture" ]'
+
+# CA-48 : enveloppes identiques à celles d'avant D-60 (références figées, générées avec les prompts d'avant), hors la ligne de commentaire corrigée.
+# ca48_sorties <dossier de travail> : depuis la racine d'une copie de la factory, enveloppes des huit configurations, concaténées (format de la référence).
+ca48_sorties() {
+  local cfg suivi f
+  mkdir -p "$1/suivi-present/.claude/plugins" "$1/suivi-absent"
+  echo '{"plugins":{"savvy-progress@x":[]}}' > "$1/suivi-present/.claude/plugins/installed_plugins.json"
+  for cfg in vide haiku-low vides six-cles; do
+    for suivi in absent present; do
+      rm -rf .claude/agents; rm -f .factory.conf .factory.local.conf
+      case "$cfg" in
+        haiku-low) printf 'AGENT_MODELE=haiku\nAGENT_EFFORT=low\n' > .factory.conf ;;
+        vides) printf 'AGENT_MODELE=\nAGENT_EFFORT=\n' > .factory.conf ;;
+        six-cles) printf 'AGENT_MODELE_CONFORMITE=haiku\nAGENT_EFFORT_CONFORMITE=low\nAGENT_MODELE_QUALITE=claude-opus-9\nAGENT_EFFORT_QUALITE=max\nAGENT_MODELE_SECURITE=sonnet\nAGENT_EFFORT_SECURITE=xhigh\n' > .factory.conf ;;
+      esac
+      HOME="$1/suivi-$suivi" ./factory/sync-claude.sh >/dev/null 2>&1 || echo "ECHEC de sync-claude.sh : $cfg, suivi $suivi"
+      for f in .claude/agents/*.md; do [ -f "$f" ] || continue; echo "=== $cfg suivi-$suivi $(basename "$f")"; cat "$f"; done
+    done
+  done
+  rm -f .factory.conf
+}
+rc8_sans_commentaire() { grep -v '^<!-- Généré par factory/sync-claude\.sh\. .* -->$' "$1"; }
+d="$(rc8_depot ca48)"; cd "$d" || exit 1
+ca48_sorties "$racine_tmp/rc8-ca48-home" > "$racine_tmp/rc8-ca48.txt"
+verifier "ca48_huit_configurations_memes_fichiers_et_contenus_que_les_references_d_avant_d60_hors_ligne_de_commentaire" 0 "" diff <(rc8_sans_commentaire "$ici/golden/ca48-enveloppes.txt") <(rc8_sans_commentaire "$racine_tmp/rc8-ca48.txt")
+verifier "ca48_la_reference_porte_48_enveloppes_six_roles_huit_configurations" 0 "" test "$(grep -c '^=== ' "$ici/golden/ca48-enveloppes.txt")" = 48
+rc8_ca48_commentaire() { # chaque enveloppe a exactement la ligne de commentaire corrigée, qui renvoie au prompt et à roles.conf
+  local r; for r in $rc8_roles_livres; do
+    [ "$(grep -c '^<!-- Généré par' ".claude/agents/$r.md")" = 1 ] && grep -qxF "<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier le texte de factory/prompts/$r.md et l'entrée du rôle $r dans factory/claude/roles.conf -->" ".claude/agents/$r.md" || { grep '^<!--' ".claude/agents/$r.md"; return 1; }
+  done
+}
+verifier "ca48_ligne_de_commentaire_cite_le_prompt_et_roles_conf_sans_l_en_tete" 0 "" rc8_ca48_commentaire
+verifier "ca48_plus_aucune_enveloppe_ne_dit_de_modifier_l_en_tete" 1 "" grep -rq "l'en-tête" .claude/agents
+
+# CA-49 : roles.conf propre à Claude Code : ni lu ni requis sans lui ; défauts du modèle et de l'effort inchangés.
+d="$(rc8_depot ca49-sans)"; cd "$d" || exit 1; rm "$rc8_conf"; touch CLAUDE.md
+rc8_ca49() { ./factory/sync.sh "$@" >/dev/null 2>&1 && [ ! -e .claude/agents ]; }
+verifier "ca49_sync_sh_sans_claude_sans_roles_conf_code_0_sans_enveloppes" 0 "" rc8_ca49 --sans-claude
+rm CLAUDE.md
+verifier "ca49_sync_sh_sans_claude_md_sans_roles_conf_code_0_sans_enveloppes" 0 "" rc8_ca49
+rc8_lecteurs() { chercher_depot "$depot" 'roles\.conf' 'factory/scripts/tests/*' | sed 's/^HEAD://' | grep -E '^[^:]+\.(sh|awk):' | cut -d: -f1 | sort -u | tr '\n' ' '; } # scripts qui nomment roles.conf (hors tests)
+verifier "ca49_seul_sync_claude_sh_lit_roles_conf_parmi_les_scripts" 0 "" test "$(rc8_lecteurs)" = "factory/sync-claude.sh "
+printf 'MODE_REVUE=parallele\n' > .factory.conf
+verifier "ca49_config_factory_sans_agent_modele_ni_agent_effort_sonnet_et_medium" 0 "" test "$(bash factory/scripts/config-factory.sh | grep -E '^AGENT_(MODELE|EFFORT)=' | tr '\n' ' ')" = "AGENT_MODELE=sonnet AGENT_EFFORT=medium "
+
+# CS-02 (D-60) : une valeur hostile de roles.conf est refusée (64) avant toute écriture, message sans la valeur, rien d'exécuté.
+d="$(rc8_depot cs02)"; cd "$d" || exit 1
+./factory/sync-claude.sh >/dev/null 2>&1; cp "$rc8_conf" "$racine_tmp/rc8-conf-livre"
+rc8_numero_dev() { grep -n '^developer[ |]' "$racine_tmp/rc8-conf-livre" | cut -d: -f1; } # numéro de ligne de l'entrée developer dans le fichier livré
+# rc8_hostile <ligne hostile> <valeur qui ne doit pas paraître> <objet> : l'entrée developer remplacée par la ligne ; 64, message exact, aucune marque
+rc8_hostile() {
+  local n; n="$(rc8_numero_dev)"
+  awk -v n="$n" -v l="$1" 'NR == n { print l; next } { print }' "$racine_tmp/rc8-conf-livre" > "$rc8_conf"
+  rm -f marque
+  rc8_refus 64 "Erreur : factory/claude/roles.conf, ligne $n : $3" || return 1
+  [ ! -e marque ] && [ -z "$(find "$racine_tmp" -name marque -print -quit)" ] || { echo "fichier marque créé"; return 1; }
+  [ -z "$2" ] || case "$(cat "$racine_tmp/rc8-err" "$racine_tmp/rc8-out")" in *"$2"*) echo "valeur recopiée"; return 1 ;; esac
+}
+rc8_m_modele="modèle invalide (minuscules, chiffres, points et tirets, 64 caractères au plus, ou vide)."
+rc8_m_effort="effort invalide (low, medium, high, xhigh, max ou vide)."
+rc8_m_outils="outils invalides (liste non vide de noms séparés par des virgules ; un nom commence par une lettre, puis lettres, chiffres, _ ou -, 64 caractères au plus)."
+rc8_m_role="rôle invalide (minuscules, chiffres et tirets, commence par une minuscule ou un chiffre, 64 caractères au plus)."
+rc8_m_ligne="ligne invalide (1024 caractères au plus, aucun caractère de contrôle autre que la tabulation)."
+rc8_m_champs="quatre champs séparés par | attendus (rôle | outils | modèle | effort)."
+rc8_65="$(printf 'a%.0s' $(seq 1 65))"; rc8_64="${rc8_65:1}"
+for v in 'opus; x' OPUS '../opus' '$(touch marque)' "$rc8_65"; do
+  verifier "cs02_roles_conf_modele_hostile_« ${v:0:20} »_64_message_sans_la_valeur_rien_ecrit" 0 "" rc8_hostile "developer | Read | $v | " "$v" "$rc8_m_modele"
+done
+for v in ultra High; do
+  verifier "cs02_roles_conf_effort_hostile_« $v »_64_message_sans_la_valeur_rien_ecrit" 0 "" rc8_hostile "developer | Read | | $v" "$v" "$rc8_m_effort"
+done
+for v in '' 'Read,,Grep' 'Read; touch marque' 'Read, $(touch marque)' 'Read, `touch marque`' 'Read model: opus' 'Read, ---' "R$rc8_64"; do
+  verifier "cs02_roles_conf_outils_hostiles_« ${v:0:20} »_64_message_sans_la_valeur_rien_ecrit" 0 "" rc8_hostile "developer | $v | | " "${v:+$v}" "$rc8_m_outils"
+done
+for v in '../x' 'a/b' '-rf' '.hidden' 'Developer' "a$rc8_64"; do
+  verifier "cs02_roles_conf_role_hostile_« ${v:0:20} »_64_message_sans_la_valeur_rien_ecrit" 0 "" rc8_hostile "$v | Read | | " "$v" "$rc8_m_role"
+done
+rc8_long="developer | Read, $(printf 'a%.0s' $(seq 1 10000)) | | "
+verifier "cs02_roles_conf_ligne_de_10000_caracteres_64_rien_ecrit" 0 "" rc8_hostile "$rc8_long" "aaaaaaaaaaaaaaaaaaaa" "$rc8_m_ligne"
+verifier "cs02_roles_conf_retour_chariot_en_fin_de_champ_64_rien_ecrit" 0 "" rc8_hostile "$(printf 'developer | Read, Bash\r | | ')" "" "$rc8_m_ligne"
+verifier "cs02_roles_conf_sequence_esc_31m_64_rien_ecrit" 0 "" rc8_hostile "$(printf 'developer | Read | \033[31m | ')" "$(printf '\033[31m')" "$rc8_m_ligne"
+verifier "cs02_roles_conf_ligne_de_trois_champs_64_rien_ecrit" 0 "" rc8_hostile "developer | Read | sonnet" "" "$rc8_m_champs"
+verifier "cs02_roles_conf_ligne_de_cinq_champs_64_rien_ecrit" 0 "" rc8_hostile "developer | Read | sonnet | high | x" "" "$rc8_m_champs"
+# Bornes : à la limite accepté, à la limite + 1 refusé (modèle, nom d'outil, ligne).
+rc8_accepte() { # rc8_accepte <ligne> : l'entrée developer remplacée par la ligne est acceptée (code 0, enveloppe écrite)
+  awk -v n="$(rc8_numero_dev)" -v l="$1" 'NR == n { print l; next } { print }' "$racine_tmp/rc8-conf-livre" > "$rc8_conf"
+  rm -rf .claude/agents; ./factory/sync-claude.sh >/dev/null 2>&1 && [ -f .claude/agents/developer.md ]
+}
+verifier "cs02_roles_conf_modele_de_64_caracteres_accepte" 0 "" rc8_accepte "developer | Read | $rc8_64 | "
+verifier "cs02_roles_conf_nom_d_outil_de_64_caracteres_accepte" 0 "" rc8_accepte "developer | R${rc8_64:1} | | "
+rc8_l1024="developer | Read |$(printf ' %.0s' $(seq 1 1005))|"
+verifier "cs02_roles_conf_ligne_de_1024_caracteres_acceptee" 0 "" eval '[ "${#rc8_l1024}" -eq 1024 ] && rc8_accepte "$rc8_l1024"'
+verifier "cs02_roles_conf_ligne_de_1025_caracteres_refusee" 0 "" rc8_hostile "$rc8_l1024 " "" "$rc8_m_ligne"
+# Comportement choisi (non fixé par le PRD) : un relecteur dont l'entrée ne déclare que des outils d'écriture n'aurait plus aucun outil : refusé (64).
+rc8_relecteur_vide() { cp "$racine_tmp/rc8-conf-livre" "$rc8_conf"; rc8_entree code-reviewer-securite 'code-reviewer-securite | Write, Edit | opus | high'; rc8_refus 64 "Erreur : factory/claude/roles.conf, ligne $(grep -n '^code-reviewer-securite' "$rc8_conf" | cut -d: -f1) : outils invalides pour un relecteur (aucun outil hors Write, Edit, MultiEdit et NotebookEdit)."; }
+verifier "cs02_roles_conf_relecteur_sans_autre_outil_que_l_ecriture_64_rien_ecrit" 0 "" rc8_relecteur_vide
+cp "$racine_tmp/rc8-conf-livre" "$rc8_conf"
 
 echo
 if [ "$echecs" -eq 0 ]; then echo "TESTS OK : $total vérifications"; else echo "TESTS EN ECHEC : $echecs sur $total"; fi

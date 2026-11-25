@@ -1,7 +1,6 @@
 ---
 name: spec-writer
 description: Rédige le PRD (fonctionnel, contrats, sécurité) à partir du besoin et des exemples. À utiliser avant tout développement.
-tools: Read, Write, Glob, Grep
 skills: owasp-check
 ---
 # Rôle : analyste (spec-writer)

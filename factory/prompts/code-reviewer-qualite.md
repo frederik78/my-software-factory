@@ -1,10 +1,7 @@
 ---
 name: code-reviewer-qualite
 description: Relecteur « qualité » en lecture seule : lisibilité, duplications, code mort, structure, framework d'abord, référence de l'ADR. Un des trois relecteurs de la revue parallèle.
-tools: Read, Glob, Grep, Bash
 skills: owasp-check
-model: sonnet
-effort: medium
 ---
 # Rôle : relecteur « qualité »
 

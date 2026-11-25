@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # PROPRE À CLAUDE CODE : expose la factory à Claude Code. Utilisable seul, ou appelé par factory/sync.sh.
 #  - skills : lien symbolique .claude/skills -> ../factory/skills
-#  - rôles  : enveloppes .claude/agents/*.md générées depuis les en-têtes YAML de factory/prompts/*.md.
-#             Source unique : l'en-tête du prompt (name, description, tools, skills, model et effort facultatifs). Un prompt sans `name:` n'a pas
-#             d'enveloppe (l'orchestrateur n'a pas de prompt : c'est la session principale, décrite dans AGENTS.md).
-#             Modèle et effort : en-tête du prompt, sinon AGENT_MODELE et AGENT_EFFORT (voir lib-config.sh) ; valeur vide = champ absent, l'agent hérite de la session.
+#  - rôles  : une enveloppe .claude/agents/<rôle>.md par prompt de factory/prompts/ ayant un `name:` (l'orchestrateur n'a pas de prompt : c'est la
+#             session principale, décrite dans AGENTS.md). L'en-tête du prompt, indépendant de l'outil, ne porte que name, description et skills ;
+#             outils, modèle et effort du rôle sont dans son entrée de factory/claude/roles.conf (PRD 006, D-60), que seul ce script lit.
+#             Modèle et effort : entrée du rôle, sinon AGENT_MODELE et AGENT_EFFORT (voir lib-config.sh) ; valeur vide = champ absent, l'agent hérite de la session.
 #             Exception : les trois relecteurs (code-reviewer-conformite, -qualite, -securite) ont chacun deux clés (AGENT_MODELE_<RÔLE>, AGENT_EFFORT_<RÔLE>)
-#             qui l'emportent sur l'en-tête ; leurs enveloppes n'ont jamais Write ni Edit, quel que soit MODE_REVUE (la génération ne dépend pas du mode).
+#             qui l'emportent sur leur entrée ; leurs enveloppes n'ont jamais Write, Edit, MultiEdit ni NotebookEdit, quel que soit MODE_REVUE.
+#             Les outils ne se règlent que dans roles.conf (aucune clé de configuration). Toute incohérence entre roles.conf et les prompts (code 1)
+#             et toute valeur invalide (code 64) arrêtent le script avant la moindre écriture.
 #  - suivi de progression : si le plugin savvy-progress est installé, son outil est ajouté aux agents et leur consigne l'utilise.
 #  - agents actifs : hooks SubagentStart / SubagentStop (factory/hook-agents-claude.sh) dans .claude/settings.local.json, lus par scripts/dashboard.sh.
 #
-# Noms d'outils : le champ `tools:` d'un prompt est recopié tel quel dans l'enveloppe ; ses valeurs (Read, Write, Edit, Glob, Grep, Bash,
-# mcp__savvy-progress__step...) sont donc des NOMS D'OUTILS DE CLAUDE CODE. Pour un autre outil, ce champ est ignoré (le texte du prompt
-# reste valable) et il faut traduire ces noms dans la configuration de l'outil.
+# Noms d'outils : les outils d'une entrée de roles.conf sont recopiés dans l'enveloppe ; ce sont des NOMS D'OUTILS DE CLAUDE CODE (Read, Write,
+# Edit, Glob, Grep, Bash, mcp__savvy-progress__step...). Un autre outil ignore roles.conf (le texte du prompt reste valable) et traduit ces noms
+# dans sa propre configuration.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -21,14 +23,14 @@ cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib-config.sh
 . factory/scripts/lib-config.sh
 # Ces valeurs sont écrites dans un en-tête YAML : une valeur hors format pourrait y ajouter un champ, par exemple des outils.
-modele_valide() { # modele_valide <clé> <valeur> : minuscules, chiffres, points, tirets, 64 caractères au plus, ou vide ; sinon code 64 sans recopier la valeur
-  [[ "$2" =~ ^([a-z0-9][a-z0-9.-]*)?$ ]] && [ "${#2}" -le 64 ] && return 0
+modele_forme() { [[ "$1" =~ ^([a-z0-9][a-z0-9.-]*)?$ ]] && [ "${#1}" -le 64 ]; } # minuscules, chiffres, points, tirets, 64 caractères au plus, ou vide
+effort_forme() { case "$1" in ''|low|medium|high|xhigh|max) return 0 ;; esac; return 1; }
+modele_valide() { # modele_valide <clé> <valeur> : sinon code 64 sans recopier la valeur
+  modele_forme "$2" && return 0
   echo "$1 invalide : minuscules, chiffres, points et tirets, ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_$1)." >&2; exit 64
 }
 effort_valide() { # effort_valide <clé> <valeur>
-  case "$2" in
-    ''|low|medium|high|xhigh|max) return 0 ;;
-  esac
+  effort_forme "$2" && return 0
   echo "$1 invalide : low, medium, high, xhigh, max ou vide attendu (voir .factory.conf, .factory.local.conf, FACTORY_$1)." >&2; exit 64
 }
 modele_defaut="$(config_valeur AGENT_MODELE "$AGENT_MODELE_DEFAUT")"
@@ -42,9 +44,6 @@ for role in CONFORMITE QUALITE SECURITE; do
   config_valeur_exacte "AGENT_EFFORT_$role" ""; effort_valide "AGENT_EFFORT_$role" "$CONFIG_VALEUR"; printf -v "effort_surcharge_$role" '%s' "$CONFIG_VALEUR"
 done
 
-mkdir -p .claude
-ln -sfn ../factory/skills .claude/skills
-
 # Valeur d'un champ de l'en-tête YAML (entre les deux premières lignes `---`).
 champ() { # champ <fichier> <clé>
   awk -v k="$2" '
@@ -53,11 +52,98 @@ champ() { # champ <fichier> <clé>
     NR > 1 && index($0, k ":") == 1 { sub("^" k ":[[:space:]]*", ""); print; exit }
   ' "$1"
 }
+# Premier champ de l'en-tête qui n'a plus cours depuis D-60 (tools, model, effort : ils sont dans roles.conf), vide s'il n'y en a pas.
+champ_obsolete() { # champ_obsolete <fichier>
+  awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && /^(tools|model|effort):/ { sub(/:.*/, ""); print; exit }' "$1"
+}
 
-# Un relecteur est en lecture seule : ni Write, Edit, MultiEdit ni NotebookEdit (casse indifférente), quel que soit le mode de revue et même si son prompt les déclare.
+# Un relecteur est en lecture seule : ni Write, Edit, MultiEdit ni NotebookEdit (casse indifférente), quel que soit le mode de revue et même si son entrée les déclare.
 sans_ecriture() { # sans_ecriture <outils séparés par des virgules>
   printf '%s' "$1" | awk -v RS=, '{ gsub(/^[ \t]+|[ \t]+$/, "") } $0 != "" && tolower($0) !~ /^(write|edit|multiedit|notebookedit)$/ { printf "%s%s", (n++ ? ", " : ""), $0 }'
 }
+relecteur() { # relecteur <rôle> : suffixe des clés du relecteur (CONFORMITE, QUALITE, SECURITE), vide pour un autre rôle
+  case "$1" in code-reviewer-conformite) echo CONFORMITE ;; code-reviewer-qualite) echo QUALITE ;; code-reviewer-securite) echo SECURITE ;; esac
+}
+
+# --- factory/claude/roles.conf : outils, modèle et effort de chaque rôle (RG-31). Donnée non fiable : chaque champ est validé en liste blanche et
+# jamais évalué ; un message d'erreur cite au plus le numéro de ligne, jamais la valeur. Tout est vérifié avant la première écriture.
+roles_conf=factory/claude/roles.conf
+blancs=$' \t'
+sans_blancs() { # sans_blancs <valeur> : range dans SANS_BLANCS la valeur sans espaces ni tabulations de bord
+  SANS_BLANCS="${1#"${1%%[!$blancs]*}"}"; SANS_BLANCS="${SANS_BLANCS%"${SANS_BLANCS##*[!$blancs]}"}"
+}
+roles_refus() { echo "Erreur : $roles_conf, ligne $1 : $2" >&2; exit 64; } # roles_refus <numéro de ligne> <règle>
+roles_incoherent() { echo "Erreur : $1" >&2; exit 1; }
+if [ -L "$roles_conf" ] || { [ -e "$roles_conf" ] && [ ! -f "$roles_conf" ]; }; then
+  roles_incoherent "$roles_conf n'est pas un fichier régulier (dossier ou lien symbolique refusé)."
+fi
+[ -f "$roles_conf" ] || roles_incoherent "$roles_conf introuvable : il décrit les outils, le modèle et l'effort de chaque rôle."
+[ "$(wc -c < "$roles_conf" | tr -d ' ')" -le 65536 ] || roles_incoherent "$roles_conf dépasse 64 Kio."
+ligne_invalide="ligne invalide (1024 caractères au plus, aucun caractère de contrôle autre que la tabulation)."
+nb_roles=0; numero=0
+while IFS= read -r ligne || [ -n "$ligne" ]; do
+  numero=$((numero + 1))
+  sans_blancs "$ligne"; case "$SANS_BLANCS" in ''|'#'*) continue ;; esac
+  [ "${#ligne}" -le 1024 ] || roles_refus "$numero" "$ligne_invalide"
+  case "${ligne//$'\t'/}" in *[[:cntrl:]]*) roles_refus "$numero" "$ligne_invalide" ;; esac
+  separateurs="${ligne//[!|]/}"
+  [ "${#separateurs}" -eq 3 ] || roles_refus "$numero" "quatre champs séparés par | attendus (rôle | outils | modèle | effort)."
+  sans_blancs "${ligne%%|*}"; role="$SANS_BLANCS"; reste="${ligne#*|}"
+  liste="${reste%%|*}"; reste="${reste#*|}"
+  sans_blancs "${reste%%|*}"; modele="$SANS_BLANCS"
+  sans_blancs "${reste#*|}"; effort="$SANS_BLANCS"
+  [[ "$role" =~ ^[a-z0-9][a-z0-9-]*$ ]] && [ "${#role}" -le 64 ] \
+    || roles_refus "$numero" "rôle invalide (minuscules, chiffres et tirets, commence par une minuscule ou un chiffre, 64 caractères au plus)."
+  outils=; reste="$liste,"
+  while [ -n "$reste" ]; do
+    sans_blancs "${reste%%,*}"; reste="${reste#*,}"
+    [[ "$SANS_BLANCS" =~ ^[A-Za-z][A-Za-z0-9_-]*$ ]] && [ "${#SANS_BLANCS}" -le 64 ] \
+      || roles_refus "$numero" "outils invalides (liste non vide de noms séparés par des virgules ; un nom commence par une lettre, puis lettres, chiffres, _ ou -, 64 caractères au plus)."
+    outils="${outils:+$outils, }$SANS_BLANCS"
+  done
+  modele_forme "$modele" || roles_refus "$numero" "modèle invalide (minuscules, chiffres, points et tirets, 64 caractères au plus, ou vide)."
+  effort_forme "$effort" || roles_refus "$numero" "effort invalide (low, medium, high, xhigh, max ou vide)."
+  if [ -n "$(relecteur "$role")" ]; then
+    outils="$(sans_ecriture "$outils")"
+    [ -n "$outils" ] || roles_refus "$numero" "outils invalides pour un relecteur (aucun outil hors Write, Edit, MultiEdit et NotebookEdit)."
+  fi
+  noms_roles[nb_roles]="$role"; outils_roles[nb_roles]="$outils"; modeles_roles[nb_roles]="$modele"; efforts_roles[nb_roles]="$effort"; pris_roles[nb_roles]=
+  nb_roles=$((nb_roles + 1))
+done < "$roles_conf"
+entree_du_role() { # entree_du_role <rôle> : range dans ENTREE l'indice de l'entrée du rôle ; code 1 s'il n'en a pas
+  ENTREE=0
+  while [ "$ENTREE" -lt "$nb_roles" ]; do [ "${noms_roles[ENTREE]}" = "$1" ] && return 0; ENTREE=$((ENTREE + 1)); done
+  return 1
+}
+i=0
+while [ "$i" -lt "$nb_roles" ]; do
+  entree_du_role "${noms_roles[i]}"; [ "$ENTREE" -eq "$i" ] || roles_incoherent "$roles_conf : deux entrées pour le rôle ${noms_roles[i]}."
+  i=$((i + 1))
+done
+
+# --- Prompts : chacun à `name:` a une description, aucun champ obsolète et une entrée de rôle ; chaque entrée est le `name:` d'un prompt (RG-32, RG-34).
+nb_agents=0
+for prompt in factory/prompts/*.md; do
+  [ -f "$prompt" ] || continue
+  nom="$(champ "$prompt" name)"
+  [ -n "$nom" ] || continue
+  obsolete="$(champ_obsolete "$prompt")"
+  [ -z "$obsolete" ] || roles_incoherent "en-tête de $prompt : le champ $obsolete n'a plus cours ; les outils, le modèle et l'effort d'un rôle se règlent dans $roles_conf."
+  desc="$(champ "$prompt" description)"
+  [ -n "$desc" ] || { echo "En-tête incomplet (description requise) : $prompt" >&2; exit 1; }
+  entree_du_role "$nom" || roles_incoherent "$prompt n'a pas d'entrée de rôle dans $roles_conf."
+  pris_roles[ENTREE]=oui
+  agents_entree[nb_agents]="$ENTREE"; agents_desc[nb_agents]="$desc"; agents_skills[nb_agents]="$(champ "$prompt" skills)"
+  nb_agents=$((nb_agents + 1))
+done
+i=0
+while [ "$i" -lt "$nb_roles" ]; do
+  [ -n "${pris_roles[i]}" ] || roles_incoherent "$roles_conf : le rôle ${noms_roles[i]} n'est le name: d'aucun prompt de factory/prompts/."
+  i=$((i + 1))
+done
+
+mkdir -p .claude
+ln -sfn ../factory/skills .claude/skills
 
 progression=0
 if grep -qs 'savvy-progress' "${HOME}/.claude/plugins/installed_plugins.json" 2>/dev/null; then
@@ -66,23 +152,17 @@ fi
 
 mkdir -p .claude/agents
 generes=()
-for prompt in factory/prompts/*.md; do
-  nom="$(champ "$prompt" name)"
-  [ -n "$nom" ] || continue
-  desc="$(champ "$prompt" description)"
-  outils="$(champ "$prompt" tools)"
-  skills="$(champ "$prompt" skills)"
-  # Précédence d'un relecteur : sa clé de configuration, puis l'en-tête de son prompt, puis AGENT_MODELE / AGENT_EFFORT (exception à « l'en-tête l'emporte »).
-  role=; case "$nom" in code-reviewer-conformite) role=CONFORMITE ;; code-reviewer-qualite) role=QUALITE ;; code-reviewer-securite) role=SECURITE ;; esac
-  modele="$(champ "$prompt" model)"; effort="$(champ "$prompt" effort)"
+a=0
+while [ "$a" -lt "$nb_agents" ]; do
+  e="${agents_entree[a]}"; nom="${noms_roles[e]}"; desc="${agents_desc[a]}"; skills="${agents_skills[a]}"; outils="${outils_roles[e]}"
+  # Précédence d'un relecteur : sa clé de configuration, puis son entrée de roles.conf, puis AGENT_MODELE / AGENT_EFFORT (exception à « l'entrée l'emporte »).
+  modele="${modeles_roles[e]}"; effort="${efforts_roles[e]}"; role="$(relecteur "$nom")"
   if [ -n "$role" ]; then
     surcharge="modele_surcharge_$role"; [ -z "${!surcharge}" ] || modele="${!surcharge}"
     surcharge="effort_surcharge_$role"; [ -z "${!surcharge}" ] || effort="${!surcharge}"
   fi
   [ -n "$modele" ] || modele="$modele_defaut"
   [ -n "$effort" ] || effort="$effort_defaut"
-  [ -n "$desc" ] && [ -n "$outils" ] || { echo "En-tête incomplet (description et tools requis) : $prompt" >&2; exit 1; }
-  [ -z "$role" ] || outils="$(sans_ecriture "$outils")"
   [ "$progression" -eq 1 ] && outils="$outils, mcp__savvy-progress__step"
   {
     echo "---"
@@ -96,7 +176,7 @@ for prompt in factory/prompts/*.md; do
       for s in $skills; do echo "  - $s"; done
     fi
     echo "---"
-    echo "<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier l'en-tête et le texte de factory/prompts/$nom.md -->"
+    echo "<!-- Généré par factory/sync-claude.sh. Ne pas éditer : modifier le texte de factory/prompts/$nom.md et l'entrée du rôle $nom dans factory/claude/roles.conf -->"
     echo "Lis et applique intégralement \`factory/prompts/$nom.md\` (ignore son en-tête YAML)."
     echo "Ton rapport de fin de mission suit \`factory/prompts/report-format.md\`."
     if [ "$progression" -eq 1 ]; then
@@ -110,6 +190,7 @@ for prompt in factory/prompts/*.md; do
     fi
   } > ".claude/agents/$nom.md"
   generes+=("$nom")
+  a=$((a + 1))
 done
 
 # Hooks des agents actifs, dans .claude/settings.local.json et PAS dans settings.json : worktree-issue.sh creer lance sync.sh dans chaque

@@ -1,7 +1,6 @@
 ---
 name: code-reviewer
 description: Revue de code et de sécurité OWASP en lecture seule. À utiliser après chaque implémentation.
-tools: Read, Glob, Grep, Bash
 skills: owasp-check
 ---
 # Rôle : reviewer

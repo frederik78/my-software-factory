@@ -1,10 +1,7 @@
 ---
 name: code-reviewer-conformite
 description: Relecteur « conformité et tests » en lecture seule : conformité à l'issue et au PRD, un test par critère, preuve avant / après, build, mutations. Un des trois relecteurs de la revue parallèle.
-tools: Read, Glob, Grep, Bash
 skills: owasp-check
-model: sonnet
-effort: medium
 ---
 # Rôle : relecteur « conformité et tests »
 

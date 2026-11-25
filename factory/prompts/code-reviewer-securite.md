@@ -1,10 +1,7 @@
 ---
 name: code-reviewer-securite
 description: Relecteur « sécurité » en lecture seule : catégories OWASP A01 à A10, tests de sécurité des critères CS, dépendances. Passe sur toutes les issues. Un des trois relecteurs de la revue parallèle.
-tools: Read, Glob, Grep, Bash
 skills: owasp-check
-model: opus
-effort: high
 ---
 # Rôle : relecteur « sécurité »
 

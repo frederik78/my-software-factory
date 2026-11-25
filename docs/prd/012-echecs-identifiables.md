@@ -6,16 +6,16 @@
 **Le problème.** La suite de tests de la factory (`factory/scripts/tests/run.sh`) écrit environ 2 600 lignes ; chaque échec y est une ligne `  ECHEC <nom>` suivie de sa raison, perdue au milieu des succès. `scripts/verify-clean.sh` lance cette suite dans une copie propre et, en échec, n'affiche que les 60 dernières lignes du journal puis le résumé `Tests : TESTS EN ECHEC : x sur n`. `scripts/fin-issue.sh` recopie cette sortie et finit par `FIN-ISSUE ECHEC : build en échec (code 1) ; …`. Aucun de ces endroits ne nomme le test en échec : le 2026-11-25, le cas `ca03` de 008-01 n'apparaissait nulle part dans la sortie lue.
 
 **Ce que ce besoin change**
-1. **La suite récapitule ses échecs** : juste avant sa ligne de résumé, une ligne par test en échec (nom et raison), dans l'ordre où ils ont échoué.
-2. **`verify-clean.sh` recopie ce récapitulatif** juste avant sa ligne `Tests : …`, borné (20 tests au plus, 300 caractères par ligne) et neutralisé (aucun caractère de contrôle).
-3. **`fin-issue.sh` le recopie aussi**, juste avant sa dernière ligne, avec les mêmes bornes.
+1. **La suite récapitule ses échecs** : juste avant sa ligne de résumé, une ligne par test en échec (nom et raison), dans l'ordre où ils ont échoué, sans borne (D-64).
+2. **`verify-clean.sh` recopie ce récapitulatif** juste avant sa ligne `Tests : …`, borné (20 tests au plus, 300 caractères par ligne, D-64) et neutralisé (aucun caractère de contrôle).
+3. **`fin-issue.sh` le répète** juste avant sa dernière ligne `FIN-ISSUE`, avec les mêmes bornes (D-63).
 4. **Rien d'autre ne bouge** : la ligne de résumé de la suite, les lignes `Tests : …`, `VERIFY …` et `FIN-ISSUE …`, et tous les codes de sortie restent identiques ; une suite sans échec a la même sortie qu'avant.
 
-**Hors de ce besoin** : nommer les échecs des autres outils de test (Maven, Gradle, unittest, pytest, jest, node:test : section 2.4) ; lire le nombre d'échecs de `TESTS EN ECHEC : x sur n` dans la dernière ligne de `fin-issue.sh` (Q-04) ; compter les échecs survenus dans un sous-processus de la suite (non comptés aujourd'hui, toujours non comptés) ; changer les lignes `  ECHEC` de la suite.
+**Hors de ce besoin** : nommer les échecs des autres outils de test (Maven, Gradle, unittest, pytest, jest, node:test : section 2.4, D-65) ; lire le nombre d'échecs de `TESTS EN ECHEC : x sur n` dans la dernière ligne de `fin-issue.sh` (besoin séparé, D-66) ; compter les échecs survenus dans un sous-processus de la suite (non comptés aujourd'hui, toujours non comptés) ; changer les lignes `  ECHEC` de la suite.
 
-**Comment lire la suite** : section 2, les règles (RG-xx) ; section 4, le catalogue des messages ; section 5, 14 critères ; section 6, 7 critères de sécurité ; section 7, décisions ; section 8, les questions ouvertes ; section 9, le découpage en 3 issues.
+**Comment lire la suite** : section 2, les règles (RG-xx) ; section 4, le catalogue des messages ; section 5, 14 critères ; section 6, 7 critères de sécurité ; section 7, décisions ; section 8, les questions tranchées ; section 9, le découpage en 3 issues.
 
-Besoin : F-17 (`backlog.md`, demandé par l'utilisateur le 2026-11-25 : « circuit besoin, PRD court, issues »). Aucune décision D-xx n'est encore prise pour F-17.
+Besoin : F-17 (`backlog.md`, demandé par l'utilisateur le 2026-11-25 : « circuit besoin, PRD court, issues »). Décisions : D-63 à D-66 (réponses de l'utilisateur du 2026-11-25 aux questions Q-01 à Q-04, section 7), à reporter au backlog par la session.
 Le « produit » est la factory elle-même (scripts bash, Markdown). Les noms de commande et les textes de sortie sont des contrats ; aucune structure de code n'est décrite.
 Contraintes de plateforme : bash 3.2 de macOS (pas d'options GNU) ; aucune dépendance ajoutée. Pas d'ADR.
 
@@ -29,7 +29,7 @@ Contraintes de plateforme : bash 3.2 de macOS (pas d'options GNU) ; aucune dépe
 ### Existant (observé à la lecture des scripts)
 - **Suite** (`run.sh`) : un succès écrit `  ok   <nom>` ; un échec écrit deux lignes, `  ECHEC <nom>` puis la raison indentée de 8 espaces (vide si l'appel n'en donne pas). La raison contient souvent un extrait de sortie de commande (5 premières lignes jointes par `|`), donc des caractères quelconques, y compris ESC ou retour chariot. La dernière ligne est `TESTS OK : <n> vérifications` ou `TESTS EN ECHEC : <x> sur <n>` ; code 0 ou 1. Rien n'est écrit après.
 - **`verify-clean.sh`** : la sortie du build va dans un journal (supprimé à la fin, sauf `--keep`). Sur code non nul : `--- Fin du journal du build (60 dernières lignes) ---` puis ces 60 lignes. Ensuite toujours `Tests : <résumé>` (dernier résumé de la suite reconnu par une ligne qui commence exactement par `TESTS OK : ` ou `TESTS EN ECHEC : `), éventuellement `Analyse statique : …`, puis `VERIFY OK` ou `VERIFY ECHEC (code <n>)`. Plusieurs types de résumé dans un journal donnent `Tests : plusieurs types de résumé (…)`. Les motifs de résumé sont ancrés en début de ligne.
-- **`fin-issue.sh`** : recopie toute la sortie de `verify-clean.sh`, puis celle du contrôle des critères, puis sa dernière ligne `FIN-ISSUE OK …` ou `FIN-ISSUE ECHEC : <raisons>`. Il lit le résumé dans la dernière ligne qui commence par `Tests : `. Pour `TESTS EN ECHEC : x sur n`, il ne lit ni total ni ignorés : raison « nombre de tests ignorés illisible dans le résumé (« TESTS EN ECHEC : x sur n »), aucun succès annoncé » (voir Q-04).
+- **`fin-issue.sh`** : recopie toute la sortie de `verify-clean.sh`, puis celle du contrôle des critères, puis sa dernière ligne `FIN-ISSUE OK …` ou `FIN-ISSUE ECHEC : <raisons>`. Il lit le résumé dans la dernière ligne qui commence par `Tests : `. Pour `TESTS EN ECHEC : x sur n`, il ne lit ni total ni ignorés : raison « nombre de tests ignorés illisible dans le résumé (« TESTS EN ECHEC : x sur n »), aucun succès annoncé » ; avec `FIN_ISSUE_IGNORES_AUTORISES=inconnu` et un build qui rend 0, `FIN-ISSUE OK`. Ce défaut est traité par un besoin séparé (D-66), pas ici.
 - **Tests qui figent ces sorties** (`run.sh`) : « résumé de la suite de la factory reconnu (succès) » et « (échec) » (`Tests : TESTS OK : 142 vérifications`, `Tests : TESTS EN ECHEC : 2 sur 145`, journal sans récapitulatif) ; cas `fin-issue` sur la suite de la factory (`FIN-ISSUE OK 001-01 … : 9 tests, 0 échec, 0 ignoré`) ; cas de lecture des résumés Maven, unittest, pytest, jest, node:test et « plusieurs types ». Ils doivent passer sans modification (CA-14).
 
 ### Besoin
@@ -42,24 +42,24 @@ Vocabulaire : **échec** = une vérification comptée dans le `x` de `TESTS EN E
 ### 2.1 Récapitulatif de la suite (F-17, exigence 1)
 - **RG-01 (forme)** Si la suite compte au moins un échec, elle écrit, après le dernier cas et juste avant sa ligne de résumé : une ligne `Récapitulatif des échecs (<x>) :`, puis exactement `<x>` lignes `  - <nom> : <raison>`, une par échec, dans l'ordre où les échecs se sont produits. La ligne de résumé suit immédiatement et reste la dernière ligne.
 - **RG-02 (contenu)** Un même nom en échec plusieurs fois donne autant de lignes. Une raison vide donne `(raison non précisée)`. Tout échec compté figure, qu'il vienne d'une vérification ordinaire ou d'un échec enregistré directement par la suite.
-- **RG-03 (une ligne par échec)** Nom et raison sont neutralisés dans le récapitulatif : chaque échec y tient sur une seule ligne, sans caractère de contrôle. Ils ne sont pas tronqués dans la suite (l'information complète reste dans son propre journal) [À CLARIFIER Q-02 : lecture retenue, pas de borne de longueur dans la suite].
+- **RG-03 (une ligne par échec, sans borne, D-64)** Nom et raison sont neutralisés dans le récapitulatif : chaque échec y tient sur une seule ligne, sans caractère de contrôle. Ni le nombre de lignes ni leur longueur ne sont bornés dans la suite : l'information complète reste dans son propre journal.
 - **RG-04 (inchangé)** Sans échec, rien n'est ajouté : la sortie est identique à celle de la version précédente. Avec échec, les lignes `  ECHEC <nom>` et leur raison restent écrites au fil de l'eau comme aujourd'hui ; la ligne de résumé, son format et le code de sortie (0 ou 1) sont inchangés.
 
 ### 2.2 `verify-clean.sh` (F-17, exigence 2)
 - **RG-05 (quand)** Le bloc est écrit si et seulement si la ligne `Tests : …` que le script écrit est `Tests : TESTS EN ECHEC : <x> sur <n>` (la suite de la factory seule, RG-15). Il est écrit après la section « Fin du journal » (si elle existe) et immédiatement avant la ligne `Tests : …`. Le code de sortie du build n'entre pas dans la condition.
 - **RG-06 (lecture du récapitulatif)** Le récapitulatif lu est celui qui précède immédiatement la dernière ligne de résumé de la suite dans le journal : une ligne `Récapitulatif des échecs (<x>) :` avec le même `<x>` que ce résumé, suivie d'exactement `<x>` lignes commençant par `  - `, sans autre ligne entre elles et le résumé. Tout autre cas (suite d'une version précédente sans récapitulatif, nombre différent, ligne intercalée, en-tête absent) donne l'en-tête « illisible » seul (catalogue, section 4) ; rien d'autre du journal n'est recopié.
-- **RG-07 (contenu du bloc)** En-tête `--- Tests en échec de la suite de la factory (<x>) ---`, puis, pour les 20 premiers échecs du récapitulatif dans leur ordre, une ligne `ECHEC <nom> : <raison>` ; si `<x>` dépasse 20, une dernière ligne `… et <x-20> autre(s) test(s) en échec non recopié(s)` [À CLARIFIER Q-02 : 20].
-- **RG-08 (bornes et neutralisation)** Chaque ligne du bloc est neutralisée (le journal est une donnée non fiable, même si la suite a déjà neutralisé), puis limitée à 300 caractères, suffixe `…` compris, sans jamais couper un caractère multioctet [À CLARIFIER Q-02 : 300]. Le bloc compte donc au plus 22 lignes.
+- **RG-07 (contenu du bloc, D-64)** En-tête `--- Tests en échec de la suite de la factory (<x>) ---`, puis, pour les 20 premiers échecs du récapitulatif dans leur ordre, une ligne `ECHEC <nom> : <raison>` ; si `<x>` dépasse 20, une dernière ligne `… et <x-20> autre(s) test(s) en échec non recopié(s)`.
+- **RG-08 (bornes et neutralisation, D-64)** Chaque ligne du bloc est neutralisée (le journal est une donnée non fiable, même si la suite a déjà neutralisé), puis limitée à 300 caractères, suffixe `…` compris, sans jamais couper un caractère multioctet. Le bloc compte donc au plus 22 lignes.
 - **RG-09 (inchangé)** La section « Fin du journal » (60 dernières lignes, brutes, comme aujourd'hui), la ligne `Tests : …`, la ligne `Analyse statique : …`, la ligne `VERIFY OK` ou `VERIFY ECHEC (code <n>)` et le code de sortie sont identiques à ceux de la version précédente pour le même journal. Aucune ligne du récapitulatif ni du bloc ne crée, ne modifie ni ne masque un type de résumé reconnu.
 - **RG-10 (coût)** Au plus une lecture supplémentaire du journal, de durée proportionnelle à sa taille ; aucun autre fichier lu ou écrit.
 
 ### 2.3 `fin-issue.sh` (F-17, exigence 2)
-- **RG-11 (quand et où)** Si le résumé lu dans la sortie de `verify-clean.sh` est `TESTS EN ECHEC : …`, `fin-issue.sh` recopie le bloc de `verify-clean.sh` (de la dernière ligne qui commence par `--- Tests en échec de la suite de la factory ` jusqu'à la ligne qui précède la dernière ligne `Tests : `) immédiatement avant sa dernière ligne, quelle qu'elle soit (`FIN-ISSUE ECHEC : …`, ou `FIN-ISSUE OK …` si une autorisation le permet). Sinon rien n'est ajouté [À CLARIFIER Q-01 : lecture retenue, recopie avant la dernière ligne].
-- **RG-12 (bornes)** Le bloc recopié compte au plus 22 lignes ; chaque ligne est neutralisée et limitée à 300 caractères comme en RG-08 (sans effet sur un bloc déjà conforme).
+- **RG-11 (quand et où, D-63)** Si le résumé lu dans la sortie de `verify-clean.sh` est `TESTS EN ECHEC : …`, `fin-issue.sh` répète le bloc de `verify-clean.sh` (de la dernière ligne qui commence par `--- Tests en échec de la suite de la factory ` jusqu'à la ligne qui précède la dernière ligne `Tests : `) immédiatement avant sa dernière ligne, quelle qu'elle soit (`FIN-ISSUE ECHEC : …`, ou `FIN-ISSUE OK …` si une autorisation le permet), en plus de la sortie de `verify-clean.sh` qu'il recopie déjà. Sinon rien n'est ajouté.
+- **RG-12 (bornes)** Le bloc répété compte au plus 22 lignes ; chaque ligne est neutralisée et limitée à 300 caractères comme en RG-08 (sans effet sur un bloc déjà conforme).
 - **RG-13 (inchangé)** La dernière ligne (`FIN-ISSUE OK …` ou `FIN-ISSUE ECHEC : <raisons>`) est identique octet pour octet à celle de la version précédente pour les mêmes entrées, ainsi que le code de sortie (0, 1, 64), la lecture du résumé et le reste de la sortie. Arrêt avant `verify-clean.sh` (arbre sale, fichiers marqués) ou `verify-clean.sh` en code 64 : rien n'est ajouté.
 
-### 2.4 Autres outils de test (exclus)
-- **RG-14 (exclusion explicite)** Pour Maven, Gradle, unittest, pytest, jest et node:test, rien ne change : aucun bloc, sortie de `verify-clean.sh` et de `fin-issue.sh` identique octet pour octet. Raison : chacun écrit déjà son propre récapitulatif d'échecs en fin de sortie (surefire « Failures: » et la liste des tests en échec, pytest « short test summary info », jest « Summary of all failing tests », node:test « failing tests: »), en général visible dans les 60 dernières lignes ; leur extraction serait un autre besoin [À CLARIFIER Q-03].
+### 2.4 Autres outils de test (exclus, D-65)
+- **RG-14 (exclusion explicite)** Pour Maven, Gradle, unittest, pytest, jest et node:test, rien ne change : aucun bloc, sortie de `verify-clean.sh` et de `fin-issue.sh` identique octet pour octet. Raison : chacun écrit déjà son propre récapitulatif d'échecs en fin de sortie (surefire « Failures: » et la liste des tests en échec, pytest « short test summary info », jest « Summary of all failing tests », node:test « failing tests: »), en général visible dans les 60 dernières lignes.
 - **RG-15 (plusieurs types de résumé)** Quand le journal contient la suite de la factory et un autre outil (`Tests : plusieurs types de résumé (…)`), aucun bloc n'est écrit, même si la suite a échoué.
 
 ### 2.5 Documentation, version
@@ -88,7 +88,7 @@ Inchangés : `TESTS OK : <n> vérifications`, `TESTS EN ECHEC : <x> sur <n>`, `-
 Ordre de la fin de sortie avec échecs de la suite :
 - suite : `… cas …`, `Récapitulatif des échecs (2) :`, `  - ca03_x : code 1 au lieu de 0 ; sortie : …`, `  - cs01_y : (raison non précisée)`, `TESTS EN ECHEC : 2 sur 2600` ;
 - `verify-clean.sh` : section « Fin du journal », `--- Tests en échec de la suite de la factory (2) ---`, `ECHEC ca03_x : …`, `ECHEC cs01_y : (raison non précisée)`, `Tests : TESTS EN ECHEC : 2 sur 2600`, `VERIFY ECHEC (code 1)` ;
-- `fin-issue.sh` : sortie de `verify-clean.sh`, sortie du contrôle des critères, le bloc (3 lignes), `FIN-ISSUE ECHEC : build en échec (code 1) ; …` (inchangée).
+- `fin-issue.sh` : sortie de `verify-clean.sh`, sortie du contrôle des critères, le bloc répété (3 lignes), `FIN-ISSUE ECHEC : build en échec (code 1) ; …` (inchangée).
 
 ## 5. Critères d'acceptation
 Les tests sont dans `factory/scripts/tests/run.sh`, nommés `ca01_…`, `cs01_…`. Seams : pour la suite, une exécution de la suite sur des cas factices dans un projet jetable (la garde contre la relance récursive reste active) ; pour `verify-clean.sh` et `fin-issue.sh`, un projet jetable dont la commande de build (`.factory-verify`) écrit un journal fabriqué, comme les cas existants. Non-régression « identique à la version précédente » : comparaison avec la sortie du script de la version précédente (copie tirée de l'historique ou sortie figée dans le test) sur le même journal.
@@ -126,7 +126,7 @@ Les tests sont dans `factory/scripts/tests/run.sh`, nommés `ca01_…`, `cs01_�
 - **A01, A02, A07, A10** : non applicables (aucune ressource par utilisateur, aucun secret, aucune identité, aucune requête sortante). Le journal reste dans la copie temporaire, supprimée comme aujourd'hui.
 - **A03 Injection** : noms et raisons recopiés comme du texte, jamais évalués, jamais utilisés comme motif, format d'impression ou option (CS-06) ; neutralisation des caractères de contrôle (CS-01, CS-02) ; préfixes fixes (`  - `, `ECHEC `) qui empêchent une ligne recopiée d'imiter un résumé (CS-05).
 - **A04 Conception** : la condition d'écriture du bloc est le résumé retenu, pas le contenu du journal ; le bloc est toujours écrit après le journal brut, donc un faux bloc dans le journal n'est jamais pris pour le vrai (CS-07) ; bornes de taille (CS-03, CS-04).
-- **A05 Configuration** : aucun réglage ajouté (bornes fixes, Q-02).
+- **A05 Configuration** : aucun réglage ajouté (bornes fixes, D-64).
 - **A06** : aucune dépendance ajoutée.
 - **A08 Intégrité** : les lignes lues par les machines et les codes de sortie sont inchangés (RG-09, RG-13).
 - **A09 Journalisation** : le bloc est un extrait borné ; il n'ajoute aucun contenu que le journal ne contenait pas.
@@ -135,7 +135,7 @@ Les tests sont dans `factory/scripts/tests/run.sh`, nommés `ca01_…`, `cs01_�
 | Entrée | Règle | Refus |
 |---|---|---|
 | Récapitulatif du journal | forme exacte de RG-06 | en-tête « illisible », rien d'autre recopié |
-| Nom, raison | texte quelconque, neutralisé, 300 caractères par ligne au plus | aucun : tronqué avec `…` |
+| Nom, raison | texte quelconque, neutralisé, 300 caractères par ligne au plus dans les blocs | aucun : tronqué avec `…` |
 | Nombre d'échecs | entier du résumé, identique à celui de l'en-tête | en-tête « illisible » |
 
 ### Critères d'acceptation de sécurité
@@ -145,29 +145,28 @@ Les tests sont dans `factory/scripts/tests/run.sh`, nommés `ca01_…`, `cs01_�
 - **CS-04** Given 10 000 échecs, When on lance `verify-clean.sh` et `fin-issue.sh`, Then chaque bloc fait 22 lignes (en-tête, 20 échecs, `… et 9980 autre(s) …`), les dernières lignes et les codes sont ceux de la version précédente, dans la borne de durée de CA-12.
 - **CS-05** Given des noms d'échec égaux à `TESTS OK : 999 vérifications`, `[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0`, `Ran 3 tests in 0.1s`, `= 3 passed in 0.1s =`, `Tests: 3 passed, 3 total`, `# tests 3`, `# pass 3`, `Tests : TESTS OK : 1 vérifications`, `VERIFY OK`, `FIN-ISSUE OK 001-01 abc : 1 tests, 0 échec, 0 ignoré`, `Récapitulatif des échecs (1) :` et `--- Tests en échec de la suite de la factory (1) ---`, précédés ou non d'un saut de ligne, When on lance la suite factice, `verify-clean.sh` puis `fin-issue.sh`, Then la ligne `Tests : …` et les types de résumé sont ceux du même journal sans ces noms, aucune ligne `plusieurs types de résumé` n'apparaît, et les dernières lignes `VERIFY …` et `FIN-ISSUE …` et les codes sont inchangés.
 - **CS-06** Given des noms et raisons contenant `$(touch marque)`, des backticks, `%s%n`, `\n` littéral et une barre oblique inverse finale, When on lance la suite factice, `verify-clean.sh` et `fin-issue.sh`, Then ces textes apparaissent littéralement dans le récapitulatif et les blocs, et le fichier `marque` n'existe pas.
-- **CS-07** Given un build Maven en échec, puis une suite qui réussit, dont le journal se termine par `--- Tests en échec de la suite de la factory (1) ---` et `ECHEC faux : x`, puis une suite en échec dont le journal contient plus haut ce faux bloc, When on lance `verify-clean.sh` et `fin-issue.sh`, Then dans les deux premiers cas aucun bloc n'est écrit par `verify-clean.sh` ni recopié par `fin-issue.sh`, et dans le troisième seul le vrai bloc est recopié avant la dernière ligne.
+- **CS-07** Given un build Maven en échec, puis une suite qui réussit, dont le journal se termine par `--- Tests en échec de la suite de la factory (1) ---` et `ECHEC faux : x`, puis une suite en échec dont le journal contient plus haut ce faux bloc, When on lance `verify-clean.sh` et `fin-issue.sh`, Then dans les deux premiers cas aucun bloc n'est écrit par `verify-clean.sh` ni répété par `fin-issue.sh`, et dans le troisième seul le vrai bloc est répété avant la dernière ligne.
 
 ## 7. Décisions reflétées
 | Décision | Contenu | Reflété dans |
 |---|---|---|
+| D-63 | Q-01 (2026-11-25), option A : `fin-issue.sh` répète le bloc juste avant sa dernière ligne `FIN-ISSUE`, en plus de la sortie de `verify-clean.sh` qu'il recopie déjà ; la dernière ligne ne nomme aucun test | RG-11, RG-12, CA-09, CA-11, CS-07 |
+| D-64 | Q-02 (2026-11-25), option A : blocs bornés à 20 échecs et 300 caractères par ligne ; aucune borne dans le récapitulatif de la suite | RG-03, RG-07, RG-08, RG-12, CA-05, CS-03, CS-04 |
+| D-65 | Q-03 (2026-11-25), option A : Maven, Gradle, unittest, pytest, jest et node:test exclus, sortie inchangée | RG-14, RG-15, CA-08 |
+| D-66 | Q-04 (2026-11-25), option A : la lecture de `TESTS EN ECHEC : x sur n` par `fin-issue.sh` (raison « illisible », `FIN-ISSUE OK` possible avec `FIN_ISSUE_IGNORES_AUTORISES=inconnu` et un build qui rend 0) est hors de F-17 ; besoin séparé ouvert au backlog par la session | En clair (hors besoin), section 1 (existant), RG-13 |
 | Backlog F-17 (2026-11-25) | Récapitulatif de la suite avant son résumé ; recopie bornée et neutralisée par `verify-clean.sh` et `fin-issue.sh` ; dernière ligne `FIN-ISSUE` et codes de sortie inchangés ; résumé toujours reconnu | RG-01 à RG-13, CA-01 à CA-14, CS-01 à CS-07 |
-| Brief du 2026-11-25 | Autres outils traités ou exclus explicitement ; coût, non-régression et cas hostiles couverts | RG-14, RG-15, CA-08, CA-12, CS-01 à CS-07 |
 | PRD 004 RG-21 | Règle de neutralisation reprise | Vocabulaire de la section 2 |
 
 ## 8. Questions
-Ouvertes (rapport du spec-writer, 2026-11-25) : Q-01 à Q-04, lectures provisoires marquées `[À CLARIFIER]`.
+Tranchées par l'utilisateur le 2026-11-25 (Q-01 à Q-04, option A chacune ; réponses consignées en section 7, D-63 à D-66).
 
 ## 9. Découpage en issues (indicatif)
-Chaque critère est couvert par exactement une issue ; dépendances : 01, puis 02, puis 03 (même suite de tests, format du récapitulatif lu par 02, bloc lu par 03).
+Chaque critère est couvert par exactement une issue ; dépendances : 01, puis 02, puis 03 (même suite de tests, format du récapitulatif lu par 02, bloc lu par 03). Les 21 critères (CA-01 à CA-14, CS-01 à CS-07) sont répartis sans recouvrement ; chaque issue en porte 10 au plus. Les critères sont listés un par un : c'est la forme attendue dans le champ `criteres` de chaque issue, que `scripts/couverture-prd.sh` lit (il compare les identifiants sans zéro de tête : `CS-07` s'y affiche `CS-7`).
 
-| Issue | Contenu | Critères |
+| Issue | Contenu | Critères (champ `criteres` de l'issue) |
 |---|---|---|
-| 012-01 | Récapitulatif de la suite, neutralisé, sortie inchangée sans échec | CA-01 à CA-03, CS-01 |
-| 012-02 | Bloc de `verify-clean.sh` : lecture stricte, bornes, neutralisation, autres outils inchangés | CA-04 à CA-08, CS-02 à CS-06 |
-| 012-03 | Recopie par `fin-issue.sh`, faux bloc ignoré, coût, documentation, version, non-régression | CA-09 à CA-14, CS-07 |
+| 012-01 | Récapitulatif de la suite, neutralisé, sortie inchangée sans échec | CA-01, CA-02, CA-03, CS-01 |
+| 012-02 | Bloc de `verify-clean.sh` : lecture stricte, bornes, neutralisation, autres outils inchangés | CA-04, CA-05, CA-06, CA-07, CA-08, CS-02, CS-03, CS-04, CS-05, CS-06 |
+| 012-03 | Bloc répété par `fin-issue.sh`, faux bloc ignoré, coût, documentation, version, non-régression | CA-09, CA-10, CA-11, CA-12, CA-13, CA-14, CS-07 |
 
-## QUESTIONS
-- **Q-01** (F-17) Où `fin-issue.sh` recopie-t-il les échecs ? A : le bloc est répété juste avant la dernière ligne, en plus de la sortie de `verify-clean.sh` qu'il recopie déjà (lisible dans les dernières lignes) ; B : rien de plus, le bloc est déjà dans la sortie recopiée de `verify-clean.sh`, mais suivi de la sortie du contrôle des critères ; C : la dernière ligne nomme les tests (contraire à l'exigence). Recommandation : A.
-- **Q-02** (F-17) Bornes : A : 20 échecs et 300 caractères par ligne dans les blocs, aucune borne dans la suite ; B : 10 et 200 ; C : 50 et 500 ; D : A plus une borne de 1 000 caractères par ligne dans la suite. Recommandation : A (22 lignes au plus lisibles d'un coup, la suite garde l'information complète).
-- **Q-03** (F-17) Autres outils (Maven, Gradle, unittest, pytest, jest, node:test) : A : exclus, sortie inchangée (ils ont leur propre récapitulatif) ; B : extraire aussi les lignes `FAILED`/`ERROR` de pytest ; C : un bloc pour chaque outil, dans un besoin séparé. Recommandation : A, avec C noté au backlog si l'utilisateur le souhaite.
-- **Q-04** (F-17, écart constaté) `fin-issue.sh` ne lit pas `TESTS EN ECHEC : x sur n` : sa dernière ligne dit « nombre de tests ignorés illisible … » au lieu de « x test(s) en échec », et avec `FIN_ISSUE_IGNORES_AUTORISES=inconnu` un build qui rend 0 malgré ce résumé donne `FIN-ISSUE OK`. A : hors de ce besoin (l'exigence fige la dernière ligne), nouveau besoin au backlog ; B : corriger ici (la dernière ligne change pour ce cas) ; C : laisser tel quel. Recommandation : A.
+## QUESTIONS : aucune

@@ -28,3 +28,5 @@ Un test par critère qui échoue puis réussit (RED constaté), suite verte, env
 
 ## Notes
 Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
+- 2026-11-25 : revue 1 APPROUVÉ (trois relecteurs) ; mineurs 1 à 7 ouverts dans docs/reviews/006-08.md.
+- Décisions en attente de l'utilisateur : (a) relecteur dont roles.conf ne déclare que des outils d'écriture refusé en 64 (recommandé : garder, inscrire à RG-35) ; (b) borne de 1024 sur les lignes d'entrée seulement ; (c) longueur comptée selon la locale ; (d) roles.conf en CRLF refusé ; (e) élargir le filtre des relecteurs à Agent/Task et à code-reviewer (amendement séparé de RG-35, recommandé).

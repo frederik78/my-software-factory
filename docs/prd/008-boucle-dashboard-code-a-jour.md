@@ -55,7 +55,7 @@ Vocabulaire : **tour** = une génération de la page suivie de l'attente de `<s>
 - **RG-10 (page atomique)** La page n'est jamais lue à moitié écrite ni tronquée : la génération écrit dans un temporaire du même dossier puis le déplace sur la page (comportement actuel, conservé), y compris sur erreur et signal.
 
 ### 2.3 Inchangé
-- **RG-11 (mode une génération)** Sans `--boucle`, le comportement, la sortie standard, la page et les codes de sortie (0, 1, 64) sont inchangés.
+- **RG-11 (mode une génération)** Sans `--boucle`, le comportement, la sortie standard, la page et les codes de sortie (0, 1, 64) sont inchangés, à deux exceptions près (D-62) : une bibliothèque absente ou illisible fait échouer la génération (code 1, aucune page écrite), correction d'un défaut qui écrivait une page incomplète avec le code 0 ; un lien symbolique placé à la place de la page est remplacé par la page, jamais suivi (CS-04).
 - **RG-12 (coût)** Aucun nouvel appel Git, aucun nouveau fichier lu ou écrit hors la page et son temporaire : un tour coûte une génération (un contrôle de statuts, les mêmes appels Git qu'une génération seule). Le démarrage d'un processus par tour est accepté.
 
 ### 2.4 Documentation, version
@@ -134,6 +134,7 @@ Identifiants au format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les 
 ## 7. Décisions reflétées
 | Décision | Contenu | Reflété dans |
 |---|---|---|
+| D-62 | Mode une génération : une bibliothèque absente ou illisible donne le code 1 sans page (correction de défaut) ; un lien symbolique à la place de la page est remplacé, jamais suivi (décision de l'utilisateur, 2026-11-25, revue de 008-02) | RG-11, CS-04 |
 | D-45 | Une génération par tour relancée depuis le disque en processus séparé ; erreur : page gardée, message sur la sortie d'erreur, nouvel essai ; options fixées au lancement ; README remplacé | RG-01 à RG-14, CA-01 à CA-16, CS-01 à CS-05 |
 | D-50 | Q-01 (2026-11-19), option A : le thème issu de la configuration est la valeur résolue au démarrage, fixée comme les options ; une modification de `DASHBOARD_THEME` en cours de boucle n'est pas prise en compte | RG-03, CA-04 |
 | Cadrage (2026-11-19) | Page atomique, jamais tronquée, y compris sur erreur ou Ctrl-C ; aucun nouveau coût Git ; code de sortie du mode une génération inchangé ; tests à durées bornées | RG-10, RG-11, RG-12, CA-06, CA-10, CA-11, CA-14 |

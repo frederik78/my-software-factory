@@ -5,7 +5,7 @@ prd: docs/prd/006-revue-parallele.md
 besoin: F-02
 statut: Fait
 depend_de: [006-01, 006-02]
-criteres: [CA-11, CA-12, CA-13, CA-14, CA-15, CA-16, CA-17, CS-04, CS-07]
+criteres: [CA-11, CA-13, CA-14, CA-15, CA-16, CA-17, CS-04, CS-07]
 branche: feat/006-03-deliver-lancement-et-verdicts
 commits: [989f50a, 33e54fe, 93ece6a]
 revue: APPROUVÉ (itération 3, docs/reviews/006-03.md)

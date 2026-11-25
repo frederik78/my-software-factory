@@ -4,8 +4,8 @@ titre: Documentation, version, tests réunis et non-régression
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
 statut: À faire
-depend_de: [006-01, 006-02, 006-03, 006-04, 006-05, 006-06]
-criteres: [CA-25, CA-26, CA-27, CA-28, CA-29, CA-30, CA-31, CA-32, CA-33]
+depend_de: [006-01, 006-02, 006-03, 006-04, 006-05, 006-06, 006-08]
+criteres: [CA-25, CA-26, CA-27, CA-28, CA-29, CA-30, CA-31, CA-32, CA-33, CA-50]
 branche: feat/006-07-documentation-version-non-regression
 commits: []
 revue:

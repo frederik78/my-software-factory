@@ -5,7 +5,7 @@ prd: docs/prd/006-revue-parallele.md
 besoin: F-02
 statut: Fait
 depend_de: []
-criteres: [CA-01, CA-02, CA-03, CA-04, CS-01, CS-02]
+criteres: [CA-01, CA-02, CA-04, CS-01]
 branche: feat/006-01-configuration-mode-revue-et-enveloppes
 commits: [7a2d54d, 7605edd, 5ba0ea0, faebcff, 11cb2b7, 78383cf]
 revue: APPROUVÉ (itération 2, docs/reviews/006-01.md)

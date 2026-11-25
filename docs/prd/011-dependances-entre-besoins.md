@@ -46,12 +46,13 @@ Vocabulaire : **dépendance d'un besoin** = un identifiant listé dans sa cellul
 - **RG-03 (comparaison exacte)** Un identifiant est comparé comme du texte littéral, sensible à la casse (`F-1` n'est pas `F-10`, `f-01` n'est pas `F-01`), à l'identifiant d'une ligne du tableau. Il n'est jamais un motif, une option, une expression ni un chemin.
 - **RG-04 (cibles)** Une dépendance désigne un besoin connu si son identifiant est celui d'une ligne du tableau, quelle que soit la lisibilité ou le statut de cette ligne (une ligne en E03, E04 ou E05 existe). Sinon le besoin est inconnu.
 - **RG-05 (sources)** Seule la cellule d'un besoin source est lue pour les contrôles de ce PRD : une ligne illisible (E03), à identifiant en double (E04) ou à statut inconnu (E05) est signalée par son propre code et ne produit ni E15 ni A18 (échec sûr : une ligne douteuse ne se juge pas).
-- **RG-06 (limite)** Au plus 64 identifiants sont examinés par cellule (comme les chemins de PRD, PRD 004 RG-04) ; au-delà, E15 « plus de 64 identifiants » (RG-09) et les suivants ne sont pas examinés. Aucune autre limite que la taille du backlog.
+- **RG-06 (limite)** Au plus 64 identifiants sont examinés par cellule (comme les chemins de PRD, PRD 004 RG-04) ; au-delà, E15 « plus de 64 identifiants » (RG-09) et les suivants ne sont pas examinés ; les 64 premiers sont examinés et leurs dépendances inconnues signalées (RG-07, D-61). Aucune autre limite que la taille du backlog.
 
 ### 2.2 Erreur E15 : graphe cassé (D-48)
 - **RG-07 (dépendance inconnue)** Pour chaque dépendance (RG-02) qui désigne un besoin inconnu (RG-04), une erreur E15 sur le besoin source, dans l'ordre de la cellule.
-- **RG-08 (cycle)** Un besoin appartient à un cycle s'il peut s'atteindre lui-même en suivant ses dépendances (un besoin qui dépend de lui-même, deux besoins qui se renvoient l'un à l'autre, trois en boucle, etc.). Chaque besoin source d'un cycle reçoit une erreur E15 qui cite les besoins du cycle (ceux qui s'atteignent mutuellement, dans l'ordre du tableau, 10 au plus puis `…`). Un besoin qui dépend d'un cycle sans en faire partie ne reçoit rien de ce chef. Le statut du besoin est sans effet : un besoin `Fait` ou `Abandonnée` en cycle est signalé.
+- **RG-08 (cycle)** Un besoin appartient à un cycle s'il peut s'atteindre lui-même en suivant ses dépendances (un besoin qui dépend de lui-même, deux besoins qui se renvoient l'un à l'autre, trois en boucle, etc.). Chaque besoin source d'un cycle reçoit une erreur E15 qui cite les besoins du cycle (ceux qui s'atteignent mutuellement, dans l'ordre du tableau, séparés par `, `, 10 au plus puis `, …`, D-61). Un besoin qui dépend d'un cycle sans en faire partie ne reçoit rien de ce chef. Le statut du besoin est sans effet : un besoin `Fait` ou `Abandonnée` en cycle est signalé.
 - **RG-09 (cellule trop longue)** Une cellule de plus de 64 identifiants (RG-06) donne une erreur E15 sur le besoin source.
+- **RG-09 bis (ordre et caractère NUL, D-61)** Les E15 d'un même besoin sont émises dans cet ordre : dépendances inconnues (ordre de la cellule), puis « plus de 64 identifiants », puis cycle. Un caractère NUL dans une ligne du backlog coupe la ligne : elle est illisible (E03, comportement existant de la lecture du backlog), sans E15.
 - **RG-10 (gravité)** E15 est une erreur : code de sortie 1 (PRD 004 RG-20). Les autres constats sur le besoin restent émis.
 
 ### 2.3 Avis A18 : besoin démarré avant ses dépendances (D-48)
@@ -161,6 +162,7 @@ Format `CA-xx` (convention de `scripts/couverture-prd.sh`). Les tests créent de
 | Décision | Contenu | Reflété dans |
 |---|---|---|
 | D-48 | dépendance inconnue ou en cycle = erreur ; besoin démarré dont une dépendance n'est pas `Fait` = avis ; carte « dépend de F-xx (statut) » | RG-07 à RG-12, RG-15, RG-18, CA-03, CA-04, CA-08, CA-15, CA-16 |
+| D-61 | Quatre comportements de 011-01 inscrits : liste d'un cycle séparée par `, ` puis `, …` au-delà de 10 ; ordre des E15 d'un même besoin (inconnus, plus de 64, cycle) ; NUL dans une ligne : E03, pas E15 ; au-delà de 64 identifiants, les 64 premiers sont examinés (décision de l'utilisateur, 2026-11-25) | RG-06, RG-08, RG-09 bis |
 | D-53 | `etat-issues.sh --prochaine` ne tient pas compte des dépendances entre besoins : l'avis A18 suffit (réponse de l'utilisateur à Q-01, 2026-11-19) | RG-14, CA-22 |
 | D-21 (PRD 004) | le contrôle lit l'état courant, en lecture seule, sans rien corriger | RG-20, RG-21, CA-13, CS-04 |
 

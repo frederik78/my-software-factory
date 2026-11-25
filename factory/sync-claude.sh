@@ -79,12 +79,13 @@ if [ -L "$roles_conf" ] || { [ -e "$roles_conf" ] && [ ! -f "$roles_conf" ]; }; 
 fi
 [ -f "$roles_conf" ] || roles_incoherent "$roles_conf introuvable : il décrit les outils, le modèle et l'effort de chaque rôle."
 [ "$(wc -c < "$roles_conf" | tr -d ' ')" -le 65536 ] || roles_incoherent "$roles_conf dépasse 64 Kio."
+ligne_invalide="ligne invalide (1024 caractères au plus, aucun caractère de contrôle autre que la tabulation)."
 nb_roles=0; numero=0
 while IFS= read -r ligne || [ -n "$ligne" ]; do
   numero=$((numero + 1))
   sans_blancs "$ligne"; case "$SANS_BLANCS" in ''|'#'*) continue ;; esac
-  [ "${#ligne}" -le 1024 ] || roles_refus "$numero" "ligne invalide (1024 caractères au plus, aucun caractère de contrôle autre que la tabulation)."
-  case "${ligne//$'\t'/}" in *[[:cntrl:]]*) roles_refus "$numero" "ligne invalide (1024 caractères au plus, aucun caractère de contrôle autre que la tabulation)." ;; esac
+  [ "${#ligne}" -le 1024 ] || roles_refus "$numero" "$ligne_invalide"
+  case "${ligne//$'\t'/}" in *[[:cntrl:]]*) roles_refus "$numero" "$ligne_invalide" ;; esac
   separateurs="${ligne//[!|]/}"
   [ "${#separateurs}" -eq 3 ] || roles_refus "$numero" "quatre champs séparés par | attendus (rôle | outils | modèle | effort)."
   sans_blancs "${ligne%%|*}"; role="$SANS_BLANCS"; reste="${ligne#*|}"
@@ -106,17 +107,17 @@ while IFS= read -r ligne || [ -n "$ligne" ]; do
     outils="$(sans_ecriture "$outils")"
     [ -n "$outils" ] || roles_refus "$numero" "outils invalides pour un relecteur (aucun outil hors Write, Edit, MultiEdit et NotebookEdit)."
   fi
-  roles_nom[nb_roles]="$role"; roles_outils[nb_roles]="$outils"; roles_modele[nb_roles]="$modele"; roles_effort[nb_roles]="$effort"; roles_pris[nb_roles]=
+  noms_roles[nb_roles]="$role"; outils_roles[nb_roles]="$outils"; modeles_roles[nb_roles]="$modele"; efforts_roles[nb_roles]="$effort"; pris_roles[nb_roles]=
   nb_roles=$((nb_roles + 1))
 done < "$roles_conf"
 entree_du_role() { # entree_du_role <rôle> : range dans ENTREE l'indice de l'entrée du rôle ; code 1 s'il n'en a pas
   ENTREE=0
-  while [ "$ENTREE" -lt "$nb_roles" ]; do [ "${roles_nom[ENTREE]}" = "$1" ] && return 0; ENTREE=$((ENTREE + 1)); done
+  while [ "$ENTREE" -lt "$nb_roles" ]; do [ "${noms_roles[ENTREE]}" = "$1" ] && return 0; ENTREE=$((ENTREE + 1)); done
   return 1
 }
 i=0
 while [ "$i" -lt "$nb_roles" ]; do
-  entree_du_role "${roles_nom[i]}"; [ "$ENTREE" -eq "$i" ] || roles_incoherent "$roles_conf : deux entrées pour le rôle ${roles_nom[i]}."
+  entree_du_role "${noms_roles[i]}"; [ "$ENTREE" -eq "$i" ] || roles_incoherent "$roles_conf : deux entrées pour le rôle ${noms_roles[i]}."
   i=$((i + 1))
 done
 
@@ -131,13 +132,13 @@ for prompt in factory/prompts/*.md; do
   desc="$(champ "$prompt" description)"
   [ -n "$desc" ] || { echo "En-tête incomplet (description requise) : $prompt" >&2; exit 1; }
   entree_du_role "$nom" || roles_incoherent "$prompt n'a pas d'entrée de rôle dans $roles_conf."
-  roles_pris[ENTREE]=oui
+  pris_roles[ENTREE]=oui
   agents_entree[nb_agents]="$ENTREE"; agents_desc[nb_agents]="$desc"; agents_skills[nb_agents]="$(champ "$prompt" skills)"
   nb_agents=$((nb_agents + 1))
 done
 i=0
 while [ "$i" -lt "$nb_roles" ]; do
-  [ -n "${roles_pris[i]}" ] || roles_incoherent "$roles_conf : le rôle ${roles_nom[i]} n'est le name: d'aucun prompt de factory/prompts/."
+  [ -n "${pris_roles[i]}" ] || roles_incoherent "$roles_conf : le rôle ${noms_roles[i]} n'est le name: d'aucun prompt de factory/prompts/."
   i=$((i + 1))
 done
 
@@ -153,9 +154,9 @@ mkdir -p .claude/agents
 generes=()
 a=0
 while [ "$a" -lt "$nb_agents" ]; do
-  e="${agents_entree[a]}"; nom="${roles_nom[e]}"; desc="${agents_desc[a]}"; skills="${agents_skills[a]}"; outils="${roles_outils[e]}"
+  e="${agents_entree[a]}"; nom="${noms_roles[e]}"; desc="${agents_desc[a]}"; skills="${agents_skills[a]}"; outils="${outils_roles[e]}"
   # Précédence d'un relecteur : sa clé de configuration, puis son entrée de roles.conf, puis AGENT_MODELE / AGENT_EFFORT (exception à « l'entrée l'emporte »).
-  modele="${roles_modele[e]}"; effort="${roles_effort[e]}"; role="$(relecteur "$nom")"
+  modele="${modeles_roles[e]}"; effort="${efforts_roles[e]}"; role="$(relecteur "$nom")"
   if [ -n "$role" ]; then
     surcharge="modele_surcharge_$role"; [ -z "${!surcharge}" ] || modele="${!surcharge}"
     surcharge="effort_surcharge_$role"; [ -z "${!surcharge}" ] || effort="${!surcharge}"

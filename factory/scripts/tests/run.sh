@@ -5281,8 +5281,8 @@ d="$(depot_sync s-relecteurs-base)"; cd "$d" || exit 1
 ./factory/sync-claude.sh >/dev/null 2>&1; cp .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"
 d="$(depot_sync s-relecteurs-livres)"; cd "$d" || exit 1
 printf 'AGENT_MODELE=sonnet\nAGENT_EFFORT=medium\n' > .factory.conf
-ca03_livres() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent code-reviewer-conformite 'effort: medium' && champ_agent code-reviewer-qualite 'model: sonnet' && champ_agent code-reviewer-qualite 'effort: medium' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-securite 'effort: high' && cmp -s .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"; }
-verifier "ca03_prompts_et_roles_conf_livres_agent_modele_sonnet_agent_effort_medium_securite_opus_high_conformite_et_qualite_sonnet_medium_code_reviewer_inchange" 0 "" ca03_livres
+ca03_livres() { ./factory/sync-claude.sh >/dev/null 2>&1 && champ_agent code-reviewer-conformite 'model: sonnet' && champ_agent code-reviewer-conformite 'effort: medium' && champ_agent code-reviewer-qualite 'model: sonnet' && champ_agent code-reviewer-qualite 'effort: medium' && champ_agent code-reviewer-securite 'model: opus' && champ_agent code-reviewer-securite 'effort: high' && { [ -z "${1:-}" ] || cmp -s .claude/agents/code-reviewer.md "$p/code-reviewer-avant.md"; }; }
+verifier "ca03_prompts_et_roles_conf_livres_agent_modele_sonnet_agent_effort_medium_securite_opus_high_conformite_et_qualite_sonnet_medium_code_reviewer_inchange" 0 "" ca03_livres inchange
 printf 'AGENT_MODELE=haiku\nAGENT_EFFORT=low\n' > .factory.conf
 verifier "ca03_roles_conf_livre_l_emporte_sur_agent_modele_haiku_et_agent_effort_low_pour_les_relecteurs" 0 "" ca03_livres
 rm -f .factory.conf
@@ -5439,7 +5439,7 @@ verifier "ca10_brief_relecteurs_dit_lecture_seule" 0 "" rl_a $rl_b "[Ll]ecture s
 verifier "ca10_brief_relecteurs_renvoie_au_format_de_rapport_du_relecteur" 0 "" rl_a $rl_b "report-format\.md.*relecteur"
 verifier "ca10_brief_relecteurs_dit_que_seule_la_conformite_lance_build_criteres_mutations" 0 "" rl_a $rl_b "[Ss]eul.*conformité.*lance.*verify-clean.*criteres-sans-test.*mutations"
 verifier "ca10_brief_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/briefs/reviewer.md)" = "d19b205665e473552e8374094673ab9713ebf5318ece2145b6d497db7757a6b9"
-verifier "ca10_prompt_code_reviewer_est_inchange_octet_pour_octet" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "41c2f6c5670259f11c826d565d4f3a451f88f8aea629a93c733f7ecf0a5d87a5"
+verifier "ca10_prompt_code_reviewer_est_inchange_octet_pour_octet_hors_la_ligne_tools_retiree_par_d60" 0 "" test "$(rl_empreinte factory/prompts/code-reviewer.md)" = "eb5951937275a1aea267a642ffb8bc41dcb2f5b29740945d0c8d07a1d40b552e"
 
 # CS-03 : lecture seule.
 for f in $rl_c $rl_q $rl_s; do
@@ -6630,10 +6630,10 @@ rc8_noms_prompts() { # noms (name:) des prompts de factory/prompts/ du dépôt, 
   local f
   if depot_git "$depot"; then git -C "$depot" ls-tree --name-only HEAD factory/prompts/ | grep '\.md$'; else (cd "$depot" && ls factory/prompts/*.md); fi | while IFS= read -r f; do
     lire_depot "$depot" "$f" | awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit } NR > 1 && /^name:/ { sub(/^name:[[:space:]]*/, ""); print; exit }'
-  done | sort
+  done | LC_ALL=C sort
 }
 rc8_attendu="$(printf '%s\n' 'code-reviewer|Read, Glob, Grep, Bash||' 'code-reviewer-conformite|Read, Glob, Grep, Bash|sonnet|medium' 'code-reviewer-qualite|Read, Glob, Grep, Bash|sonnet|medium' 'code-reviewer-securite|Read, Glob, Grep, Bash|opus|high' 'developer|Read, Write, Edit, Glob, Grep, Bash||' 'spec-writer|Read, Write, Glob, Grep||')"
-verifier "ca43_roles_conf_livre_une_entree_par_role_avec_outils_modele_et_effort_d_avant_d60" 0 "" test "$(lire_depot "$depot" $rc8_conf | rc8_normaliser | sort)" = "$rc8_attendu"
+verifier "ca43_roles_conf_livre_une_entree_par_role_avec_outils_modele_et_effort_d_avant_d60" 0 "" test "$(lire_depot "$depot" $rc8_conf | rc8_normaliser | LC_ALL=C sort)" = "$(printf '%s\n' "$rc8_attendu" | LC_ALL=C sort)"
 verifier "ca43_roles_conf_livre_chaque_entree_a_exactement_quatre_champs" 0 "" test "$(lire_depot "$depot" $rc8_conf | grep -v '^[[:space:]]*\(#\|$\)' | awk -F'|' 'NF != 4' | wc -l | tr -d ' ')" = 0 -a -n "$(lire_depot "$depot" $rc8_conf)"
 verifier "ca43_les_roles_de_roles_conf_sont_exactement_les_name_des_prompts" 0 "" test "$(rc8_noms_prompts | tr '\n' ' ')" = "$rc8_roles_livres "
 d="$(rc8_depot ca43)"; cd "$d" || exit 1
@@ -6816,6 +6816,9 @@ verifier "cs02_roles_conf_nom_d_outil_de_64_caracteres_accepte" 0 "" rc8_accepte
 rc8_l1024="developer | Read |$(printf ' %.0s' $(seq 1 1005))|"
 verifier "cs02_roles_conf_ligne_de_1024_caracteres_acceptee" 0 "" eval '[ "${#rc8_l1024}" -eq 1024 ] && rc8_accepte "$rc8_l1024"'
 verifier "cs02_roles_conf_ligne_de_1025_caracteres_refusee" 0 "" rc8_hostile "$rc8_l1024 " "" "$rc8_m_ligne"
+# Comportement choisi (non fixé par le PRD) : un relecteur dont l'entrée ne déclare que des outils d'écriture n'aurait plus aucun outil : refusé (64).
+rc8_relecteur_vide() { cp "$racine_tmp/rc8-conf-livre" "$rc8_conf"; rc8_entree code-reviewer-securite 'code-reviewer-securite | Write, Edit | opus | high'; rc8_refus 64 "Erreur : factory/claude/roles.conf, ligne $(grep -n '^code-reviewer-securite' "$rc8_conf" | cut -d: -f1) : outils invalides pour un relecteur (aucun outil hors Write, Edit, MultiEdit et NotebookEdit)."; }
+verifier "cs02_roles_conf_relecteur_sans_autre_outil_que_l_ecriture_64_rien_ecrit" 0 "" rc8_relecteur_vide
 cp "$racine_tmp/rc8-conf-livre" "$rc8_conf"
 
 echo

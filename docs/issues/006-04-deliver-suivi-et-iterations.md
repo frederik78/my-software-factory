@@ -3,12 +3,12 @@ id: 006-04
 titre: Skill deliver : suivi fusionné, itérations, tour final et arrêt
 prd: docs/prd/006-revue-parallele.md
 besoin: F-02
-statut: En revue
+statut: Fait
 depend_de: [006-03]
 criteres: [CA-18, CA-19, CA-20, CA-21, CA-22, CA-23, CA-24, CA-42, CS-05, CS-08]
 branche: feat/006-04-deliver-suivi-et-iterations
-commits: []
-revue: CHANGEMENTS DEMANDÉS (itération 1, docs/reviews/006-04.md)
+commits: [f9e81a2, 833ff90, e96dcea, 2b5d1e9, 6761e9c]
+revue: APPROUVÉ (itération 2, docs/reviews/006-04.md)
 ---
 
 ## Objectif
@@ -36,3 +36,4 @@ Décisions et écarts survenus pendant la livraison (une ligne chacun, datée).
 - 2026-11-24 : revue 1, constat 1 : `docs/reviews/006-91.md` (fixture ajoutée par erreur en a4b6dbd par mon lanceur réduit, qui n'avait pas le dépôt jetable) retiré ; la suite complète l'écrit dans un dépôt jetable.
 - 2026-11-24 : D-55 (décision de l'utilisateur) : le tour final s'ajoute à `MAX_ITERATIONS_REVUE` (revue n° MAX + 1) quand les itérations précédentes ont atteint la limite avec un verdict global APPROUVÉ ; sinon D-39 inchangé ; s'il échoue, règle d'arrêt (pas de relance du developer). Étape 3 ter et tests de CA-21 adaptés (PRD amendé sur docs/prd-006-tour-final-hors-limite, a4c04f4).
 - 2026-11-24 : FIN-ISSUE OK 006-04 2b5d1e9 : 2422 tests, 0 échec, 0 ignoré (un premier passage de fin-issue.sh avait échoué sur 1 cas non identifié dans la copie propre, pendant des builds concurrents d'autres agents ; `run.sh` direct 2430 OK, `verify-clean.sh` OK, puis fin-issue OK au rejeu : cas probablement instable sous charge, déjà signalé à la revue 3 de 006-03).
+- 2026-11-25 : revue 2 APPROUVÉ ; FIN-ISSUE OK 006-04 7ce4378 : 2422 tests, 0 échec, 0 ignoré.
